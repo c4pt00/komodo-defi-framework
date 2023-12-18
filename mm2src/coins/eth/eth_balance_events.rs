@@ -1,14 +1,19 @@
 use async_trait::async_trait;
 use common::{executor::{AbortSettings, SpawnAbortable, Timer},
-             log};
+             log, Future01CompatExt};
+use ethereum_types::Address;
 use futures::channel::oneshot::{self, Receiver, Sender};
 use futures_util::StreamExt;
 use mm2_core::mm_ctx::MmArc;
 use mm2_event_stream::{behaviour::{EventBehaviour, EventInitStatus},
                        EventStreamConfiguration};
+use mm2_number::BigDecimal;
 
 use super::EthCoin;
-use crate::MmCoin;
+use crate::{eth::u256_to_big_decimal, MmCoin};
+
+/// Type map for list of (ticker, address, decimals) values
+type AddressList = Vec<(String, Address, u8)>;
 
 #[async_trait]
 impl EventBehaviour for EthCoin {
@@ -17,9 +22,32 @@ impl EventBehaviour for EthCoin {
     async fn handle(self, interval: f64, tx: oneshot::Sender<EventInitStatus>) {
         const RECEIVER_DROPPED_MSG: &str = "Receiver is dropped, which should never happen.";
 
-        // TODO
-        async fn with_socket() {}
-        async fn with_polling() {}
+        async fn with_socket(_coin: EthCoin, _ctx: MmArc) { todo!() }
+
+        async fn with_polling(coin: EthCoin, ctx: MmArc, interval: f64) {
+            loop {
+                let mut addresses_info: AddressList = coin
+                    .get_erc_tokens_infos()
+                    .into_iter()
+                    .map(|(ticker, info)| (ticker, info.token_address, info.decimals))
+                    .collect();
+
+                addresses_info.push((coin.ticker.clone(), coin.my_address, coin.decimals));
+
+                for (ticker, address, decimals) in addresses_info {
+                    let balance = coin.address_balance(address).compat().await.unwrap();
+                    let balance = u256_to_big_decimal(balance, decimals).unwrap();
+
+                    let _ = json!({
+                        "ticker": ticker,
+                        "balance": { "spendable": balance, "unspendable": BigDecimal::default() }
+                    });
+                }
+
+                // TODO: subtract the time complexity
+                Timer::sleep(interval).await;
+            }
+        }
 
         let ctx = match MmArc::from_weak(&self.ctx) {
             Some(ctx) => ctx,
@@ -30,6 +58,8 @@ impl EventBehaviour for EthCoin {
                 panic!("{}", msg);
             },
         };
+
+        with_polling(self, ctx, interval).await
     }
 
     async fn spawn_if_active(self, config: &EventStreamConfiguration) -> EventInitStatus {
