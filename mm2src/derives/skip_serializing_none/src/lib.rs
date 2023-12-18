@@ -72,55 +72,46 @@ where
     }
 }
 
+fn is_serialize_always(attr: &syn::Attribute) -> Result<bool, String> {
+    attr.parse_meta()
+        .map_err(|e| e.to_string())
+        .map(|meta| meta.path().is_ident("serialize_always"))
+}
+
 fn skip_serializing_none_add_attr_to_field(field: &mut Field) -> Result<(), String> {
-    if is_std_option(&field.ty) {
-        let has_skip_serializing_if = field_has_attribute(field, "serde", "skip_serializing_if");
-
-        let mut has_always_attr = false;
-        for attr in field.clone().attrs {
-            let has_attr = attr
-                .parse_meta()
-                .map_err(|e| e.to_string())?
-                .path()
-                .is_ident("serialize_always");
-
-            has_always_attr |= has_attr;
-
-            if !has_attr {
-                field.attrs.retain(|ele| *ele == attr);
-            }
-        }
-
-        if has_always_attr && has_skip_serializing_if {
-            let mut msg = r#"The attributes `serialize_always` and `serde(skip_serializing_if = "...")` cannot be used on the same field"#.to_string();
-            if let Some(ident) = &field.ident {
-                msg += ": `";
-                msg += &ident.to_string();
-                msg += "`";
-            }
-            msg += ".";
-            return Err(msg);
-        }
-
-        if has_skip_serializing_if || has_always_attr {
-            return Ok(());
-        }
-
-        let attr = parse_quote!(
-            #[serde(skip_serializing_if = "Option::is_none")]
-        );
-        field.attrs.push(attr);
-    } else {
+    if !is_std_option(&field.ty) {
         for attr in field.attrs.iter() {
-            if attr
-                .parse_meta()
-                .map_err(|e| e.to_string())?
-                .path()
-                .is_ident("serialize_always")
-            {
+            if is_serialize_always(attr)? {
                 return Err("`serialize_always` may only be used on fields of type `Option`.".into());
             }
         }
+        return Ok(());
+    }
+    let has_skip_serializing_if = field_has_attribute(field, "serde", "skip_serializing_if");
+    let mut has_always_attr = false;
+    let mut attrs_to_retain = Vec::new();
+    for attr in &field.attrs {
+        let has_attr = is_serialize_always(attr)?;
+        has_always_attr |= has_attr;
+        if !has_attr {
+            attrs_to_retain.push(attr.clone());
+        }
+    }
+    field.attrs = attrs_to_retain;
+    if has_always_attr && has_skip_serializing_if {
+        let mut msg = r#"The attributes `serialize_always` and `serde(skip_serializing_if = "...")` cannot be used on the same field"#.to_string();
+        if let Some(ident) = &field.ident {
+            msg += ": `";
+            msg += &ident.to_string();
+            msg += "`";
+        }
+        msg += ".";
+        return Err(msg);
+    }
+    if !has_skip_serializing_if && !has_always_attr {
+        field.attrs.push(parse_quote!(
+            #[serde(skip_serializing_if = "Option::is_none")]
+        ));
     }
     Ok(())
 }
