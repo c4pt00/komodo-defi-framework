@@ -26,6 +26,8 @@ impl EventBehaviour for EthCoin {
 
         async fn with_polling(coin: EthCoin, ctx: MmArc, interval: f64) {
             loop {
+                // TODO:
+                // Do not re-compute this over and over
                 let mut addresses_info: AddressList = coin
                     .get_erc_tokens_infos()
                     .into_iter()
