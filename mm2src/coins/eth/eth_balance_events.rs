@@ -1,20 +1,16 @@
-use std::collections::BTreeMap;
-
 use async_trait::async_trait;
 use common::{executor::{AbortSettings, SpawnAbortable, Timer},
              log, Future01CompatExt};
-use ethereum_types::Address;
 use futures::channel::oneshot::{self, Receiver, Sender};
 use mm2_core::mm_ctx::MmArc;
 use mm2_event_stream::{behaviour::{EventBehaviour, EventInitStatus},
                        Event, EventStreamConfiguration};
 use mm2_number::BigDecimal;
+use std::collections::BTreeMap;
 
 use super::EthCoin;
-use crate::{eth::u256_to_big_decimal, MmCoin};
-
-/// Type map for list of (ticker, address, decimals) values
-type AddressList = Vec<(String, Address, u8)>;
+use crate::{eth::{u256_to_big_decimal, Erc20TokenInfo},
+            MmCoin};
 
 #[async_trait]
 impl EventBehaviour for EthCoin {
@@ -29,22 +25,25 @@ impl EventBehaviour for EthCoin {
             let mut cache: BTreeMap<String, BigDecimal> = BTreeMap::new();
 
             loop {
-                // TODO:
-                // Do not re-compute this over and over
-                let mut addresses_info: AddressList = coin
-                    .get_erc_tokens_infos()
-                    .into_iter()
-                    .map(|(ticker, info)| (ticker, info.token_address, info.decimals))
-                    .collect();
-
-                addresses_info.push((coin.ticker.clone(), coin.my_address, coin.decimals));
+                let mut tokens = coin.get_erc_tokens_infos();
+                // Workaround for performance purposes.
+                //
+                // Unlike tokens, the platform coin length is constant (=1). Instead of creating a generic
+                // type and mapping the platform coin and the entire token list (which can grow at any time), we map
+                // the platform coin to Erc20TokenInfo so that we can use the token list right away without
+                // additional mapping.
+                tokens.insert(coin.ticker.clone(), Erc20TokenInfo {
+                    token_address: coin.my_address,
+                    decimals: coin.decimals,
+                });
 
                 let mut balance_updates = vec![];
-                for (ticker, address, decimals) in addresses_info {
-                    let balance = coin.address_balance(address).compat().await.unwrap();
-                    let balance = u256_to_big_decimal(balance, decimals).unwrap();
+                // TODO: concurrent loop
+                for (ticker, info) in &tokens {
+                    let balance = coin.address_balance(info.token_address).compat().await.unwrap();
+                    let balance = u256_to_big_decimal(balance, info.decimals).unwrap();
 
-                    if Some(&balance) == cache.get(&ticker) {
+                    if Some(&balance) == cache.get(ticker) {
                         continue;
                     }
 
@@ -52,7 +51,7 @@ impl EventBehaviour for EthCoin {
                         "ticker": ticker,
                         "balance": { "spendable": balance, "unspendable": BigDecimal::default() }
                     }));
-                    cache.insert(ticker, balance);
+                    cache.insert(ticker.to_owned(), balance);
                 }
 
                 if !balance_updates.is_empty() {
