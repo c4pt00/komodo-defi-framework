@@ -1,12 +1,13 @@
+use std::collections::BTreeMap;
+
 use async_trait::async_trait;
 use common::{executor::{AbortSettings, SpawnAbortable, Timer},
              log, Future01CompatExt};
 use ethereum_types::Address;
 use futures::channel::oneshot::{self, Receiver, Sender};
-use futures_util::StreamExt;
 use mm2_core::mm_ctx::MmArc;
 use mm2_event_stream::{behaviour::{EventBehaviour, EventInitStatus},
-                       EventStreamConfiguration};
+                       Event, EventStreamConfiguration};
 use mm2_number::BigDecimal;
 
 use super::EthCoin;
@@ -25,6 +26,8 @@ impl EventBehaviour for EthCoin {
         async fn with_socket(_coin: EthCoin, _ctx: MmArc) { todo!() }
 
         async fn with_polling(coin: EthCoin, ctx: MmArc, interval: f64) {
+            let mut cache: BTreeMap<String, BigDecimal> = BTreeMap::new();
+
             loop {
                 // TODO:
                 // Do not re-compute this over and over
@@ -36,14 +39,29 @@ impl EventBehaviour for EthCoin {
 
                 addresses_info.push((coin.ticker.clone(), coin.my_address, coin.decimals));
 
+                let mut balance_updates = vec![];
                 for (ticker, address, decimals) in addresses_info {
                     let balance = coin.address_balance(address).compat().await.unwrap();
                     let balance = u256_to_big_decimal(balance, decimals).unwrap();
 
-                    let _ = json!({
+                    if Some(&balance) == cache.get(&ticker) {
+                        continue;
+                    }
+
+                    balance_updates.push(json!({
                         "ticker": ticker,
                         "balance": { "spendable": balance, "unspendable": BigDecimal::default() }
-                    });
+                    }));
+                    cache.insert(ticker, balance);
+                }
+
+                if !balance_updates.is_empty() {
+                    ctx.stream_channel_controller
+                        .broadcast(Event::new(
+                            EthCoin::EVENT_NAME.to_string(),
+                            json!(balance_updates).to_string(),
+                        ))
+                        .await;
                 }
 
                 // TODO: subtract the time complexity
@@ -60,6 +78,8 @@ impl EventBehaviour for EthCoin {
                 panic!("{}", msg);
             },
         };
+
+        tx.send(EventInitStatus::Success).expect(RECEIVER_DROPPED_MSG);
 
         with_polling(self, ctx, interval).await
     }

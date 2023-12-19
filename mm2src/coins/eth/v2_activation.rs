@@ -4,6 +4,7 @@ use common::executor::AbortedError;
 use crypto::{CryptoCtxError, StandardHDCoinAddress};
 use enum_from::EnumFromTrait;
 use mm2_err_handle::common_errors::WithInternal;
+use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
 #[cfg(target_arch = "wasm32")]
 use mm2_metamask::{from_metamask_error, MetamaskError, MetamaskRpcError, WithMetamaskRpcError};
 
@@ -28,6 +29,8 @@ pub enum EthActivationV2Error {
     #[display(fmt = "Error deserializing 'derivation_path': {}", _0)]
     ErrorDeserializingDerivationPath(String),
     PrivKeyPolicyNotAllowed(PrivKeyPolicyNotAllowed),
+    #[display(fmt = "Failed spawning balance events. Error: {_0}")]
+    FailedSpawningBalanceEvents(String),
     #[cfg(target_arch = "wasm32")]
     #[from_trait(WithMetamaskRpcError::metamask_rpc_error)]
     #[display(fmt = "{}", _0)]
@@ -293,8 +296,10 @@ pub async fn eth_coin_from_conf_and_request_v2(
 
     let sign_message_prefix: Option<String> = json::from_value(conf["sign_message_prefix"].clone()).ok();
 
-    let mut map = NONCE_LOCK.lock().unwrap();
-    let nonce_lock = map.entry(ticker.clone()).or_insert_with(new_nonce_lock).clone();
+    let nonce_lock = {
+        let mut map = NONCE_LOCK.lock().unwrap();
+        map.entry(ticker.clone()).or_insert_with(new_nonce_lock).clone()
+    };
 
     // Create an abortable system linked to the `MmCtx` so if the app is stopped on `MmArc::stop`,
     // all spawned futures related to `ETH` coin will be aborted as well.
@@ -325,7 +330,14 @@ pub async fn eth_coin_from_conf_and_request_v2(
         abortable_system,
     };
 
-    Ok(EthCoin(Arc::new(coin)))
+    let coin = EthCoin(Arc::new(coin));
+    if let Some(stream_config) = &ctx.event_stream_configuration {
+        if let EventInitStatus::Failed(err) = EventBehaviour::spawn_if_active(coin.clone(), stream_config).await {
+            return MmError::err(EthActivationV2Error::FailedSpawningBalanceEvents(err));
+        }
+    }
+
+    Ok(coin)
 }
 
 /// Processes the given `priv_key_policy` and generates corresponding `KeyPair`.
