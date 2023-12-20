@@ -18,7 +18,7 @@ use crate::{eth::{u256_to_big_decimal, Erc20TokenInfo},
 /// This implementation differs from others, as they immediately return
 /// an error if any of the requests fails. This one completes all futures
 /// and returns their results individually.
-async fn get_individual_balance_results_concurrently(
+async fn get_all_balance_results_concurrently(
     coin: &EthCoin,
 ) -> Vec<Result<(String, BigDecimal), MmError<BalanceError>>> {
     let mut tokens = coin.get_erc_tokens_infos();
@@ -67,7 +67,7 @@ impl EventBehaviour for EthCoin {
             loop {
 
                 let mut balance_updates = vec![];
-                for result in get_individual_balance_results_concurrently(&coin).await {
+                for result in get_all_balance_results_concurrently(&coin).await {
                     match result {
                         Ok((ticker, balance)) => {
                             if Some(&balance) == cache.get(&ticker) {
