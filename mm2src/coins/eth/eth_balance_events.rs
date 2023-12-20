@@ -10,6 +10,7 @@ use mm2_event_stream::{behaviour::{EventBehaviour, EventInitStatus},
                        Event, EventStreamConfiguration};
 use mm2_number::BigDecimal;
 use std::collections::BTreeMap;
+use tokio::time::Instant;
 
 use super::EthCoin;
 use crate::{eth::{u256_to_big_decimal, Erc20TokenInfo},
@@ -65,6 +66,7 @@ impl EventBehaviour for EthCoin {
             let mut cache: BTreeMap<String, BigDecimal> = BTreeMap::new();
 
             loop {
+                let now = Instant::now();
 
                 let mut balance_updates = vec![];
                 for result in get_all_balance_results_concurrently(&coin).await {
@@ -96,8 +98,15 @@ impl EventBehaviour for EthCoin {
                         .await;
                 }
 
-                // TODO: subtract the time complexity
-                Timer::sleep(interval).await;
+                // If the interval is x seconds, our goal is to broadcast changed balances every x seconds.
+                // To achieve this, we need to subtract the time complexity of each iteration.
+                // Given that an iteration already takes 80% of the interval, this will lead to inconsistency
+                // in the events.
+                let remaining_time = interval - now.elapsed().as_secs_f64();
+                // Not worth to make a call for less than `0.1` durations
+                if remaining_time >= 0.1 {
+                    Timer::sleep(remaining_time).await;
+                }
             }
         }
 
