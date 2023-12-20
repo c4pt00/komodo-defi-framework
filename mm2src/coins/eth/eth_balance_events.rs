@@ -1,8 +1,11 @@
 use async_trait::async_trait;
 use common::{executor::{AbortSettings, SpawnAbortable, Timer},
              log, Future01CompatExt};
-use futures::channel::oneshot::{self, Receiver, Sender};
+use futures::{channel::oneshot::{self, Receiver, Sender},
+              stream::FuturesUnordered,
+              StreamExt};
 use mm2_core::mm_ctx::MmArc;
+use mm2_err_handle::prelude::MmError;
 use mm2_event_stream::{behaviour::{EventBehaviour, EventInitStatus},
                        Event, EventStreamConfiguration};
 use mm2_number::BigDecimal;
@@ -10,7 +13,44 @@ use std::collections::BTreeMap;
 
 use super::EthCoin;
 use crate::{eth::{u256_to_big_decimal, Erc20TokenInfo},
-            MmCoin};
+            BalanceError, MmCoin};
+
+/// This implementation differs from others, as they immediately return
+/// an error if any of the requests fails. This one completes all futures
+/// and returns their results individually.
+async fn get_individual_balance_results_concurrently(
+    coin: &EthCoin,
+) -> Vec<Result<(String, BigDecimal), MmError<BalanceError>>> {
+    let mut tokens = coin.get_erc_tokens_infos();
+
+    // Workaround for performance purposes.
+    //
+    // Unlike tokens, the platform coin length is constant (=1). Instead of creating a generic
+    // type and mapping the platform coin and the entire token list (which can grow at any time), we map
+    // the platform coin to Erc20TokenInfo so that we can use the token list right away without
+    // additional mapping.
+    tokens.insert(coin.ticker.clone(), Erc20TokenInfo {
+        token_address: coin.my_address,
+        decimals: coin.decimals,
+    });
+
+    let jobs = tokens
+        .into_iter()
+        .map(|(token_ticker, info)| async move {
+            if token_ticker == coin.ticker {
+                let balance_as_u256 = coin.address_balance(coin.my_address).compat().await?;
+                let balance_as_big_decimal = u256_to_big_decimal(balance_as_u256, coin.decimals)?;
+                Ok((coin.ticker.clone(), balance_as_big_decimal))
+            } else {
+                let balance_as_u256 = coin.get_token_balance_by_address(info.token_address).await?;
+                let balance_as_big_decimal = u256_to_big_decimal(balance_as_u256, info.decimals)?;
+                Ok((token_ticker, balance_as_big_decimal))
+            }
+        })
+        .collect::<FuturesUnordered<_>>();
+
+    jobs.collect().await
+}
 
 #[async_trait]
 impl EventBehaviour for EthCoin {
@@ -25,33 +65,26 @@ impl EventBehaviour for EthCoin {
             let mut cache: BTreeMap<String, BigDecimal> = BTreeMap::new();
 
             loop {
-                let mut tokens = coin.get_erc_tokens_infos();
-                // Workaround for performance purposes.
-                //
-                // Unlike tokens, the platform coin length is constant (=1). Instead of creating a generic
-                // type and mapping the platform coin and the entire token list (which can grow at any time), we map
-                // the platform coin to Erc20TokenInfo so that we can use the token list right away without
-                // additional mapping.
-                tokens.insert(coin.ticker.clone(), Erc20TokenInfo {
-                    token_address: coin.my_address,
-                    decimals: coin.decimals,
-                });
 
                 let mut balance_updates = vec![];
-                // TODO: concurrent loop
-                for (ticker, info) in &tokens {
-                    let balance = coin.address_balance(info.token_address).compat().await.unwrap();
-                    let balance = u256_to_big_decimal(balance, info.decimals).unwrap();
+                for result in get_individual_balance_results_concurrently(&coin).await {
+                    match result {
+                        Ok((ticker, balance)) => {
+                            if Some(&balance) == cache.get(&ticker) {
+                                continue;
+                            }
 
-                    if Some(&balance) == cache.get(ticker) {
-                        continue;
-                    }
-
-                    balance_updates.push(json!({
-                        "ticker": ticker,
-                        "balance": { "spendable": balance, "unspendable": BigDecimal::default() }
-                    }));
-                    cache.insert(ticker.to_owned(), balance);
+                            balance_updates.push(json!({
+                                "ticker": ticker,
+                                "balance": { "spendable": balance, "unspendable": BigDecimal::default() }
+                            }));
+                            cache.insert(ticker.to_owned(), balance);
+                        },
+                        Err(_e) => {
+                            // TODO:
+                            // broadcast an error event here
+                        },
+                    };
                 }
 
                 if !balance_updates.is_empty() {
