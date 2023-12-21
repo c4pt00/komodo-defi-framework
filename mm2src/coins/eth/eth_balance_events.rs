@@ -4,13 +4,13 @@ use common::{executor::{AbortSettings, SpawnAbortable, Timer},
 use futures::{channel::oneshot::{self, Receiver, Sender},
               stream::FuturesUnordered,
               StreamExt};
+use instant::Instant;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::MmError;
 use mm2_event_stream::{behaviour::{EventBehaviour, EventInitStatus},
                        Event, EventStreamConfiguration};
 use mm2_number::BigDecimal;
 use std::collections::BTreeMap;
-use tokio::time::Instant;
 
 use super::EthCoin;
 use crate::{eth::{u256_to_big_decimal, Erc20TokenInfo},
