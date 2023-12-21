@@ -18,9 +18,9 @@ use crate::{BalanceFut, CheckIfMyPaymentSentArgs, CoinBalance, CoinFutSpawner, C
             NegotiateSwapContractAddrErr, NumConversError, PaymentInstructionArgs, PaymentInstructions,
             PaymentInstructionsErr, PrivKeyPolicyNotAllowed, RawTransactionFut, RefundError, RefundPaymentArgs,
             RefundResult, SearchForSwapTxSpendInput, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
-            SignatureResult, SpendPaymentArgs, SwapOps, TakerSwapMakerCoin, TradeFee, TradePreimageError,
-            TradePreimageFut, TradePreimageResult, TradePreimageValue, TransactionDetails, TransactionEnum,
-            TransactionErr, TransactionFut, TransactionResult, TxFeeDetails, TxMarshalingErr,
+            SignRawTransactionRequest, SignatureResult, SpendPaymentArgs, SwapOps, TakerSwapMakerCoin, TradeFee,
+            TradePreimageError, TradePreimageFut, TradePreimageResult, TradePreimageValue, TransactionDetails,
+            TransactionEnum, TransactionErr, TransactionFut, TransactionResult, TxFeeDetails, TxMarshalingErr,
             UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs, ValidateInstructionsErr,
             ValidateOtherPubKeyErr, ValidatePaymentInput, ValidateWatcherSpendInput, VerificationError,
             VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError,
@@ -1085,6 +1085,7 @@ impl UtxoTxGenerationOps for SlpToken {
     }
 }
 
+#[async_trait]
 impl MarketCoinOps for SlpToken {
     fn ticker(&self) -> &str { &self.conf.ticker }
 
@@ -1162,6 +1163,11 @@ impl MarketCoinOps for SlpToken {
         };
 
         Box::new(fut.boxed().compat())
+    }
+
+    #[inline(always)]
+    async fn sign_raw_tx(&self, args: &SignRawTransactionRequest) -> RawTransactionResult {
+        utxo_common::sign_raw_tx(self, args).await
     }
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
@@ -1670,7 +1676,10 @@ impl MmCoin for SlpToken {
                 WithdrawError::from_generate_tx_error(gen_tx_error, coin.platform_ticker().into(), platform_decimals)
             })?;
 
-            let prev_script = ScriptBuilder::build_p2pkh(&my_address.hash);
+            let prev_script = coin
+                .platform_coin
+                .script_for_address(my_address)
+                .map_err(|e| WithdrawError::InvalidAddress(e.to_string()))?;
             let signed = sign_tx(
                 unsigned,
                 key_pair,
