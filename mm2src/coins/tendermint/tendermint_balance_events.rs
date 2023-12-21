@@ -120,6 +120,11 @@ impl EventBehaviour for TendermintCoin {
                                 Ok(balance_denom) => balance_denom,
                                 Err(e) => {
                                     log::error!("{e}");
+                                    let e = serde_json::to_value(e).expect("Serialization should't fail.");
+                                    ctx.stream_channel_controller
+                                        .broadcast(Event::new(Self::ERROR_EVENT_NAME.to_string(), e.to_string()))
+                                        .await;
+
                                     continue;
                                 },
                             };

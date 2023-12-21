@@ -82,9 +82,12 @@ impl EventBehaviour for EthCoin {
                             }));
                             cache.insert(ticker.to_owned(), balance);
                         },
-                        Err(_e) => {
-                            // TODO:
-                            // broadcast an error event here
+                        Err(e) => {
+                            log::error!("{e}");
+                            let e = serde_json::to_value(e).expect("Serialization should't fail.");
+                            ctx.stream_channel_controller
+                                .broadcast(Event::new(EthCoin::ERROR_EVENT_NAME.to_string(), e.to_string()))
+                                .await;
                         },
                     };
                 }
