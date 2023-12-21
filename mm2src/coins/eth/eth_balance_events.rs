@@ -21,7 +21,7 @@ use crate::{eth::{u256_to_big_decimal, Erc20TokenInfo},
 /// and returns their results individually.
 async fn get_all_balance_results_concurrently(
     coin: &EthCoin,
-) -> Vec<Result<(String, BigDecimal), MmError<BalanceError>>> {
+) -> Vec<Result<(String, BigDecimal), (String, MmError<BalanceError>)>> {
     let mut tokens = coin.get_erc_tokens_infos();
 
     // Workaround for performance purposes.
@@ -39,12 +39,21 @@ async fn get_all_balance_results_concurrently(
         .into_iter()
         .map(|(token_ticker, info)| async move {
             if token_ticker == coin.ticker {
-                let balance_as_u256 = coin.address_balance(coin.my_address).compat().await?;
-                let balance_as_big_decimal = u256_to_big_decimal(balance_as_u256, coin.decimals)?;
+                let balance_as_u256 = coin
+                    .address_balance(coin.my_address)
+                    .compat()
+                    .await
+                    .map_err(|e| (token_ticker.clone(), e))?;
+                let balance_as_big_decimal = u256_to_big_decimal(balance_as_u256, coin.decimals)
+                    .map_err(|e| (token_ticker.clone(), e.into()))?;
                 Ok((coin.ticker.clone(), balance_as_big_decimal))
             } else {
-                let balance_as_u256 = coin.get_token_balance_by_address(info.token_address).await?;
-                let balance_as_big_decimal = u256_to_big_decimal(balance_as_u256, info.decimals)?;
+                let balance_as_u256 = coin
+                    .get_token_balance_by_address(info.token_address)
+                    .await
+                    .map_err(|e| (token_ticker.clone(), e))?;
+                let balance_as_big_decimal = u256_to_big_decimal(balance_as_u256, info.decimals)
+                    .map_err(|e| (token_ticker.clone(), e.into()))?;
                 Ok((token_ticker, balance_as_big_decimal))
             }
         })
@@ -56,6 +65,7 @@ async fn get_all_balance_results_concurrently(
 #[async_trait]
 impl EventBehaviour for EthCoin {
     const EVENT_NAME: &'static str = "COIN_BALANCE";
+    const ERROR_EVENT_NAME: &'static str = "COIN_BALANCE_ERROR";
 
     async fn handle(self, interval: f64, tx: oneshot::Sender<EventInitStatus>) {
         const RECEIVER_DROPPED_MSG: &str = "Receiver is dropped, which should never happen.";
@@ -82,11 +92,14 @@ impl EventBehaviour for EthCoin {
                             }));
                             cache.insert(ticker.to_owned(), balance);
                         },
-                        Err(e) => {
-                            log::error!("{e}");
+                        Err((ticker, e)) => {
+                            log::error!("Failed getting balance for '{ticker}'. Error: {e}");
                             let e = serde_json::to_value(e).expect("Serialization should't fail.");
                             ctx.stream_channel_controller
-                                .broadcast(Event::new(EthCoin::ERROR_EVENT_NAME.to_string(), e.to_string()))
+                                .broadcast(Event::new(
+                                    format!("{}:{}", EthCoin::ERROR_EVENT_NAME, ticker),
+                                    e.to_string(),
+                                ))
                                 .await;
                         },
                     };
