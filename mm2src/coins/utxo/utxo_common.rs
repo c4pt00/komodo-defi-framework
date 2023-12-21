@@ -3151,7 +3151,7 @@ async fn sign_raw_utxo_tx<T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps>(
     .map_err(|err| RawTransactionError::SigningError(err.to_string()))?;
 
     let tx_signed_bytes = serialize_with_flags(&tx_signed, SERIALIZE_TRANSACTION_WITNESS);
-    Ok(RawTransactionRes {
+    Ok(GetRawTransactionResponse {
         tx_hex: tx_signed_bytes.into(),
     })
 }

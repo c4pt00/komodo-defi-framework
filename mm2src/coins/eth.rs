@@ -2556,7 +2556,7 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
         } => {
             return sign_transaction_with_keypair(ctx, coin, key_pair, value, action, data, args.gas_limit)
                 .await
-                .map(|(signed_tx, _)| RawTransactionRes {
+                .map(|(signed_tx, _)| GetRawTransactionResponse {
                     tx_hex: signed_tx.tx_hex().into(),
                 })
                 .map_to_mm(|err| RawTransactionError::TransactionError(err.get_plain_text_format()));
