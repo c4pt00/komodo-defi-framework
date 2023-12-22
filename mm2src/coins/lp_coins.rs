@@ -294,6 +294,9 @@ use nft::nft_errors::GetNftInfoError;
 pub mod z_coin;
 use z_coin::{ZCoin, ZcoinProtocolInfo};
 
+pub mod sia;
+use sia::{SiaCoin, SiaCoinProtocolInfo};
+
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
 pub type TransactionResult = Result<TransactionEnum, TransactionErr>;
 pub type BalanceResult<T> = Result<T, MmError<BalanceError>>;
@@ -2870,6 +2873,7 @@ pub enum MmCoinEnum {
     SplToken(SplToken),
     #[cfg(not(target_arch = "wasm32"))]
     LightningCoin(LightningCoin),
+    SiaCoin(SiaCoin),
     Test(TestCoin),
 }
 
@@ -2954,6 +2958,7 @@ impl Deref for MmCoinEnum {
             #[cfg(not(target_arch = "wasm32"))]
             MmCoinEnum::LightningCoin(ref c) => c,
             MmCoinEnum::ZCoin(ref c) => c,
+            MmCoinEnum::SiaCoin(ref c) => c,
             MmCoinEnum::Test(ref c) => c,
             #[cfg(all(
                 feature = "enable-solana",
