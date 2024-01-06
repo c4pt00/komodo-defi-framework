@@ -23,7 +23,7 @@ pub(crate) struct SetConfigArgs {
         help = "Set `Yes` if you want to use secure connection with your mm2 rpc. RPC should supported secure!"
     )]
     pub(crate) secure_conn: Option<bool>,
-    #[arg(long, short, help = "Set configuration from path")]
+    #[arg(long, short, help = "Set configuration from MM2.json config path")]
     pub(crate) from_path: bool,
 }
 
