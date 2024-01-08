@@ -184,13 +184,14 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
             // We need to provide any constraint on the `height` property
             // since `ticker_height` consists of both `ticker` and `height` properties.
             .bound("height", BeBigUint::from(0u64), BeBigUint::from(u64::MAX))
+            .limit(1)
             // Cursor returns values from the lowest to highest key indexes.
             // But we need to get the most highest height, so reverse the cursor direction.
             .reverse()
             .open_cursor(BlockHeaderStorageTable::TICKER_HEIGHT_INDEX)
             .await
             .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?
-            .first()
+            .next()
             .await
             .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?;
 
@@ -258,6 +259,7 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
                         reason: e.to_string(),
                     })?;
 
+            cursor.stop().await;
             return Ok(Some(header));
         }
 

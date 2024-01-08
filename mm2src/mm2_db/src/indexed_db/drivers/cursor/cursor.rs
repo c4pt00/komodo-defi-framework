@@ -241,7 +241,7 @@ impl CursorDriver {
         })
     }
 
-    pub(crate) async fn next(&mut self) -> CursorResult<Option<(ItemId, Json)>> {
+    pub(crate) async fn next(&mut self, mut limit: Option<u32>) -> CursorResult<Option<(ItemId, Json)>> {
         loop {
             // Check if we got `CursorAction::Stop` at the last iteration.
             if self.stopped {
@@ -283,24 +283,15 @@ impl CursorDriver {
 
             let (item_action, cursor_action) = self.inner.on_iteration(key)?;
 
-            match cursor_action {
-                CursorAction::Continue => cursor.continue_().map_to_mm(|e| CursorError::AdvanceError {
-                    description: stringify_js_error(&e),
-                })?,
-                CursorAction::ContinueWithValue(next_value) => {
-                    cursor
-                        .continue_with_key(&next_value)
-                        .map_to_mm(|e| CursorError::AdvanceError {
-                            description: stringify_js_error(&e),
-                        })?
+            match limit {
+                None => self.continue_(&cursor, &cursor_action).await?,
+                Some(l) => {
+                    if l > 1 {
+                        self.continue_(&cursor, &cursor_action).await?;
+                        limit = Some(l - 1);
+                    }
                 },
-                // Don't advance the cursor.
-                // Here we set the `stopped` flag so we return `Ok(None)` at the next iteration immediately.
-                // This is required because `item_action` can be `CollectItemAction::Include`,
-                // and at this iteration we will return `Ok(Some)`.
-                CursorAction::Stop => self.stopped = true,
             }
-
             match item_action {
                 CursorItemAction::Include => return Ok(Some(item.into_pair())),
                 // Try to fetch the next item.
@@ -309,33 +300,31 @@ impl CursorDriver {
         }
     }
 
-    // if getting the first result is what we want
-    pub(crate) async fn first(&mut self) -> CursorResult<Option<(ItemId, Json)>> {
-        let event = match self.cursor_item_rx.next().await {
-            Some(event) => event,
-            None => return Ok(None),
+    pub async fn continue_(&mut self, cursor: &IdbCursorWithValue, cursor_action: &CursorAction) -> CursorResult<()> {
+        match cursor_action {
+            CursorAction::Continue => cursor.continue_().map_to_mm(|e| CursorError::AdvanceError {
+                description: stringify_js_error(&e),
+            })?,
+            CursorAction::ContinueWithValue(next_value) => {
+                cursor
+                    .continue_with_key(next_value)
+                    .map_to_mm(|e| CursorError::AdvanceError {
+                        description: stringify_js_error(&e),
+                    })?
+            },
+            // Don't advance the cursor.
+            // Here we set the `stopped` flag so we return `Ok(None)` at the next iteration immediately.
+            // This is required because `item_action` can be `CollectItemAction::Include`,
+            // and at this iteration we will return `Ok(Some)`.
+            CursorAction::Stop => (),
         };
 
-        let _cursor_event = event.map_to_mm(|e| CursorError::ErrorOpeningCursor {
-            description: stringify_js_error(&e),
-        })?;
+        Ok(())
+    }
 
-        let cursor = match cursor_from_request(&self.cursor_request)? {
-            Some(cursor) => cursor,
-            // No item found..
-            None => return Ok(None),
-        };
-
-        let (_, js_value) = match (cursor.key(), cursor.value()) {
-            (Ok(key), Ok(js_value)) => (key, js_value),
-            // No item found.
-            _ => return Ok(None),
-        };
-
-        let item: InternalItem =
-            deserialize_from_js(js_value).map_to_mm(|e| CursorError::ErrorDeserializingItem(e.to_string()))?;
-
-        Ok(Some(item.into_pair()))
+    pub async fn stop(&mut self) -> CursorResult<()> {
+        self.stopped = true;
+        Ok(())
     }
 }
 
@@ -421,6 +410,7 @@ fn cursor_from_request(request: &IdbRequest) -> CursorResult<Option<IdbCursorWit
     if db_result.is_null() {
         return Ok(None);
     }
+
     db_result
         .dyn_into::<IdbCursorWithValue>()
         .map(Some)

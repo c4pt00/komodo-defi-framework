@@ -69,6 +69,7 @@ pub(super) type DbCursorEventRx = mpsc::UnboundedReceiver<DbCursorEvent>;
 
 pub struct CursorBuilder<'transaction, 'reference, Table: TableSignature> {
     db_table: &'reference DbTable<'transaction, Table>,
+    limit: Option<u32>,
     filters: CursorFilters,
 }
 
@@ -76,6 +77,7 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
     pub(crate) fn new(db_table: &'reference DbTable<'transaction, Table>) -> Self {
         CursorBuilder {
             db_table,
+            limit: None,
             filters: CursorFilters::default(),
         }
     }
@@ -112,6 +114,11 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
         self
     }
 
+    pub fn limit(mut self, limit: u32) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
     /// Opens a cursor by the specified `index`.
     /// https://developer.mozilla.org/en-US/docs/Web/API/IDBObjectStore/openCursor
     pub async fn open_cursor(self, index: &str) -> CursorResult<CursorIter<'transaction, Table>> {
@@ -124,6 +131,7 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
                 })?;
         Ok(CursorIter {
             event_tx,
+            limit: self.limit,
             phantom: PhantomData::default(),
         })
     }
@@ -131,30 +139,25 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
 
 pub struct CursorIter<'transaction, Table> {
     event_tx: DbCursorEventTx,
+    limit: Option<u32>,
     phantom: PhantomData<&'transaction Table>,
 }
 
 impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
+    pub async fn stop(&mut self) {
+        let (result_tx, _) = oneshot::channel();
+        self.event_tx.send(DbCursorEvent::Stop { result_tx }).await.ok();
+    }
+
     /// Advances the iterator and returns the next value.
     /// Please note that the items are sorted by the index keys.
     pub async fn next(&mut self) -> CursorResult<Option<(ItemId, Table)>> {
         let (result_tx, result_rx) = oneshot::channel();
-        self.next_impl(DbCursorEvent::NextItem { result_tx }, result_rx).await
-    }
-
-    /// Use only when you care about just the first result.
-    pub async fn first(&mut self) -> CursorResult<Option<(ItemId, Table)>> {
-        let (result_tx, result_rx) = oneshot::channel();
-        self.next_impl(DbCursorEvent::FirstItem { result_tx }, result_rx).await
-    }
-
-    async fn next_impl(
-        &mut self,
-        event: DbCursorEvent,
-        result_rx: oneshot::Receiver<CursorResult<Option<(ItemId, serde_json::Value)>>>,
-    ) -> CursorResult<Option<(ItemId, Table)>> {
         self.event_tx
-            .send(event)
+            .send(DbCursorEvent::NextItem {
+                result_tx,
+                limit: self.limit,
+            })
             .await
             .map_to_mm(|e| CursorError::UnexpectedState(format!("Error sending cursor event: {e}")))?;
         let maybe_item = result_rx
@@ -165,6 +168,7 @@ impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
             None => return Ok(None),
         };
         let item = json::from_value(item).map_to_mm(|e| CursorError::ErrorDeserializingItem(e.to_string()))?;
+
         Ok(Some((item_id, item)))
     }
 
@@ -180,20 +184,21 @@ impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
 pub enum DbCursorEvent {
     NextItem {
         result_tx: oneshot::Sender<CursorResult<Option<(ItemId, Json)>>>,
+        limit: Option<u32>,
     },
-    FirstItem {
-        result_tx: oneshot::Sender<CursorResult<Option<(ItemId, Json)>>>,
+    Stop {
+        result_tx: oneshot::Sender<CursorResult<()>>,
     },
 }
 
 pub(crate) async fn cursor_event_loop(mut rx: DbCursorEventRx, mut cursor: CursorDriver) {
     while let Some(event) = rx.next().await {
         match event {
-            DbCursorEvent::NextItem { result_tx } => {
-                result_tx.send(cursor.next().await).ok();
+            DbCursorEvent::NextItem { result_tx, limit } => {
+                result_tx.send(cursor.next(limit).await).ok();
             },
-            DbCursorEvent::FirstItem { result_tx } => {
-                result_tx.send(cursor.first().await).ok();
+            DbCursorEvent::Stop { result_tx } => {
+                result_tx.send(cursor.stop().await).ok();
             },
         }
     }
@@ -403,63 +408,6 @@ mod tests {
                 assert_eq!(actual_items, expected);
             }
         }
-    }
-
-    #[wasm_bindgen_test]
-    async fn test_get_first_last_cursor_result() {
-        const DB_NAME: &str = "TEST_GET_FIRST_LAST_CURSOR_RESULT";
-        const DB_VERSION: u32 = 1;
-
-        register_wasm_log();
-
-        let items = vec![
-            swap_item!("uuid1", "RICK", "MORTY", 10, 1, 700), // +
-            swap_item!("uuid2", "MORTY", "KMD", 95000, 1, 721),
-            swap_item!("uuid3", "RICK", "XYZ", 7, 6, 721),   // +
-            swap_item!("uuid4", "RICK", "MORTY", 8, 6, 721), // +
-            swap_item!("uuid5", "KMD", "MORTY", 12, 3, 721),
-            swap_item!("uuid6", "QRC20", "RICK", 2, 2, 721),
-        ];
-
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
-            .with_version(DB_VERSION)
-            .with_table::<SwapTable>()
-            .build()
-            .await
-            .expect("!IndexedDb::init");
-        let transaction = db.transaction().await.expect("!IndexedDb::transaction");
-        let table = transaction
-            .table::<SwapTable>()
-            .await
-            .expect("!DbTransaction::open_table");
-        fill_table(&table, items).await;
-
-        // Test get first swap_item
-        let actual_item = table
-            .cursor_builder()
-            .only("base_coin", "RICK")
-            .expect("!CursorBuilder::only")
-            .open_cursor("base_coin")
-            .await
-            .expect("!CursorBuilder::open_cursor")
-            .first()
-            .await
-            .expect("!CursorIter::collect");
-        assert_eq!(actual_item.unwrap().1, swap_item!("uuid1", "RICK", "MORTY", 10, 1, 700));
-
-        // Test get last swap_item
-        let actual_item = table
-            .cursor_builder()
-            .reverse()
-            .only("base_coin", "RICK")
-            .expect("!CursorBuilder::only")
-            .open_cursor("base_coin")
-            .await
-            .expect("!CursorBuilder::open_cursor")
-            .first()
-            .await
-            .expect("!CursorIter::collect");
-        assert_eq!(actual_item.unwrap().1, swap_item!("uuid4", "RICK", "MORTY", 8, 6, 721));
     }
 
     #[wasm_bindgen_test]
