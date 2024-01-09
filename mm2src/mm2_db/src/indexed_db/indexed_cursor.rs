@@ -145,14 +145,10 @@ pub struct CursorIter<'transaction, Table> {
 
 impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
     pub async fn stop(&mut self) -> CursorResult<()> {
-        let (result_tx, result_rx) = oneshot::channel();
         self.event_tx
-            .send(DbCursorEvent::Stop { result_tx })
+            .send(DbCursorEvent::Stop)
             .await
             .map_to_mm(|e| CursorError::UnexpectedState(format!("Error sending cursor event: {e}")))?;
-        let _ = result_rx
-            .await
-            .map_to_mm(|e| CursorError::UnexpectedState(format!("Error receiving cursor item: {e}")))?;
         Ok(())
     }
 
@@ -175,7 +171,6 @@ impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
             None => return Ok(None),
         };
         let item = json::from_value(item).map_to_mm(|e| CursorError::ErrorDeserializingItem(e.to_string()))?;
-
         Ok(Some((item_id, item)))
     }
 
@@ -193,9 +188,7 @@ pub enum DbCursorEvent {
         result_tx: oneshot::Sender<CursorResult<Option<(ItemId, Json)>>>,
         limit: Option<u32>,
     },
-    Stop {
-        result_tx: oneshot::Sender<()>,
-    },
+    Stop,
 }
 
 pub(crate) async fn cursor_event_loop(mut rx: DbCursorEventRx, mut cursor: CursorDriver) {
@@ -204,8 +197,8 @@ pub(crate) async fn cursor_event_loop(mut rx: DbCursorEventRx, mut cursor: Curso
             DbCursorEvent::NextItem { result_tx, limit } => {
                 result_tx.send(cursor.next(limit).await).ok();
             },
-            DbCursorEvent::Stop { result_tx } => {
-                result_tx.send(cursor.stop().await).ok();
+            DbCursorEvent::Stop => {
+                cursor.stop().await;
             },
         }
     }

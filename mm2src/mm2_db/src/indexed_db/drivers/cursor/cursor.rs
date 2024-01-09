@@ -1,7 +1,6 @@
 use super::construct_event_closure;
 use crate::indexed_db::db_driver::{InternalItem, ItemId};
 use crate::indexed_db::BeBigUint;
-use common::log::info;
 use common::wasm::{deserialize_from_js, serialize_to_js, stringify_js_error};
 use derive_more::Display;
 use enum_from::EnumFromTrait;
@@ -283,8 +282,6 @@ impl CursorDriver {
                 deserialize_from_js(js_value).map_to_mm(|e| CursorError::ErrorDeserializingItem(e.to_string()))?;
 
             let (item_action, cursor_action) = self.inner.on_iteration(key)?;
-            info!("STOPPED: {}", self.stopped);
-
             match limit {
                 None => self.continue_(&cursor, &cursor_action).await?,
                 Some(l) => {
@@ -413,7 +410,6 @@ fn cursor_from_request(request: &IdbRequest) -> CursorResult<Option<IdbCursorWit
     if db_result.is_null() {
         return Ok(None);
     }
-
     db_result
         .dyn_into::<IdbCursorWithValue>()
         .map(Some)

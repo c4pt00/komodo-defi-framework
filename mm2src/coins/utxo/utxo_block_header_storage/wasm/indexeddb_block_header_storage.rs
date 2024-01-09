@@ -2,7 +2,6 @@ use super::BlockHeaderStorageTable;
 
 use async_trait::async_trait;
 use chain::BlockHeader;
-use common::log::info;
 use mm2_core::mm_ctx::MmArc;
 use mm2_db::indexed_db::{BeBigUint, ConstructibleDb, DbIdentifier, DbInstance, DbLocked, IndexedDb, IndexedDbBuilder,
                          InitDbResult, MultiIndex, SharedDb};
