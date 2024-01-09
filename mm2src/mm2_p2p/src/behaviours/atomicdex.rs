@@ -101,6 +101,10 @@ pub enum AdexBehaviourCmd {
         /// Subscribe to this topic
         topic: String,
     },
+    Unsubscribe {
+        /// Unsubscribe from this topic
+        topic: String,
+    },
     PublishMsg {
         topic: String,
         msg: Vec<u8>,
@@ -328,6 +332,9 @@ impl AtomicDexBehaviour {
         match cmd {
             AdexBehaviourCmd::Subscribe { topic } => {
                 self.core.gossipsub.subscribe(&IdentTopic::new(topic))?;
+            },
+            AdexBehaviourCmd::Unsubscribe { topic } => {
+                self.core.gossipsub.unsubscribe(&IdentTopic::new(topic))?;
             },
             AdexBehaviourCmd::PublishMsg { topic, msg } => {
                 self.core.gossipsub.publish(TopicHash::from_raw(topic), msg)?;
@@ -600,6 +607,8 @@ fn start_gossipsub(
     let noise_config = noise::Config::new(&local_key).expect("Signing libp2p-noise static DH keypair failed.");
 
     let network_info = node_type.to_network_info();
+    info!("Network information: {:?}", network_info);
+
     let transport = match network_info {
         NetworkInfo::InMemory => build_memory_transport(noise_config),
         NetworkInfo::Distributed { .. } => build_dns_ws_transport(noise_config, node_type.wss_certs()),
@@ -651,7 +660,7 @@ fn start_gossipsub(
         if !network_info.in_memory() {
             // Please note WASM nodes don't support `PeersExchange` currently,
             // so `get_all_network_seednodes` returns an empty list.
-            for (peer_id, addr) in get_all_network_seednodes(netid) {
+            for (peer_id, addr, _domain) in get_all_network_seednodes(netid) {
                 let multiaddr = addr.try_to_multiaddr(network_info)?;
                 peers_exchange.add_peer_addresses_to_known_peers(&peer_id, iter::once(multiaddr).collect());
                 if peer_id != local_peer_id {
