@@ -144,9 +144,16 @@ pub struct CursorIter<'transaction, Table> {
 }
 
 impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
-    pub async fn stop(&mut self) {
-        let (result_tx, _) = oneshot::channel();
-        self.event_tx.send(DbCursorEvent::Stop { result_tx }).await.ok();
+    pub async fn stop(&mut self) -> CursorResult<()> {
+        let (result_tx, result_rx) = oneshot::channel();
+        self.event_tx
+            .send(DbCursorEvent::Stop { result_tx })
+            .await
+            .map_to_mm(|e| CursorError::UnexpectedState(format!("Error sending cursor event: {e}")))?;
+        let _ = result_rx
+            .await
+            .map_to_mm(|e| CursorError::UnexpectedState(format!("Error receiving cursor item: {e}")))?;
+        Ok(())
     }
 
     /// Advances the iterator and returns the next value.
@@ -187,7 +194,7 @@ pub enum DbCursorEvent {
         limit: Option<u32>,
     },
     Stop {
-        result_tx: oneshot::Sender<CursorResult<()>>,
+        result_tx: oneshot::Sender<()>,
     },
 }
 

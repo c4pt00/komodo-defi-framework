@@ -2,6 +2,7 @@ use super::BlockHeaderStorageTable;
 
 use async_trait::async_trait;
 use chain::BlockHeader;
+use common::log::info;
 use mm2_core::mm_ctx::MmArc;
 use mm2_db::indexed_db::{BeBigUint, ConstructibleDb, DbIdentifier, DbInstance, DbLocked, IndexedDb, IndexedDbBuilder,
                          InitDbResult, MultiIndex, SharedDb};
@@ -255,11 +256,14 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
                 reader
                     .read()
                     .map_err(|e: serialization::Error| BlockHeaderStorageError::DecodeError {
-                        coin: ticker,
+                        coin: ticker.clone(),
                         reason: e.to_string(),
                     })?;
 
-            cursor.stop().await;
+            cursor
+                .stop()
+                .await
+                .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?;
             return Ok(Some(header));
         }
 
