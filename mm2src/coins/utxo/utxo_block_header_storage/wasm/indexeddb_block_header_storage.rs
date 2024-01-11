@@ -3,6 +3,7 @@ use super::BlockHeaderStorageTable;
 use async_trait::async_trait;
 use chain::BlockHeader;
 use mm2_core::mm_ctx::MmArc;
+use mm2_db::indexed_db::cursor_prelude::CursorError;
 use mm2_db::indexed_db::{BeBigUint, ConstructibleDb, DbIdentifier, DbInstance, DbLocked, IndexedDb, IndexedDbBuilder,
                          InitDbResult, MultiIndex, SharedDb};
 use mm2_err_handle::prelude::*;
@@ -184,10 +185,10 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
             // We need to provide any constraint on the `height` property
             // since `ticker_height` consists of both `ticker` and `height` properties.
             .bound("height", BeBigUint::from(0u64), BeBigUint::from(u64::MAX))
-            .limit(1)
             // Cursor returns values from the lowest to highest key indexes.
             // But we need to get the most highest height, so reverse the cursor direction.
             .reverse()
+            .where_(Box::new(|_| Ok(true)))
             .open_cursor(BlockHeaderStorageTable::TICKER_HEIGHT_INDEX)
             .await
             .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?
@@ -223,6 +224,11 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
             .await
             .map_err(|err| BlockHeaderStorageError::table_err(&ticker, err.to_string()))?;
 
+        let where_ = move |block| {
+            serde_json::from_value::<BlockHeaderStorageTable>(block)
+                .map_to_mm(|err| CursorError::ErrorDeserializingItem(err.to_string()))
+                .map(|header| header.bits != max_bits)
+        };
         let mut cursor = block_headers_db
             .cursor_builder()
             .only("ticker", ticker.clone())
@@ -233,6 +239,7 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
             // Cursor returns values from the lowest to highest key indexes.
             // But we need to get the most highest height, so reverse the cursor direction.
             .reverse()
+            .where_(Box::new(where_))
             .open_cursor(BlockHeaderStorageTable::TICKER_HEIGHT_INDEX)
             .await
             .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?;
@@ -242,28 +249,22 @@ impl BlockHeaderStorageOps for IDBBlockHeadersStorage {
             .await
             .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?
         {
-            if header.bits == max_bits {
-                continue;
+            if header.bits != max_bits {
+                let serialized = &hex::decode(header.raw_header).map_err(|e| BlockHeaderStorageError::DecodeError {
+                    coin: ticker.clone(),
+                    reason: e.to_string(),
+                })?;
+                let mut reader = Reader::new_with_coin_variant(serialized, ticker.as_str().into());
+                let header: BlockHeader =
+                    reader
+                        .read()
+                        .map_err(|e: serialization::Error| BlockHeaderStorageError::DecodeError {
+                            coin: ticker.clone(),
+                            reason: e.to_string(),
+                        })?;
+
+                return Ok(Some(header));
             }
-
-            let serialized = &hex::decode(header.raw_header).map_err(|e| BlockHeaderStorageError::DecodeError {
-                coin: ticker.clone(),
-                reason: e.to_string(),
-            })?;
-            let mut reader = Reader::new_with_coin_variant(serialized, ticker.as_str().into());
-            let header: BlockHeader =
-                reader
-                    .read()
-                    .map_err(|e: serialization::Error| BlockHeaderStorageError::DecodeError {
-                        coin: ticker.clone(),
-                        reason: e.to_string(),
-                    })?;
-
-            cursor
-                .stop()
-                .await
-                .map_err(|err| BlockHeaderStorageError::get_err(&ticker, err.to_string()))?;
-            return Ok(Some(header));
         }
 
         Ok(None)

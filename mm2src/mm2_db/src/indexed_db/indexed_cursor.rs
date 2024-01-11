@@ -66,18 +66,19 @@ use std::marker::PhantomData;
 
 pub(super) type DbCursorEventTx = mpsc::UnboundedSender<DbCursorEvent>;
 pub(super) type DbCursorEventRx = mpsc::UnboundedReceiver<DbCursorEvent>;
+pub(super) type CursorCondition = Box<dyn Fn(Json) -> CursorResult<bool> + Send + 'static>;
 
 pub struct CursorBuilder<'transaction, 'reference, Table: TableSignature> {
     db_table: &'reference DbTable<'transaction, Table>,
-    limit: Option<u32>,
     filters: CursorFilters,
+    where_: Option<CursorCondition>,
 }
 
 impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction, 'reference, Table> {
     pub(crate) fn new(db_table: &'reference DbTable<'transaction, Table>) -> Self {
         CursorBuilder {
             db_table,
-            limit: None,
+            where_: None,
             filters: CursorFilters::default(),
         }
     }
@@ -114,8 +115,11 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
         self
     }
 
-    pub fn limit(mut self, limit: u32) -> Self {
-        self.limit = Some(limit);
+    /// Sets a filtering condition for the cursor using the provided closure (`f`).
+    /// The closure should take a reference to a value and return a boolean indicating whether the
+    /// cursor should return this item and stop cursor from continuation.
+    pub fn where_(mut self, f: CursorCondition) -> CursorBuilder<'transaction, 'reference, Table> {
+        self.where_ = Some(f);
         self
     }
 
@@ -131,7 +135,7 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
                 })?;
         Ok(CursorIter {
             event_tx,
-            limit: self.limit,
+            where_: self.where_,
             phantom: PhantomData::default(),
         })
     }
@@ -139,19 +143,11 @@ impl<'transaction, 'reference, Table: TableSignature> CursorBuilder<'transaction
 
 pub struct CursorIter<'transaction, Table> {
     event_tx: DbCursorEventTx,
-    limit: Option<u32>,
+    where_: Option<CursorCondition>,
     phantom: PhantomData<&'transaction Table>,
 }
 
 impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
-    pub async fn stop(&mut self) -> CursorResult<()> {
-        self.event_tx
-            .send(DbCursorEvent::Stop)
-            .await
-            .map_to_mm(|e| CursorError::UnexpectedState(format!("Error sending cursor event: {e}")))?;
-        Ok(())
-    }
-
     /// Advances the iterator and returns the next value.
     /// Please note that the items are sorted by the index keys.
     pub async fn next(&mut self) -> CursorResult<Option<(ItemId, Table)>> {
@@ -159,7 +155,7 @@ impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
         self.event_tx
             .send(DbCursorEvent::NextItem {
                 result_tx,
-                limit: self.limit,
+                where_: self.where_.take(),
             })
             .await
             .map_to_mm(|e| CursorError::UnexpectedState(format!("Error sending cursor event: {e}")))?;
@@ -186,19 +182,15 @@ impl<'transaction, Table: TableSignature> CursorIter<'transaction, Table> {
 pub enum DbCursorEvent {
     NextItem {
         result_tx: oneshot::Sender<CursorResult<Option<(ItemId, Json)>>>,
-        limit: Option<u32>,
+        where_: Option<CursorCondition>,
     },
-    Stop,
 }
 
 pub(crate) async fn cursor_event_loop(mut rx: DbCursorEventRx, mut cursor: CursorDriver) {
     while let Some(event) = rx.next().await {
         match event {
-            DbCursorEvent::NextItem { result_tx, limit } => {
-                result_tx.send(cursor.next(limit).await).ok();
-            },
-            DbCursorEvent::Stop => {
-                cursor.stop().await;
+            DbCursorEvent::NextItem { result_tx, where_ } => {
+                result_tx.send(cursor.next(where_).await).ok();
             },
         }
     }

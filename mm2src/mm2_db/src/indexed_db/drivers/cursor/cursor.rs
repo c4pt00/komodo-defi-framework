@@ -20,6 +20,7 @@ mod multi_key_cursor;
 mod single_key_bound_cursor;
 mod single_key_cursor;
 
+use crate::indexed_db::indexed_cursor::CursorCondition;
 use empty_cursor::IdbEmptyCursor;
 use multi_key_bound_cursor::IdbMultiKeyBoundCursor;
 use multi_key_cursor::IdbMultiKeyCursor;
@@ -241,7 +242,7 @@ impl CursorDriver {
         })
     }
 
-    pub(crate) async fn next(&mut self, mut limit: Option<u32>) -> CursorResult<Option<(ItemId, Json)>> {
+    pub(crate) async fn next(&mut self, where_: Option<CursorCondition>) -> CursorResult<Option<(ItemId, Json)>> {
         loop {
             // Check if we got `CursorAction::Stop` at the last iteration.
             if self.stopped {
@@ -282,50 +283,41 @@ impl CursorDriver {
                 deserialize_from_js(js_value).map_to_mm(|e| CursorError::ErrorDeserializingItem(e.to_string()))?;
 
             let (item_action, cursor_action) = self.inner.on_iteration(key)?;
-            match limit {
-                None => self.continue_(&cursor, &cursor_action).await?,
-                Some(l) => {
-                    if l > 1 {
-                        self.continue_(&cursor, &cursor_action).await?;
-                        limit = Some(l - 1);
-                    }
+
+            let (id, val) = item.into_pair();
+            // Checks if the given `where_` condition, represented by an optional closure (`cursor_condition`),
+            // is satisfied for the provided `item`. If the condition is met, returns the corresponding `(id, val)` to stop attempting `cursor.continue_()` after.
+            if let Some(cursor_condition) = &where_ {
+                if cursor_condition(val.clone())? {
+                    return Ok(Some((id, val)));
+                }
+            };
+
+            match cursor_action {
+                CursorAction::Continue => cursor.continue_().map_to_mm(|e| CursorError::AdvanceError {
+                    description: stringify_js_error(&e),
+                })?,
+                CursorAction::ContinueWithValue(next_value) => {
+                    cursor
+                        .continue_with_key(&next_value)
+                        .map_to_mm(|e| CursorError::AdvanceError {
+                            description: stringify_js_error(&e),
+                        })?
                 },
-            }
+                // Don't advance the cursor.
+                // Here we set the `stopped` flag so we return `Ok(None)` at the next iteration immediately.
+                // This is required because `item_action` can be `CollectItemAction::Include`,
+                // and at this iteration we will return `Ok(Some)`.
+                CursorAction::Stop => (),
+            };
+
             match item_action {
-                CursorItemAction::Include => return Ok(Some(item.into_pair())),
+                CursorItemAction::Include => return Ok(Some((id, val))),
                 // Try to fetch the next item.
                 CursorItemAction::Skip => (),
             }
         }
     }
-
-    pub async fn continue_(&mut self, cursor: &IdbCursorWithValue, cursor_action: &CursorAction) -> CursorResult<()> {
-        if self.stopped {
-            return Ok(());
-        }
-
-        match cursor_action {
-            CursorAction::Continue => cursor.continue_().map_to_mm(|e| CursorError::AdvanceError {
-                description: stringify_js_error(&e),
-            })?,
-            CursorAction::ContinueWithValue(next_value) => {
-                cursor
-                    .continue_with_key(next_value)
-                    .map_to_mm(|e| CursorError::AdvanceError {
-                        description: stringify_js_error(&e),
-                    })?
-            },
-            // Don't advance the cursor.
-            // Here we set the `stopped` flag so we return `Ok(None)` at the next iteration immediately.
-            // This is required because `item_action` can be `CollectItemAction::Include`,
-            // and at this iteration we will return `Ok(Some)`.
-            CursorAction::Stop => (),
-        };
-
-        Ok(())
-    }
-
-    pub async fn stop(&mut self) { self.stopped = true; }
 }
 
 pub(crate) enum IdbCursorEnum {
