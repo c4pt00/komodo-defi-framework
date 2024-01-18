@@ -1,20 +1,17 @@
 use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut, RawTransactionRequest, SwapOps,
-    TradeFee, TransactionEnum, TransactionFut};
-use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinAssocTypes,
-    CoinFutSpawner, ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, GenPreimageResult,
-    GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, MakerSwapTakerCoin, MmCoinEnum,
-    NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-    RawTransactionResult, RefundFundingSecretArgs, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
-    SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SendTakerFundingArgs, SignRawTransactionRequest,
-    SignatureResult, SpendPaymentArgs, SwapOpsV2, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult,
-    TradePreimageValue, Transaction, TransactionErr, TransactionResult, TxMarshalingErr, TxPreimageWithSig,
-    UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs, ValidateInstructionsErr,
-    ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentInput,
-    ValidateTakerFundingArgs, ValidateTakerFundingResult, ValidateTakerFundingSpendPreimageResult,
-    ValidateTakerPaymentSpendPreimageResult, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps,
-    WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput,
-    WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
-use crate::{DexFee, ToBytes, ValidateWatcherSpendInput};
+            TradeFee, TransactionEnum, TransactionFut};
+use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
+            ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
+            NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
+            RawTransactionResult, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
+            SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignRawTransactionRequest, SignatureResult,
+            SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue,
+            TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
+            ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
+            ValidatePaymentInput, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward,
+            WatcherRewardError, WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput,
+            WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
+use crate::{DexFee, ValidateWatcherSpendInput};
 use async_trait::async_trait;
 use common::executor::AbortedError;
 use futures01::Future;
@@ -22,19 +19,92 @@ use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use mm2_number::{BigDecimal, MmNumber};
-use mocktopus::macros::*;
 use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
 
-#[derive(Clone, Debug)]
-pub struct SiaCoin(Arc<SiaCoinImpl>);
+use mm2_core::mm_ctx::MmWeak;
 
-impl Deref for SiaCoin {
-    type Target = SiaCoinImpl;
+#[derive(Clone)]
+pub struct SiaCoin(SiaArc);
+#[derive(Clone)]
+pub struct SiaArc(Arc<SiaCoinFields>);
 
-    fn deref(&self) -> &Self::Target { &self.0 }
+pub struct SiaCoinConf {
+    ticker: String,
+}
+
+pub enum SiaRpcClientEnum {
+    Native,
+    Lite,
+}
+
+pub struct SiaCoinFields {
+    /// SIA coin config
+    pub conf: SiaCoinConf,
+    /// Minimum transaction value at which the value is not less than fee
+    pub dust_amount: u64,
+    /// RPC client
+    pub rpc_client: SiaRpcClientEnum,
+    pub(crate) ctx: MmWeak,
+}
+
+pub async fn sia_coin_wo_policy(ctx: &MmArc, ticker: &str) -> Result<SiaCoin, String> {
+    let coin = try_s!(SiaCoinBuilder::new(ctx, ticker).build().await);
+    Ok(coin)
+}
+pub struct SiaCoinBuilder<'a> {
+    ctx: &'a MmArc,
+    ticker: &'a str,
+}
+
+impl<'a> SiaCoinBuilder<'a> {
+    pub fn new(ctx: &'a MmArc, ticker: &'a str) -> Self { SiaCoinBuilder { ctx, ticker } }
+}
+
+#[derive(Debug, Display)]
+struct SiaCoinBuildError;
+
+impl<'a> SiaCoinBuilder<'a> {
+    fn ctx(&self) -> &MmArc { self.ctx }
+
+    async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
+        let sia_fields = SiaCoinFields {
+            conf: SiaCoinConf {
+                ticker: "FIXME".to_string(), // FIXME Alright
+            },
+            dust_amount: 0,
+            rpc_client: SiaRpcClientEnum::Lite,
+            ctx: self.ctx().weak(),
+        };
+        let sia_arc = SiaArc::new(sia_fields);
+
+        Ok(SiaCoin::from(sia_arc))
+    }
+}
+
+impl Deref for SiaArc {
+    type Target = SiaCoinFields;
+    fn deref(&self) -> &SiaCoinFields { &self.0 }
+}
+
+impl From<SiaCoinFields> for SiaArc {
+    fn from(coin: SiaCoinFields) -> SiaArc { SiaArc::new(coin) }
+}
+
+impl From<Arc<SiaCoinFields>> for SiaArc {
+    fn from(arc: Arc<SiaCoinFields>) -> SiaArc { SiaArc(arc) }
+}
+
+impl From<SiaArc> for SiaCoin {
+    fn from(coin: SiaArc) -> SiaCoin { SiaCoin(coin) }
+}
+
+impl SiaArc {
+    pub fn new(fields: SiaCoinFields) -> SiaArc { SiaArc(Arc::new(fields)) }
+
+    pub fn with_arc(inner: Arc<SiaCoinFields>) -> SiaArc { SiaArc(inner) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,15 +112,7 @@ pub struct SiaCoinProtocolInfo {}
 
 #[derive(Debug)]
 pub struct SiaCoinImpl {
-    ticker: String,
-}
-
-impl Default for SiaCoin {
-    fn default() -> Self { SiaCoin(Arc::new(SiaCoinImpl { ticker: "SIA".into() })) }
-}
-
-impl SiaCoin {
-    pub fn new(ticker: &str) -> SiaCoin { SiaCoin(Arc::new(SiaCoinImpl { ticker: ticker.into() })) }
+    pub ticker: String,
 }
 
 #[async_trait]
@@ -127,10 +189,9 @@ impl MmCoin for SiaCoin {
     fn on_token_deactivated(&self, _ticker: &str) { () }
 }
 
-
 #[async_trait]
 impl MarketCoinOps for SiaCoin {
-    fn ticker(&self) -> &str { &self.ticker }
+    fn ticker(&self) -> &str { &self.0.conf.ticker }
 
     fn my_address(&self) -> MmResult<String, MyAddressError> { unimplemented!() }
 
@@ -148,7 +209,7 @@ impl MarketCoinOps for SiaCoin {
 
     fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { unimplemented!() }
 
-    fn platform_ticker(&self) -> &str { &self.ticker }
+    fn platform_ticker(&self) -> &str { "SIA" }
 
     /// Receives raw transaction bytes in hexadecimal format as input and returns tx hash in hexadecimal format
     fn send_raw_tx(&self, tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> { unimplemented!() }

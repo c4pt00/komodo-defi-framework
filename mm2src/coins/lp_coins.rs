@@ -295,7 +295,7 @@ pub mod z_coin;
 use z_coin::{ZCoin, ZcoinProtocolInfo};
 
 pub mod sia;
-use sia::{SiaCoin, SiaCoinProtocolInfo};
+use sia::{sia_coin_wo_policy, SiaCoin, SiaCoinProtocolInfo};
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
 pub type TransactionResult = Result<TransactionEnum, TransactionErr>;
@@ -2942,6 +2942,10 @@ impl From<ZCoin> for MmCoinEnum {
     fn from(c: ZCoin) -> MmCoinEnum { MmCoinEnum::ZCoin(c) }
 }
 
+impl From<SiaCoin> for MmCoinEnum {
+    fn from(c: SiaCoin) -> MmCoinEnum { MmCoinEnum::SiaCoin(c) }
+}
+
 // NB: When stable and groked by IDEs, `enum_dispatch` can be used instead of `Deref` to speed things up.
 impl Deref for MmCoinEnum {
     type Target = dyn MmCoin;
@@ -3495,6 +3499,7 @@ pub enum CoinProtocol {
         decimals: u8,
     },
     ZHTLC(ZcoinProtocolInfo),
+    SIA(SiaCoinProtocolInfo),
 }
 
 pub type RpcTransportEventHandlerShared = Arc<dyn RpcTransportEventHandler + Send + Sync + 'static>;
@@ -3756,6 +3761,10 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
         #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
         CoinProtocol::SPLTOKEN { .. } => {
             return ERR!("SplToken protocol is not supported by lp_coininit - use enable_spl instead")
+        },
+        CoinProtocol::SIA { .. } => {
+            let sia = try_s!(sia_coin_wo_policy(ctx, "SIA").await);
+            sia.into()
         },
     };
 
@@ -4337,6 +4346,7 @@ pub fn address_by_coin_conf_and_pubkey_str(
             ERR!("Solana pubkey is the public address - you do not need to use this rpc call.")
         },
         CoinProtocol::ZHTLC { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for ZHTLC protocol!"),
+        CoinProtocol::SIA { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for SIA protocol!"), // TODO Alright
     }
 }
 
