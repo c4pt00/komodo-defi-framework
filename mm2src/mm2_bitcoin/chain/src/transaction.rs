@@ -231,6 +231,109 @@ pub struct Transaction {
     pub tx_hash_algo: TxHashAlgo,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, PartialEq, Default, Clone)]
+pub struct Transaction5 {
+    pub version: i32,
+    pub n_time: Option<u32>,
+    pub overwintered: bool,
+    pub version_group_id: u32,
+    pub consensus_branch_id: Option<u32>,
+    pub inputs: Vec<TransactionInput>,
+    pub outputs: Vec<TransactionOutput>,
+    pub lock_time: u32,
+    pub expiry_height: u32,
+    pub shielded_spends: Vec<ShieldedSpend>,
+    pub shielded_outputs: Vec<ShieldedOutput>,
+    // Optional Sapling (Shielded) bundle field
+    pub sapling_bundle: Option<SaplingBundle>,
+    // Optional Orchard bundle field
+    pub orchard_bundle: Option<OrchardBundle>,
+    pub join_splits: Vec<JoinSplit>,
+    pub value_balance: i64,
+    pub join_split_pubkey: H256,
+    pub join_split_sig: H512,
+    pub binding_sig: H512,
+    pub zcash: bool,
+    pub posv: bool,
+    /// https://github.com/navcoin/navcoin-core/blob/556250920fef9dc3eddd28996329ba316de5f909/src/primitives/transaction.h#L497
+    pub str_d_zeel: Option<String>,
+    pub tx_hash_algo: TxHashAlgo,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SaplingBundle {
+    pub shielded_spends: Vec<ShieldedSpendV5>,
+    pub shielded_outputs: Vec<ShieldedOutputV5>,
+    pub value_balance: i64,
+    // Sapling anchor
+    pub anchor_sapling: H256,
+    // zk-SNARK proofs for Sapling spends
+    pub spend_zkproofs: Vec<ZkProofSapling>,
+    // Authorizing signatures for each Sapling spend
+    pub spend_auth_sigs_sapling: Vec<H512>,
+    // zk-SNARK proofs for Sapling outputs
+    pub output_zkproofs: Vec<ZkProofSapling>,
+    // Sapling binding signature
+    pub binding_sig_sapling: H512,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, Deserializable, PartialEq, Serializable)]
+pub struct ShieldedSpendV5 {
+    pub cv: H256,
+    pub nullifier: H256,
+    pub rk: H256,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct ShieldedOutputV5 {
+    pub cv: H256,
+    pub cmu: H256,
+    pub ephemeral_key: H256,
+    pub enc_cipher_text: EncCipherText,
+    pub out_cipher_text: OutCipherText,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct OrchardBundle {
+    pub actions: Vec<OrchardAction>,
+    // Orchard-specific flags
+    pub flags_orchard: u8,
+    pub value_balance: i64,
+    // Orchard note commitment tree root
+    pub anchor_orchard: H256,
+    // zk-SNARK proofs for Orchard actions
+    pub zkproofs_orchard: Vec<u8>,
+    // Authorizing signatures for Orchard actions
+    pub spend_auth_sigs_orchard: Vec<H512>,
+    // Orchard binding signature
+    pub binding_sig_orchard: H512,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, PartialEq, Clone)]
+pub struct OrchardAction {
+    pub cv: H256,
+    pub nullifier: H256,
+    pub rk: H256,
+    pub cmx: H256,
+    pub ephemeral_key: H256,
+    pub enc_cipher_text: EncCipherText,
+    pub out_cipher_text: OutCipherText,
+}
+
+impl Transaction5 {
+    pub fn has_witness(&self) -> bool { self.inputs.iter().any(TransactionInput::has_witness) }
+}
+
+impl From<&'static str> for Transaction5 {
+    fn from(s: &'static str) -> Self { deserialize(&s.from_hex::<Vec<u8>>().unwrap() as &[u8]).unwrap() }
+}
+
 impl From<&'static str> for Transaction {
     fn from(s: &'static str) -> Self { deserialize(&s.from_hex::<Vec<u8>>().unwrap() as &[u8]).unwrap() }
 }
@@ -359,6 +462,84 @@ impl Deserializable for TransactionInput {
     }
 }
 
+impl Serializable for Transaction5 {
+    fn serialize(&self, stream: &mut Stream) {
+        let include_transaction_witness = stream.include_transaction_witness() && self.has_witness();
+        match include_transaction_witness {
+            false => {
+                let mut header = self.version;
+                if self.overwintered {
+                    header |= 1 << 31;
+                }
+                stream.append(&header);
+
+                if self.overwintered {
+                    stream.append(&self.version_group_id);
+                }
+
+                if !self.posv {
+                    if let Some(n_time) = self.n_time {
+                        stream.append(&n_time);
+                    }
+                }
+
+                stream
+                    .append_list(&self.inputs)
+                    .append_list(&self.outputs)
+                    .append(&self.lock_time);
+
+                if self.posv {
+                    if let Some(n_time) = self.n_time {
+                        stream.append(&n_time);
+                    }
+                }
+
+                if self.overwintered && self.version >= 3 {
+                    stream.append(&self.expiry_height);
+                    if self.version >= 4 {
+                        stream
+                            .append(&self.value_balance)
+                            .append_list(&self.shielded_spends)
+                            .append_list(&self.shielded_outputs);
+                    }
+                }
+                if self.zcash {
+                    if self.version == 2 || self.overwintered {
+                        stream.append_list(&self.join_splits);
+                        if !self.join_splits.is_empty() {
+                            stream.append(&self.join_split_pubkey).append(&self.join_split_sig);
+                        }
+                    }
+
+                    if self.version >= 4
+                        && self.overwintered
+                        && !(self.shielded_outputs.is_empty() && self.shielded_spends.is_empty())
+                    {
+                        stream.append(&self.binding_sig);
+                    }
+                }
+                if let Some(ref string) = self.str_d_zeel {
+                    let len: CompactInteger = string.len().into();
+                    stream.append(&len);
+                    stream.append_slice(string.as_bytes());
+                }
+            },
+            true => {
+                stream
+                    .append(&self.version)
+                    .append(&WITNESS_MARKER)
+                    .append(&WITNESS_FLAG)
+                    .append_list(&self.inputs)
+                    .append_list(&self.outputs);
+                for input in &self.inputs {
+                    stream.append_list(&input.script_witness);
+                }
+                stream.append(&self.lock_time);
+            },
+        };
+    }
+}
+
 impl Serializable for Transaction {
     fn serialize(&self, stream: &mut Stream) {
         let include_transaction_witness = stream.include_transaction_witness() && self.has_witness();
@@ -447,6 +628,139 @@ pub enum TxType {
 
 impl TxType {
     fn uses_witness(&self) -> bool { matches!(self, TxType::StandardWithWitness | TxType::PosvWithNTime) }
+}
+
+pub fn deserialize_tx5<T>(reader: &mut Reader<T>, tx_type: TxType) -> Result<Transaction5, Error>
+where
+    T: io::Read,
+{
+    let header: i32 = reader.read()?;
+    let overwintered: bool = (header >> 31) != 0;
+    let version = if overwintered { header & 0x7FFFFFFF } else { header };
+
+    let mut version_group_id = 0;
+    if overwintered {
+        version_group_id = reader.read()?;
+    }
+
+    // Handle NU5 specific logic
+    let mut consensus_branch_id = None;
+    if overwintered && version == 5 {
+        consensus_branch_id = Some(reader.read()?);
+        // Here, you will need to add code to handle other V5 specific fields
+        // like Orchard and Sapling bundles.
+    }
+
+    let mut n_time = if tx_type == TxType::PosWithNTime {
+        Some(reader.read()?)
+    } else {
+        None
+    };
+    let mut inputs: Vec<TransactionInput> = reader.read_list_max(MAX_LIST_SIZE)?;
+    let read_witness = if inputs.is_empty() && !overwintered && tx_type.uses_witness() {
+        let witness_flag: u8 = reader.read()?;
+        if witness_flag != WITNESS_FLAG {
+            return Err(Error::MalformedData);
+        }
+
+        inputs = reader.read_list_max(MAX_LIST_SIZE)?;
+        true
+    } else {
+        false
+    };
+    let outputs = reader.read_list_max(MAX_LIST_SIZE)?;
+    if outputs.is_empty() && tx_type.uses_witness() {
+        return Err(Error::Custom("Transaction has no output".into()));
+    }
+    if read_witness {
+        for input in inputs.iter_mut() {
+            input.script_witness = reader.read_list_max(MAX_LIST_SIZE)?;
+        }
+    }
+
+    let lock_time = reader.read()?;
+
+    let mut posv = false;
+    n_time = if tx_type == TxType::PosvWithNTime {
+        posv = true;
+        Some(reader.read()?)
+    } else {
+        n_time
+    };
+
+    let mut expiry_height = 0;
+    let mut value_balance = 0;
+    let mut shielded_spends = vec![];
+    let mut shielded_outputs = vec![];
+    if overwintered && version >= 3 {
+        expiry_height = reader.read()?;
+        if version >= 4 {
+            value_balance = reader.read()?;
+            shielded_spends = reader.read_list_max(MAX_LIST_SIZE)?;
+            shielded_outputs = reader.read_list_max(MAX_LIST_SIZE)?;
+        }
+    }
+
+    let mut join_splits = vec![];
+    let mut join_split_pubkey = H256::default();
+    let mut join_split_sig = H512::default();
+    let mut binding_sig = H512::default();
+    let zcash = overwintered || tx_type == TxType::Zcash;
+    if zcash {
+        if version == 2 || overwintered {
+            let len: usize = reader.read::<CompactInteger>()?.into();
+            if len > 0 {
+                if len > MAX_LIST_SIZE {
+                    return Err(Error::MalformedData);
+                };
+                let use_groth = version > 2;
+                for _ in 0..len {
+                    join_splits.push(deserialize_join_split(reader, use_groth)?);
+                }
+                join_split_pubkey = reader.read()?;
+                join_split_sig = reader.read()?;
+            }
+        }
+
+        if overwintered && version >= 4 && !(shielded_spends.is_empty() && shielded_outputs.is_empty()) {
+            binding_sig = reader.read()?;
+        }
+    };
+
+    let str_d_zeel = if tx_type == TxType::PosWithNTime && !reader.is_finished() {
+        let len: CompactInteger = reader.read()?;
+        let mut buf = vec![0; len.into()];
+        reader.read_slice(&mut buf)?;
+        let string = std::str::from_utf8(&buf).map_err(|_| Error::MalformedData)?;
+        Some(string.into())
+    } else {
+        None
+    };
+
+    Ok(Transaction5 {
+        version,
+        n_time,
+        overwintered,
+        version_group_id,
+        consensus_branch_id,
+        expiry_height,
+        value_balance,
+        inputs,
+        outputs,
+        lock_time,
+        binding_sig,
+        join_split_pubkey,
+        join_split_sig,
+        join_splits,
+        shielded_spends,
+        shielded_outputs,
+        sapling_bundle: None,
+        orchard_bundle: None,
+        zcash,
+        posv,
+        str_d_zeel,
+        tx_hash_algo: TxHashAlgo::DSHA256,
+    })
 }
 
 pub fn deserialize_tx<T>(reader: &mut Reader<T>, tx_type: TxType) -> Result<Transaction, Error>
@@ -596,12 +910,38 @@ impl Deserializable for Transaction {
     }
 }
 
+impl Deserializable for Transaction5 {
+    fn deserialize<T>(reader: &mut Reader<T>) -> Result<Self, Error>
+    where
+        Self: Sized,
+        T: io::Read,
+    {
+        // read the entire buffer to get it's copy for different cases
+        // it works properly only when buffer contains only 1 transaction bytes
+        // it breaks block serialization, but block serialization is not required for AtomicDEX
+        // specific use case
+        let mut buffer = vec![];
+        reader.read_to_end(&mut buffer)?;
+        if let Ok(t) = deserialize_tx5(&mut Reader::from_read(buffer.as_slice()), TxType::PosvWithNTime) {
+            return Ok(t);
+        }
+        if let Ok(t) = deserialize_tx5(&mut Reader::from_read(buffer.as_slice()), TxType::StandardWithWitness) {
+            return Ok(t);
+        }
+        if let Ok(t) = deserialize_tx5(&mut Reader::from_read(buffer.as_slice()), TxType::PosWithNTime) {
+            return Ok(t);
+        }
+        deserialize_tx5(&mut Reader::from_read(buffer.as_slice()), TxType::Zcash)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Bytes, ExtTransaction, OutPoint, Transaction, TransactionInput, TransactionOutput};
     use hash::{H256, H512};
     use hex::ToHex;
     use ser::{deserialize, serialize, serialize_with_flags, Serializable, SERIALIZE_TRANSACTION_WITNESS};
+    use transaction::Transaction5;
     use TxHashAlgo;
 
     // real transaction from block 80000
@@ -657,6 +997,47 @@ mod tests {
 
         let serialized = serialize(&t);
         assert_eq!(Bytes::from(raw), serialized);
+    }
+
+    // https://zcashblockexplorer.com/transactions/26669db8c54964ca860e0a1f38baefb757a82c6ab64d930bbec85ae3f45d0a3a
+    #[test]
+    fn test_nu5_transaction() {
+        let raw = "050000800a27a726b4d0d6c200000000d1ea1b00018f03f250f4f9611038f0263f2586ace3acef1227ae4e1a944ffcef612f846405010000006b483045022100fb67eedf65212040dbe6ab17028981c1fa6bb3203d48e1ee7fb81ca0c13eec7402206f8397e936819650f925258d909bf21247d925aef59cf1293281c08d3afa330101210301b2324698f3dacd6e076be09f06b58e5462d77e902c3304c078f6d6a367df97ffffffff01bf180500000000001976a91485b630193f8d9025495f51b4a3f884d32b92fa1d88ac000000";
+        let t: Transaction5 = raw.into();
+        println!("{:?}", t);
+
+        // Parse hex strings to u32
+        let expected_version_group_id = u32::from_str_radix("26a7270a", 16).expect("Invalid hex for version_group_id");
+        let expected_consensus_branch_id =
+            u32::from_str_radix("c2d6d0b4", 16).expect("Invalid hex for consensus_branch_id");
+
+        assert_eq!(t.version, 5);
+        assert!(t.overwintered);
+        assert_eq!(t.version_group_id, expected_version_group_id);
+        assert_eq!(t.consensus_branch_id.unwrap(), expected_consensus_branch_id);
+        assert!(!t.has_witness());
+        assert_eq!(t.inputs.len(), 1);
+        assert_eq!(t.outputs.len(), 1);
+        assert_eq!(t.shielded_spends.len(), 0);
+        assert_eq!(t.shielded_outputs.len(), 0);
+        assert_eq!(t.join_splits.len(), 0);
+        assert!(t.zcash);
+
+        // let serialized = serialize(&t);
+        // assert_eq!(Bytes::from(raw), serialized);
+    }
+
+    #[test]
+    fn test_expected_nu5_id() {
+        let expected_version_group_id = u32::from_str_radix("26a7270a", 16).expect("Invalid hex for version_group_id");
+        let expected_consensus_branch_id =
+            u32::from_str_radix("c2d6d0b4", 16).expect("Invalid hex for consensus_branch_id");
+
+        println!("{:?}", expected_version_group_id);
+        println!("{:?}", expected_consensus_branch_id);
+
+        assert_eq!(format!("{:x}", expected_version_group_id), "26a7270a");
+        assert_eq!(format!("{:x}", expected_consensus_branch_id), "c2d6d0b4");
     }
 
     // https://github.com/artemii235/SuperNET/issues/342

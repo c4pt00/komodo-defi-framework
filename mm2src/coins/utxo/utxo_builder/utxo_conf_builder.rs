@@ -206,6 +206,8 @@ impl<'a> UtxoConfBuilder<'a> {
                     0x03c4_8270
                 } else if tx_version == 4 && overwintered {
                     0x892f_2085
+                } else if tx_version == 5 && overwintered {
+                    0x26a7_270a
                 } else {
                     0
                 }
@@ -220,6 +222,7 @@ impl<'a> UtxoConfBuilder<'a> {
             None => match tx_version {
                 3 => 0x5ba8_1b19,
                 4 => 0x76b8_09bb,
+                5 => 0xc2d6d0b4,
                 _ => 0,
             },
         };
