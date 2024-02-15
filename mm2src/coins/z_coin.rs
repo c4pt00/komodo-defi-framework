@@ -2,7 +2,9 @@ use crate::coin_errors::MyAddressError;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::my_tx_history_v2::{MyTxHistoryErrorV2, MyTxHistoryRequestV2, MyTxHistoryResponseV2};
 #[cfg(not(target_arch = "wasm32"))]
-use crate::rpc_command::init_withdraw::{InitWithdrawCoin, WithdrawInProgressStatus, WithdrawTaskHandle};
+use crate::rpc_command::init_withdraw::WithdrawTaskHandleShared;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::rpc_command::init_withdraw::{InitWithdrawCoin, WithdrawInProgressStatus};
 use crate::utxo::rpc_clients::{ElectrumRpcRequest, UnspentInfo, UtxoRpcClientEnum, UtxoRpcError, UtxoRpcFut,
                                UtxoRpcResult};
 use crate::utxo::utxo_builder::UtxoCoinBuildError;
@@ -1842,7 +1844,7 @@ impl UtxoCommonOps for ZCoin {
     }
 
     fn script_for_address(&self, address: &Address) -> MmResult<Script, UnsupportedAddr> {
-        utxo_common::get_script_for_address(self.as_ref(), address)
+        utxo_common::output_script_checked(self.as_ref(), address)
     }
 
     async fn get_current_mtp(&self) -> UtxoRpcResult<u32> {
@@ -1920,8 +1922,7 @@ impl UtxoCommonOps for ZCoin {
         let conf = &self.utxo_arc.conf;
         utxo_common::address_from_pubkey(
             pubkey,
-            conf.pub_addr_prefix,
-            conf.pub_t_addr_prefix,
+            conf.address_prefixes.clone(),
             conf.checksum_type,
             conf.bech32_hrp.clone(),
             self.addr_format().clone(),
@@ -1936,7 +1937,7 @@ impl InitWithdrawCoin for ZCoin {
         &self,
         _ctx: MmArc,
         req: WithdrawRequest,
-        task_handle: &WithdrawTaskHandle,
+        task_handle: WithdrawTaskHandleShared,
     ) -> Result<TransactionDetails, MmError<WithdrawError>> {
         if req.fee.is_some() {
             return MmError::err(WithdrawError::UnsupportedError(
