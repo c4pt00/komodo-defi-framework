@@ -1,3 +1,4 @@
+use coins::sia::SiaCoinActivationParams;
 use coins::utxo::UtxoActivationParams;
 #[cfg(not(target_arch = "wasm32"))]
 use coins::z_coin::ZcoinActivationParams;
@@ -18,6 +19,10 @@ pub trait TxHistory {
 }
 
 impl TxHistory for UtxoActivationParams {
+    fn tx_history(&self) -> bool { self.tx_history }
+}
+
+impl TxHistory for SiaCoinActivationParams {
     fn tx_history(&self) -> bool { self.tx_history }
 }
 

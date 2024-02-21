@@ -295,7 +295,7 @@ pub mod z_coin;
 use z_coin::{ZCoin, ZcoinProtocolInfo};
 
 pub mod sia;
-use sia::{sia_coin_wo_policy, SiaCoin, SiaCoinProtocolInfo};
+use sia::{SiaCoin, SiaCoinProtocolInfo};
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
 pub type TransactionResult = Result<TransactionEnum, TransactionErr>;
@@ -3763,8 +3763,7 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
             return ERR!("SplToken protocol is not supported by lp_coininit - use enable_spl instead")
         },
         CoinProtocol::SIA { .. } => {
-            let sia = try_s!(sia_coin_wo_policy(ctx, "SIA").await);
-            sia.into()
+            return ERR!("SIA protocol is not supported by lp_coininit. Use task::enable_sia::init");
         },
     };
 
