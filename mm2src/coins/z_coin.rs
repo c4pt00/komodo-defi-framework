@@ -1,4 +1,4 @@
-use crate::coin_errors::MyAddressError;
+use crate::coin_errors::{MyAddressError, ValidatePaymentResult};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::my_tx_history_v2::{MyTxHistoryErrorV2, MyTxHistoryRequestV2, MyTxHistoryResponseV2};
 #[cfg(not(target_arch = "wasm32"))]
@@ -1153,7 +1153,7 @@ impl MarketCoinOps for ZCoin {
 
     fn wait_for_htlc_tx_spend(&self, args: WaitForHTLCTxSpendArgs<'_>) -> TransactionFut {
         utxo_common::wait_for_output_spend(
-            self.as_ref(),
+            self.clone(),
             args.tx_bytes,
             utxo_common::DEFAULT_SWAP_VOUT,
             args.from_block,
@@ -1312,9 +1312,8 @@ impl SwapOps for ZCoin {
         let tx = try_tx_s!(ZTransaction::read(taker_refunds_payment_args.payment_tx));
         let key_pair = self.derive_htlc_key_pair(taker_refunds_payment_args.swap_unique_data);
         let time_lock = try_tx_s!(taker_refunds_payment_args.time_lock.try_into());
-        let redeem_script = payment_script(
+        let redeem_script = taker_refunds_payment_args.tx_type_with_secret_hash.redeem_script(
             time_lock,
-            taker_refunds_payment_args.secret_hash,
             key_pair.public(),
             &try_tx_s!(Public::from_slice(taker_refunds_payment_args.other_pubkey)),
         );
@@ -1337,9 +1336,8 @@ impl SwapOps for ZCoin {
         let tx = try_tx_s!(ZTransaction::read(maker_refunds_payment_args.payment_tx));
         let key_pair = self.derive_htlc_key_pair(maker_refunds_payment_args.swap_unique_data);
         let time_lock = try_tx_s!(maker_refunds_payment_args.time_lock.try_into());
-        let redeem_script = payment_script(
+        let redeem_script = maker_refunds_payment_args.tx_type_with_secret_hash.redeem_script(
             time_lock,
-            maker_refunds_payment_args.secret_hash,
             key_pair.public(),
             &try_tx_s!(Public::from_slice(maker_refunds_payment_args.other_pubkey)),
         );
@@ -1444,13 +1442,13 @@ impl SwapOps for ZCoin {
     }
 
     #[inline]
-    fn validate_maker_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentFut<()> {
-        utxo_common::validate_maker_payment(self, input)
+    async fn validate_maker_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
+        utxo_common::validate_maker_payment(self, input).await
     }
 
     #[inline]
-    fn validate_taker_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentFut<()> {
-        utxo_common::validate_taker_payment(self, input)
+    async fn validate_taker_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
+        utxo_common::validate_taker_payment(self, input).await
     }
 
     #[inline]
@@ -1843,7 +1841,7 @@ impl UtxoCommonOps for ZCoin {
     }
 
     fn script_for_address(&self, address: &Address) -> MmResult<Script, UnsupportedAddr> {
-        utxo_common::get_script_for_address(self.as_ref(), address)
+        utxo_common::output_script_checked(self.as_ref(), address)
     }
 
     async fn get_current_mtp(&self) -> UtxoRpcResult<u32> {
@@ -1921,8 +1919,7 @@ impl UtxoCommonOps for ZCoin {
         let conf = &self.utxo_arc.conf;
         utxo_common::address_from_pubkey(
             pubkey,
-            conf.pub_addr_prefix,
-            conf.pub_t_addr_prefix,
+            conf.address_prefixes.clone(),
             conf.checksum_type,
             conf.bech32_hrp.clone(),
             self.addr_format().clone(),

@@ -5,6 +5,7 @@ use chain::OutPoint;
 use common::{block_on, wait_until_sec, DEX_FEE_ADDR_RAW_PUBKEY};
 use crypto::Secp256k1Secret;
 use itertools::Itertools;
+use keys::{Address, AddressBuilder};
 use mm2_core::mm_ctx::MmCtxBuilder;
 use mm2_number::bigdecimal::Zero;
 use mocktopus::mocking::{MockResult, Mockable};
@@ -65,14 +66,16 @@ fn test_withdraw_to_p2sh_address_should_fail() {
     ];
     let (_, coin) = qrc20_coin_for_test(priv_key, None);
 
-    let p2sh_address = Address {
-        prefix: coin.as_ref().conf.p2sh_addr_prefix,
-        hash: coin.as_ref().derivation_method.unwrap_single_addr().hash.clone(),
-        t_addr_prefix: coin.as_ref().conf.p2sh_t_addr_prefix,
-        checksum_type: coin.as_ref().derivation_method.unwrap_single_addr().checksum_type,
-        hrp: coin.as_ref().conf.bech32_hrp.clone(),
-        addr_format: UtxoAddressFormat::Standard,
-    };
+    let p2sh_address = AddressBuilder::new(
+        UtxoAddressFormat::Standard,
+        coin.as_ref().derivation_method.unwrap_single_addr().hash().clone(),
+        *coin.as_ref().derivation_method.unwrap_single_addr().checksum_type(),
+        coin.as_ref().conf.address_prefixes.clone(),
+        coin.as_ref().conf.bech32_hrp.clone(),
+    )
+    .as_sh()
+    .build()
+    .expect("valid address props");
 
     let req = WithdrawRequest {
         amount: 10.into(),
@@ -150,7 +153,11 @@ fn test_validate_maker_payment() {
 
     assert_eq!(
         *coin.utxo.derivation_method.unwrap_single_addr(),
-        "qUX9FGHubczidVjWPCUWuwCUJWpkAtGCgf".into()
+        Address::from_legacyaddress(
+            "qUX9FGHubczidVjWPCUWuwCUJWpkAtGCgf",
+            &coin.as_ref().conf.address_prefixes
+        )
+        .unwrap()
     );
 
     // tx_hash: 016a59dd2b181b3906b0f0333d5c7561dacb332dc99ac39679a591e523f2c49a
@@ -173,12 +180,10 @@ fn test_validate_maker_payment() {
         watcher_reward: None,
     };
 
-    coin.validate_maker_payment(input.clone()).wait().unwrap();
+    block_on(coin.validate_maker_payment(input.clone())).unwrap();
 
     input.other_pub = hex::decode("022b00078841f37b5d30a6a1defb82b3af4d4e2d24dd4204d41f0c9ce1e875de1a").unwrap();
-    let error = coin
-        .validate_maker_payment(input.clone())
-        .wait()
+    let error = block_on(coin.validate_maker_payment(input.clone()))
         .unwrap_err()
         .into_inner();
     log!("error: {:?}", error);
@@ -189,9 +194,7 @@ fn test_validate_maker_payment() {
     input.other_pub = correct_maker_pub;
 
     input.amount = BigDecimal::from_str("0.3").unwrap();
-    let error = coin
-        .validate_maker_payment(input.clone())
-        .wait()
+    let error = block_on(coin.validate_maker_payment(input.clone()))
         .unwrap_err()
         .into_inner();
     log!("error: {:?}", error);
@@ -207,9 +210,7 @@ fn test_validate_maker_payment() {
     input.amount = correct_amount;
 
     input.secret_hash = vec![2; 20];
-    let error = coin
-        .validate_maker_payment(input.clone())
-        .wait()
+    let error = block_on(coin.validate_maker_payment(input.clone()))
         .unwrap_err()
         .into_inner();
     log!("error: {:?}", error);
@@ -225,7 +226,7 @@ fn test_validate_maker_payment() {
     input.secret_hash = vec![1; 20];
 
     input.time_lock = 123;
-    let error = coin.validate_maker_payment(input).wait().unwrap_err().into_inner();
+    let error = block_on(coin.validate_maker_payment(input)).unwrap_err().into_inner();
     log!("error: {:?}", error);
     match error {
         ValidatePaymentError::UnexpectedPaymentState(err) => {
@@ -249,7 +250,11 @@ fn test_wait_for_confirmations_excepted() {
 
     assert_eq!(
         *coin.utxo.derivation_method.unwrap_single_addr(),
-        "qUX9FGHubczidVjWPCUWuwCUJWpkAtGCgf".into()
+        Address::from_legacyaddress(
+            "qUX9FGHubczidVjWPCUWuwCUJWpkAtGCgf",
+            &coin.as_ref().conf.address_prefixes
+        )
+        .unwrap()
     );
 
     // tx_hash: 35e03bc529528a853ee75dde28f27eec8ed7b152b6af7ab6dfa5d55ea46f25ac
@@ -557,7 +562,11 @@ fn test_generate_token_transfer_script_pubkey() {
         gas_price,
     };
 
-    let to_addr: UtxoAddress = "qHmJ3KA6ZAjR9wGjpFASn4gtUSeFAqdZgs".into();
+    let to_addr: UtxoAddress = UtxoAddress::from_legacyaddress(
+        "qHmJ3KA6ZAjR9wGjpFASn4gtUSeFAqdZgs",
+        &coin.as_ref().conf.address_prefixes,
+    )
+    .unwrap();
     let to_addr = qtum::contract_addr_from_utxo_addr(to_addr).unwrap();
     let amount: U256 = 1000000000.into();
     let actual = coin.transfer_output(to_addr, amount, gas_limit, gas_price).unwrap();
@@ -1076,9 +1085,7 @@ fn test_validate_maker_payment_malicious() {
         unique_swap_data: Vec::new(),
         watcher_reward: None,
     };
-    let error = coin
-        .validate_maker_payment(input)
-        .wait()
+    let error = block_on(coin.validate_maker_payment(input))
         .expect_err("'erc20Payment' was called from another swap contract, expected an error")
         .into_inner();
     log!("error: {}", error);

@@ -4,7 +4,7 @@ use crate::mm2::lp_native_dex::init_hw::{cancel_init_trezor, init_trezor, init_t
 use crate::mm2::lp_native_dex::init_metamask::{cancel_connect_metamask, connect_metamask, connect_metamask_status};
 use crate::mm2::lp_ordermatch::{best_orders_rpc_v2, orderbook_rpc_v2, start_simple_market_maker_bot,
                                 stop_simple_market_maker_bot};
-use crate::mm2::lp_swap::swap_v2_rpcs::{my_recent_swaps_rpc, my_swap_status_rpc};
+use crate::mm2::lp_swap::swap_v2_rpcs::{active_swaps_rpc, my_recent_swaps_rpc, my_swap_status_rpc};
 use crate::mm2::rpc::rate_limiter::{process_rate_limit, RateLimitContext};
 use crate::{mm2::lp_stats::{add_node_to_version_stat, remove_node_from_version_stat, start_version_stat_collection,
                             stop_version_stat_collection, update_version_stat_collection},
@@ -50,7 +50,8 @@ use http::Response;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use mm2_rpc::mm_protocol::{MmRpcBuilder, MmRpcRequest, MmRpcVersion};
-use nft::{get_nft_list, get_nft_metadata, get_nft_transfers, refresh_nft_metadata, update_nft, withdraw_nft};
+use nft::{clear_nft_db, get_nft_list, get_nft_metadata, get_nft_transfers, refresh_nft_metadata, update_nft,
+          withdraw_nft};
 use serde::de::DeserializeOwned;
 use serde_json::{self as json, Value as Json};
 use std::net::SocketAddr;
@@ -154,9 +155,11 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
 
     match request.method.as_str() {
         "account_balance" => handle_mmrpc(ctx, request, account_balance).await,
+        "active_swaps" => handle_mmrpc(ctx, request, active_swaps_rpc).await,
         "add_delegation" => handle_mmrpc(ctx, request, add_delegation).await,
         "add_node_to_version_stat" => handle_mmrpc(ctx, request, add_node_to_version_stat).await,
         "best_orders" => handle_mmrpc(ctx, request, best_orders_rpc_v2).await,
+        "clear_nft_db" => handle_mmrpc(ctx, request, clear_nft_db).await,
         "enable_bch_with_tokens" => handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<BchCoin>).await,
         "enable_slp" => handle_mmrpc(ctx, request, enable_token::<SlpToken>).await,
         "enable_eth_with_tokens" => handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<EthCoin>).await,
