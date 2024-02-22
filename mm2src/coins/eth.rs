@@ -14,6 +14,7 @@
  * Removal or modification of this copyright notice is prohibited.            *
  *                                                                            *
  ******************************************************************************/
+use std::array::TryFromSliceError;
 //
 //  eth.rs
 //  marketmaker
@@ -23,7 +24,11 @@
 use super::eth::Action::{Call, Create};
 use crate::lp_price::get_base_price_in_rel;
 use crate::nft::nft_structs::{ContractType, ConvertChain, TransactionNftDetails, WithdrawErc1155, WithdrawErc721};
-use crate::{DexFee, ValidateWatcherSpendInput, WatcherSpendType};
+use crate::{CoinAssocTypes, DexFee, FundingTxSpend, GenPreimageResult, GenTakerFundingSpendArgs,
+            GenTakerPaymentSpendArgs, RefundFundingSecretArgs, SearchForFundingSpendErr, SendTakerFundingArgs,
+            TakerCoinSwapOpsV2, ToBytes, TxPreimageWithSig, ValidateSwapV2TxResult, ValidateTakerFundingArgs,
+            ValidateTakerFundingSpendPreimageResult, ValidateTakerPaymentSpendPreimageResult,
+            ValidateWatcherSpendInput, WaitForTakerPaymentSpendError, WatcherSpendType};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, keccak256, ripemd160, sha256};
 use common::custom_futures::repeatable::{Ready, Retry, RetryOnError};
@@ -118,11 +123,13 @@ use crate::nft::nft_errors::GetNftInfoError;
 use crate::{PrivKeyPolicy, TransactionResult, WithdrawFrom};
 use nonce::ParityNonce;
 
-/// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
+/// https://github.com/KomodoPlatform/etomic-swap/blob/main/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852
 /// Ropsten: https://ropsten.etherscan.io/address/0x7bc1bbdd6a0a722fc9bffc49c921b685ecb84b94
 /// ETH mainnet: https://etherscan.io/address/0x8500AFc0bc5214728082163326C2FF0C73f4a871
 pub const SWAP_CONTRACT_ABI: &str = include_str!("eth/swap_contract_abi.json");
+/// https://github.com/KomodoPlatform/etomic-swap/blob/main/contracts/EtomicSwapV2.sol
+pub const SWAP_V2_CONTRACT_ABI: &str = include_str!("eth/swap_v2_contract_abi.json");
 /// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 pub const ERC20_ABI: &str = include_str!("eth/erc20_abi.json");
 /// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md
@@ -168,6 +175,7 @@ const GUI_AUTH_SIGNED_MESSAGE_LIFETIME_SEC: i64 = 90;
 
 lazy_static! {
     pub static ref SWAP_CONTRACT: Contract = Contract::load(SWAP_CONTRACT_ABI.as_bytes()).unwrap();
+    pub static ref SWAP_V2_CONTRACT: Contract = Contract::load(SWAP_V2_CONTRACT_ABI.as_bytes()).unwrap();
     pub static ref ERC20_CONTRACT: Contract = Contract::load(ERC20_ABI.as_bytes()).unwrap();
     pub static ref ERC721_CONTRACT: Contract = Contract::load(ERC721_ABI.as_bytes()).unwrap();
     pub static ref ERC1155_CONTRACT: Contract = Contract::load(ERC1155_ABI.as_bytes()).unwrap();
@@ -424,6 +432,7 @@ pub struct EthCoinImpl {
     pub my_address: Address,
     sign_message_prefix: Option<String>,
     swap_contract_address: Address,
+    swap_v2_contract_address: Address,
     fallback_swap_contract: Option<Address>,
     contract_supports_watchers: bool,
     pub(crate) web3: Web3<Web3Transport>,
@@ -5585,6 +5594,11 @@ pub async fn eth_coin_from_conf_and_request(
     if swap_contract_address == Address::default() {
         return ERR!("swap_contract_address can't be zero address");
     }
+
+    let swap_v2_contract_address: Address = try_s!(json::from_value(req["swap_v2_contract_address"].clone()));
+    if swap_v2_contract_address == Address::default() {
+        return ERR!("swap_v2_contract_address can't be zero address");
+    }
     let fallback_swap_contract: Option<Address> = try_s!(json::from_value(req["fallback_swap_contract"].clone()));
     if let Some(fallback) = fallback_swap_contract {
         if fallback == Address::default() {
@@ -5687,6 +5701,7 @@ pub async fn eth_coin_from_conf_and_request(
         coin_type,
         sign_message_prefix,
         swap_contract_address,
+        swap_v2_contract_address,
         fallback_swap_contract,
         contract_supports_watchers,
         decimals,
@@ -5980,4 +5995,155 @@ async fn get_eth_gas_details(
             Ok((gas_limit, gas_price))
         },
     }
+}
+
+impl ToBytes for Address {
+    fn to_bytes(&self) -> Vec<u8> { self.as_ref().to_vec() }
+}
+
+impl ToBytes for Public {
+    fn to_bytes(&self) -> Vec<u8> { self.as_ref().to_vec() }
+}
+
+impl ToBytes for Signature {
+    fn to_bytes(&self) -> Vec<u8> { self.as_ref().to_vec() }
+}
+
+impl CoinAssocTypes for EthCoin {
+    type Address = Address;
+    type AddressParseError = MmError<String>;
+    type Pubkey = Public;
+    type PubkeyParseError = MmError<TryFromSliceError>;
+    type Tx = SignedEthTx;
+    type TxParseError = MmError<String>;
+    type Preimage = Signature;
+    type PreimageParseError = MmError<TryFromSliceError>;
+    type Sig = Signature;
+    type SigParseError = MmError<TryFromSliceError>;
+
+    #[inline]
+    fn my_addr(&self) -> &Self::Address { &self.my_address }
+
+    #[inline]
+    fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> {
+        addr_from_str(address).map_err(MmError::from)
+    }
+
+    #[inline]
+    fn parse_pubkey(&self, pubkey: &[u8]) -> Result<Self::Pubkey, Self::PubkeyParseError> {
+        let array: [u8; 64] = pubkey.try_into()?;
+        Ok(array.into())
+    }
+
+    #[inline]
+    fn parse_tx(&self, tx: &[u8]) -> Result<Self::Tx, Self::TxParseError> {
+        signed_eth_tx_from_bytes(tx).map_err(MmError::from)
+    }
+
+    #[inline]
+    fn parse_preimage(&self, bytes: &[u8]) -> Result<Self::Preimage, Self::PreimageParseError> {
+        let array: [u8; 65] = bytes.try_into()?;
+        Ok(array.into())
+    }
+
+    #[inline]
+    fn parse_signature(&self, sig: &[u8]) -> Result<Self::Sig, Self::SigParseError> {
+        let array: [u8; 65] = sig.try_into()?;
+        Ok(array.into())
+    }
+}
+
+#[async_trait]
+impl TakerCoinSwapOpsV2 for EthCoin {
+    async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> { todo!() }
+
+    async fn validate_taker_funding(&self, args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
+        todo!()
+    }
+
+    async fn refund_taker_funding_timelock(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn refund_taker_funding_secret(
+        &self,
+        args: RefundFundingSecretArgs<'_, Self>,
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn search_for_taker_funding_spend(
+        &self,
+        tx: &Self::Tx,
+        from_block: u64,
+        secret_hash: &[u8],
+    ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
+        todo!()
+    }
+
+    async fn gen_taker_funding_spend_preimage(
+        &self,
+        args: &GenTakerFundingSpendArgs<'_, Self>,
+        swap_unique_data: &[u8],
+    ) -> GenPreimageResult<Self> {
+        todo!()
+    }
+
+    async fn validate_taker_funding_spend_preimage(
+        &self,
+        gen_args: &GenTakerFundingSpendArgs<'_, Self>,
+        preimage: &TxPreimageWithSig<Self>,
+    ) -> ValidateTakerFundingSpendPreimageResult {
+        todo!()
+    }
+
+    async fn sign_and_send_taker_funding_spend(
+        &self,
+        preimage: &TxPreimageWithSig<Self>,
+        args: &GenTakerFundingSpendArgs<'_, Self>,
+        swap_unique_data: &[u8],
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn refund_combined_taker_payment(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn gen_taker_payment_spend_preimage(
+        &self,
+        args: &GenTakerPaymentSpendArgs<'_, Self>,
+        swap_unique_data: &[u8],
+    ) -> GenPreimageResult<Self> {
+        todo!()
+    }
+
+    async fn validate_taker_payment_spend_preimage(
+        &self,
+        gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        preimage: &TxPreimageWithSig<Self>,
+    ) -> ValidateTakerPaymentSpendPreimageResult {
+        todo!()
+    }
+
+    async fn sign_and_broadcast_taker_payment_spend(
+        &self,
+        preimage: &TxPreimageWithSig<Self>,
+        gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        secret: &[u8],
+        swap_unique_data: &[u8],
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn wait_for_taker_payment_spend(
+        &self,
+        taker_payment: &Self::Tx,
+        from_block: u64,
+        wait_until: u64,
+    ) -> MmResult<Self::Tx, WaitForTakerPaymentSpendError> {
+        todo!()
+    }
+
+    fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
 }

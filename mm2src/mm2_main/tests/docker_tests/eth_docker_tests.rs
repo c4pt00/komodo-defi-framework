@@ -1,13 +1,15 @@
 use crate::docker_tests::docker_tests_common::{random_secp256k1_secret, GETH_ACCOUNT, GETH_ERC20_CONTRACT,
-                                               GETH_NONCE_LOCK, GETH_SWAP_CONTRACT, GETH_WATCHERS_SWAP_CONTRACT,
-                                               GETH_WEB3, MM_CTX};
+                                               GETH_NONCE_LOCK, GETH_SWAP_CONTRACT, GETH_SWAP_V2_CONTRACT,
+                                               GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX};
 use bitcrypto::dhash160;
 use coins::eth::{checksum_address, eth_coin_from_conf_and_request, EthCoin, ERC20_ABI};
-use coins::{CoinProtocol, ConfirmPaymentInput, FoundSwapTxSpend, MarketCoinOps, PrivKeyBuildPolicy, RefundPaymentArgs,
-            SearchForSwapTxSpendInput, SendPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxTypeWithSecretHash};
+use coins::{CoinProtocol, ConfirmPaymentInput, DexFee, FoundSwapTxSpend, MarketCoinOps, PrivKeyBuildPolicy,
+            RefundPaymentArgs, SearchForSwapTxSpendInput, SendPaymentArgs, SendTakerFundingArgs, SpendPaymentArgs,
+            SwapOps, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2};
 use common::{block_on, now_sec};
 use ethereum_types::U256;
 use futures01::Future;
+use mm2_number::BigDecimal;
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf};
 use std::thread;
 use std::time::Duration;
@@ -24,6 +26,11 @@ fn geth_account() -> Address { unsafe { GETH_ACCOUNT } }
 ///
 /// GETH_SWAP_CONTRACT is set once during initialization before tests start
 pub fn swap_contract() -> Address { unsafe { GETH_SWAP_CONTRACT } }
+
+/// # Safety
+///
+/// GETH_SWAP_V2_CONTRACT is set once during initialization before tests start
+pub fn swap_v2_contract() -> Address { unsafe { GETH_SWAP_V2_CONTRACT } }
 
 /// # Safety
 ///
@@ -87,13 +94,14 @@ fn fill_erc20(to_addr: Address, amount: U256) {
 }
 
 /// Creates ETH protocol coin supplied with 100 ETH
-pub fn eth_coin_with_random_privkey(swap_contract: Address) -> EthCoin {
+pub fn eth_coin_with_random_privkey(swap_contract: Address, swap_v2_contract: Address) -> EthCoin {
     let eth_conf = eth_dev_conf();
     let req = json!({
         "method": "enable",
         "coin": "ETH",
         "urls": ["http://127.0.0.1:8545"],
         "swap_contract_address": swap_contract,
+        "swap_v2_contract_address": swap_v2_contract,
     });
 
     let secret = random_secp256k1_secret();
@@ -114,13 +122,14 @@ pub fn eth_coin_with_random_privkey(swap_contract: Address) -> EthCoin {
 }
 
 /// Creates ERC20 protocol coin supplied with 1 ETH and 100 token
-pub fn erc20_coin_with_random_privkey(swap_contract: Address) -> EthCoin {
+pub fn erc20_coin_with_random_privkey(swap_contract: Address, swap_v2_contract: Address) -> EthCoin {
     let erc20_conf = erc20_dev_conf(&erc20_contract_checksum());
     let req = json!({
         "method": "enable",
         "coin": "ERC20DEV",
         "urls": ["http://127.0.0.1:8545"],
         "swap_contract_address": swap_contract,
+        "swap_v2_contract_address": swap_v2_contract,
     });
 
     let erc20_coin = block_on(eth_coin_from_conf_and_request(
@@ -146,7 +155,7 @@ pub fn erc20_coin_with_random_privkey(swap_contract: Address) -> EthCoin {
 
 #[test]
 fn send_and_refund_eth_maker_payment() {
-    let eth_coin = eth_coin_with_random_privkey(swap_contract());
+    let eth_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
 
     let time_lock = now_sec() - 100;
     let other_pubkey = &[
@@ -220,8 +229,8 @@ fn send_and_refund_eth_maker_payment() {
 
 #[test]
 fn send_and_spend_eth_maker_payment() {
-    let maker_eth_coin = eth_coin_with_random_privkey(swap_contract());
-    let taker_eth_coin = eth_coin_with_random_privkey(swap_contract());
+    let maker_eth_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
+    let taker_eth_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
 
     let time_lock = now_sec() + 1000;
     let maker_pubkey = maker_eth_coin.derive_htlc_pubkey(&[]);
@@ -298,7 +307,7 @@ fn send_and_spend_eth_maker_payment() {
 
 #[test]
 fn send_and_refund_erc20_maker_payment() {
-    let erc20_coin = erc20_coin_with_random_privkey(swap_contract());
+    let erc20_coin = erc20_coin_with_random_privkey(swap_contract(), swap_v2_contract());
 
     let time_lock = now_sec() - 100;
     let other_pubkey = &[
@@ -373,8 +382,8 @@ fn send_and_refund_erc20_maker_payment() {
 
 #[test]
 fn send_and_spend_erc20_maker_payment() {
-    let maker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
-    let taker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
+    let maker_erc20_coin = erc20_coin_with_random_privkey(swap_contract(), swap_v2_contract());
+    let taker_erc20_coin = erc20_coin_with_random_privkey(swap_contract(), swap_v2_contract());
 
     let time_lock = now_sec() + 1000;
     let maker_pubkey = maker_erc20_coin.derive_htlc_pubkey(&[]);
@@ -447,4 +456,26 @@ fn send_and_spend_erc20_maker_payment() {
 
     let expected = FoundSwapTxSpend::Spent(payment_spend);
     assert_eq!(expected, search_tx);
+}
+
+#[test]
+fn send_and_refund_taker_funding_by_secret() {
+    let taker_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
+    let maker_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
+    let taker_secret = [0u8; 32];
+    let taker_secret_hash_owned = dhash160(&taker_secret);
+    let taker_secret_hash = taker_secret_hash_owned.as_slice();
+
+    let args = SendTakerFundingArgs {
+        time_lock: now_sec() + 1000,
+        taker_secret_hash,
+        maker_pub: &maker_coin.derive_htlc_pubkey(&[]),
+        dex_fee: &DexFee::Standard("0.1".into()),
+        premium_amount: BigDecimal::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+    };
+
+    let funding_tx = block_on(taker_coin.send_taker_funding(args)).unwrap();
+    log!("Funding tx {:?}", funding_tx);
 }

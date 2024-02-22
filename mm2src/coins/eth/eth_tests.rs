@@ -138,6 +138,8 @@ fn eth_coin_from_keypair(
         sign_message_prefix: Some(String::from("Ethereum Signed Message:\n")),
         priv_key_policy: key_pair.into(),
         swap_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
+        // this just a default value, which won't work
+        swap_v2_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
         fallback_swap_contract,
         contract_supports_watchers: false,
         ticker,
@@ -317,6 +319,8 @@ fn test_nonce_several_urls() {
         sign_message_prefix: Some(String::from("Ethereum Signed Message:\n")),
         priv_key_policy: key_pair.into(),
         swap_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
+        // this just a default value, which won't work
+        swap_v2_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
         fallback_swap_contract: None,
         contract_supports_watchers: false,
         web3_instances: vec![
@@ -383,6 +387,8 @@ fn test_wait_for_payment_spend_timeout() {
         sign_message_prefix: Some(String::from("Ethereum Signed Message:\n")),
         priv_key_policy: key_pair.into(),
         swap_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
+        // this just a default value, which won't work
+        swap_v2_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
         fallback_swap_contract: None,
         contract_supports_watchers: false,
         ticker: "ETH".into(),
@@ -1087,6 +1093,8 @@ fn test_message_hash() {
         sign_message_prefix: Some(String::from("Ethereum Signed Message:\n")),
         priv_key_policy: key_pair.into(),
         swap_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
+        // this just a default value, which won't work
+        swap_v2_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
         fallback_swap_contract: None,
         contract_supports_watchers: false,
         web3_instances: vec![Web3Instance {
@@ -1132,6 +1140,8 @@ fn test_sign_verify_message() {
         sign_message_prefix: Some(String::from("Ethereum Signed Message:\n")),
         priv_key_policy: key_pair.into(),
         swap_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
+        // this just a default value, which won't work
+        swap_v2_contract_address: Address::from_str(ETH_DEV_SWAP_CONTRACT).unwrap(),
         fallback_swap_contract: None,
         contract_supports_watchers: false,
         web3_instances: vec![Web3Instance {
@@ -1188,6 +1198,8 @@ fn test_eth_extract_secret() {
         sign_message_prefix: Some(String::from("Ethereum Signed Message:\n")),
         priv_key_policy: key_pair.into(),
         swap_contract_address,
+        // this just a default value, which won't work
+        swap_v2_contract_address: swap_contract_address,
         fallback_swap_contract: None,
         contract_supports_watchers: false,
         ticker: "ETH".into(),

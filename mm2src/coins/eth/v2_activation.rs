@@ -90,6 +90,7 @@ pub struct EthActivationV2Request {
     #[serde(default)]
     pub rpc_mode: EthRpcMode,
     pub swap_contract_address: Address,
+    pub swap_v2_contract_address: Address,
     pub fallback_swap_contract: Option<Address>,
     #[serde(default)]
     pub contract_supports_watchers: bool,
@@ -201,6 +202,7 @@ impl EthCoin {
             },
             sign_message_prefix: self.sign_message_prefix.clone(),
             swap_contract_address: self.swap_contract_address,
+            swap_v2_contract_address: self.swap_v2_contract_address,
             fallback_swap_contract: self.fallback_swap_contract,
             contract_supports_watchers: self.contract_supports_watchers,
             decimals,
@@ -310,6 +312,7 @@ pub async fn eth_coin_from_conf_and_request_v2(
         coin_type: EthCoinType::Eth,
         sign_message_prefix,
         swap_contract_address: req.swap_contract_address,
+        swap_v2_contract_address: req.swap_v2_contract_address,
         fallback_swap_contract: req.fallback_swap_contract,
         contract_supports_watchers: req.contract_supports_watchers,
         decimals: ETH_DECIMALS,
