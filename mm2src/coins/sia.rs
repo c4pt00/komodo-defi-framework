@@ -8,8 +8,8 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
             SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue,
             TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
             ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
-            ValidatePaymentInput, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward,
-            WatcherRewardError, WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput,
+            ValidatePaymentInput, ValidatePaymentResult, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps,
+            WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput,
             WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
 use crate::{DexFee, ValidateWatcherSpendInput};
 use async_trait::async_trait;
@@ -44,7 +44,6 @@ pub type SiaConfResult<T> = Result<T, MmError<SiaConfError>>;
 #[derive(Debug)]
 pub struct SiaCoinConf {
     ticker: String,
-    /// The minimum number of confirmations at which a transaction is considered mature
     pub foo: u32,
 }
 
@@ -54,6 +53,8 @@ pub struct SiaCoinActivationParams {
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
+    pub http_url: String,
+    pub http_auth: String,
 }
 
 pub struct SiaConfBuilder<'a> {
@@ -66,11 +67,9 @@ impl<'a> SiaConfBuilder<'a> {
     pub fn new(conf: &'a Json, ticker: &'a str) -> Self { SiaConfBuilder { conf, ticker } }
 
     pub fn build(&self) -> SiaConfResult<SiaCoinConf> {
-        let foo = 0;
-
         Ok(SiaCoinConf {
             ticker: self.ticker.to_owned(),
-            foo,
+            foo: 0,
         })
     }
 }
@@ -81,6 +80,8 @@ pub struct SiaCoinFields {
     /// SIA coin config
     pub conf: SiaCoinConf,
     pub key_pair: ed25519_dalek::Keypair,
+    pub http_url: String,
+    pub http_auth: String,
     /// RPC client
     #[allow(dead_code)]
     pub rpc_client: SiaRpcClient,
@@ -92,7 +93,7 @@ pub async fn sia_coin_from_conf_and_params(
     ctx: &MmArc,
     ticker: &str,
     conf: &Json,
-    _params: &SiaCoinActivationParams,
+    params: &SiaCoinActivationParams,
     _protocol_info: SiaCoinProtocolInfo,
     priv_key_policy: PrivKeyBuildPolicy,
 ) -> Result<SiaCoin, MmError<SiaCoinBuildError>> {
@@ -101,7 +102,7 @@ pub async fn sia_coin_from_conf_and_params(
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
     let key_pair = generate_keypair_from_slice(priv_key.as_slice());
-    let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair);
+    let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
     builder.build().await
 }
 
@@ -110,15 +111,23 @@ pub struct SiaCoinBuilder<'a> {
     ticker: &'a str,
     conf: &'a Json,
     key_pair: ed25519_dalek::Keypair,
+    params: &'a SiaCoinActivationParams,
 }
 
 impl<'a> SiaCoinBuilder<'a> {
-    pub fn new(ctx: &'a MmArc, ticker: &'a str, conf: &'a Json, key_pair: ed25519_dalek::Keypair) -> Self {
+    pub fn new(
+        ctx: &'a MmArc,
+        ticker: &'a str,
+        conf: &'a Json,
+        key_pair: ed25519_dalek::Keypair,
+        params: &'a SiaCoinActivationParams,
+    ) -> Self {
         SiaCoinBuilder {
             ctx,
             ticker,
             conf,
             key_pair,
+            params,
         }
     }
 }
@@ -127,11 +136,10 @@ fn generate_keypair_from_slice(priv_key: &[u8]) -> ed25519_dalek::Keypair {
     // this is only safe to unwrap because iguana seeds are already ed25519 compatible
     let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key).unwrap();
     let public_key = ed25519_dalek::PublicKey::from(&secret_key);
-    let key_pair = ed25519_dalek::Keypair {
+    ed25519_dalek::Keypair {
         secret: secret_key,
         public: public_key,
-    };
-    key_pair
+    }
 }
 
 impl From<SiaConfError> for SiaCoinBuildError {
@@ -159,6 +167,8 @@ impl<'a> SiaCoinBuilder<'a> {
             rpc_client: SiaRpcClient(),
             ctx: self.ctx().weak(),
             key_pair: self.key_pair,
+            http_auth: self.params.http_auth.clone(),
+            http_url: self.params.http_url.clone(),
         };
         let sia_arc = SiaArc::new(sia_fields);
 
@@ -268,7 +278,7 @@ impl MmCoin for SiaCoin {
 
     fn on_disabled(&self) -> Result<(), AbortedError> { Ok(()) }
 
-    fn on_token_deactivated(&self, _ticker: &str) { () }
+    fn on_token_deactivated(&self, _ticker: &str) { }
 }
 
 // TODO Alright - Dummy values for these functions allow minimal functionality to produce signatures
@@ -367,9 +377,13 @@ impl SwapOps for SiaCoin {
 
     fn validate_fee(&self, _validate_fee_args: ValidateFeeArgs) -> ValidatePaymentFut<()> { unimplemented!() }
 
-    fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentFut<()> { unimplemented!() }
+    async fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
+        unimplemented!()
+    }
 
-    fn validate_taker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentFut<()> { unimplemented!() }
+    async fn validate_taker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
+        unimplemented!()
+    }
 
     fn check_if_my_payment_sent(
         &self,
