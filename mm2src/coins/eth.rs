@@ -27,10 +27,11 @@ use crate::eth::web3_transport::websocket_transport::{WebsocketTransport, Websoc
 use crate::lp_price::get_base_price_in_rel;
 use crate::nft::nft_structs::{ContractType, ConvertChain, TransactionNftDetails, WithdrawErc1155, WithdrawErc721};
 use crate::{CoinAssocTypes, DexFee, FundingTxSpend, GenPreimageResult, GenTakerFundingSpendArgs,
-            GenTakerPaymentSpendArgs, RefundFundingSecretArgs, SearchForFundingSpendErr, SendTakerFundingArgs,
-            TakerCoinSwapOpsV2, ToBytes, TxPreimageWithSig, ValidateSwapV2TxResult, ValidateTakerFundingArgs,
-            ValidateTakerFundingSpendPreimageResult, ValidateTakerPaymentSpendPreimageResult,
-            ValidateWatcherSpendInput, WaitForTakerPaymentSpendError, WatcherSpendType};
+            GenTakerPaymentSpendArgs, RefundFundingSecretArgs, RpcCommonOps, SearchForFundingSpendErr,
+            SendTakerFundingArgs, TakerCoinSwapOpsV2, ToBytes, TxPreimageWithSig, ValidateSwapV2TxResult,
+            ValidateTakerFundingArgs, ValidateTakerFundingSpendPreimageResult,
+            ValidateTakerPaymentSpendPreimageResult, ValidateWatcherSpendInput, WaitForTakerPaymentSpendError,
+            WatcherSpendType};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, keccak256, ripemd160, sha256};
 use common::custom_futures::repeatable::{Ready, Retry, RetryOnError};
@@ -6146,6 +6147,7 @@ impl CoinAssocTypes for EthCoin {
 }
 
 #[async_trait]
+#[allow(unused_variables)]
 impl TakerCoinSwapOpsV2 for EthCoin {
     async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> { todo!() }
 
