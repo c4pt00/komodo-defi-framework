@@ -6149,7 +6149,52 @@ impl CoinAssocTypes for EthCoin {
 #[async_trait]
 #[allow(unused_variables)]
 impl TakerCoinSwapOpsV2 for EthCoin {
-    async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> { todo!() }
+    async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        let dex_fee = try_tx_s!(wei_from_big_decimal(
+            &args.dex_fee.fee_amount().to_decimal(),
+            self.decimals
+        ));
+
+        let payment_amount = try_tx_s!(wei_from_big_decimal(
+            &(args.trading_amount + args.premium_amount),
+            self.decimals
+        ));
+
+        let maker_address = try_tx_s!(addr_from_raw_pubkey(args.maker_pub));
+
+        let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
+        let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
+
+        let gas = U256::from(ETH_GAS);
+
+        match &self.coin_type {
+            EthCoinType::Eth => {
+                let function = try_tx_s!(SWAP_V2_CONTRACT.function("ethTakerPayment"));
+                let function_args = [
+                    // TODO figure out a new way to generate etomic swap payment ID
+                    Token::FixedBytes(vec![0; 32]),
+                    Token::Uint(dex_fee),
+                    Token::Address(maker_address),
+                    Token::FixedBytes(args.taker_secret_hash.to_vec()),
+                    Token::FixedBytes(args.maker_secret_hash.to_vec()),
+                    Token::Uint(funding_time_lock.into()),
+                    Token::Uint(payment_time_lock.into()),
+                ];
+                let data = try_tx_s!(function.encode_input(&function_args));
+                self.sign_and_send_transaction(
+                    payment_amount,
+                    Action::Call(self.swap_v2_contract_address),
+                    data.into(),
+                    gas,
+                )
+                .compat()
+                .await
+            },
+            EthCoinType::Erc20 { platform, token_addr } => {
+                todo!()
+            },
+        }
+    }
 
     async fn validate_taker_funding(&self, args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
         todo!()

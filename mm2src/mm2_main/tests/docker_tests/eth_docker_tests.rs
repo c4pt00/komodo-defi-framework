@@ -1,7 +1,7 @@
 use crate::docker_tests::docker_tests_common::{random_secp256k1_secret, GETH_ACCOUNT, GETH_ERC20_CONTRACT,
                                                GETH_NONCE_LOCK, GETH_SWAP_CONTRACT, GETH_SWAP_V2_CONTRACT,
                                                GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX};
-use bitcrypto::dhash160;
+use bitcrypto::{dhash160, sha256};
 use coins::eth::{checksum_address, eth_coin_from_conf_and_request, EthCoin, ERC20_ABI};
 use coins::{CoinProtocol, ConfirmPaymentInput, DexFee, FoundSwapTxSpend, MarketCoinOps, PrivKeyBuildPolicy,
             RefundPaymentArgs, SearchForSwapTxSpendInput, SendPaymentArgs, SendTakerFundingArgs, SpendPaymentArgs,
@@ -463,12 +463,14 @@ fn send_and_refund_taker_funding_by_secret() {
     let taker_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
     let maker_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
     let taker_secret = [0u8; 32];
-    let taker_secret_hash_owned = dhash160(&taker_secret);
+    let taker_secret_hash_owned = sha256(&taker_secret);
     let taker_secret_hash = taker_secret_hash_owned.as_slice();
 
     let args = SendTakerFundingArgs {
-        time_lock: now_sec() + 1000,
+        funding_time_lock: now_sec() + 3000,
+        payment_time_lock: now_sec() + 1000,
         taker_secret_hash,
+        maker_secret_hash: &[0; 32],
         maker_pub: &maker_coin.derive_htlc_pubkey(&[]),
         dex_fee: &DexFee::Standard("0.1".into()),
         premium_amount: BigDecimal::default(),

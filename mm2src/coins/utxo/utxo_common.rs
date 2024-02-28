@@ -5190,7 +5190,7 @@ where
         outputs,
     } = try_tx_s!(generate_swap_payment_outputs(
         &coin,
-        try_tx_s!(args.time_lock.try_into()),
+        try_tx_s!(args.funding_time_lock.try_into()),
         taker_htlc_key_pair.public_slice(),
         args.maker_pub,
         total_amount,

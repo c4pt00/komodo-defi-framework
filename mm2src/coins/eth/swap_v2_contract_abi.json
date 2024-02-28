@@ -11,18 +11,50 @@
     "type": "constructor"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      }
+    ],
+    "name": "AddressEmptyCode",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "AddressInsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FailedInnerCall",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
         "indexed": false,
         "internalType": "bytes32",
         "name": "id",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "secret",
         "type": "bytes32"
       }
     ],
@@ -62,12 +94,6 @@
         "indexed": false,
         "internalType": "bytes32",
         "name": "id",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "secret",
         "type": "bytes32"
       }
     ],
@@ -187,14 +213,14 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "uint32",
@@ -235,18 +261,18 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "uint32",
-        "name": "immediateRefundLockTime",
+        "name": "preApproveLockTime",
         "type": "uint32"
       },
       {
@@ -273,14 +299,14 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "uint32",
@@ -311,18 +337,18 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "uint32",
-        "name": "immediateRefundLockTime",
+        "name": "preApproveLockTime",
         "type": "uint32"
       },
       {
@@ -388,9 +414,9 @@
         "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "address",
@@ -421,14 +447,14 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "address",
@@ -469,9 +495,9 @@
         "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "address",
@@ -507,14 +533,14 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "address",
@@ -545,9 +571,9 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "bytes32",
@@ -588,9 +614,9 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "bytes32",
@@ -631,14 +657,14 @@
         "type": "address"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "takerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
-        "internalType": "bytes20",
+        "internalType": "bytes32",
         "name": "makerSecretHash",
-        "type": "bytes20"
+        "type": "bytes32"
       },
       {
         "internalType": "address",
@@ -668,7 +694,7 @@
       },
       {
         "internalType": "uint32",
-        "name": "immediateRefundTime",
+        "name": "preApproveLockTime",
         "type": "uint32"
       },
       {
