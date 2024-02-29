@@ -6181,14 +6181,9 @@ impl TakerCoinSwapOpsV2 for EthCoin {
                     Token::Uint(payment_time_lock.into()),
                 ];
                 let data = try_tx_s!(function.encode_input(&function_args));
-                self.sign_and_send_transaction(
-                    payment_amount,
-                    Action::Call(self.swap_v2_contract_address),
-                    data.into(),
-                    gas,
-                )
-                .compat()
-                .await
+                self.sign_and_send_transaction(payment_amount, Action::Call(self.swap_v2_contract_address), data, gas)
+                    .compat()
+                    .await
             },
             EthCoinType::Erc20 { platform, token_addr } => {
                 todo!()
@@ -6208,7 +6203,45 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         &self,
         args: RefundFundingSecretArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr> {
-        todo!()
+        let dex_fee = try_tx_s!(wei_from_big_decimal(
+            &args.dex_fee.fee_amount().to_decimal(),
+            self.decimals
+        ));
+
+        let payment_amount = try_tx_s!(wei_from_big_decimal(
+            &(args.trading_amount + args.premium_amount),
+            self.decimals
+        ));
+
+        let maker_address = public_to_address(args.maker_pubkey);
+
+        let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
+        let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
+
+        let gas = U256::from(ETH_GAS);
+
+        match &self.coin_type {
+            EthCoinType::Eth => {
+                let function = try_tx_s!(SWAP_V2_CONTRACT.function("refundTakerPaymentSecret"));
+                let function_args = [
+                    // TODO figure out a new way to generate etomic swap payment ID
+                    Token::FixedBytes(vec![0; 32]),
+                    Token::Uint(payment_amount),
+                    Token::Uint(dex_fee),
+                    Token::Address(maker_address),
+                    Token::FixedBytes(args.taker_secret_hash.to_vec()),
+                    Token::FixedBytes(args.maker_secret_hash.to_vec()),
+                    Token::Address(Address::default()),
+                ];
+                let data = try_tx_s!(function.encode_input(&function_args));
+                self.sign_and_send_transaction(payment_amount, Action::Call(self.swap_v2_contract_address), data, gas)
+                    .compat()
+                    .await
+            },
+            EthCoinType::Erc20 { platform, token_addr } => {
+                todo!()
+            },
+        }
     }
 
     async fn search_for_taker_funding_spend(
@@ -6284,5 +6317,16 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
-    fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
+    fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey {
+        match self.priv_key_policy {
+            EthPrivKeyPolicy::Iguana(ref key_pair)
+            | EthPrivKeyPolicy::HDWallet {
+                activated_key: ref key_pair,
+                ..
+            } => *key_pair.public(),
+            EthPrivKeyPolicy::Trezor => todo!(),
+            #[cfg(target_arch = "wasm32")]
+            EthPrivKeyPolicy::Metamask(ref metamask_policy) => metamask_policy.public_key.as_bytes().to_vec(),
+        }
+    }
 }

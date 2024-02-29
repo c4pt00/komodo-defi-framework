@@ -150,13 +150,18 @@ fn send_and_refund_taker_funding_secret() {
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         maker_pubkey: maker_pub,
         taker_secret: &taker_secret,
         taker_secret_hash,
         swap_unique_data: &[],
         swap_contract_address: &None,
+        dex_fee,
+        premium_amount: "0.1".parse().unwrap(),
         watcher_reward: false,
+        maker_secret_hash: &[],
+        trading_amount: 1.into(),
     };
 
     let refund_tx = block_on(coin.refund_taker_funding_secret(refund_args)).unwrap();

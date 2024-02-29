@@ -4,8 +4,8 @@ use crate::docker_tests::docker_tests_common::{random_secp256k1_secret, GETH_ACC
 use bitcrypto::{dhash160, sha256};
 use coins::eth::{checksum_address, eth_coin_from_conf_and_request, EthCoin, ERC20_ABI};
 use coins::{CoinProtocol, ConfirmPaymentInput, DexFee, FoundSwapTxSpend, MarketCoinOps, PrivKeyBuildPolicy,
-            RefundPaymentArgs, SearchForSwapTxSpendInput, SendPaymentArgs, SendTakerFundingArgs, SpendPaymentArgs,
-            SwapOps, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2};
+            RefundFundingSecretArgs, RefundPaymentArgs, SearchForSwapTxSpendInput, SendPaymentArgs,
+            SendTakerFundingArgs, SpendPaymentArgs, SwapOps, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2};
 use common::{block_on, now_sec};
 use ethereum_types::U256;
 use futures01::Future;
@@ -459,25 +459,53 @@ fn send_and_spend_erc20_maker_payment() {
 }
 
 #[test]
-fn send_and_refund_taker_funding_by_secret() {
+fn send_and_refund_taker_funding_by_secret_eth() {
     let taker_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
     let maker_coin = eth_coin_with_random_privkey(swap_contract(), swap_v2_contract());
-    let taker_secret = [0u8; 32];
-    let taker_secret_hash_owned = sha256(&taker_secret);
+    let taker_secret = &[0u8; 32];
+    let taker_secret_hash_owned = sha256(taker_secret);
     let taker_secret_hash = taker_secret_hash_owned.as_slice();
 
-    let args = SendTakerFundingArgs {
-        funding_time_lock: now_sec() + 3000,
-        payment_time_lock: now_sec() + 1000,
+    let maker_secret_hash = &[0; 32];
+
+    let funding_time_lock = now_sec() + 3000;
+    let payment_time_lock = now_sec() + 1000;
+
+    let maker_pub = &maker_coin.derive_htlc_pubkey(&[]);
+
+    let dex_fee = &DexFee::Standard("0.1".into());
+
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
         taker_secret_hash,
-        maker_secret_hash: &[0; 32],
-        maker_pub: &maker_coin.derive_htlc_pubkey(&[]),
-        dex_fee: &DexFee::Standard("0.1".into()),
+        maker_secret_hash,
+        maker_pub,
+        dex_fee,
         premium_amount: BigDecimal::default(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
     };
 
-    let funding_tx = block_on(taker_coin.send_taker_funding(args)).unwrap();
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Funding tx {:?}", funding_tx);
+
+    let refund_args = RefundFundingSecretArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        maker_pubkey: &taker_coin.derive_htlc_pubkey_v2(&[]),
+        taker_secret,
+        taker_secret_hash,
+        maker_secret_hash,
+        swap_contract_address: &None,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        watcher_reward: false,
+    };
+    let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
+
+    log!("Funding tx refund {:?}", funding_tx_refund);
 }

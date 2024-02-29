@@ -5226,7 +5226,7 @@ where
         .push_opcode(Opcode::OP_0)
         .push_opcode(Opcode::OP_0)
         .into_script();
-    let time_lock = try_tx_s!(args.time_lock.try_into());
+    let time_lock = try_tx_s!(args.funding_time_lock.try_into());
 
     let redeem_script = swap_proto_v2_scripts::taker_funding_script(
         time_lock,
