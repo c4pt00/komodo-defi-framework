@@ -25,6 +25,9 @@ use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
 
+pub mod http_client;
+use http_client::{SiaApiClient, SiaApiClientError};
+
 use mm2_core::mm_ctx::MmWeak;
 
 #[derive(Clone)]
@@ -74,17 +77,12 @@ impl<'a> SiaConfBuilder<'a> {
     }
 }
 
-pub struct SiaRpcClient();
-
 pub struct SiaCoinFields {
     /// SIA coin config
     pub conf: SiaCoinConf,
     pub key_pair: ed25519_dalek::Keypair,
-    pub http_url: String,
-    pub http_auth: String,
-    /// RPC client
-    #[allow(dead_code)]
-    pub rpc_client: SiaRpcClient,
+    /// HTTP(s) client
+    pub http_client: SiaApiClient,
     #[allow(dead_code)]
     pub(crate) ctx: MmWeak,
 }
@@ -149,6 +147,7 @@ impl From<SiaConfError> for SiaCoinBuildError {
 pub enum SiaCoinBuildError {
     ConfError(SiaConfError),
     UnsupportedPrivKeyPolicy,
+    ClientError(SiaApiClientError),
 }
 
 impl<'a> SiaCoinBuilder<'a> {
@@ -164,11 +163,10 @@ impl<'a> SiaCoinBuilder<'a> {
         let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
         let sia_fields = SiaCoinFields {
             conf,
-            rpc_client: SiaRpcClient(),
+            http_client: SiaApiClient::new(self.ticker(), &self.params.http_url, &self.params.http_auth)
+                .map_err(SiaCoinBuildError::ClientError)?,
             ctx: self.ctx().weak(),
             key_pair: self.key_pair,
-            http_auth: self.params.http_auth.clone(),
-            http_url: self.params.http_url.clone(),
         };
         let sia_arc = SiaArc::new(sia_fields);
 
@@ -209,7 +207,7 @@ pub struct SiaCoinImpl {
 
 #[async_trait]
 impl MmCoin for SiaCoin {
-    fn is_asset_chain(&self) -> bool { unimplemented!() }
+    fn is_asset_chain(&self) -> bool { false }
 
     fn spawner(&self) -> CoinFutSpawner { unimplemented!() }
 
@@ -278,7 +276,7 @@ impl MmCoin for SiaCoin {
 
     fn on_disabled(&self) -> Result<(), AbortedError> { Ok(()) }
 
-    fn on_token_deactivated(&self, _ticker: &str) { }
+    fn on_token_deactivated(&self, _ticker: &str) {}
 }
 
 // TODO Alright - Dummy values for these functions allow minimal functionality to produce signatures
@@ -309,7 +307,7 @@ impl MarketCoinOps for SiaCoin {
     }
     fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { unimplemented!() }
 
-    fn platform_ticker(&self) -> &str { "FOO" }
+    fn platform_ticker(&self) -> &str { "FOO" } // TODO Alright
 
     /// Receives raw transaction bytes in hexadecimal format as input and returns tx hash in hexadecimal format
     fn send_raw_tx(&self, _tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> { unimplemented!() }
@@ -334,8 +332,18 @@ impl MarketCoinOps for SiaCoin {
     }
 
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
-        let dummy_ret = futures01::future::ok(1u64);
-        Box::new(dummy_ret)
+        let http_client = self.0.http_client.clone(); // Clone the client
+
+        let height_fut = async move {
+            http_client
+                .get_height()
+                .await
+                .map_err(|e| format!("SiaApiClientError: {:?}", e))
+        }
+        .boxed() // Make the future 'static by boxing
+        .compat(); // Convert to a futures 0.1-compatible future
+
+        Box::new(height_fut)
     }
 
     fn display_priv_key(&self) -> Result<String, String> { unimplemented!() }
