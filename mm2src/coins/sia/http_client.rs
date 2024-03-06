@@ -45,7 +45,6 @@ pub enum SiaApiClientError {
     UrlParse(url::ParseError),
 }
 
-
 impl From<SiaApiClientError> for String {
     fn from(e: SiaApiClientError) -> Self { format!("{:?}", e) }
 }
