@@ -28,6 +28,8 @@ use std::sync::Arc;
 pub mod http_client;
 use http_client::{SiaApiClient, SiaApiClientError};
 
+use url::Url;
+
 use mm2_core::mm_ctx::MmWeak;
 
 #[derive(Clone)]
@@ -56,7 +58,7 @@ pub struct SiaCoinActivationParams {
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
-    pub http_url: String,
+    pub http_url: Url,
     pub http_auth: String,
 }
 
@@ -163,7 +165,7 @@ impl<'a> SiaCoinBuilder<'a> {
         let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
         let sia_fields = SiaCoinFields {
             conf,
-            http_client: SiaApiClient::new(self.ticker(), &self.params.http_url, &self.params.http_auth)
+            http_client: SiaApiClient::new(self.ticker(), self.params.http_url.clone(), &self.params.http_auth)
                 .map_err(SiaCoinBuildError::ClientError)?,
             ctx: self.ctx().weak(),
             key_pair: self.key_pair,
@@ -334,14 +336,9 @@ impl MarketCoinOps for SiaCoin {
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
         let http_client = self.0.http_client.clone(); // Clone the client
 
-        let height_fut = async move {
-            http_client
-                .get_height()
-                .await
-                .map_err(|e| format!("SiaApiClientError: {:?}", e))
-        }
-        .boxed() // Make the future 'static by boxing
-        .compat(); // Convert to a futures 0.1-compatible future
+        let height_fut = async move { http_client.get_height().await.map_err(|e| format!("{}", e)) }
+            .boxed() // Make the future 'static by boxing
+            .compat(); // Convert to a futures 0.1-compatible future
 
         Box::new(height_fut)
     }

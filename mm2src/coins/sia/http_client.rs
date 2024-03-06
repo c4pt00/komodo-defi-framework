@@ -1,5 +1,6 @@
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::Url;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -22,8 +23,8 @@ impl Deref for SiaApiClient {
 }
 
 impl SiaApiClient {
-    pub fn new(_coin_ticker: &str, uri: &str, auth: &str) -> Result<Self, SiaApiClientError> {
-        let new_arc = SiaApiClientImpl::new(uri, auth)?;
+    pub fn new(_coin_ticker: &str, base_url: Url, auth: &str) -> Result<Self, SiaApiClientError> {
+        let new_arc = SiaApiClientImpl::new(base_url, auth)?;
         Ok(SiaApiClient(Arc::new(new_arc)))
     }
 }
@@ -31,7 +32,7 @@ impl SiaApiClient {
 #[derive(Debug)]
 pub struct SiaApiClientImpl {
     client: reqwest::Client,
-    base_url: String,
+    base_url: Url,
 }
 
 #[derive(Debug, Display)]
@@ -40,11 +41,10 @@ pub enum SiaApiClientError {
     Timeout(String),
     BuildError(String),
     ApiUnreachable(String),
+    ReqwestError(reqwest::Error),
+    UrlParse(url::ParseError),
 }
 
-impl From<reqwest::Error> for SiaApiClientError {
-    fn from(e: reqwest::Error) -> Self { SiaApiClientError::Timeout(format!("reqwest failure: {}", e)) }
-}
 
 impl From<SiaApiClientError> for String {
     fn from(e: SiaApiClientError) -> Self { format!("{:?}", e) }
@@ -58,7 +58,7 @@ pub struct GetConsensusTipResponse {
 }
 
 impl SiaApiClientImpl {
-    fn new(base_url: &str, password: &str) -> Result<Self, SiaApiClientError> {
+    fn new(base_url: Url, password: &str) -> Result<Self, SiaApiClientError> {
         let mut headers = HeaderMap::new();
         let auth_value = format!("Basic {}", base64::encode(&format!(":{}", password)));
         headers.insert(
@@ -70,22 +70,25 @@ impl SiaApiClientImpl {
             .default_headers(headers)
             .timeout(Duration::from_secs(10))
             .build()
-            .map_err(|e| SiaApiClientError::BuildError(e.to_string()))?;
+            .map_err(|e| SiaApiClientError::ReqwestError(e.with_url(base_url.clone())))?;
 
-        Ok(SiaApiClientImpl {
-            client,
-            base_url: base_url.to_string(),
-        })
+        Ok(SiaApiClientImpl { client, base_url })
     }
 
     pub async fn get_consensus_tip(&self) -> Result<GetConsensusTipResponse, SiaApiClientError> {
+        let base_url = self.base_url.clone();
+        let endpoint_url = base_url
+            .join("api/consensus/tip")
+            .map_err(SiaApiClientError::UrlParse)?;
         let response = self
             .client
-            .get(format!("{}/api/consensus/tip", self.base_url))
+            .get(endpoint_url.clone())
             .send()
-            .await?
+            .await
+            .map_err(|e| SiaApiClientError::ReqwestError(e.with_url(endpoint_url.clone())))?
             .json::<GetConsensusTipResponse>()
-            .await?;
+            .await
+            .map_err(|e| SiaApiClientError::ReqwestError(e.with_url(endpoint_url.clone())))?;
         Ok(response)
     }
 
