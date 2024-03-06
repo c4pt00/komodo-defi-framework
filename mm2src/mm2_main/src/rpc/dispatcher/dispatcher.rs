@@ -269,7 +269,7 @@ async fn rpc_task_dispatcher(
         "withdraw::user_action" => handle_mmrpc(ctx, request, withdraw_user_action).await,
         //"enable_sia::cancel" => handle_mmrpc(ctx, request, cancel_init_standalone_coin::<SiaCoin>).await,
         "enable_sia::init" => handle_mmrpc(ctx, request, init_standalone_coin::<SiaCoin>).await,
-        //"enable_sia::status" => handle_mmrpc(ctx, request, init_standalone_coin_status::<SiaCoin>).await,
+        "enable_sia::status" => handle_mmrpc(ctx, request, init_standalone_coin_status::<SiaCoin>).await,
         //"enable_sia::user_action" => handle_mmrpc(ctx, request, init_standalone_coin_user_action::<SiaCoin>).await,
         #[cfg(not(target_arch = "wasm32"))]
         native_only_methods => match native_only_methods {
