@@ -1,6 +1,8 @@
+use core::fmt::Display;
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::Url;
+use reqwest::{Client, Url};
+use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -35,18 +37,47 @@ pub struct SiaApiClientImpl {
     base_url: Url,
 }
 
-#[derive(Debug, Display)]
+// this is neccesary to show the URL in error messages returned to the user
+// this can be removed in favor of using ".with_url()" once reqwest is updated to v0.11.23
+#[derive(Debug)]
+pub struct ReqwestErrorWithUrl {
+    error: reqwest::Error,
+    url: Url,
+}
 
+impl Display for ReqwestErrorWithUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Error: {}, URL: {}", self.error, self.url)
+    }
+}
+
+#[derive(Debug, Display)]
 pub enum SiaApiClientError {
     Timeout(String),
     BuildError(String),
     ApiUnreachable(String),
-    ReqwestError(reqwest::Error),
+    ReqwestError(ReqwestErrorWithUrl),
     UrlParse(url::ParseError),
 }
 
 impl From<SiaApiClientError> for String {
     fn from(e: SiaApiClientError) -> Self { format!("{:?}", e) }
+}
+
+async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Result<T, SiaApiClientError> {
+    client
+        .get(url.clone())
+        .send()
+        .await
+        .map_err(|e| {
+            SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
+                error: e,
+                url: url.clone(),
+            })
+        })?
+        .json::<T>()
+        .await
+        .map_err(|e| SiaApiClientError::ReqwestError(ReqwestErrorWithUrl { error: e, url }))
 }
 
 // https://github.com/SiaFoundation/core/blob/4e46803f702891e7a83a415b7fcd7543b13e715e/types/types.go#L181
@@ -69,8 +100,12 @@ impl SiaApiClientImpl {
             .default_headers(headers)
             .timeout(Duration::from_secs(10))
             .build()
-            .map_err(|e| SiaApiClientError::ReqwestError(e.with_url(base_url.clone())))?;
-
+            .map_err(|e| {
+                SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
+                    error: e,
+                    url: base_url.clone(),
+                })
+            })?;
         Ok(SiaApiClientImpl { client, base_url })
     }
 
@@ -79,16 +114,8 @@ impl SiaApiClientImpl {
         let endpoint_url = base_url
             .join("api/consensus/tip")
             .map_err(SiaApiClientError::UrlParse)?;
-        let response = self
-            .client
-            .get(endpoint_url.clone())
-            .send()
-            .await
-            .map_err(|e| SiaApiClientError::ReqwestError(e.with_url(endpoint_url.clone())))?
-            .json::<GetConsensusTipResponse>()
-            .await
-            .map_err(|e| SiaApiClientError::ReqwestError(e.with_url(endpoint_url.clone())))?;
-        Ok(response)
+
+        fetch_and_parse::<GetConsensusTipResponse>(&self.client, endpoint_url).await
     }
 
     pub async fn get_height(&self) -> Result<u64, SiaApiClientError> {
