@@ -10,12 +10,13 @@ use crate::utxo::tx_cache::{UtxoVerboseCacheOps, UtxoVerboseCacheShared};
 use crate::utxo::utxo_builder::{UtxoCoinBuildError, UtxoCoinBuildResult, UtxoCoinBuilder, UtxoCoinBuilderCommonOps,
                                 UtxoFieldsWithGlobalHDBuilder, UtxoFieldsWithHardwareWalletBuilder,
                                 UtxoFieldsWithIguanaSecretBuilder};
-use crate::utxo::utxo_common::{self, big_decimal_from_sat, check_all_utxo_inputs_signed_by_pub, UtxoTxBuilder};
-use crate::utxo::{qtum, ActualTxFee, AdditionalTxData, AddrFromStrError, BroadcastTxErr, FeePolicy, GenerateTxError,
-                  GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, MatureUnspentList, RecentlySpentOutPointsGuard,
-                  UnsupportedAddr, UtxoActivationParams, UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps,
-                  UtxoFromLegacyReqErr, UtxoTx, UtxoTxBroadcastOps, UtxoTxGenerationOps, VerboseTransactionFrom,
-                  UTXO_LOCK};
+use crate::utxo::utxo_common::{self, big_decimal_from_sat, check_all_utxo_inputs_signed_by_pub,
+                               PreImageTradeFeeResult, UtxoTxBuilder};
+use crate::utxo::{qtum, AdditionalTxData, AddrFromStrError, BroadcastTxErr, FeePolicy, GenerateTxError,
+                  GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeRes, MatureUnspentList,
+                  RecentlySpentOutPointsGuard, UnsupportedAddr, UtxoActivationParams, UtxoAddressFormat,
+                  UtxoCoinFields, UtxoCommonOps, UtxoFromLegacyReqErr, UtxoTx, UtxoTxBroadcastOps,
+                  UtxoTxGenerationOps, VerboseTransactionFrom, UTXO_LOCK};
 use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinBalance, CoinFutSpawner, ConfirmPaymentInput,
             DexFee, FeeApproxStage, FoundSwapTxSpend, HistorySyncState, IguanaPrivKey, MakerSwapTakerCoin,
             MarketCoinOps, MmCoin, MmCoinEnum, NegotiateSwapContractAddrErr, PaymentInstructionArgs,
@@ -492,9 +493,7 @@ impl Qrc20Coin {
     /// `gas_fee` should be calculated by: gas_limit * gas_price * (count of contract calls),
     /// or should be sum of gas fee of all contract calls.
     pub async fn get_qrc20_tx_fee(&self, gas_fee: u64) -> Result<u64, String> {
-        match try_s!(self.get_tx_fee().await) {
-            ActualTxFee::Dynamic(amount) | ActualTxFee::FixedPerKb(amount) => Ok(amount + gas_fee),
-        }
+        Ok(try_s!(self.get_tx_fee_per_kb().await) + gas_fee)
     }
 
     /// Generate and send a transaction with the specified UTXO outputs.
@@ -586,7 +585,7 @@ impl Qrc20Coin {
         &self,
         contract_outputs: Vec<ContractCallOutput>,
         stage: &FeeApproxStage,
-    ) -> TradePreimageResult<BigDecimal> {
+    ) -> TradePreimageResult<PreImageTradeFeeResult> {
         let decimals = self.as_ref().decimals;
         let mut gas_fee = 0;
         let mut outputs = Vec::with_capacity(contract_outputs.len());
@@ -599,7 +598,11 @@ impl Qrc20Coin {
             UtxoCommonOps::preimage_trade_fee_required_to_send_outputs(self, outputs, fee_policy, Some(gas_fee), stage)
                 .await?;
         let gas_fee = big_decimal_from_sat(gas_fee as i64, decimals);
-        Ok(miner_fee + gas_fee)
+        println!("SIZE: {:?}", &miner_fee.tx_size);
+        Ok(PreImageTradeFeeResult {
+            tx_size: miner_fee.tx_size,
+            fee: miner_fee.fee + gas_fee,
+        })
     }
 }
 
@@ -616,7 +619,7 @@ impl UtxoTxBroadcastOps for Qrc20Coin {
 #[cfg_attr(test, mockable)]
 impl UtxoTxGenerationOps for Qrc20Coin {
     /// Get only QTUM transaction fee.
-    async fn get_tx_fee(&self) -> UtxoRpcResult<ActualTxFee> { utxo_common::get_tx_fee(&self.utxo).await }
+    async fn get_tx_fee_per_kb(&self) -> UtxoRpcResult<u64> { utxo_common::get_tx_fee_per_kb(&self.utxo).await }
 
     async fn calc_interest_if_required(
         &self,
@@ -657,7 +660,7 @@ impl GetUtxoListOps for Qrc20Coin {
 #[async_trait]
 #[cfg_attr(test, mockable)]
 impl UtxoCommonOps for Qrc20Coin {
-    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<u64> {
+    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeRes> {
         utxo_common::get_htlc_spend_fee(self, tx_size, stage).await
     }
 
@@ -722,7 +725,7 @@ impl UtxoCommonOps for Qrc20Coin {
         fee_policy: FeePolicy,
         gas_fee: Option<u64>,
         stage: &FeeApproxStage,
-    ) -> TradePreimageResult<BigDecimal> {
+    ) -> TradePreimageResult<PreImageTradeFeeResult> {
         utxo_common::preimage_trade_fee_required_to_send_outputs(
             self,
             self.platform_ticker(),
@@ -1358,6 +1361,7 @@ impl MmCoin for Qrc20Coin {
                 coin: selfi.platform.clone(),
                 amount: big_decimal_from_sat(fee as i64, selfi.utxo.decimals).into(),
                 paid_from_trading_vol: false,
+                tx_size: None,
             })
         };
         Box::new(fut.boxed().compat())
@@ -1405,11 +1409,14 @@ impl MmCoin for Qrc20Coin {
                 .await?
         };
 
-        let total_fee = erc20_payment_fee + sender_refund_fee;
+        let total_fee = erc20_payment_fee.fee + sender_refund_fee.fee;
+        let total_tx_size =
+            erc20_payment_fee.tx_size.unwrap_or_default() + sender_refund_fee.tx_size.unwrap_or_default();
         Ok(TradeFee {
             coin: self.platform.clone(),
             amount: total_fee.into(),
             paid_from_trading_vol: false,
+            tx_size: Some(total_tx_size),
         })
     }
 
@@ -1430,10 +1437,12 @@ impl MmCoin for Qrc20Coin {
             let total_fee = selfi
                 .preimage_trade_fee_required_to_send_outputs(vec![output], &stage)
                 .await?;
+
             Ok(TradeFee {
                 coin: selfi.platform.clone(),
-                amount: total_fee.into(),
+                amount: total_fee.fee.into(),
                 paid_from_trading_vol: false,
+                tx_size: total_fee.tx_size,
             })
         };
         Box::new(fut.boxed().compat())
@@ -1457,8 +1466,9 @@ impl MmCoin for Qrc20Coin {
 
         Ok(TradeFee {
             coin: self.platform.clone(),
-            amount: total_fee.into(),
+            amount: total_fee.fee.into(),
             paid_from_trading_vol: false,
+            tx_size: total_fee.tx_size,
         })
     }
 

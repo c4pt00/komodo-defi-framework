@@ -10,8 +10,8 @@ use crate::utxo::bch::BchCoin;
 use crate::utxo::bchd_grpc::{check_slp_transaction, validate_slp_utxos, ValidateSlpUtxosErr};
 use crate::utxo::rpc_clients::{UnspentInfo, UtxoRpcClientEnum, UtxoRpcError, UtxoRpcResult};
 use crate::utxo::utxo_common::{self, big_decimal_from_sat_unsigned, payment_script, UtxoTxBuilder};
-use crate::utxo::{generate_and_send_tx, sat_from_big_decimal, ActualTxFee, AdditionalTxData, BroadcastTxErr,
-                  FeePolicy, GenerateTxError, RecentlySpentOutPointsGuard, UtxoCoinConf, UtxoCoinFields,
+use crate::utxo::{generate_and_send_tx, sat_from_big_decimal, AdditionalTxData, BroadcastTxErr, FeePolicy,
+                  GenerateTxError, RecentlySpentOutPointsGuard, TxFeeType, UtxoCoinConf, UtxoCoinFields,
                   UtxoCommonOps, UtxoTx, UtxoTxBroadcastOps, UtxoTxGenerationOps};
 use crate::{BalanceFut, CheckIfMyPaymentSentArgs, CoinBalance, CoinFutSpawner, ConfirmPaymentInput, DexFee,
             FeeApproxStage, FoundSwapTxSpend, HistorySyncState, MakerSwapTakerCoin, MarketCoinOps, MmCoin, MmCoinEnum,
@@ -1072,7 +1072,7 @@ impl UtxoTxBroadcastOps for SlpToken {
 
 #[async_trait]
 impl UtxoTxGenerationOps for SlpToken {
-    async fn get_tx_fee(&self) -> UtxoRpcResult<ActualTxFee> { self.platform_coin.get_tx_fee().await }
+    async fn get_tx_fee_per_kb(&self) -> UtxoRpcResult<u64> { todo!() }
 
     async fn calc_interest_if_required(
         &self,
@@ -1654,11 +1654,11 @@ impl MmCoin for SlpToken {
             match req.fee {
                 Some(WithdrawFee::UtxoFixed { amount }) => {
                     let fixed = sat_from_big_decimal(&amount, platform_decimals)?;
-                    tx_builder = tx_builder.with_fee(ActualTxFee::FixedPerKb(fixed))
+                    tx_builder = tx_builder.with_fee(TxFeeType::Fixed(fixed))
                 },
                 Some(WithdrawFee::UtxoPerKbyte { amount }) => {
-                    let dynamic = sat_from_big_decimal(&amount, platform_decimals)?;
-                    tx_builder = tx_builder.with_fee(ActualTxFee::Dynamic(dynamic));
+                    let per_kb = sat_from_big_decimal(&amount, platform_decimals)?;
+                    tx_builder = tx_builder.with_fee(TxFeeType::PerKb(per_kb));
                 },
                 Some(fee_policy) => {
                     let error = format!(
@@ -1799,8 +1799,9 @@ impl MmCoin for SlpToken {
         .await?;
         Ok(TradeFee {
             coin: self.platform_coin.ticker().into(),
-            amount: fee.into(),
+            amount: fee.fee.into(),
             paid_from_trading_vol: false,
+            tx_size: fee.tx_size,
         })
     }
 
@@ -1812,12 +1813,14 @@ impl MmCoin for SlpToken {
                 .platform_coin
                 .get_htlc_spend_fee(SLP_HTLC_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
                 .await?;
-            let amount =
-                (big_decimal_from_sat_unsigned(htlc_fee, coin.platform_decimals()) + coin.platform_dust_dec()).into();
+            let amount = (big_decimal_from_sat_unsigned(htlc_fee.fee, coin.platform_decimals())
+                + coin.platform_dust_dec())
+            .into();
             Ok(TradeFee {
                 coin: coin.platform_coin.ticker().into(),
                 amount,
                 paid_from_trading_vol: false,
+                tx_size: htlc_fee.tx_size,
             })
         };
 
@@ -1848,8 +1851,9 @@ impl MmCoin for SlpToken {
         .await?;
         Ok(TradeFee {
             coin: self.platform_coin.ticker().into(),
-            amount: fee.into(),
+            amount: fee.fee.into(),
             paid_from_trading_vol: false,
+            tx_size: fee.tx_size,
         })
     }
 

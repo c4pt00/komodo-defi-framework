@@ -1601,6 +1601,7 @@ impl TendermintCoin {
             coin: ticker,
             amount: fee_amount.into(),
             paid_from_trading_vol: false,
+            tx_size: None,
         })
     }
 
@@ -1653,6 +1654,7 @@ impl TendermintCoin {
             coin: ticker,
             amount: fee_amount.into(),
             paid_from_trading_vol: false,
+            tx_size: None,
         })
     }
 

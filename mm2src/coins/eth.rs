@@ -5223,6 +5223,7 @@ impl MmCoin for EthCoin {
                         coin: fee_coin.into(),
                         amount: try_s!(u256_to_big_decimal(fee, ETH_DECIMALS)).into(),
                         paid_from_trading_vol: false,
+                        tx_size: None,
                     })
                 }),
         )
@@ -5280,6 +5281,7 @@ impl MmCoin for EthCoin {
             coin: fee_coin.into(),
             amount: amount.into(),
             paid_from_trading_vol: false,
+            tx_size: None,
         })
     }
 
@@ -5299,6 +5301,7 @@ impl MmCoin for EthCoin {
                 coin: fee_coin.into(),
                 amount: amount.into(),
                 paid_from_trading_vol: false,
+                tx_size: None,
             })
         };
         Box::new(fut.boxed().compat())
@@ -5347,6 +5350,7 @@ impl MmCoin for EthCoin {
             coin: fee_coin.into(),
             amount: amount.into(),
             paid_from_trading_vol: false,
+            tx_size: None,
         })
     }
 

@@ -2166,6 +2166,7 @@ pub struct TradeFee {
     pub coin: String,
     pub amount: MmNumber,
     pub paid_from_trading_vol: bool,
+    pub tx_size: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd, Serialize)]

@@ -1,8 +1,8 @@
 use crate::rpc_command::init_withdraw::{WithdrawInProgressStatus, WithdrawTaskHandleShared};
 use crate::utxo::utxo_common::{big_decimal_from_sat, UtxoTxBuilder};
-use crate::utxo::{output_script, sat_from_big_decimal, ActualTxFee, Address, AddressBuilder, FeePolicy,
-                  GetUtxoListOps, PrivKeyPolicy, UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps, UtxoFeeDetails,
-                  UtxoTx, UTXO_LOCK};
+use crate::utxo::{output_script, sat_from_big_decimal, Address, AddressBuilder, FeePolicy, GetUtxoListOps,
+                  PrivKeyPolicy, TxFeeType, UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps, UtxoFeeDetails, UtxoTx,
+                  UTXO_LOCK};
 use crate::{CoinWithDerivationMethod, GetWithdrawSenderAddress, MarketCoinOps, TransactionDetails, WithdrawError,
             WithdrawFee, WithdrawFrom, WithdrawRequest, WithdrawResult};
 use async_trait::async_trait;
@@ -171,11 +171,11 @@ where
         match req.fee {
             Some(WithdrawFee::UtxoFixed { ref amount }) => {
                 let fixed = sat_from_big_decimal(amount, decimals)?;
-                tx_builder = tx_builder.with_fee(ActualTxFee::FixedPerKb(fixed));
+                tx_builder = tx_builder.with_fee(TxFeeType::Fixed(fixed));
             },
             Some(WithdrawFee::UtxoPerKbyte { ref amount }) => {
                 let dynamic = sat_from_big_decimal(amount, decimals)?;
-                tx_builder = tx_builder.with_fee(ActualTxFee::Dynamic(dynamic));
+                tx_builder = tx_builder.with_fee(TxFeeType::PerKb(dynamic));
             },
             Some(ref fee_policy) => {
                 let error = format!(
