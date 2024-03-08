@@ -948,8 +948,6 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
             None => TxFeeType::PerKb(coin.get_tx_fee_per_kb().await?),
         };
 
-        println!("IS actual_tx_fee: {:?}", actual_tx_fee);
-
         true_or!(!self.tx.outputs.is_empty(), GenerateTxError::EmptyOutputs);
 
         let mut received_by_me = 0;
@@ -1156,6 +1154,7 @@ pub async fn calc_interest_if_required<T: UtxoCommonOps>(
     }
     let rewards_amount = big_decimal_from_sat_unsigned(interest, coin.as_ref().decimals);
     data.kmd_rewards = Some(KmdRewardsDetails::claimed_by_me(rewards_amount));
+
     Ok((unsigned, data))
 }
 
