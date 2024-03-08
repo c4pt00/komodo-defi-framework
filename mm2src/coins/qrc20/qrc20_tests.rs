@@ -23,6 +23,10 @@ const CONTRACT_CALL_GAS_FEE: i64 = (QRC20_GAS_LIMIT_DEFAULT * QRC20_GAS_PRICE_DE
 const SWAP_PAYMENT_GAS_FEE: i64 = (QRC20_PAYMENT_GAS_LIMIT * QRC20_GAS_PRICE_DEFAULT) as i64;
 const TAKER_PAYMENT_SPEND_SEARCH_INTERVAL: f64 = 1.;
 
+fn get_expected_trade_fee_per_kb(tx_size: u64) -> i64 {
+    ((tx_size as i64 * EXPECTED_TX_FEE) as f64 / KILO_BYTE).ceil() as i64
+}
+
 pub fn qrc20_coin_for_test(priv_key: [u8; 32], fallback_swap: Option<&str>) -> (MmArc, Qrc20Coin) {
     let conf = json!({
         "coin":"QRC20",
@@ -810,24 +814,25 @@ fn test_sender_trade_preimage_zero_allowance() {
     let allowance = block_on(coin.allowance(coin.swap_contract_address)).expect("!allowance");
     assert_eq!(allowance, 0.into());
 
+    let erc20_payment_fee_tx_size = 535;
+    let erc20_payment_fee = get_expected_trade_fee_per_kb(erc20_payment_fee_tx_size);
     let erc20_payment_fee_with_one_approve = big_decimal_from_sat(
-        CONTRACT_CALL_GAS_FEE + SWAP_PAYMENT_GAS_FEE + EXPECTED_TX_FEE,
+        CONTRACT_CALL_GAS_FEE + SWAP_PAYMENT_GAS_FEE + erc20_payment_fee,
         coin.utxo.decimals,
     );
 
     let actual =
         block_on(coin.get_sender_trade_fee(TradePreimageValue::Exact(1.into()), FeeApproxStage::WithoutApprox))
             .expect("!get_sender_trade_fee");
-
-    let actual_tx_fee = ((actual.tx_size.unwrap() as i64 * EXPECTED_TX_FEE) as f64 / KILO_BYTE).ceil() as i64;
-    let sender_refund_fee = big_decimal_from_sat(CONTRACT_CALL_GAS_FEE + actual_tx_fee, coin.utxo.decimals);
+    let actual_tx_fee = get_expected_trade_fee_per_kb(actual.tx_size.unwrap());
+    let sender_refund_fee = big_decimal_from_sat(actual_tx_fee + CONTRACT_CALL_GAS_FEE, coin.utxo.decimals);
 
     // one `approve` contract call should be included into the expected trade fee
     let expected = TradeFee {
         coin: "QTUM".to_owned(),
         amount: (erc20_payment_fee_with_one_approve + sender_refund_fee).into(),
         paid_from_trading_vol: false,
-        tx_size: None,
+        tx_size: actual.tx_size,
     };
     assert_eq!(actual, expected);
 }
@@ -850,25 +855,32 @@ fn test_sender_trade_preimage_with_allowance() {
     let allowance = block_on(coin.allowance(coin.swap_contract_address)).expect("!allowance");
     assert_eq!(allowance, 300_000_000.into());
 
+    let erc20_payment_fee_without_approve_tx_size = 576;
+    let erc20_payment_fee = get_expected_trade_fee_per_kb(erc20_payment_fee_without_approve_tx_size);
     let erc20_payment_fee_without_approve =
-        big_decimal_from_sat(SWAP_PAYMENT_GAS_FEE + EXPECTED_TX_FEE, coin.utxo.decimals);
+        big_decimal_from_sat(SWAP_PAYMENT_GAS_FEE + erc20_payment_fee, coin.utxo.decimals);
+
+    let erc20_payment_fee_tx_size = 790;
+    let erc20_payment_fee = get_expected_trade_fee_per_kb(erc20_payment_fee_tx_size);
     let erc20_payment_fee_with_two_approves = big_decimal_from_sat(
-        2 * CONTRACT_CALL_GAS_FEE + SWAP_PAYMENT_GAS_FEE + EXPECTED_TX_FEE,
+        2 * CONTRACT_CALL_GAS_FEE + SWAP_PAYMENT_GAS_FEE + erc20_payment_fee,
         coin.utxo.decimals,
     );
-    let sender_refund_fee = big_decimal_from_sat(CONTRACT_CALL_GAS_FEE + EXPECTED_TX_FEE, coin.utxo.decimals);
 
     let actual = block_on(coin.get_sender_trade_fee(
         TradePreimageValue::Exact(BigDecimal::try_from(2.5).unwrap()),
         FeeApproxStage::WithoutApprox,
     ))
     .expect("!get_sender_trade_fee");
+    let expected_fee = get_expected_trade_fee_per_kb(actual.tx_size.unwrap());
+    let sender_refund_fee = big_decimal_from_sat(CONTRACT_CALL_GAS_FEE + expected_fee, coin.utxo.decimals);
+
     // the expected fee should not include any `approve` contract call
     let expected = TradeFee {
         coin: "QTUM".to_owned(),
         amount: (erc20_payment_fee_without_approve + sender_refund_fee.clone()).into(),
         paid_from_trading_vol: false,
-        tx_size: None,
+        tx_size: actual.tx_size,
     };
     assert_eq!(actual, expected);
 
@@ -877,12 +889,14 @@ fn test_sender_trade_preimage_with_allowance() {
         FeeApproxStage::WithoutApprox,
     ))
     .expect("!get_sender_trade_fee");
+    let expected_fee = get_expected_trade_fee_per_kb(actual.tx_size.unwrap());
+    let sender_refund_fee = big_decimal_from_sat(CONTRACT_CALL_GAS_FEE + expected_fee, coin.utxo.decimals);
     // two `approve` contract calls should be included into the expected trade fee
     let expected = TradeFee {
         coin: "QTUM".to_owned(),
         amount: (erc20_payment_fee_with_two_approves + sender_refund_fee).into(),
         paid_from_trading_vol: false,
-        tx_size: None,
+        tx_size: actual.tx_size,
     };
     assert_eq!(actual, expected);
 }
@@ -962,7 +976,8 @@ fn test_receiver_trade_preimage() {
         .wait()
         .expect("!get_receiver_trade_fee");
     // only one contract call should be included into the expected trade fee
-    let actual_tx_fee = ((actual.tx_size.unwrap() as i64 * EXPECTED_TX_FEE) as f64 / KILO_BYTE).ceil() as i64;
+
+    let actual_tx_fee = get_expected_trade_fee_per_kb(actual.tx_size.unwrap());
     let expected_receiver_fee = big_decimal_from_sat(CONTRACT_CALL_GAS_FEE + actual_tx_fee, coin.utxo.decimals);
     let expected = TradeFee {
         coin: "QTUM".to_owned(),
@@ -998,7 +1013,7 @@ fn test_taker_fee_tx_fee() {
     ))
     .expect("!get_fee_to_send_taker_fee");
     // only one contract call should be included into the expected trade fee
-    let actual_tx_fee = ((actual.tx_size.unwrap() as i64 * EXPECTED_TX_FEE) as f64 / KILO_BYTE).ceil() as i64;
+    let actual_tx_fee = get_expected_trade_fee_per_kb(actual.tx_size.unwrap());
     let expected_receiver_fee = big_decimal_from_sat(CONTRACT_CALL_GAS_FEE + actual_tx_fee, coin.utxo.decimals);
     let expected = TradeFee {
         coin: "QTUM".to_owned(),
