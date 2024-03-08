@@ -180,7 +180,7 @@ impl GetUtxoMapOps for UtxoStandardCoin {
 #[async_trait]
 #[cfg_attr(test, mockable)]
 impl UtxoCommonOps for UtxoStandardCoin {
-    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeRes> {
+    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeResult> {
         utxo_common::get_htlc_spend_fee(self, tx_size, stage).await
     }
 

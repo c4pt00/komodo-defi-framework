@@ -27,9 +27,9 @@ use crate::utxo::utxo_common_tests::TEST_COIN_DECIMALS;
 use crate::utxo::utxo_common_tests::{self, utxo_coin_fields_for_test, utxo_coin_from_fields, TEST_COIN_NAME};
 use crate::utxo::utxo_standard::{utxo_standard_coin_with_priv_key, UtxoStandardCoin};
 use crate::utxo::utxo_tx_history_v2::{UtxoTxDetailsParams, UtxoTxHistoryOps};
-use crate::{BlockHeightAndTime, CoinBalance, ConfirmPaymentInput, DexFee, IguanaPrivKey, PrivKeyBuildPolicy,
-            SearchForSwapTxSpendInput, SpendPaymentArgs, StakingInfosDetails, SwapOps, TradePreimageValue,
-            TxFeeDetails, TxMarshalingErr, ValidateFeeArgs, INVALID_SENDER_ERR_LOG};
+use crate::{calculate_fee, BlockHeightAndTime, CoinBalance, ConfirmPaymentInput, DexFee, IguanaPrivKey,
+            PrivKeyBuildPolicy, SearchForSwapTxSpendInput, SpendPaymentArgs, StakingInfosDetails, SwapOps,
+            TradePreimageValue, TxFeeDetails, TxMarshalingErr, ValidateFeeArgs, INVALID_SENDER_ERR_LOG};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::{WaitForHTLCTxSpendArgs, WithdrawFee};
 use chain::{BlockHeader, BlockHeaderBits, OutPoint};
@@ -2826,7 +2826,7 @@ fn test_generate_tx_doge_fee() {
     let (_, data) = block_on(builder.build()).unwrap();
     let v_size = tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &transaction) as u64;
     assert!(v_size > KILO_BYTE as u64);
-    let expected_fee = ((TXFEE_PER_KB * v_size) as f64 / KILO_BYTE).ceil() as u64;
+    let expected_fee = calculate_fee!(TXFEE_PER_KB, v_size) as u64;
     assert_eq!(expected_fee, data.fee_amount);
 }
 

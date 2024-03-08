@@ -92,6 +92,15 @@ lazy_static! {
     });
 }
 
+/// Calculates a transaction fee for a UTXO,
+/// taking a fee per kilobyte (`fee_per_kb`) and transaction size in bytes (`tx_size`).
+#[macro_export]
+macro_rules! calculate_fee {
+    ($fee_per_kb:expr, $tx_size:expr) => {
+        ((($fee_per_kb * $tx_size) as f64) / KILO_BYTE).ceil()
+    };
+}
+
 pub const HISTORY_TOO_LARGE_ERR_CODE: i64 = -1;
 
 pub async fn get_tx_fee_per_kb(coin: &UtxoCoinFields) -> UtxoRpcResult<u64> {
@@ -592,14 +601,14 @@ pub async fn get_htlc_spend_fee<T: UtxoCommonOps>(
     coin: &T,
     tx_size: u64,
     stage: &FeeApproxStage,
-) -> UtxoRpcResult<HtlcSpendFeeRes> {
+) -> UtxoRpcResult<HtlcSpendFeeResult> {
     let mut fee_per_kb = coin.get_tx_fee_per_kb().await?;
     if coin.as_ref().tx_fee.is_dynamic() {
         fee_per_kb = increase_dynamic_fee_by_stage(&coin, fee_per_kb, stage);
     }
     drop_mutability!(fee_per_kb);
 
-    let mut fee = ((fee_per_kb * tx_size) as f64 / KILO_BYTE).ceil() as u64;
+    let mut fee = calculate_fee!(fee_per_kb, tx_size) as u64;
 
     if coin.as_ref().conf.force_min_relay_fee {
         let relay_fee = coin.as_ref().rpc_client.get_relay_fee().compat().await?;
@@ -609,7 +618,7 @@ pub async fn get_htlc_spend_fee<T: UtxoCommonOps>(
         }
     }
 
-    Ok(HtlcSpendFeeRes::from(fee, Some(tx_size)))
+    Ok(HtlcSpendFeeResult::from(fee, Some(tx_size)))
 }
 
 pub fn addresses_from_script<T: UtxoCommonOps>(coin: &T, script: &Script) -> Result<Vec<Address>, String> {
@@ -874,7 +883,7 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
             TxFeeType::PerKb(f) => {
                 let transaction = UtxoTx::from(self.tx.clone());
                 let v_size = tx_size_in_v_bytes(from_addr_format, &transaction) as u64;
-                ((f * v_size) as f64 / KILO_BYTE).ceil() as u64
+                calculate_fee!(f, v_size) as u64
             },
             TxFeeType::Fixed(f) => *f,
         };
@@ -887,8 +896,8 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
                     if self.change > self.dust() {
                         // there will be change output
                         if let TxFeeType::PerKb(ref f) = actual_tx_fee {
-                            self.tx_fee += ((f * P2PKH_OUTPUT_LEN) as f64 / KILO_BYTE).ceil() as u64;
-                            outputs_plus_fee += ((f * P2PKH_OUTPUT_LEN) as f64 / KILO_BYTE).ceil() as u64;
+                            self.tx_fee += calculate_fee!(f, P2PKH_OUTPUT_LEN) as u64;
+                            outputs_plus_fee += calculate_fee!(f, P2PKH_OUTPUT_LEN) as u64;
                         }
                     }
                     if let Some(min_relay) = self.min_relay_fee {
@@ -908,7 +917,7 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
                     self.change = self.sum_inputs - self.sum_outputs_value;
                     if self.change > self.dust() {
                         if let TxFeeType::PerKb(f) = actual_tx_fee {
-                            self.tx_fee += ((*f * P2PKH_OUTPUT_LEN) as f64 / KILO_BYTE).ceil() as u64;
+                            self.tx_fee += calculate_fee!(f, P2PKH_OUTPUT_LEN) as u64
                         }
                     }
                     if let Some(min_relay) = self.min_relay_fee {
@@ -1314,7 +1323,9 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
             coin.get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
                 .await?
         },
-        FundingSpendFeeSetting::UseExact(f) => HtlcSpendFeeRes::from(f, Some(args.funding_tx.serialized_size() as u64)),
+        FundingSpendFeeSetting::UseExact(f) => {
+            HtlcSpendFeeResult::from(f, Some(args.funding_tx.serialized_size() as u64))
+        },
     };
 
     let fee_plus_dust = fee.fee + coin.as_ref().dust_amount;
@@ -4240,7 +4251,7 @@ where
             data.fee_amount + ((tx_fee_per_kb * P2PKH_OUTPUT_LEN) as f64 / KILO_BYTE) as u64
         } else {
             // take into account the change output if tx_size_kb(tx with change) > tx_size_kb(tx without change)
-            let tx = UtxoTx::from(tx.clone());
+            let tx = UtxoTx::from(tx);
             let tx_bytes_len = serialize(&tx).len();
             if (tx_bytes_len as f64 % KILO_BYTE + P2PKH_OUTPUT_LEN as f64) > KILO_BYTE {
                 data.fee_amount + tx_fee_per_kb

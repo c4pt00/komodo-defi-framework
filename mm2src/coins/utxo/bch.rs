@@ -734,7 +734,7 @@ impl GetUtxoListOps for BchCoin {
 #[async_trait]
 #[cfg_attr(test, mockable)]
 impl UtxoCommonOps for BchCoin {
-    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeRes> {
+    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeResult> {
         utxo_common::get_htlc_spend_fee(self, tx_size, stage).await
     }
 

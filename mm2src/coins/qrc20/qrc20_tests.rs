@@ -1,6 +1,6 @@
 use super::*;
 use crate::utxo::KILO_BYTE;
-use crate::{DexFee, TxFeeDetails, WaitForHTLCTxSpendArgs};
+use crate::{calculate_fee, DexFee, TxFeeDetails, WaitForHTLCTxSpendArgs};
 use common::{block_on, wait_until_sec, DEX_FEE_ADDR_RAW_PUBKEY};
 use crypto::Secp256k1Secret;
 use itertools::Itertools;
@@ -23,9 +23,7 @@ const CONTRACT_CALL_GAS_FEE: i64 = (QRC20_GAS_LIMIT_DEFAULT * QRC20_GAS_PRICE_DE
 const SWAP_PAYMENT_GAS_FEE: i64 = (QRC20_PAYMENT_GAS_LIMIT * QRC20_GAS_PRICE_DEFAULT) as i64;
 const TAKER_PAYMENT_SPEND_SEARCH_INTERVAL: f64 = 1.;
 
-fn get_expected_trade_fee_per_kb(tx_size: u64) -> i64 {
-    ((tx_size as i64 * EXPECTED_TX_FEE) as f64 / KILO_BYTE).ceil() as i64
-}
+fn get_expected_trade_fee_per_kb(tx_size: u64) -> i64 { calculate_fee!(tx_size, EXPECTED_TX_FEE as u64) as i64 }
 
 pub fn qrc20_coin_for_test(priv_key: [u8; 32], fallback_swap: Option<&str>) -> (MmArc, Qrc20Coin) {
     let conf = json!({

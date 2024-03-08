@@ -13,7 +13,7 @@ use crate::utxo::utxo_builder::{UtxoCoinBuildError, UtxoCoinBuildResult, UtxoCoi
 use crate::utxo::utxo_common::{self, big_decimal_from_sat, check_all_utxo_inputs_signed_by_pub,
                                PreImageTradeFeeResult, UtxoTxBuilder};
 use crate::utxo::{qtum, AdditionalTxData, AddrFromStrError, BroadcastTxErr, FeePolicy, GenerateTxError,
-                  GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeRes, MatureUnspentList,
+                  GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeResult, MatureUnspentList,
                   RecentlySpentOutPointsGuard, UnsupportedAddr, UtxoActivationParams, UtxoAddressFormat,
                   UtxoCoinFields, UtxoCommonOps, UtxoFromLegacyReqErr, UtxoTx, UtxoTxBroadcastOps,
                   UtxoTxGenerationOps, VerboseTransactionFrom, UTXO_LOCK};
@@ -598,7 +598,6 @@ impl Qrc20Coin {
             UtxoCommonOps::preimage_trade_fee_required_to_send_outputs(self, outputs, fee_policy, Some(gas_fee), stage)
                 .await?;
         let gas_fee = big_decimal_from_sat(gas_fee as i64, decimals);
-        println!("SIZE: {:?}", &miner_fee.tx_size);
         Ok(PreImageTradeFeeResult {
             tx_size: miner_fee.tx_size,
             fee: miner_fee.fee + gas_fee,
@@ -660,7 +659,7 @@ impl GetUtxoListOps for Qrc20Coin {
 #[async_trait]
 #[cfg_attr(test, mockable)]
 impl UtxoCommonOps for Qrc20Coin {
-    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeRes> {
+    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeResult> {
         utxo_common::get_htlc_spend_fee(self, tx_size, stage).await
     }
 

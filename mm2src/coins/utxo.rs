@@ -966,12 +966,12 @@ impl MatureUnspentList {
 }
 
 #[derive(Debug)]
-pub struct HtlcSpendFeeRes {
+pub struct HtlcSpendFeeResult {
     pub fee: u64,
     pub tx_size: Option<u64>,
 }
 
-impl HtlcSpendFeeRes {
+impl HtlcSpendFeeResult {
     fn from(fee: u64, tx_size: Option<u64>) -> Self { Self { fee, tx_size } }
 }
 
@@ -980,7 +980,7 @@ impl HtlcSpendFeeRes {
 pub trait UtxoCommonOps:
     AsRef<UtxoCoinFields> + UtxoTxGenerationOps + UtxoTxBroadcastOps + Clone + Send + Sync + 'static
 {
-    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeRes>;
+    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeResult>;
 
     fn addresses_from_script(&self, script: &Script) -> Result<Vec<Address>, String>;
 

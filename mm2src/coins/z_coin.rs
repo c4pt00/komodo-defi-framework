@@ -9,7 +9,7 @@ use crate::utxo::utxo_builder::{UtxoCoinBuilder, UtxoCoinBuilderCommonOps, UtxoF
                                 UtxoFieldsWithHardwareWalletBuilder, UtxoFieldsWithIguanaSecretBuilder};
 use crate::utxo::utxo_common::{big_decimal_from_sat_unsigned, payment_script, PreImageTradeFeeResult};
 use crate::utxo::{sat_from_big_decimal, utxo_common, AdditionalTxData, AddrFromStrError, Address, BroadcastTxErr,
-                  FeePolicy, GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeRes, MatureUnspentList,
+                  FeePolicy, GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeResult, MatureUnspentList,
                   RecentlySpentOutPointsGuard, UtxoActivationParams, UtxoAddressFormat, UtxoArc, UtxoCoinFields,
                   UtxoCommonOps, UtxoRpcMode, UtxoTxBroadcastOps, UtxoTxGenerationOps, VerboseTransactionFrom};
 use crate::utxo::{UnsupportedAddr, UtxoFeeDetails};
@@ -1905,12 +1905,12 @@ impl GetUtxoListOps for ZCoin {
 
 #[async_trait]
 impl UtxoCommonOps for ZCoin {
-    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeRes> {
+    async fn get_htlc_spend_fee(&self, tx_size: u64, stage: &FeeApproxStage) -> UtxoRpcResult<HtlcSpendFeeResult> {
         utxo_common::get_htlc_spend_fee(self, tx_size, stage).await
     }
 
     fn addresses_from_script(&self, script: &Script) -> Result<Vec<Address>, String> {
-        utxo_common::addresses_from_script(self, script)
+        addresses_from_script(self, script)
     }
 
     fn denominate_satoshis(&self, satoshi: i64) -> f64 { utxo_common::denominate_satoshis(&self.utxo_arc, satoshi) }
