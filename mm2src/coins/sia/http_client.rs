@@ -6,6 +6,8 @@ use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
 
+use mm2_number::MmNumber;
+
 /// HTTP(s) client for Sia-protocol coins
 #[derive(Debug)]
 pub struct SiaHttpClientImpl {
@@ -87,6 +89,16 @@ pub struct GetConsensusTipResponse {
     pub id: String, // TODO this can match "BlockID" type
 }
 
+// https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/api/api.go#L36
+// https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/wallet/wallet.go#L25
+#[derive(Deserialize, Serialize, Debug)]
+pub struct GetAddressesBalanceResponse {
+    pub siacoins: MmNumber,
+    #[serde(rename = "immatureSiacoins")]
+    pub immature_siacoins: MmNumber,
+    pub siafunds: u64
+}
+
 impl SiaApiClientImpl {
     fn new(base_url: Url, password: &str) -> Result<Self, SiaApiClientError> {
         let mut headers = HeaderMap::new();
@@ -98,7 +110,7 @@ impl SiaApiClientImpl {
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(10)) // TODO make this configurable
             .build()
             .map_err(|e| {
                 SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
@@ -117,6 +129,18 @@ impl SiaApiClientImpl {
 
         fetch_and_parse::<GetConsensusTipResponse>(&self.client, endpoint_url).await
     }
+    
+    pub async fn get_addresses_balance(&self, address: &str) -> Result<GetAddressesBalanceResponse, SiaApiClientError> {
+        let base_url = self.base_url.clone();
+
+        // TODO Validate or sanitize `address` here if necessary
+
+        let endpoint_path = format!("api/addresses/{}/balance", address);
+        let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
+
+        println!("endpoint url {}", endpoint_url);
+        fetch_and_parse::<GetAddressesBalanceResponse>(&self.client, endpoint_url).await
+    }
 
     pub async fn get_height(&self) -> Result<u64, SiaApiClientError> {
         let resp = self.get_consensus_tip().await?;
@@ -126,22 +150,40 @@ impl SiaApiClientImpl {
 
 #[tokio::test]
 async fn test_api_client_timeout() {
-    let api_client = SiaApiClientImpl::new("http://foo", "password").unwrap();
+    let api_client = SiaApiClientImpl::new(Url::parse("http://foo").unwrap(), "password").unwrap();
     let result = api_client.get_consensus_tip().await;
     assert!(matches!(result, Err(SiaApiClientError::Timeout(_))));
 }
 
-// TODO must be adapted to use Docker Sia node
+// TODO all of the following must be adapted to use Docker Sia node
 #[tokio::test]
+#[ignore]
 async fn test_api_client_invalid_auth() {
-    let api_client = SiaApiClientImpl::new("http://127.0.0.1:9980", "password").unwrap();
+    let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
     let result = api_client.get_consensus_tip().await;
     assert!(matches!(result, Err(SiaApiClientError::BuildError(_))));
 }
 
 // TODO must be adapted to use Docker Sia node
 #[tokio::test]
+#[ignore]
 async fn test_api_client() {
-    let api_client = SiaApiClientImpl::new("http://127.0.0.1:9980", "password").unwrap();
+    let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
     let result = api_client.get_consensus_tip().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_api_get_addresses_balance() {
+    let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
+    let result = api_client.get_addresses_balance("591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").await.unwrap();
+    println!("ret {:?}", result);
+}
+
+#[tokio::test]
+#[ignore]
+async fn test_api_get_addresses_balance_invalid() {
+    let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
+    let result = api_client.get_addresses_balance("what").await.unwrap();
+    println!("ret {:?}", result);
 }
