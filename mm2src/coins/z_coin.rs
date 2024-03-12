@@ -7,7 +7,8 @@ use crate::utxo::rpc_clients::{ElectrumRpcRequest, UnspentInfo, UtxoRpcClientEnu
 use crate::utxo::utxo_builder::UtxoCoinBuildError;
 use crate::utxo::utxo_builder::{UtxoCoinBuilder, UtxoCoinBuilderCommonOps, UtxoFieldsWithGlobalHDBuilder,
                                 UtxoFieldsWithHardwareWalletBuilder, UtxoFieldsWithIguanaSecretBuilder};
-use crate::utxo::utxo_common::{big_decimal_from_sat_unsigned, payment_script, PreImageTradeFeeResult};
+use crate::utxo::utxo_common::{addresses_from_script, big_decimal_from_sat_unsigned, payment_script,
+                               PreImageTradeFeeResult};
 use crate::utxo::{sat_from_big_decimal, utxo_common, AdditionalTxData, AddrFromStrError, Address, BroadcastTxErr,
                   FeePolicy, GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeResult, MatureUnspentList,
                   RecentlySpentOutPointsGuard, UtxoActivationParams, UtxoAddressFormat, UtxoArc, UtxoCoinFields,
@@ -85,7 +86,7 @@ use z_rpc::init_light_client;
 pub use z_rpc::{FirstSyncBlock, SyncStatus};
 
 cfg_native!(
-    use crate::utxo::utxo_common::{addresses_from_script, big_decimal_from_sat};
+    use crate::utxo::utxo_common::big_decimal_from_sat;
     use common::{async_blocking, sha256_digest, calc_total_pages, PagingOptionsEnum};
     use db_common::sqlite::offset_by_id;
     use db_common::sqlite::rusqlite::{Error as SqlError, Row};
