@@ -26,6 +26,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 pub mod http_client;
+pub mod address;
 use http_client::{SiaApiClient, SiaApiClientError};
 
 use url::Url;
