@@ -96,7 +96,7 @@ pub struct GetAddressesBalanceResponse {
     pub siacoins: MmNumber,
     #[serde(rename = "immatureSiacoins")]
     pub immature_siacoins: MmNumber,
-    pub siafunds: u64
+    pub siafunds: u64,
 }
 
 impl SiaApiClientImpl {
@@ -129,7 +129,7 @@ impl SiaApiClientImpl {
 
         fetch_and_parse::<GetConsensusTipResponse>(&self.client, endpoint_url).await
     }
-    
+
     pub async fn get_addresses_balance(&self, address: &str) -> Result<GetAddressesBalanceResponse, SiaApiClientError> {
         let base_url = self.base_url.clone();
 
@@ -169,14 +169,17 @@ async fn test_api_client_invalid_auth() {
 #[ignore]
 async fn test_api_client() {
     let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
-    let result = api_client.get_consensus_tip().await.unwrap();
+    let _result = api_client.get_consensus_tip().await.unwrap();
 }
 
 #[tokio::test]
 #[ignore]
 async fn test_api_get_addresses_balance() {
     let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
-    let result = api_client.get_addresses_balance("591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").await.unwrap();
+    let result = api_client
+        .get_addresses_balance("591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
+        .await
+        .unwrap();
     println!("ret {:?}", result);
 }
 
