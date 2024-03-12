@@ -1046,7 +1046,7 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
         };
 
         let transaction = UtxoTx::from(self.tx.clone());
-        let tx_v_size = tx_size_in_v_bytes(from.addr_format(), &transaction) as u64;
+        let tx_size = tx_size_in_v_bytes(from.addr_format(), &transaction) as u64;
         let data = AdditionalTxData {
             fee_amount: self.tx_fee,
             received_by_me,
@@ -1054,7 +1054,7 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
             unused_change,
             // will be changed if the ticker is KMD
             kmd_rewards: None,
-            tx_v_size,
+            tx_size,
         };
 
         Ok(coin
@@ -4266,7 +4266,7 @@ where
 
     Ok(PreImageTradeFeeResult {
         fee: big_decimal_from_sat(total_fee as i64, decimals),
-        tx_size: Some(data.tx_v_size),
+        tx_size: Some(data.tx_size),
     })
 }
 

@@ -508,7 +508,7 @@ impl ZCoin {
             fee_amount: sat_from_big_decimal(&tx_fee, self.decimals())?,
             unused_change: 0,
             kmd_rewards: None,
-            tx_v_size: tx_bytes.len() as u64,
+            tx_size: tx_bytes.len() as u64,
         };
 
         Ok((tx, additional_data, sync_guard))

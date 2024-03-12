@@ -1,10 +1,12 @@
+use crate::common::Future01CompatExt;
 use crate::rpc_command::init_withdraw::{WithdrawInProgressStatus, WithdrawTaskHandleShared};
+use crate::utxo::rpc_clients::{EstimateFeeMethod, EstimateFeeMode, UtxoRpcClientEnum};
 use crate::utxo::utxo_common::{big_decimal_from_sat, UtxoTxBuilder};
 use crate::utxo::{output_script, sat_from_big_decimal, Address, AddressBuilder, FeePolicy, GetUtxoListOps,
                   PrivKeyPolicy, TxFeeType, UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps, UtxoFeeDetails, UtxoTx,
                   UTXO_LOCK};
-use crate::{CoinWithDerivationMethod, GetWithdrawSenderAddress, MarketCoinOps, TransactionDetails, WithdrawError,
-            WithdrawFee, WithdrawFrom, WithdrawRequest, WithdrawResult};
+use crate::{CoinWithDerivationMethod, GetWithdrawSenderAddress, MarketCoinOps, TransactionDetails, UtxoFeePriority,
+            WithdrawError, WithdrawFee, WithdrawFrom, WithdrawRequest, WithdrawResult};
 use async_trait::async_trait;
 use chain::TransactionOutput;
 use common::log::info;
@@ -16,6 +18,7 @@ use crypto::{from_hw_error, CryptoCtx, CryptoCtxError, DerivationPath, HwError, 
 use keys::{AddressFormat, AddressHashEnum, KeyPair, Private, Public as PublicKey};
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
+use mm2_number::BigDecimal;
 use rpc::v1::types::ToTxHash;
 use rpc_task::RpcTaskError;
 use script::{Builder, Script, SignatureVersion, TransactionInputSigner};
@@ -177,6 +180,16 @@ where
                 let dynamic = sat_from_big_decimal(amount, decimals)?;
                 tx_builder = tx_builder.with_fee(TxFeeType::PerKb(dynamic));
             },
+            Some(WithdrawFee::UtxoPriority { ref priority, .. }) => {
+                let builder_with_fee = generate_withdrawal_fee_by_priority(
+                    coin.as_ref().rpc_client.clone(),
+                    priority,
+                    decimals,
+                    tx_builder,
+                )
+                .await?;
+                tx_builder = builder_with_fee;
+            },
             Some(ref fee_policy) => {
                 let error = format!(
                     "Expected 'UtxoFixed' or 'UtxoPerKbyte' fee types, found {:?}",
@@ -225,6 +238,33 @@ where
             memo: None,
         })
     }
+}
+
+/// estimates the fee for a transaction using the provided RPC client, priority level
+/// and then updates the transaction builder with the calculated fee.
+async fn generate_withdrawal_fee_by_priority<'a, Coin>(
+    rpc: UtxoRpcClientEnum,
+    priority: &UtxoFeePriority,
+    decimals: u8,
+    tx_builder: UtxoTxBuilder<'a, Coin>,
+) -> MmResult<UtxoTxBuilder<'a, Coin>, WithdrawError>
+where
+    Coin: UtxoCommonOps + GetUtxoListOps,
+{
+    let (blocks, mode) = match priority {
+        UtxoFeePriority::Low => (3, EstimateFeeMode::ECONOMICAL),
+        UtxoFeePriority::Normal => (2, EstimateFeeMode::CONSERVATIVE),
+        UtxoFeePriority::High => (1, EstimateFeeMode::CONSERVATIVE),
+    };
+    let method = EstimateFeeMethod::SmartFee;
+    let estimated_fee = rpc
+        .estimate_fee_sat(decimals, &method, &Some(mode.clone()), blocks)
+        .compat()
+        .await?;
+    let final_fee = BigDecimal::from(estimated_fee);
+    let dynamic = sat_from_big_decimal(&final_fee, decimals)?;
+
+    Ok(tx_builder.with_fee(TxFeeType::PerKb(dynamic)))
 }
 
 pub struct InitUtxoWithdraw<Coin> {

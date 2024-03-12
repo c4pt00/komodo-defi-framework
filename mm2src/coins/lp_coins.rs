@@ -1808,6 +1808,17 @@ pub trait MarketCoinOps {
     fn is_privacy(&self) -> bool { false }
 }
 
+/// Priority levels for UTXO fee estimation for withdrawal.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub enum UtxoFeePriority {
+    /// Low priority: Estimated confirmation within approximately 3 blocks.
+    Low,
+    /// Normal priority: Estimated confirmation within approximately 2 blocks.
+    Normal,
+    /// High priority: Estimated confirmation within approximately 1 block.
+    High,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum WithdrawFee {
@@ -1816,6 +1827,9 @@ pub enum WithdrawFee {
     },
     UtxoPerKbyte {
         amount: BigDecimal,
+    },
+    UtxoPriority {
+        priority: UtxoFeePriority,
     },
     EthGas {
         /// in gwei

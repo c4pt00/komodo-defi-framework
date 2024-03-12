@@ -278,7 +278,7 @@ pub struct AdditionalTxData {
     pub fee_amount: u64,
     pub unused_change: u64,
     pub kmd_rewards: Option<KmdRewardsDetails>,
-    pub tx_v_size: u64,
+    pub tx_size: u64,
 }
 
 /// The fee set from coins config
@@ -290,16 +290,16 @@ pub enum TxFee {
     FixedPerKb(u64),
 }
 
+impl TxFee {
+    pub fn is_dynamic(&self) -> bool { matches!(self, TxFee::Dynamic(_)) }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TxFeeType {
     /// Fee per kb whether it is dynamic (received from RPC) or fixed
     PerKb(u64),
     /// Use specified fixed amount for the whole transaction that is not dependent on transaction size
     Fixed(u64),
-}
-
-impl TxFee {
-    pub fn is_dynamic(&self) -> bool { matches!(self, TxFee::Dynamic(_)) }
 }
 
 /// Fee policy applied on transaction creation
