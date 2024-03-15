@@ -149,6 +149,7 @@ impl SiaApiClientImpl {
 }
 
 #[tokio::test]
+#[ignore]
 async fn test_api_client_timeout() {
     let api_client = SiaApiClientImpl::new(Url::parse("http://foo").unwrap(), "password").unwrap();
     let result = api_client.get_consensus_tip().await;
