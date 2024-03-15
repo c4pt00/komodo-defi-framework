@@ -96,7 +96,6 @@ pub async fn sia_coin_from_conf_and_params(
     ticker: &str,
     conf: &Json,
     params: &SiaCoinActivationParams,
-    _protocol_info: SiaCoinProtocolInfo,
     priv_key_policy: PrivKeyBuildPolicy,
 ) -> Result<SiaCoin, MmError<SiaCoinBuildError>> {
     let priv_key = match priv_key_policy {

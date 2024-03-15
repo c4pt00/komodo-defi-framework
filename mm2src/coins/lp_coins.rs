@@ -299,7 +299,7 @@ use crate::utxo::utxo_common::{payment_script, WaitForOutputSpendErr};
 use z_coin::{ZCoin, ZcoinProtocolInfo};
 
 pub mod sia;
-use sia::{SiaCoin, SiaCoinProtocolInfo};
+use sia::SiaCoin;
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
 pub type TransactionResult = Result<TransactionEnum, TransactionErr>;
@@ -3755,7 +3755,7 @@ pub enum CoinProtocol {
         decimals: u8,
     },
     ZHTLC(ZcoinProtocolInfo),
-    SIA(SiaCoinProtocolInfo),
+    SIA,
 }
 
 pub type RpcTransportEventHandlerShared = Arc<dyn RpcTransportEventHandler + Send + Sync + 'static>;

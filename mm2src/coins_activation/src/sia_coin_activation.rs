@@ -170,7 +170,7 @@ impl TryFromCoinProtocol for SiaCoinProtocolInfo {
         Self: Sized,
     {
         match proto {
-            CoinProtocol::SIA(info) => Ok(info),
+            CoinProtocol::SIA => Ok(SiaCoinProtocolInfo {}),
             protocol => MmError::err(protocol),
         }
     }
@@ -195,7 +195,7 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
         ticker: String,
         coin_conf: Json,
         activation_request: &SiaCoinActivationParams,
-        protocol_info: SiaCoinProtocolInfo,
+        _protocol_info: SiaCoinProtocolInfo,
         _task_handle: SiaCoinRpcTaskHandleShared,
     ) -> MmResult<Self, SiaCoinInitError> {
         let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx)?;
@@ -205,7 +205,6 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
             &ticker,
             &coin_conf,
             activation_request,
-            protocol_info,
             priv_key_policy,
         )
         .await
