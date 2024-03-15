@@ -32,8 +32,6 @@ use http_client::{SiaApiClient, SiaApiClientError};
 
 use url::Url;
 
-use mm2_core::mm_ctx::MmWeak;
-
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
 #[derive(Clone)]
@@ -87,8 +85,6 @@ pub struct SiaCoinFields {
     pub key_pair: PrivKeyPolicy<ed25519_dalek::Keypair>,
     /// HTTP(s) client
     pub http_client: SiaApiClient,
-    #[allow(dead_code)]
-    pub(crate) ctx: MmWeak,
 }
 
 pub async fn sia_coin_from_conf_and_params(
@@ -168,7 +164,6 @@ impl<'a> SiaCoinBuilder<'a> {
             conf,
             http_client: SiaApiClient::new(self.ticker(), self.params.http_url.clone(), &self.params.http_auth)
                 .map_err(SiaCoinBuildError::ClientError)?,
-            ctx: self.ctx().weak(),
             key_pair: PrivKeyPolicy::Iguana(self.key_pair),
         };
         let sia_arc = SiaArc::new(sia_fields);
