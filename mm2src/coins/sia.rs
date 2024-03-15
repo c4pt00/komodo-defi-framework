@@ -1,17 +1,17 @@
 use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut, RawTransactionRequest, SwapOps,
             TradeFee, TransactionEnum, TransactionFut};
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
-            ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
+            ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
             NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-            PrivKeyBuildPolicy, RawTransactionResult, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
-            SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignRawTransactionRequest, SignatureResult,
-            SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue,
-            TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
-            ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
-            ValidatePaymentInput, ValidatePaymentResult, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps,
-            WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput,
-            WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
-use crate::{DexFee, ValidateWatcherSpendInput};
+            PrivKeyBuildPolicy, PrivKeyPolicy, RawTransactionResult, RefundPaymentArgs, RefundResult,
+            SearchForSwapTxSpendInput, SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignRawTransactionRequest,
+            SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult,
+            TradePreimageValue, TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult,
+            ValidateFeeArgs, ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError,
+            ValidatePaymentFut, ValidatePaymentInput, ValidatePaymentResult, ValidateWatcherSpendInput,
+            VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError,
+            WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut,
+            WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::AbortedError;
 use futures::{FutureExt, TryFutureExt};
@@ -84,7 +84,7 @@ impl<'a> SiaConfBuilder<'a> {
 pub struct SiaCoinFields {
     /// SIA coin config
     pub conf: SiaCoinConf,
-    pub key_pair: ed25519_dalek::Keypair,
+    pub key_pair: PrivKeyPolicy<ed25519_dalek::Keypair>,
     /// HTTP(s) client
     pub http_client: SiaApiClient,
     #[allow(dead_code)]
@@ -169,7 +169,7 @@ impl<'a> SiaCoinBuilder<'a> {
             http_client: SiaApiClient::new(self.ticker(), self.params.http_url.clone(), &self.params.http_auth)
                 .map_err(SiaCoinBuildError::ClientError)?,
             ctx: self.ctx().weak(),
-            key_pair: self.key_pair,
+            key_pair: PrivKeyPolicy::Iguana(self.key_pair),
         };
         let sia_arc = SiaArc::new(sia_fields);
 
