@@ -25,8 +25,9 @@ use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
 
-pub mod http_client;
 pub mod address;
+pub mod blake2b_internal;
+pub mod http_client;
 use http_client::{SiaApiClient, SiaApiClientError};
 
 use url::Url;
