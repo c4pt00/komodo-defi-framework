@@ -1,16 +1,17 @@
-#[allow(unused_imports)]
-use blake2b_simd::{blake2b as _, Params};
+#[allow(unused_imports)] use blake2b_simd::Params;
 use hex::FromHexError;
 use rpc::v1::types::H256;
 use std::convert::TryInto;
 //use std::error::Error;
+use crate::sia::blake2b_internal::standard_unlock_hash;
+use ed25519_dalek::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-
+// TODO this should probably include the checksum within the data type
+// generating the checksum on the fly is how Sia Go does this however
 #[derive(Debug, PartialEq)]
-
-struct Address(H256);
+pub struct Address(H256);
 
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -24,7 +25,7 @@ impl fmt::Display for ParseAddressError {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-enum ParseAddressError {
+pub enum ParseAddressError {
     #[serde(rename = "Address must begin with addr: prefix")]
     MissingPrefix,
     InvalidHexEncoding(String),
@@ -75,6 +76,24 @@ impl FromStr for Address {
 fn blake2b_checksum(preimage: &[u8]) -> [u8; 6] {
     let hash = Params::new().hash_length(32).to_state().update(preimage).finalize();
     hash.as_array()[0..6].try_into().expect("array is 64 bytes long")
+}
+
+pub fn v1_standard_address_from_pubkey(pubkey: &PublicKey) -> Address {
+    let hash = standard_unlock_hash(pubkey);
+    Address(hash)
+}
+
+#[test]
+fn test_v1_standard_address_from_pubkey() {
+    let pubkey = PublicKey::from_bytes(
+        &hex::decode("8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c").unwrap(),
+    )
+    .unwrap();
+    let address = v1_standard_address_from_pubkey(&pubkey);
+    assert_eq!(
+        format!("{}", address),
+        "addr:c959f9b423b662c36ee58057b8157acedb4095cfeb7926e4ba44cd9ee1f49a5b7803c7501a7b"
+    )
 }
 
 #[test]
