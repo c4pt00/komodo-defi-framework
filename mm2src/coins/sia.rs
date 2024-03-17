@@ -26,8 +26,10 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 pub mod address;
+use address::v1_standard_address_from_pubkey;
 pub mod blake2b_internal;
 pub mod http_client;
+pub mod spend_policy;
 use http_client::{SiaApiClient, SiaApiClientError};
 
 use url::Url;
@@ -282,8 +284,26 @@ impl MmCoin for SiaCoin {
 impl MarketCoinOps for SiaCoin {
     fn ticker(&self) -> &str { &self.0.conf.ticker }
 
+    // needs test coverage FIXME COME BACK
     fn my_address(&self) -> MmResult<String, MyAddressError> {
-        Ok("addr:6a80a8a54c73fa1f2e411cb1e5f77fbe23c77af5640ea651a410743cdfaad2509af90947e32b".to_string())
+        let key_pair = match &self.0.key_pair {
+            PrivKeyPolicy::Iguana(key_pair) => key_pair,
+            PrivKeyPolicy::Trezor => {
+                return Err(MyAddressError::UnexpectedDerivationMethod(
+                    "Trezor not yet supported. Must use iguana seed.".to_string(),
+                )
+                .into());
+            },
+            PrivKeyPolicy::HDWallet { .. } => {
+                return Err(MyAddressError::UnexpectedDerivationMethod(
+                    "HDWallet not yet supported. Must use iguana seed.".to_string(),
+                )
+                .into());
+            },
+        };
+
+        let address = v1_standard_address_from_pubkey(&key_pair.public);
+        Ok(address.to_string())
     }
 
     fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { unimplemented!() }
