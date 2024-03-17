@@ -51,7 +51,7 @@ impl SpendPolicy {
 
     pub fn threshold(n: u8, of: Vec<SpendPolicy>) -> Self { SpendPolicy::Threshold(PolicyTypeThreshold { n, of }) }
 
-    pub fn opaque(p: SpendPolicy) -> Self { unimplemented!() }
+    pub fn opaque(_p: SpendPolicy) -> Self { unimplemented!() }
 
     pub fn anyone_can_spend() -> Self { SpendPolicy::threshold(0, vec![]) }
 
