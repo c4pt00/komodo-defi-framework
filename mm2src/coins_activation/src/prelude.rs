@@ -1,5 +1,5 @@
-use coins::sia::SiaCoinActivationParams;
 use coins::nft::nft_structs::{Chain, ConvertChain};
+use coins::sia::SiaCoinActivationParams;
 use coins::utxo::UtxoActivationParams;
 use coins::z_coin::ZcoinActivationParams;
 use coins::{coin_conf, CoinBalance, CoinProtocol, MmCoinEnum};

@@ -2,6 +2,7 @@
 use blake2b_simd::Params;
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
+use std::default::Default;
 
 #[cfg(test)] use hex;
 #[cfg(test)] use std::convert::TryInto;
@@ -30,14 +31,16 @@ pub struct Accumulator {
     num_leaves: u64,
 }
 
-impl Accumulator {
-    pub fn default() -> Self {
+impl Default for Accumulator {
+    fn default() -> Self {
         Accumulator {
             trees: [H256::default(); 64], // Initialize all bytes to zero
             num_leaves: 0,
         }
     }
+}
 
+impl Accumulator {
     // Check if there is a tree at the given height
     fn has_tree_at_height(&self, height: u64) -> bool { self.num_leaves & (1 << height) != 0 }
 
@@ -53,6 +56,7 @@ impl Accumulator {
         self.num_leaves += 1;
     }
 
+    // Calulate the root hash of the Merkle tree
     pub fn root(&self) -> H256 {
         // trailing_zeros determines the height Merkle tree accumulator where the current lowest single leaf is located
         let i = self.num_leaves.trailing_zeros() as u64;
@@ -60,14 +64,13 @@ impl Accumulator {
             return H256::default(); // Return all zeros if no leaves
         }
         let mut root = self.trees[i as usize];
-        for j in i+1..64 {
+        for j in i + 1..64 {
             if self.has_tree_at_height(j) {
                 root = hash_blake2b_pair(&NODE_HASH_PREFIX, &self.trees[j as usize].0, &root.0);
             }
         }
         root
     }
-
 }
 
 #[test]
@@ -82,14 +85,12 @@ fn test_accumulator_new() {
 }
 
 #[test]
-fn test_accumulator_root_default() {
-    assert_eq!(Accumulator::default().root(), H256::default())
-}
+fn test_accumulator_root_default() { assert_eq!(Accumulator::default().root(), H256::default()) }
 
 #[test]
 fn test_accumulator_root() {
     let mut accumulator = Accumulator::default();
-    
+
     let timelock_leaf = timelock_leaf(0u64);
     accumulator.add_leaf(timelock_leaf);
 
@@ -187,7 +188,6 @@ fn test_accumulator_add_leaf_1of2_multisig_unlock_hash() {
     assert_eq!(root, expected)
 }
 
-
 pub fn sigs_required_leaf(sigs_required: u64) -> H256 {
     let sigs_required_array: [u8; 8] = sigs_required.to_le_bytes();
     let mut combined = Vec::new();
@@ -227,7 +227,11 @@ pub fn timelock_leaf(timelock: u64) -> H256 {
 pub fn standard_unlock_hash(pubkey: &PublicKey) -> H256 {
     let pubkey_leaf = public_key_leaf(pubkey);
     let timelock_pubkey_node = hash_blake2b_pair(&NODE_HASH_PREFIX, &STANDARD_TIMELOCK_BLAKE2B_HASH, &pubkey_leaf.0);
-    hash_blake2b_pair(&NODE_HASH_PREFIX, &timelock_pubkey_node.0, &STANDARD_SIGS_REQUIRED_BLAKE2B_HASH)
+    hash_blake2b_pair(
+        &NODE_HASH_PREFIX,
+        &timelock_pubkey_node.0,
+        &STANDARD_SIGS_REQUIRED_BLAKE2B_HASH,
+    )
 }
 
 #[test]

@@ -1,6 +1,7 @@
 // use super::address::v1_standard_address_from_pubkey;
-use crate::sia::blake2b_internal::{Accumulator, timelock_leaf, public_key_leaf, sigs_required_leaf, standard_unlock_hash};
 use crate::sia::address::Address;
+use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
+                                   Accumulator};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
 pub trait Policy {}
@@ -44,12 +45,16 @@ pub struct UnlockCondition {
 impl UnlockCondition {
     pub fn new(pubkeys: Vec<PublicKey>, timelock: u64, sigs_required: u64) -> Self {
         // TODO check go implementation to see if there should be limitations or checks imposed here
-        UnlockCondition { pubkeys, timelock, sigs_required }
+        UnlockCondition {
+            pubkeys,
+            timelock,
+            sigs_required,
+        }
     }
 
     pub fn unlock_hash(&self) -> H256 {
         // almost all UnlockConditions are standard, so optimize for that case
-        if self.timelock == 0 && self.pubkeys.len() == 1 && self.sigs_required == 1{
+        if self.timelock == 0 && self.pubkeys.len() == 1 && self.sigs_required == 1 {
             return standard_unlock_hash(&self.pubkeys[0]);
         }
 
@@ -60,14 +65,12 @@ impl UnlockCondition {
         for pubkey in &self.pubkeys {
             accumulator.add_leaf(public_key_leaf(pubkey));
         }
-        
+
         accumulator.add_leaf(sigs_required_leaf(self.sigs_required));
         accumulator.root()
     }
 
-    pub fn address(&self) -> Address {
-        Address(self.unlock_hash())
-    }
+    pub fn address(&self) -> Address { Address(self.unlock_hash()) }
 }
 
 impl SpendPolicy {
