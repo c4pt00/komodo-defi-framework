@@ -70,8 +70,8 @@ fn unlock_hash(pubkey: &PublicKey, timelock: u64, sigs_required: u64) -> H256 {
     let pubkey_leaf = public_key_leaf(pubkey);
     let timelock_leaf = timelock_leaf(timelock);
     let sigs_required_leaf = sigs_required_leaf(sigs_required);
-    let timelock_pubkey_node = hash_blake2b_pair(&timelock_leaf.0, &pubkey_leaf.0, &NODE_HASH_PREFIX);
-    hash_blake2b_pair(&timelock_pubkey_node.0, &sigs_required_leaf.0, &NODE_HASH_PREFIX)
+    let timelock_pubkey_node = hash_blake2b_pair(&NODE_HASH_PREFIX, &timelock_leaf.0, &pubkey_leaf.0);
+    hash_blake2b_pair(&NODE_HASH_PREFIX, &timelock_pubkey_node.0, &sigs_required_leaf.0)
 }
 
 fn standard_unlock_hash(pubkey: &PublicKey) -> H256 { unlock_hash(pubkey, 0u64, 1u64) }
@@ -94,7 +94,7 @@ fn hash_blake2b_single(preimage: &[u8]) -> H256 {
     ret_array[0..32].into()
 }
 
-fn hash_blake2b_pair(leaf1: &[u8], leaf2: &[u8], prefix: &[u8]) -> H256 {
+fn hash_blake2b_pair(prefix: &[u8], leaf1: &[u8], leaf2: &[u8]) -> H256 {
     let hash = Params::new()
         .hash_length(32)
         .to_state()
@@ -117,7 +117,7 @@ fn test_hash_blake2b_pair() {
         .try_into()
         .unwrap();
 
-    let hash = hash_blake2b_pair(&left, &right, &NODE_HASH_PREFIX);
+    let hash = hash_blake2b_pair(&NODE_HASH_PREFIX, &left, &right);
     let expected = H256::from("72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515d");
     assert_eq!(hash, expected)
 }
