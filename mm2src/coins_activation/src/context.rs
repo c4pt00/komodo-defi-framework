@@ -2,7 +2,6 @@
 use crate::lightning_activation::LightningTaskManagerShared;
 use crate::sia_coin_activation::SiaCoinTaskManagerShared;
 use crate::utxo_activation::{QtumTaskManagerShared, UtxoStandardTaskManagerShared};
-#[cfg(not(target_arch = "wasm32"))]
 use crate::z_coin_activation::ZcoinTaskManagerShared;
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use rpc_task::RpcTaskManager;
@@ -26,7 +25,6 @@ impl CoinsActivationContext {
                 init_sia_coin_task_manager: RpcTaskManager::new_shared(),
                 init_utxo_standard_task_manager: RpcTaskManager::new_shared(),
                 init_qtum_task_manager: RpcTaskManager::new_shared(),
-                #[cfg(not(target_arch = "wasm32"))]
                 init_z_coin_task_manager: RpcTaskManager::new_shared(),
                 #[cfg(not(target_arch = "wasm32"))]
                 init_lightning_task_manager: RpcTaskManager::new_shared(),
