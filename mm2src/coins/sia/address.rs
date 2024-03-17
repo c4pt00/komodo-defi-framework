@@ -11,7 +11,7 @@ use std::str::FromStr;
 // TODO this should probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
 #[derive(Debug, PartialEq)]
-pub struct Address(H256);
+pub struct Address(pub H256);
 
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
