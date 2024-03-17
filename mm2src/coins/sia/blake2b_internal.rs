@@ -66,7 +66,7 @@ fn timelock_leaf(timelock: u64) -> H256 {
 //           ┌─────────┴──────────┐
 //     ┌─────┴─────┐              │
 //  timelock     pubkey     sigsrequired
-fn unlock_hash(pubkey: &PublicKey, timelock: u64, sigs_required: u64) -> H256 {
+pub fn unlock_hash(pubkey: &PublicKey, timelock: u64, sigs_required: u64) -> H256 {
     let pubkey_leaf = public_key_leaf(pubkey);
     let timelock_leaf = timelock_leaf(timelock);
     let sigs_required_leaf = sigs_required_leaf(sigs_required);
@@ -74,7 +74,7 @@ fn unlock_hash(pubkey: &PublicKey, timelock: u64, sigs_required: u64) -> H256 {
     hash_blake2b_pair(&NODE_HASH_PREFIX, &timelock_pubkey_node.0, &sigs_required_leaf.0)
 }
 
-fn standard_unlock_hash(pubkey: &PublicKey) -> H256 { unlock_hash(pubkey, 0u64, 1u64) }
+pub fn standard_unlock_hash(pubkey: &PublicKey) -> H256 { unlock_hash(pubkey, 0u64, 1u64) }
 
 #[test]
 fn test_standard_unlock_hash() {
