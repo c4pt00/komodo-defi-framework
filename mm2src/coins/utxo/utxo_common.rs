@@ -881,8 +881,8 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
     ) -> bool {
         self.tx_fee = match &actual_tx_fee {
             TxFeeType::PerKb(f) => {
-                let transaction = UtxoTx::from(self.tx.clone());
-                let v_size = tx_size_in_v_bytes(from_addr_format, &transaction) as u64;
+                let tx_size = UtxoTx::from(self.tx.clone());
+                let v_size = tx_size_in_v_bytes(from_addr_format, &tx_size) as u64;
                 calculate_fee!(f, v_size) as u64
             },
             TxFeeType::Fixed(f) => *f,

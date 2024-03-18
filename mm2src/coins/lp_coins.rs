@@ -1822,12 +1822,16 @@ pub enum UtxoFeePriority {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum WithdrawFee {
+    /// encapsulates the fixed fee amount for a withdrawal transaction, regardless of transaction size.
     UtxoFixed {
         amount: BigDecimal,
     },
+    /// encapsulates the fee amount for a withdrawal transaction calculated based on the transaction size in kilobytes.
     UtxoPerKbyte {
         amount: BigDecimal,
     },
+    /// encapsulates the priority of a withdrawal transaction, indicating the desired fee
+    /// level for transaction processing.
     UtxoPriority {
         priority: UtxoFeePriority,
     },
