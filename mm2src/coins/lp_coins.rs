@@ -297,9 +297,8 @@ use crate::coin_errors::ValidatePaymentResult;
 use crate::utxo::swap_proto_v2_scripts;
 use crate::utxo::utxo_common::{payment_script, WaitForOutputSpendErr};
 use z_coin::{ZCoin, ZcoinProtocolInfo};
-
-pub mod sia;
-use sia::SiaCoin;
+#[cfg(feature = "enable-sia")] pub mod sia;
+#[cfg(feature = "enable-sia")] use sia::SiaCoin;
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
 pub type TransactionResult = Result<TransactionEnum, TransactionErr>;
@@ -3140,6 +3139,7 @@ pub enum MmCoinEnum {
     SplToken(SplToken),
     #[cfg(not(target_arch = "wasm32"))]
     LightningCoin(LightningCoin),
+    #[cfg(feature = "enable-sia")]
     SiaCoin(SiaCoin),
     Test(TestCoin),
 }
@@ -3209,6 +3209,7 @@ impl From<ZCoin> for MmCoinEnum {
     fn from(c: ZCoin) -> MmCoinEnum { MmCoinEnum::ZCoin(c) }
 }
 
+#[cfg(feature = "enable-sia")]
 impl From<SiaCoin> for MmCoinEnum {
     fn from(c: SiaCoin) -> MmCoinEnum { MmCoinEnum::SiaCoin(c) }
 }
@@ -3229,6 +3230,7 @@ impl Deref for MmCoinEnum {
             #[cfg(not(target_arch = "wasm32"))]
             MmCoinEnum::LightningCoin(ref c) => c,
             MmCoinEnum::ZCoin(ref c) => c,
+            #[cfg(feature = "enable-sia")]
             MmCoinEnum::SiaCoin(ref c) => c,
             MmCoinEnum::Test(ref c) => c,
             #[cfg(all(
@@ -3778,6 +3780,7 @@ pub enum CoinProtocol {
         decimals: u8,
     },
     ZHTLC(ZcoinProtocolInfo),
+    #[cfg(feature = "enable-sia")]
     SIA,
     Nft {
         platform: String,
@@ -4045,6 +4048,7 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
         CoinProtocol::SPLTOKEN { .. } => {
             return ERR!("SplToken protocol is not supported by lp_coininit - use enable_spl instead")
         },
+        #[cfg(feature = "enable-sia")]
         CoinProtocol::SIA { .. } => {
             return ERR!("SIA protocol is not supported by lp_coininit. Use task::enable_sia::init");
         },
@@ -4627,6 +4631,7 @@ pub fn address_by_coin_conf_and_pubkey_str(
             ERR!("Solana pubkey is the public address - you do not need to use this rpc call.")
         },
         CoinProtocol::ZHTLC { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for ZHTLC protocol!"),
+        #[cfg(feature = "enable-sia")]
         CoinProtocol::SIA { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for SIA protocol!"), // TODO Alright
     }
 }

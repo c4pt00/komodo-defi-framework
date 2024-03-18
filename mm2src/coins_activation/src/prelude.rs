@@ -1,4 +1,5 @@
 use coins::nft::nft_structs::{Chain, ConvertChain};
+#[cfg(feature = "enable-sia")]
 use coins::sia::SiaCoinActivationParams;
 use coins::utxo::UtxoActivationParams;
 use coins::z_coin::ZcoinActivationParams;
@@ -22,6 +23,7 @@ impl TxHistory for UtxoActivationParams {
     fn tx_history(&self) -> bool { self.tx_history }
 }
 
+#[cfg(feature = "enable-sia")]
 impl TxHistory for SiaCoinActivationParams {
     fn tx_history(&self) -> bool { self.tx_history }
 }
