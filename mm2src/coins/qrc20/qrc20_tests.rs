@@ -877,7 +877,7 @@ fn test_sender_trade_preimage_with_allowance() {
     // the expected fee should not include any `approve` contract call
     let expected = TradeFee {
         coin: "QTUM".to_owned(),
-        amount: (erc20_payment_fee_without_approve + sender_refund_fee.clone()).into(),
+        amount: (erc20_payment_fee_without_approve + sender_refund_fee).into(),
         paid_from_trading_vol: false,
         tx_size: actual.tx_size,
     };
