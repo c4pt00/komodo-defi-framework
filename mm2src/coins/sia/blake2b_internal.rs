@@ -246,7 +246,7 @@ fn test_standard_unlock_hash() {
     assert_eq!(hash, expected)
 }
 
-fn hash_blake2b_single(preimage: &[u8]) -> H256 {
+pub fn hash_blake2b_single(preimage: &[u8]) -> H256 {
     let hash = Params::new().hash_length(32).to_state().update(preimage).finalize();
     let ret_array = hash.as_array();
     ret_array[0..32].into()
