@@ -30,6 +30,7 @@ use address::v1_standard_address_from_pubkey;
 pub mod blake2b_internal;
 pub mod http_client;
 pub mod spend_policy;
+pub mod encoding;
 use http_client::{SiaApiClient, SiaApiClientError};
 
 use url::Url;
