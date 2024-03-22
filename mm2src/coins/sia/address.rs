@@ -8,9 +8,10 @@ use ed25519_dalek::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-// TODO this should probably include the checksum within the data type
+
+// TODO this could probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Address(pub H256);
 
 impl fmt::Display for Address {
