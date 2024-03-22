@@ -191,10 +191,13 @@ fn test_unlock_condition_unlock_hash_standard() {
         &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
     )
     .unwrap();
-    let unlock_condition = UnlockCondition::new(vec![pubkey], 0, 1);
+    let unlock_condition = UnlockCondition::new(vec![pubkey.clone()], 0, 1);
 
     let hash = unlock_condition.unlock_hash();
     let expected = H256::from("72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515d");
+    assert_eq!(hash, expected);
+
+    let hash = standard_unlock_hash(&pubkey);
     assert_eq!(hash, expected);
 }
 
