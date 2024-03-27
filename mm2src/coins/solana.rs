@@ -31,33 +31,31 @@ use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use mm2_number::{BigDecimal, MmNumber};
+use num_traits::ToPrimitive;
 use rpc::v1::types::Bytes as BytesJson;
-use serde_json::{self as json, Value as Json, Value};
+use serde_json::{self as json, Value as Json};
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_client::{client_error::{ClientError, ClientErrorKind},
                     rpc_client::RpcClient};
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::instruction::AccountMeta;
 use solana_sdk::instruction::Instruction;
+use solana_sdk::native_token::sol_to_lamports;
 use solana_sdk::program_error::ProgramError;
 use solana_sdk::pubkey::ParsePubkeyError;
 pub use solana_sdk::signature::Signature as SolSignature;
 use solana_sdk::transaction::Transaction;
-use solana_sdk::{bs58, pubkey::Pubkey, signature::{Keypair, Signer}};
+use solana_sdk::{bs58,
+                 pubkey::Pubkey,
+                 signature::{Keypair, Signer}};
+use solana_transaction_status::{EncodedTransaction, UiInstruction, UiMessage, UiParsedInstruction,
+                                UiTransactionEncoding};
+use spl_token::solana_program;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Mutex;
 use std::{convert::TryFrom, fmt::Debug, ops::Deref, sync::Arc};
-use ed25519_dalek::ed25519::signature::digest::consts::U64;
-use num_traits::ToPrimitive;
-use sha2::digest::generic_array::GenericArray;
-use solana_sdk::native_token::sol_to_lamports;
-use spl_token::solana_program;
-use solana_client::rpc_config::RpcTransactionConfig;
-use solana_transaction_status::{EncodedTransaction, UiInstruction, UiMessage, UiParsedInstruction, UiTransactionEncoding};
-use solana_transaction_status::parse_instruction::ParsedInstruction;
-use tonic::IntoRequest;
 
 pub mod solana_common;
 mod solana_decode_tx_helpers;
@@ -301,7 +299,7 @@ async fn withdraw_base_coin_impl(coin: SolanaCoin, req: WithdrawRequest) -> With
             SolanaFeeDetails {
                 amount: res.sol_required,
             }
-                .into(),
+            .into(),
         ),
         coin: coin.ticker.clone(),
         internal_id: vec![].into(),
@@ -331,7 +329,7 @@ impl TransactionCom for SolSignature {
 
     fn tx_hash(&self) -> BytesJson { BytesJson(self.tx_hex()) }
 }
-
+/*
 pub trait TryToPubkey {
     fn try_to_pubkey(&self) -> Result<Pubkey, String>;
 }
@@ -346,16 +344,16 @@ impl TryToPubkey for [u8] {
 
 impl<'a> TryToPubkey for &'a [u8] {
     fn try_to_pubkey(&self) -> Result<Pubkey, String> { self.try_to_pubkey() }
-}
+}*/
 
-impl<T: TryToPubkey> TryToPubkey for Option<T> {
+/*impl<T: TryToPubkey> TryToPubkey for Option<T> {
     fn try_to_pubkey(&self) -> Result<Pubkey, String> {
         match self {
             Some(ref inner) => inner.try_to_pubkey(),
             None => Err("Cannot convert None to pubkey".to_string()),
         }
     }
-}
+}*/
 
 impl SolanaCoin {
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
@@ -363,7 +361,7 @@ impl SolanaCoin {
             let coin = self.clone();
             move || coin.rpc().get_latest_blockhash()
         })
-            .await?;
+        .await?;
         let to = self.key_pair.pubkey();
 
         let tx = solana_sdk::system_transaction::transfer(&self.key_pair, &to, LAMPORTS_DUMMY_AMOUNT, hash);
@@ -371,7 +369,7 @@ impl SolanaCoin {
             let coin = self.clone();
             move || coin.rpc().get_fee_for_message(tx.message())
         })
-            .await?;
+        .await?;
         Ok((hash, fees))
     }
 
@@ -385,7 +383,7 @@ impl SolanaCoin {
                 )
             }
         })
-            .await?;
+        .await?;
         if token_accounts.is_empty() {
             return Ok(CoinBalance {
                 spendable: Default::default(),
@@ -398,7 +396,7 @@ impl SolanaCoin {
             let coin = self.clone();
             move || coin.rpc().get_token_account_balance(&actual_token_pubkey)
         })
-            .await?;
+        .await?;
         let balance =
             BigDecimal::from_str(&amount.ui_amount_string).map_to_mm(|e| BalanceError::Internal(e.to_string()))?;
         Ok(CoinBalance {
@@ -431,10 +429,11 @@ impl SolanaCoin {
 
     fn send_hash_time_locked_payment(&self, args: SendPaymentArgs<'_>) -> SolTxFut {
         let receiver = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(&args.swap_contract_address.as_ref().unwrap().as_slice());
+        let swap_program_id = Pubkey::new(args.swap_contract_address.as_ref().unwrap().as_slice());
         let amount = sol_to_lamports(args.amount.to_f64().unwrap());
         let secret_hash: [u8; 32] = <[u8; 32]>::try_from(args.secret_hash).expect("unable to convert to 32 byte array");
-        let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, rent_exemption_lamports) = self.create_vaults(args.time_lock, secret_hash.clone(), swap_program_id, 41);
+        let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, rent_exemption_lamports) =
+            self.create_vaults(args.time_lock, secret_hash, swap_program_id, 41);
         let swap_instruction = AtomicSwapInstruction::LamportsPayment {
             secret_hash,
             lock_time: args.time_lock,
@@ -447,21 +446,22 @@ impl SolanaCoin {
 
         let accounts = vec![
             AccountMeta::new(self.key_pair.pubkey(), true), // Marked as signer
-            AccountMeta::new(vault_pda_data, false),  // Not a signer
-            AccountMeta::new(vault_pda, false),              // Not a signer
+            AccountMeta::new(vault_pda_data, false),        // Not a signer
+            AccountMeta::new(vault_pda, false),             // Not a signer
             AccountMeta::new(solana_program::system_program::id(), false), //system_program must be included
         ];
         self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
-
     }
 
     fn spend_hash_time_locked_payment(&self, args: SpendPaymentArgs) -> SolTxFut {
         let sender = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(&args.swap_contract_address.as_ref().unwrap().as_slice());
-        let secret:[u8; 32] = <[u8; 32]>::try_from(args.secret).unwrap();
+        let swap_program_id = Pubkey::new(args.swap_contract_address.as_ref().unwrap().as_slice());
+        let secret: [u8; 32] = <[u8; 32]>::try_from(args.secret).unwrap();
         let secret_hash = sha256(secret.as_slice());
-        let (lock_time, _secret_hash, amount, token_program) = self.get_transaction_details(args.other_payment_tx).unwrap();
-        let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) = self.create_vaults(lock_time, secret_hash.take(), swap_program_id, 41);
+        let (lock_time, _secret_hash, amount, token_program) =
+            self.get_transaction_details(args.other_payment_tx).unwrap();
+        let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
+            self.create_vaults(lock_time, secret_hash.take(), swap_program_id, 41);
         let swap_instruction = AtomicSwapInstruction::ReceiverSpend {
             secret,
             lock_time,
@@ -473,8 +473,8 @@ impl SolanaCoin {
         };
         let accounts = vec![
             AccountMeta::new(self.key_pair.pubkey(), true), // Marked as signer
-            AccountMeta::new(vault_pda_data, false),  // Not a signer
-            AccountMeta::new(vault_pda, false),              // Not a signer
+            AccountMeta::new(vault_pda_data, false),        // Not a signer
+            AccountMeta::new(vault_pda, false),             // Not a signer
             AccountMeta::new(solana_program::system_program::id(), false), //system_program must be included
         ];
         self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
@@ -482,9 +482,10 @@ impl SolanaCoin {
 
     fn refund_hash_time_locked_payment(&self, args: RefundPaymentArgs) -> SolTxFut {
         let receiver = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(&args.swap_contract_address.as_ref().unwrap().as_slice());
+        let swap_program_id = Pubkey::new(args.swap_contract_address.as_ref().unwrap().as_slice());
         let (lock_time, secret_hash, amount, token_program) = self.get_transaction_details(args.payment_tx).unwrap();
-        let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) = self.create_vaults(lock_time, secret_hash.clone(), swap_program_id, 41);
+        let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
+            self.create_vaults(lock_time, secret_hash, swap_program_id, 41);
         let swap_instruction = AtomicSwapInstruction::SenderRefund {
             secret_hash,
             lock_time,
@@ -496,20 +497,26 @@ impl SolanaCoin {
         };
         let accounts = vec![
             AccountMeta::new(self.key_pair.pubkey(), true), // Marked as signer
-            AccountMeta::new(vault_pda_data, false),  // Not a signer
-            AccountMeta::new(vault_pda, false),              // Not a signer
+            AccountMeta::new(vault_pda_data, false),        // Not a signer
+            AccountMeta::new(vault_pda, false),             // Not a signer
             AccountMeta::new(solana_program::system_program::id(), false), //system_program must be included
         ];
         self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
     }
 
-    fn get_transaction_details(&self, signature_bytes: &[u8]) -> Result<(u64, [u8; 32], u64, Pubkey), TransactionErr> {
+    fn get_transaction_details(
+        &self,
+        signature_bytes: &[u8],
+    ) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
         let coin = self.clone();
         println!("get_transaction_details: {:?}", signature_bytes);
         println!("get_transaction_details: {:?}", signature_bytes);
         let signature = SolSignature::new(signature_bytes);
 
-        match coin.client.get_transaction(&signature, UiTransactionEncoding::JsonParsed) {
+        match coin
+            .client
+            .get_transaction(&signature, UiTransactionEncoding::JsonParsed)
+        {
             Ok(transaction) => {
                 println!("transaction 1: {:#?}", transaction);
                 let data = self.extract_instruction_data(&transaction.transaction.transaction);
@@ -517,7 +524,8 @@ impl SolanaCoin {
                 if let Some(data) = data {
                     let data = bs58::decode(data).into_vec().expect("Failed to decode base58 data");
                     let instruction_data = &data[..];
-                    let instruction = AtomicSwapInstruction::unpack(instruction_data[0], instruction_data).expect("error unpacking tx data");
+                    let instruction = AtomicSwapInstruction::unpack(instruction_data[0], instruction_data)
+                        .expect("error unpacking tx data");
                     match instruction {
                         AtomicSwapInstruction::LamportsPayment {
                             secret_hash,
@@ -527,9 +535,7 @@ impl SolanaCoin {
                             rent_exemption_lamports,
                             vault_bump_seed,
                             vault_bump_seed_data,
-                        } => {
-                            Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32])))
-                        }
+                        } => Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32]))),
                         AtomicSwapInstruction::SLPTokenPayment {
                             secret_hash,
                             lock_time,
@@ -539,9 +545,7 @@ impl SolanaCoin {
                             rent_exemption_lamports,
                             vault_bump_seed,
                             vault_bump_seed_data,
-                        } => {
-                            Ok((lock_time, secret_hash, amount, token_program))
-                        }
+                        } => Ok((lock_time, secret_hash, amount, token_program)),
                         AtomicSwapInstruction::ReceiverSpend {
                             secret,
                             lock_time,
@@ -550,9 +554,7 @@ impl SolanaCoin {
                             token_program,
                             vault_bump_seed,
                             vault_bump_seed_data,
-                        } => {
-                            Ok((lock_time, sha256(&secret).take(), amount, token_program))
-                        }
+                        } => Ok((lock_time, sha256(&secret).take(), amount, token_program)),
                         AtomicSwapInstruction::SenderRefund {
                             secret_hash,
                             lock_time,
@@ -561,20 +563,23 @@ impl SolanaCoin {
                             token_program,
                             vault_bump_seed,
                             vault_bump_seed_data,
-                        } => {
-                            Ok((lock_time, secret_hash, amount, token_program))
-                        }
+                        } => Ok((lock_time, secret_hash, amount, token_program)),
                     }
                 } else {
                     println!("No data found");
                     //(0, sha256(&[0; 32]).take(), sol_to_lamports(0.01), Pubkey::new_from_array([0; 32]))
-                    Err(TransactionErr::Plain(ERRL!("Solana ClientError: No data found")))
+                    Err(Box::new(TransactionErr::Plain(ERRL!(
+                        "Solana ClientError: No data found"
+                    ))))
                 }
             },
             Err(e) => {
                 println!("Error fetching transaction: {:?}", e);
                 //(0, sha256(&[0; 32]).take(), sol_to_lamports(0.01), Pubkey::new_from_array([0; 32]))
-                Err(TransactionErr::Plain(ERRL!("Solana ClientError: Error fetching transaction: {:?}", e)))
+                Err(Box::new(TransactionErr::Plain(ERRL!(
+                    "Solana ClientError: Error fetching transaction: {:?}",
+                    e
+                ))))
             },
         }
     }
@@ -599,13 +604,6 @@ impl SolanaCoin {
             }
         }
         None
-    }
-
-    fn etomic_swap_id(&self, time_lock: u32, secret_hash: &[u8]) -> Vec<u8> {
-        let mut input = vec![];
-        input.extend_from_slice(&time_lock.to_le_bytes());
-        input.extend_from_slice(secret_hash);
-        sha256(&input).to_vec()
     }
 
     pub fn sign_and_send_transaction(&self, program_id: Pubkey, accounts: Vec<AccountMeta>, data: Vec<u8>) -> SolTxFut {
@@ -652,15 +650,30 @@ impl SolanaCoin {
         Box::new(fut.boxed().compat())
     }
 
-    fn create_vaults(&self, lock_time: u64, secret_hash: [u8; 32], program_id: Pubkey, space: u64) -> (Pubkey, Pubkey, u8, u8, u64){
+    fn create_vaults(
+        &self,
+        lock_time: u64,
+        secret_hash: [u8; 32],
+        program_id: Pubkey,
+        space: u64,
+    ) -> (Pubkey, Pubkey, u8, u8, u64) {
         let seeds: &[&[u8]] = &[b"swap", &lock_time.to_le_bytes()[..], &secret_hash[..]];
         let (vault_pda, bump_seed) = Pubkey::find_program_address(seeds, &program_id);
 
         let seeds_data: &[&[u8]] = &[b"swap_data", &lock_time.to_le_bytes()[..], &secret_hash[..]];
         let (vault_pda_data, bump_seed_data) = Pubkey::find_program_address(seeds_data, &program_id);
 
-        let rent_exemption_lamports = self.client.get_minimum_balance_for_rent_exemption(space.try_into().expect("unable to convert space")).expect("error get_minimum_balance_for_rent_exemption");
-        (vault_pda, vault_pda_data, bump_seed, bump_seed_data, rent_exemption_lamports)
+        let rent_exemption_lamports = self
+            .client
+            .get_minimum_balance_for_rent_exemption(space.try_into().expect("unable to convert space"))
+            .expect("error get_minimum_balance_for_rent_exemption");
+        (
+            vault_pda,
+            vault_pda_data,
+            bump_seed,
+            bump_seed_data,
+            rent_exemption_lamports,
+        )
     }
 
     /*fn create_swap_account(&self, receiver_account_pubkey: Pubkey, program_id: Pubkey, space: u64) -> (Keypair, Pubkey, u8){
@@ -726,7 +739,9 @@ impl MarketCoinOps for SolanaCoin {
 
     fn my_address(&self) -> MmResult<String, MyAddressError> { Ok(self.my_address.clone()) }
 
-    fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { Ok(self.key_pair.pubkey().to_string()) }
+    fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
+        Ok(self.key_pair.pubkey().to_string())
+    }
 
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { unimplemented!() }
 
@@ -1194,10 +1209,7 @@ pub enum AtomicSwapInstruction {
 }
 
 impl AtomicSwapInstruction {
-    pub fn unpack(
-        instruction_byte: u8,
-        input: &[u8],
-    ) -> Result<AtomicSwapInstruction, ProgramError> {
+    pub fn unpack(instruction_byte: u8, input: &[u8]) -> Result<AtomicSwapInstruction, ProgramError> {
         match instruction_byte {
             0 => {
                 if input.len() != 91 {
@@ -1239,7 +1251,7 @@ impl AtomicSwapInstruction {
                     vault_bump_seed: input[89],
                     vault_bump_seed_data: input[90],
                 })
-            }
+            },
             1 => {
                 if input.len() != 123 {
                     // 1 + 32 + 8 + 8 + 32 + 32 + 8 + 1 + 1
@@ -1287,7 +1299,7 @@ impl AtomicSwapInstruction {
                     vault_bump_seed: input[121],
                     vault_bump_seed_data: input[122],
                 })
-            }
+            },
             2 => {
                 if input.len() != 115 {
                     // 1 + 32 + 8 + 32 + 32 + 1 + 1
@@ -1329,7 +1341,7 @@ impl AtomicSwapInstruction {
                     vault_bump_seed: input[113],
                     vault_bump_seed_data: input[114],
                 })
-            }
+            },
             3 => {
                 if input.len() != 115 {
                     // 1 + 32 + 8 + 32 + 32 + 1 + 1
@@ -1371,7 +1383,7 @@ impl AtomicSwapInstruction {
                     vault_bump_seed: input[113],
                     vault_bump_seed_data: input[114],
                 })
-            }
+            },
             _ => Err(ProgramError::Custom(INVALID_ATOMIC_SWAP_INSTRUCTION)),
         }
     }
@@ -1395,7 +1407,7 @@ impl AtomicSwapInstruction {
                 buf.extend_from_slice(&rent_exemption_lamports.to_le_bytes());
                 buf.push(vault_bump_seed);
                 buf.push(vault_bump_seed_data);
-            }
+            },
             AtomicSwapInstruction::SLPTokenPayment {
                 ref secret_hash,
                 lock_time,
@@ -1415,7 +1427,7 @@ impl AtomicSwapInstruction {
                 buf.extend_from_slice(&rent_exemption_lamports.to_le_bytes());
                 buf.push(vault_bump_seed);
                 buf.push(vault_bump_seed_data);
-            }
+            },
             AtomicSwapInstruction::ReceiverSpend {
                 ref secret,
                 lock_time,
@@ -1433,7 +1445,7 @@ impl AtomicSwapInstruction {
                 buf.extend_from_slice(&token_program.to_bytes());
                 buf.push(vault_bump_seed);
                 buf.push(vault_bump_seed_data);
-            }
+            },
             AtomicSwapInstruction::SenderRefund {
                 ref secret_hash,
                 lock_time,
@@ -1451,7 +1463,7 @@ impl AtomicSwapInstruction {
                 buf.extend_from_slice(&token_program.to_bytes());
                 buf.push(vault_bump_seed);
                 buf.push(vault_bump_seed_data);
-            }
+            },
         }
         buf
     }
@@ -1472,4 +1484,3 @@ pub const INVALID_PAYMENT_HASH: u32 = 613;
 pub const INVALID_PAYMENT_STATE: u32 = 614;
 pub const NOT_SUPPORTED: u32 = 615;
 pub const INVALID_OWNER: u32 = 616;
-

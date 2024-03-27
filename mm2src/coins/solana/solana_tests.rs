@@ -2,17 +2,16 @@ use super::*;
 use crate::solana::solana_common_tests::{generate_key_pair_from_iguana_seed, generate_key_pair_from_seed,
                                          solana_coin_for_test, SolanaNet};
 use crate::solana::solana_decode_tx_helpers::SolanaConfirmedTransaction;
-use crate::{CoinProtocol, MarketCoinOps, SwapTxTypeWithSecretHash};
+use crate::{MarketCoinOps, SwapTxTypeWithSecretHash};
 use base58::ToBase58;
 use common::{block_on, Future01CompatExt};
+use rpc::v1::types::Bytes;
 use solana_client::rpc_request::TokenAccountsFilter;
+use solana_sdk::bs58;
 use solana_sdk::signature::{Signature, Signer};
 use solana_transaction_status::UiTransactionEncoding;
 use std::ops::Neg;
 use std::str::FromStr;
-use solana_sdk::bs58;
-use mm2_core::mm_ctx::MmCtxBuilder;
-use rpc::v1::types::Bytes;
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
@@ -171,7 +170,7 @@ fn solana_transaction_simulations() {
             })
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     let (_, fees) = block_on(sol_coin.estimate_withdraw_fees()).unwrap();
     let sol_required = lamports_to_sol(fees);
     let expected_spent_by_me = &request_amount + &sol_required;
@@ -262,7 +261,7 @@ fn solana_transaction_simulations_max() {
             })
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     let balance = block_on(sol_coin.my_balance().compat()).unwrap().spendable;
     let (_, fees) = block_on(sol_coin.estimate_withdraw_fees()).unwrap();
     let sol_required = lamports_to_sol(fees);
@@ -291,7 +290,7 @@ fn solana_test_transactions() {
             })
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     println!("{:?}", valid_tx_details);
 
     let tx_str = hex::encode(&*valid_tx_details.tx_hex.0);
@@ -369,7 +368,7 @@ fn solana_coin_send_and_refund_maker_payment() {
         tx_type_with_secret_hash: SwapTxTypeWithSecretHash::TakerOrMakerPayment {
             maker_secret_hash: secret_hash.as_slice(),
         },
-        swap_contract_address: &Some(Bytes::from(solana_program_id.clone())),
+        swap_contract_address: &Some(Bytes::from(solana_program_id)),
         swap_unique_data: pk_data.as_slice(),
         watcher_reward: false,
     };
@@ -418,7 +417,7 @@ fn solana_coin_send_and_spend_maker_payment() {
         other_pubkey: maker_pub.as_ref(),
         secret: &secret,
         secret_hash: secret_hash.as_slice(),
-        swap_contract_address: &Some(Bytes::from(solana_program_id.clone())),
+        swap_contract_address: &Some(Bytes::from(solana_program_id)),
         swap_unique_data: pk_data.as_slice(),
         watcher_reward: false,
     };
