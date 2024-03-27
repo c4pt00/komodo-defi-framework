@@ -21,10 +21,10 @@
 
 // `mockable` implementation uses these
 #![allow(
-    clippy::forget_ref,
-    clippy::forget_copy,
-    clippy::swap_ptr_to_ref,
-    clippy::forget_non_drop
+clippy::forget_ref,
+clippy::forget_copy,
+clippy::swap_ptr_to_ref,
+clippy::forget_non_drop
 )]
 #![allow(uncommon_codepoints)]
 #![feature(integer_atomics)]
@@ -85,7 +85,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use utxo_signer::with_key_pair::UtxoSignWithKeyPairError;
 use zcash_primitives::transaction::Transaction as ZTransaction;
-
 cfg_native! {
     use crate::lightning::LightningCoin;
     use crate::lightning::ln_conf::PlatformCoinConfirmationTargets;
@@ -255,26 +254,26 @@ pub mod tx_history_storage;
 #[doc(hidden)]
 #[allow(unused_variables)]
 #[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
+feature = "enable-solana",
+not(target_os = "ios"),
+not(target_os = "android"),
+not(target_arch = "wasm32")
 ))]
 pub mod solana;
 #[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
+feature = "enable-solana",
+not(target_os = "ios"),
+not(target_os = "android"),
+not(target_arch = "wasm32")
 ))]
 pub use solana::spl::SplToken;
 #[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
+feature = "enable-solana",
+not(target_os = "ios"),
+not(target_os = "android"),
+not(target_arch = "wasm32")
 ))]
-pub use solana::{SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
+pub use solana::{SolSignature, SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
 
 pub mod utxo;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
@@ -317,7 +316,7 @@ pub type TxHistoryFut<T> = Box<dyn Future<Item = T, Error = MmError<TxHistoryErr
 pub type TxHistoryResult<T> = Result<T, MmError<TxHistoryError>>;
 pub type RawTransactionResult = Result<RawTransactionRes, MmError<RawTransactionError>>;
 pub type RawTransactionFut<'a> =
-    Box<dyn Future<Item = RawTransactionRes, Error = MmError<RawTransactionError>> + Send + 'a>;
+Box<dyn Future<Item = RawTransactionRes, Error = MmError<RawTransactionError>> + Send + 'a>;
 pub type RefundResult<T> = Result<T, MmError<RefundError>>;
 /// Helper type used for swap transactions' spend preimage generation result
 pub type GenPreimageResult<Coin> = MmResult<TxPreimageWithSig<Coin>, TxGenError>;
@@ -546,8 +545,8 @@ pub enum PrivKeyPolicyNotAllowed {
 
 impl Serialize for PrivKeyPolicyNotAllowed {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }
@@ -588,6 +587,8 @@ pub trait Transaction: fmt::Debug + 'static {
 pub enum TransactionEnum {
     UtxoTx(UtxoTx),
     SignedEthTx(SignedEthTx),
+    #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+    SolSignature(SolSignature),
     ZTransaction(ZTransaction),
     CosmosTransaction(CosmosTransaction),
     #[cfg(not(target_arch = "wasm32"))]
@@ -596,6 +597,7 @@ pub enum TransactionEnum {
 
 ifrom!(TransactionEnum, UtxoTx);
 ifrom!(TransactionEnum, SignedEthTx);
+ifrom!(TransactionEnum, SolSignature);
 ifrom!(TransactionEnum, ZTransaction);
 #[cfg(not(target_arch = "wasm32"))]
 ifrom!(TransactionEnum, LightningPayment);
@@ -619,6 +621,8 @@ impl Deref for TransactionEnum {
             TransactionEnum::CosmosTransaction(ref t) => t,
             #[cfg(not(target_arch = "wasm32"))]
             TransactionEnum::LightningPayment(ref p) => p,
+            #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+            TransactionEnum::SolSignature(ref s) => s,
         }
     }
 }
@@ -1580,9 +1584,9 @@ pub trait MakerCoinSwapOpsV2: CoinAssocTypes + Send + Sync + 'static {
 pub enum WaitForTakerPaymentSpendError {
     /// Timeout error variant, indicating that the wait for taker payment spend has timed out.
     #[display(
-        fmt = "Timed out waiting for taker payment spend, wait_until {}, now {}",
-        wait_until,
-        now
+    fmt = "Timed out waiting for taker payment spend, wait_until {}, now {}",
+    wait_until,
+    now
     )]
     Timeout {
         /// The timestamp until which the wait was expected to complete.
@@ -1981,10 +1985,10 @@ pub enum TxFeeDetails {
     Slp(SlpFeeDetails),
     Tendermint(TendermintFeeDetails),
     #[cfg(all(
-        feature = "enable-solana",
-        not(target_os = "ios"),
-        not(target_os = "android"),
-        not(target_arch = "wasm32")
+    feature = "enable-solana",
+    not(target_os = "ios"),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
     ))]
     Solana(SolanaFeeDetails),
 }
@@ -1992,8 +1996,8 @@ pub enum TxFeeDetails {
 /// Deserialize the TxFeeDetails as an untagged enum.
 impl<'de> Deserialize<'de> for TxFeeDetails {
     fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(untagged)]
@@ -2002,10 +2006,10 @@ impl<'de> Deserialize<'de> for TxFeeDetails {
             Eth(EthTxFeeDetails),
             Qrc20(Qrc20FeeDetails),
             #[cfg(all(
-                feature = "enable-solana",
-                not(target_os = "ios"),
-                not(target_os = "android"),
-                not(target_arch = "wasm32")
+            feature = "enable-solana",
+            not(target_os = "ios"),
+            not(target_os = "android"),
+            not(target_arch = "wasm32")
             ))]
             Solana(SolanaFeeDetails),
             Tendermint(TendermintFeeDetails),
@@ -2016,10 +2020,10 @@ impl<'de> Deserialize<'de> for TxFeeDetails {
             TxFeeDetailsUnTagged::Eth(f) => Ok(TxFeeDetails::Eth(f)),
             TxFeeDetailsUnTagged::Qrc20(f) => Ok(TxFeeDetails::Qrc20(f)),
             #[cfg(all(
-                feature = "enable-solana",
-                not(target_os = "ios"),
-                not(target_os = "android"),
-                not(target_arch = "wasm32")
+            feature = "enable-solana",
+            not(target_os = "ios"),
+            not(target_os = "android"),
+            not(target_arch = "wasm32")
             ))]
             TxFeeDetailsUnTagged::Solana(f) => Ok(TxFeeDetails::Solana(f)),
             TxFeeDetailsUnTagged::Tendermint(f) => Ok(TxFeeDetails::Tendermint(f)),
@@ -2040,10 +2044,10 @@ impl From<Qrc20FeeDetails> for TxFeeDetails {
 }
 
 #[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
+feature = "enable-solana",
+not(target_os = "ios"),
+not(target_os = "android"),
+not(target_arch = "wasm32")
 ))]
 impl From<SolanaFeeDetails> for TxFeeDetails {
     fn from(solana_details: SolanaFeeDetails) -> Self { TxFeeDetails::Solana(solana_details) }
@@ -2222,10 +2226,10 @@ pub enum TradePreimageValue {
 #[derive(Debug, Display, PartialEq)]
 pub enum TradePreimageError {
     #[display(
-        fmt = "Not enough {} to preimage the trade: available {}, required at least {}",
-        coin,
-        available,
-        required
+    fmt = "Not enough {} to preimage the trade: available {}, required at least {}",
+    coin,
+    available,
+    required
     )]
     NotSufficientBalance {
         coin: String,
@@ -2435,10 +2439,10 @@ impl From<CoinFindError> for StakingInfosError {
 #[serde(tag = "error_type", content = "error_data")]
 pub enum DelegationError {
     #[display(
-        fmt = "Not enough {} to delegate: available {}, required at least {}",
-        coin,
-        available,
-        required
+    fmt = "Not enough {} to delegate: available {}, required at least {}",
+    coin,
+    available,
+    required
     )]
     NotSufficientBalance {
         coin: String,
@@ -2592,17 +2596,17 @@ impl DelegationError {
 #[serde(tag = "error_type", content = "error_data")]
 pub enum WithdrawError {
     #[display(
-        fmt = "'{}' coin doesn't support 'init_withdraw' yet. Consider using 'withdraw' request instead",
-        coin
+    fmt = "'{}' coin doesn't support 'init_withdraw' yet. Consider using 'withdraw' request instead",
+    coin
     )]
     CoinDoesntSupportInitWithdraw {
         coin: String,
     },
     #[display(
-        fmt = "Not enough {} to withdraw: available {}, required at least {}",
-        coin,
-        available,
-        required
+    fmt = "Not enough {} to withdraw: available {}, required at least {}",
+    coin,
+    available,
+    required
     )]
     NotSufficientBalance {
         coin: String,
@@ -2610,10 +2614,10 @@ pub enum WithdrawError {
         required: BigDecimal,
     },
     #[display(
-        fmt = "Not enough {} to afford fee. Available {}, required at least {}",
-        coin,
-        available,
-        required
+    fmt = "Not enough {} to afford fee. Available {}, required at least {}",
+    coin,
+    available,
+    required
     )]
     NotSufficientPlatformBalanceForFee {
         coin: String,
@@ -2674,11 +2678,11 @@ pub enum WithdrawError {
     ActionNotAllowed(String),
     GetNftInfoError(GetNftInfoError),
     #[display(
-        fmt = "Not enough NFTs amount with token_address: {} and token_id {}. Available {}, required {}",
-        token_address,
-        token_id,
-        available,
-        required
+    fmt = "Not enough NFTs amount with token_address: {} and token_id {}. Available {}, required {}",
+    token_address,
+    token_id,
+    available,
+    required
     )]
     NotEnoughNftsAmount {
         token_address: String,
@@ -2926,7 +2930,7 @@ impl From<CoinFindError> for VerificationError {
 /// NB: Implementations are expected to follow the pImpl idiom, providing cheap reference-counted cloning and garbage collection.
 #[async_trait]
 pub trait MmCoin:
-    SwapOps + TakerSwapMakerCoin + MakerSwapTakerCoin + WatcherOps + MarketCoinOps + Send + Sync + 'static
+SwapOps + TakerSwapMakerCoin + MakerSwapTakerCoin + WatcherOps + MarketCoinOps + Send + Sync + 'static
 {
     // `MmCoin` is an extension fulcrum for something that doesn't fit the `MarketCoinOps`. Practical examples:
     // name (might be required for some APIs, CoinMarketCap for instance);
@@ -3093,8 +3097,8 @@ impl CoinFutSpawner {
 
 impl SpawnFuture for CoinFutSpawner {
     fn spawn<F>(&self, f: F)
-    where
-        F: Future03<Output = ()> + Send + 'static,
+        where
+            F: Future03<Output = ()> + Send + 'static,
     {
         self.inner.spawn(f)
     }
@@ -3102,8 +3106,8 @@ impl SpawnFuture for CoinFutSpawner {
 
 impl SpawnAbortable for CoinFutSpawner {
     fn spawn_with_settings<F>(&self, fut: F, settings: AbortSettings)
-    where
-        F: Future03<Output = ()> + Send + 'static,
+        where
+            F: Future03<Output = ()> + Send + 'static,
     {
         self.inner.spawn_with_settings(fut, settings)
     }
@@ -3122,17 +3126,17 @@ pub enum MmCoinEnum {
     Tendermint(TendermintCoin),
     TendermintToken(TendermintToken),
     #[cfg(all(
-        feature = "enable-solana",
-        not(target_os = "ios"),
-        not(target_os = "android"),
-        not(target_arch = "wasm32")
+    feature = "enable-solana",
+    not(target_os = "ios"),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
     ))]
     SolanaCoin(SolanaCoin),
     #[cfg(all(
-        feature = "enable-solana",
-        not(target_os = "ios"),
-        not(target_os = "android"),
-        not(target_arch = "wasm32")
+    feature = "enable-solana",
+    not(target_os = "ios"),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
     ))]
     SplToken(SplToken),
     #[cfg(not(target_arch = "wasm32"))]
@@ -3153,20 +3157,20 @@ impl From<TestCoin> for MmCoinEnum {
 }
 
 #[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
+feature = "enable-solana",
+not(target_os = "ios"),
+not(target_os = "android"),
+not(target_arch = "wasm32")
 ))]
 impl From<SolanaCoin> for MmCoinEnum {
     fn from(c: SolanaCoin) -> MmCoinEnum { MmCoinEnum::SolanaCoin(c) }
 }
 
 #[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
+feature = "enable-solana",
+not(target_os = "ios"),
+not(target_os = "android"),
+not(target_arch = "wasm32")
 ))]
 impl From<SplToken> for MmCoinEnum {
     fn from(c: SplToken) -> MmCoinEnum { MmCoinEnum::SplToken(c) }
@@ -3223,17 +3227,17 @@ impl Deref for MmCoinEnum {
             MmCoinEnum::ZCoin(ref c) => c,
             MmCoinEnum::Test(ref c) => c,
             #[cfg(all(
-                feature = "enable-solana",
-                not(target_os = "ios"),
-                not(target_os = "android"),
-                not(target_arch = "wasm32")
+            feature = "enable-solana",
+            not(target_os = "ios"),
+            not(target_os = "android"),
+            not(target_arch = "wasm32")
             ))]
             MmCoinEnum::SolanaCoin(ref c) => c,
             #[cfg(all(
-                feature = "enable-solana",
-                not(target_os = "ios"),
-                not(target_os = "android"),
-                not(target_arch = "wasm32")
+            feature = "enable-solana",
+            not(target_os = "ios"),
+            not(target_os = "android"),
+            not(target_arch = "wasm32")
             ))]
             MmCoinEnum::SplToken(ref c) => c,
         }
@@ -3989,7 +3993,7 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
                 )
                 .await
             )
-            .into()
+                .into()
         },
         CoinProtocol::BCH { slp_prefix } => {
             let prefix = try_s!(CashAddrPrefix::from_str(slp_prefix));
@@ -4619,8 +4623,8 @@ pub fn address_by_coin_conf_and_pubkey_str(
 
 #[cfg(target_arch = "wasm32")]
 fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryFut<Vec<TransactionDetails>>
-where
-    T: MmCoin + ?Sized,
+    where
+        T: MmCoin + ?Sized,
 {
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
@@ -4651,8 +4655,8 @@ where
 
 #[cfg(not(target_arch = "wasm32"))]
 fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryFut<Vec<TransactionDetails>>
-where
-    T: MmCoin + ?Sized,
+    where
+        T: MmCoin + ?Sized,
 {
     let ticker = coin.ticker().to_owned();
     let history_path = coin.tx_history_path(ctx);
@@ -4693,8 +4697,8 @@ where
 
 #[cfg(target_arch = "wasm32")]
 fn save_history_to_file_impl<T>(coin: &T, ctx: &MmArc, mut history: Vec<TransactionDetails>) -> TxHistoryFut<()>
-where
-    T: MmCoin + MarketCoinOps + ?Sized,
+    where
+        T: MmCoin + MarketCoinOps + ?Sized,
 {
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
@@ -4713,8 +4717,8 @@ where
 
 #[cfg(not(target_arch = "wasm32"))]
 fn get_tx_history_migration_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryFut<u64>
-where
-    T: MmCoin + MarketCoinOps + ?Sized,
+    where
+        T: MmCoin + MarketCoinOps + ?Sized,
 {
     let migration_path = coin.tx_migration_path(ctx);
 
@@ -4740,8 +4744,8 @@ where
 
 #[cfg(not(target_arch = "wasm32"))]
 fn update_migration_file_impl<T>(coin: &T, ctx: &MmArc, migration_number: u64) -> TxHistoryFut<()>
-where
-    T: MmCoin + MarketCoinOps + ?Sized,
+    where
+        T: MmCoin + MarketCoinOps + ?Sized,
 {
     let migration_path = coin.tx_migration_path(ctx);
     let tmp_file = format!("{}.tmp", migration_path.display());
@@ -4768,8 +4772,8 @@ where
 
 #[cfg(not(target_arch = "wasm32"))]
 fn save_history_to_file_impl<T>(coin: &T, ctx: &MmArc, mut history: Vec<TransactionDetails>) -> TxHistoryFut<()>
-where
-    T: MmCoin + MarketCoinOps + ?Sized,
+    where
+        T: MmCoin + MarketCoinOps + ?Sized,
 {
     let history_path = coin.tx_history_path(ctx);
     let tmp_file = format!("{}.tmp", history_path.display());
@@ -4813,8 +4817,8 @@ impl<Id> TxIdHeight<Id> {
 }
 
 pub(crate) fn compare_transactions<Id>(a: TxIdHeight<Id>, b: TxIdHeight<Id>) -> Ordering
-where
-    Id: Ord,
+    where
+        Id: Ord,
 {
     // the transactions with block_height == 0 are the most recent so we need to separately handle them while sorting
     if a.block_height == b.block_height {
@@ -4869,7 +4873,7 @@ fn coins_conf_check(ctx: &MmArc, coins_en: &Json, ticker: &str, req: Option<&Jso
         ctx.log.log(
             "😅",
             #[allow(clippy::unnecessary_cast)]
-            &[&("coin" as &str), &ticker, &("no-conf" as &str)],
+                &[&("coin" as &str), &ticker, &("no-conf" as &str)],
             &warning,
         );
     }
