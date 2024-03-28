@@ -21,29 +21,26 @@ use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use zcash_client_backend::data_api::error::ChainInvalid;
 #[cfg(not(target_arch = "wasm32"))]
 use zcash_client_sqlite::error::SqliteClientError;
-#[cfg(target_arch = "wasm32")] use zcash_extras::NoteId;
+#[cfg(target_arch = "wasm32")]
+use zcash_extras::NoteId;
 use zcash_primitives::consensus::BlockHeight;
 use zcash_primitives::transaction::builder::Error as ZTxBuilderError;
 
 /// Represents possible errors that might occur while interacting with Zcoin rpc.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 #[non_exhaustive]
 pub enum UpdateBlocksCacheErr {
+    #[from_stringify("tonic::Status")]
     GrpcError(tonic::Status),
+    #[from_stringify("UtxoRpcError")]
     UtxoRpcError(UtxoRpcError),
     InternalError(String),
+    #[from_stringify("JsonRpcError")]
     JsonRpcError(JsonRpcError),
     GetLiveLightClientError(String),
+    #[from_stringify("ZcoinStorageError")]
     ZcashDBError(String),
     DecodeError(String),
-}
-
-impl From<ZcoinStorageError> for UpdateBlocksCacheErr {
-    fn from(err: ZcoinStorageError) -> Self { UpdateBlocksCacheErr::ZcashDBError(err.to_string()) }
-}
-
-impl From<tonic::Status> for UpdateBlocksCacheErr {
-    fn from(err: tonic::Status) -> Self { UpdateBlocksCacheErr::GrpcError(err) }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -54,14 +51,6 @@ impl From<SqliteError> for UpdateBlocksCacheErr {
 #[cfg(not(target_arch = "wasm32"))]
 impl From<SqliteClientError> for UpdateBlocksCacheErr {
     fn from(err: SqliteClientError) -> Self { UpdateBlocksCacheErr::ZcashDBError(err.to_string()) }
-}
-
-impl From<UtxoRpcError> for UpdateBlocksCacheErr {
-    fn from(err: UtxoRpcError) -> Self { UpdateBlocksCacheErr::UtxoRpcError(err) }
-}
-
-impl From<JsonRpcError> for UpdateBlocksCacheErr {
-    fn from(err: JsonRpcError) -> Self { UpdateBlocksCacheErr::JsonRpcError(err) }
 }
 
 /// This enum encompasses various error scenarios that may arise
@@ -102,10 +91,10 @@ pub enum GenTxError {
     GetWitnessErr(GetUnspentWitnessErr),
     FailedToGetMerklePath,
     #[display(
-        fmt = "Not enough {} to generate a tx: available {}, required at least {}",
-        coin,
-        available,
-        required
+    fmt = "Not enough {} to generate a tx: available {}, required at least {}",
+    coin,
+    available,
+    required
     )]
     InsufficientBalance {
         coin: String,
@@ -246,7 +235,7 @@ impl From<SqlTxHistoryError> for MyTxHistoryErrorV2 {
             SqlTxHistoryError::Sql(sql) => MyTxHistoryErrorV2::StorageError(sql.to_string()),
             SqlTxHistoryError::FromIdDoesNotExist(id) => {
                 MyTxHistoryErrorV2::StorageError(format!("from_id {} does not exist", id))
-            },
+            }
         }
     }
 }
@@ -413,11 +402,11 @@ impl From<DbTransactionError> for ZcoinStorageError {
         match e {
             DbTransactionError::ErrorSerializingItem(_) | DbTransactionError::ErrorDeserializingItem(_) => {
                 ZcoinStorageError::DecodingError(e.to_string())
-            },
+            }
             DbTransactionError::ErrorUploadingItem(_) => ZcoinStorageError::AddToStorageErr(e.to_string()),
             DbTransactionError::ErrorGettingItems(_) | DbTransactionError::ErrorCountingItems(_) => {
                 ZcoinStorageError::GetFromStorageError(e.to_string())
-            },
+            }
             DbTransactionError::ErrorDeletingItems(_) => ZcoinStorageError::RemoveFromStorageErr(e.to_string()),
             DbTransactionError::NoSuchTable { .. }
             | DbTransactionError::ErrorCreatingTransaction(_)
