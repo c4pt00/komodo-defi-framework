@@ -287,7 +287,13 @@ impl MmCtx {
     ///
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn dbdir(&self) -> PathBuf { path_to_dbdir(self.conf["dbdir"].as_str(), self.rmd160()) }
+    fn dbdir(&self) -> PathBuf { path_to_dbdir(self.conf["dbdir"].as_str(), self.rmd160()) }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn db_root(&self) -> PathBuf {
+        const DEFAULT_ROOT: &str = "DB";
+        self.conf["dbdir"].as_str().unwrap_or(DEFAULT_ROOT).into()
+    }
 
     /// MM shared database path.
     /// Defaults to a relative "DB".

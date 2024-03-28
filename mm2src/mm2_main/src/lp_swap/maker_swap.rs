@@ -77,15 +77,26 @@ pub const MAKER_ERROR_EVENTS: [&str; 15] = [
 pub const MAKER_PAYMENT_SENT_LOG: &str = "Maker payment sent";
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn stats_maker_swap_dir(ctx: &MmArc) -> PathBuf { ctx.dbdir().join("SWAPS").join("STATS").join("MAKER") }
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn stats_maker_swap_file_path(ctx: &MmArc, uuid: &Uuid) -> PathBuf {
-    stats_maker_swap_dir(ctx).join(format!("{}.json", uuid))
+pub fn stats_maker_swap_dir(ctx: &MmArc, account_key: &str) -> PathBuf {
+    ctx.db_root()
+        .join(account_key)
+        .join("SWAPS")
+        .join("STATS")
+        .join("MAKER")
 }
 
-async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSavedEvent) -> Result<(), String> {
-    let swap = match SavedSwap::load_my_swap_from_db(ctx, swap.uuid).await {
+#[cfg(not(target_arch = "wasm32"))]
+pub fn stats_maker_swap_file_path(ctx: &MmArc, account_key: &str, uuid: &Uuid) -> PathBuf {
+    stats_maker_swap_dir(ctx, account_key).join(format!("{}.json", uuid))
+}
+
+async fn save_my_maker_swap_event(
+    ctx: &MmArc,
+    account_key: &str,
+    swap: &MakerSwap,
+    event: MakerSavedEvent,
+) -> Result<(), String> {
+    let swap = match SavedSwap::load_my_swap_from_db(ctx, account_key, swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Maker(MakerSavedSwap {
             uuid: swap.uuid,
@@ -111,7 +122,7 @@ async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSav
             maker_swap.fetch_and_set_usd_prices().await;
         }
         let new_swap = SavedSwap::Maker(maker_swap);
-        try_s!(new_swap.save_to_db(ctx).await);
+        try_s!(new_swap.save_to_db(ctx, account_key).await);
         Ok(())
     } else {
         ERR!("Expected SavedSwap::Maker, got {:?}", swap)
@@ -1290,7 +1301,8 @@ impl MakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<MakerSwapCommand>), String> {
-        let saved = match SavedSwap::load_my_swap_from_db(&ctx, *swap_uuid).await {
+        let account_key = todo!();
+        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key, *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
             Err(e) => return ERR!("{}", e),
@@ -2108,7 +2120,8 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                         .dispatch_async(ctx.clone(), LpEvents::MakerSwapStatusChanged(event_to_send))
                         .await;
                     drop(dispatcher);
-                    save_my_maker_swap_event(&ctx, &running_swap, to_save)
+                    let account_key = todo!();
+                    save_my_maker_swap_event(&ctx, account_key, &running_swap, to_save)
                         .await
                         .expect("!save_my_maker_swap_event");
                     if event.should_ban_taker() {
