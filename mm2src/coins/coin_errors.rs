@@ -1,13 +1,13 @@
 use crate::{eth::Web3RpcError, my_tx_history_v2::MyTxHistoryErrorV2, utxo::rpc_clients::UtxoRpcError, DelegationError,
             NumConversError, TxHistoryError, UnexpectedDerivationMethod, WithdrawError};
+use enum_derives::EnumFromStringify;
 use futures01::Future;
 use mm2_err_handle::prelude::MmError;
 use spv_validation::helpers_validation::SPVError;
 use std::num::TryFromIntError;
-use enum_derives::EnumFromStringify;
 
 /// Helper type used as result for swap payment validation function(s)
-pub type ValidatePaymentFut<T> = Box<dyn Future<Item=T, Error=MmError<ValidatePaymentError>> + Send>;
+pub type ValidatePaymentFut<T> = Box<dyn Future<Item = T, Error = MmError<ValidatePaymentError>> + Send>;
 /// Helper type used as result for swap payment validation function(s)
 pub type ValidatePaymentResult<T> = Result<T, MmError<ValidatePaymentError>>;
 
@@ -61,12 +61,11 @@ impl From<Web3RpcError> for ValidatePaymentError {
             Web3RpcError::InvalidResponse(resp) => ValidatePaymentError::InvalidRpcResponse(resp),
             Web3RpcError::Internal(internal) | Web3RpcError::Timeout(internal) => {
                 ValidatePaymentError::InternalError(internal)
-            }
+            },
             Web3RpcError::NftProtocolNotSupported => ValidatePaymentError::NftProtocolNotSupported,
         }
     }
 }
-
 
 #[derive(Debug, Display, EnumFromStringify)]
 pub enum MyAddressError {
