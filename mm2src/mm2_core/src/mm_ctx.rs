@@ -287,12 +287,12 @@ impl MmCtx {
     ///
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
-    fn dbdir(&self) -> PathBuf { path_to_dbdir(self.conf["dbdir"].as_str(), self.rmd160()) }
+    pub fn dbdir(&self, db_id: Option<&str>) -> PathBuf {
+        let db_id = db_id.map(|t| t.to_owned()).unwrap_or_else(|| {
+            hex::encode(self.rmd160().as_slice())
+        });
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn db_root(&self) -> PathBuf {
-        const DEFAULT_ROOT: &str = "DB";
-        self.conf["dbdir"].as_str().unwrap_or(DEFAULT_ROOT).into()
+        path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
     }
 
     /// MM shared database path.
@@ -304,7 +304,10 @@ impl MmCtx {
     ///
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn shared_dbdir(&self) -> PathBuf { path_to_dbdir(self.conf["dbdir"].as_str(), self.shared_db_id()) }
+    pub fn shared_dbdir(&self) -> PathBuf {
+        let db_id = hex::encode(self.shared_db_id().as_slice());
+        path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
+    }
 
     pub fn is_watcher(&self) -> bool { self.conf["is_watcher"].as_bool().unwrap_or_default() }
 
@@ -336,8 +339,8 @@ impl MmCtx {
     pub fn mm_version(&self) -> &str { &self.mm_version }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn init_sqlite_connection(&self) -> Result<(), String> {
-        let sqlite_file_path = self.dbdir().join("MM2.db");
+    pub fn init_sqlite_connection(&self, db_id: Option<&str>) -> Result<(), String> {
+        let sqlite_file_path = self.dbdir(db_id).join("MM2.db");
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let connection = try_s!(Connection::open(sqlite_file_path));
         try_s!(self.sqlite_connection.pin(Arc::new(Mutex::new(connection))));
@@ -354,8 +357,8 @@ impl MmCtx {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn init_async_sqlite_connection(&self) -> Result<(), String> {
-        let sqlite_file_path = self.dbdir().join("KOMODEFI.db");
+    pub async fn init_async_sqlite_connection(&self, db_id: Option<&str>) -> Result<(), String> {
+        let sqlite_file_path = self.dbdir(db_id).join("KOMODEFI.db");
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
         try_s!(self.async_sqlite_connection.pin(Arc::new(AsyncMutex::new(async_conn))));
@@ -401,7 +404,7 @@ impl Drop for MmCtx {
 
 /// This function can be used later by an FFI function to open a GUI storage.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn path_to_dbdir(db_root: Option<&str>, db_id: &H160) -> PathBuf {
+pub fn path_to_dbdir(db_root: Option<&str>, db_id: &str) -> PathBuf {
     const DEFAULT_ROOT: &str = "DB";
 
     let path = match db_root {
@@ -409,7 +412,7 @@ pub fn path_to_dbdir(db_root: Option<&str>, db_id: &H160) -> PathBuf {
         _ => Path::new(DEFAULT_ROOT),
     };
 
-    path.join(hex::encode(db_id.as_slice()))
+    path.join(db_id)
 }
 
 // We don't want to send `MmCtx` across threads, it will only obstruct the normal use case

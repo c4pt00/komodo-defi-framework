@@ -466,11 +466,11 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         fix_directories(&ctx)?;
-        ctx.init_sqlite_connection()
+        ctx.init_sqlite_connection(None)
             .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
         ctx.init_shared_sqlite_conn()
             .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        ctx.init_async_sqlite_connection()
+        ctx.init_async_sqlite_connection(None)
             .await
             .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
         init_and_migrate_sql_db(&ctx).await?;

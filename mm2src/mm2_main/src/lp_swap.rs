@@ -1364,7 +1364,8 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
     let mut coins = HashSet::new();
     let legacy_unfinished_uuids = try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE).await);
     for uuid in legacy_unfinished_uuids {
-        let swap = match SavedSwap::load_my_swap_from_db(&ctx, uuid).await {
+        let db_id = todo!();
+        let swap = match SavedSwap::load_my_swap_from_db(&ctx, db_id, uuid).await {
             Ok(Some(s)) => s,
             Ok(None) => {
                 warn!("Swap {} is indexed, but doesn't exist in DB", uuid);

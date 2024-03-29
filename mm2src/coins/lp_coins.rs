@@ -2966,7 +2966,7 @@ pub trait MmCoin:
     /// Loop collecting coin transaction history and saving it to local DB
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
-    fn account_key(&self, ctx: &MmArc) -> &str { todo!() }
+    fn db_id(&self) -> Option<&str> { None }
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
@@ -2975,7 +2975,7 @@ pub trait MmCoin:
         // BCH cash address format has colon after prefix, e.g. bitcoincash:
         // Colon can't be used in file names on Windows so it should be escaped
         let my_address = my_address.replace(':', "_");
-        ctx.dbdir()
+        ctx.dbdir(None)
             .join("TRANSACTIONS")
             .join(format!("{}_{}.json", self.ticker(), my_address))
     }
@@ -2987,7 +2987,7 @@ pub trait MmCoin:
         // BCH cash address format has colon after prefix, e.g. bitcoincash:
         // Colon can't be used in file names on Windows so it should be escaped
         let my_address = my_address.replace(':', "_");
-        ctx.dbdir()
+        ctx.dbdir(None)
             .join("TRANSACTIONS")
             .join(format!("{}_{}_migration", self.ticker(), my_address))
     }

@@ -514,7 +514,7 @@ async fn make_gas_station_request(url: &str) -> GasStationResult {
 impl EthCoinImpl {
     #[cfg(not(target_arch = "wasm32"))]
     fn eth_traces_path(&self, ctx: &MmArc) -> PathBuf {
-        ctx.dbdir()
+        ctx.dbdir(None)
             .join("TRANSACTIONS")
             .join(format!("{}_{:#02x}_trace.json", self.ticker, self.my_address))
     }
@@ -558,7 +558,7 @@ impl EthCoinImpl {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn erc20_events_path(&self, ctx: &MmArc) -> PathBuf {
-        ctx.dbdir()
+        ctx.dbdir(None)
             .join("TRANSACTIONS")
             .join(format!("{}_{:#02x}_events.json", self.ticker, self.my_address))
     }
