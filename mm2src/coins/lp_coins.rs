@@ -597,6 +597,7 @@ pub enum TransactionEnum {
 
 ifrom!(TransactionEnum, UtxoTx);
 ifrom!(TransactionEnum, SignedEthTx);
+#[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
 ifrom!(TransactionEnum, SolSignature);
 ifrom!(TransactionEnum, ZTransaction);
 #[cfg(not(target_arch = "wasm32"))]
