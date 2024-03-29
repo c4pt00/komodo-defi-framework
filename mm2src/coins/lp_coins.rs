@@ -352,7 +352,7 @@ pub const INVALID_SWAP_ID_ERR_LOG: &str = "Invalid swap id";
 pub const INVALID_SCRIPT_ERR_LOG: &str = "Invalid script";
 pub const INVALID_REFUND_TX_ERR_LOG: &str = "Invalid refund transaction";
 
-#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType)]
+#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType, EnumFromStringify)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum RawTransactionError {
     #[display(fmt = "No such coin {}", coin)]
@@ -368,6 +368,7 @@ pub enum RawTransactionError {
     #[display(fmt = "Transaction decode error: {}", _0)]
     DecodeError(String),
     #[display(fmt = "Invalid param: {}", _0)]
+    #[from_stringify("FromHexError", "NumConversError")]
     InvalidParam(String),
     #[display(fmt = "Non-existent previous output: {}", _0)]
     NonExistentPrevOutputError(String),
@@ -406,31 +407,20 @@ impl From<CoinFindError> for RawTransactionError {
     }
 }
 
-impl From<NumConversError> for RawTransactionError {
-    fn from(e: NumConversError) -> Self { RawTransactionError::InvalidParam(e.to_string()) }
-}
-
-impl From<FromHexError> for RawTransactionError {
-    fn from(e: FromHexError) -> Self { RawTransactionError::InvalidParam(e.to_string()) }
-}
-
 #[derive(Clone, Debug, Deserialize, Display, EnumFromStringify, PartialEq, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum GetMyAddressError {
     CoinsConfCheckError(String),
     CoinIsNotSupported(String),
-    #[from_stringify("CryptoCtxError")]
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_stringify("CryptoCtxError")]
     Internal(String),
     #[from_stringify("serde_json::Error")]
     #[display(fmt = "Invalid request error error: {}", _0)]
     InvalidRequest(String),
     #[display(fmt = "Get Eth address error: {}", _0)]
+    #[from_stringify("GetEthAddressError")]
     GetEthAddressError(GetEthAddressError),
-}
-
-impl From<GetEthAddressError> for GetMyAddressError {
-    fn from(e: GetEthAddressError) -> Self { GetMyAddressError::GetEthAddressError(e) }
 }
 
 impl HttpStatusCode for GetMyAddressError {
@@ -1021,15 +1011,12 @@ pub struct PaymentInstructionArgs<'a> {
     pub wait_until: u64,
 }
 
-#[derive(Display)]
+#[derive(Display, EnumFromStringify)]
 pub enum PaymentInstructionsErr {
     LightningInvoiceErr(String),
     WatcherRewardErr(String),
+    #[from_stringify("NumConversError")]
     InternalError(String),
-}
-
-impl From<NumConversError> for PaymentInstructionsErr {
-    fn from(e: NumConversError) -> Self { PaymentInstructionsErr::InternalError(e.to_string()) }
 }
 
 #[derive(Display)]
@@ -1345,15 +1332,18 @@ pub struct TxPreimageWithSig<Coin: CoinAssocTypes + ?Sized> {
 }
 
 /// Enum covering error cases that can happen during transaction preimage generation.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum TxGenError {
     /// RPC error
+    #[from_stringify("UtxoRpcError")]
     Rpc(String),
     /// Error during conversion of BigDecimal amount to coin's specific monetary units (satoshis, wei, etc.).
+    #[from_stringify("NumConversError")]
     NumConversion(String),
     /// Address derivation error.
     AddressDerivation(String),
     /// Problem with tx preimage signing.
+    #[from_stringify("UtxoSignWithKeyPairError")]
     Signing(String),
     /// Legacy error produced by usage of try_s/try_fus and other similar macros.
     Legacy(String),
@@ -1367,26 +1357,16 @@ pub enum TxGenError {
     Other(String),
 }
 
-impl From<UtxoRpcError> for TxGenError {
-    fn from(err: UtxoRpcError) -> Self { TxGenError::Rpc(err.to_string()) }
-}
-
-impl From<NumConversError> for TxGenError {
-    fn from(err: NumConversError) -> Self { TxGenError::NumConversion(err.to_string()) }
-}
-
-impl From<UtxoSignWithKeyPairError> for TxGenError {
-    fn from(err: UtxoSignWithKeyPairError) -> Self { TxGenError::Signing(err.to_string()) }
-}
-
 /// Enum covering error cases that can happen during swap v2 transaction validation.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum ValidateSwapV2TxError {
     /// Payment sent to wrong address or has invalid amount.
     InvalidDestinationOrAmount(String),
     /// Error during conversion of BigDecimal amount to coin's specific monetary units (satoshis, wei, etc.).
+    #[from_stringify("NumConversError")]
     NumConversion(String),
     /// RPC error.
+    #[from_stringify("UtxoRpcError")]
     Rpc(String),
     /// Serialized tx bytes don't match ones received from coin's RPC.
     #[display(fmt = "Tx bytes {:02x} don't match ones received from rpc {:02x}", actual, from_rpc)]
@@ -1399,16 +1379,8 @@ pub enum ValidateSwapV2TxError {
     Internal(String),
 }
 
-impl From<NumConversError> for ValidateSwapV2TxError {
-    fn from(err: NumConversError) -> Self { ValidateSwapV2TxError::NumConversion(err.to_string()) }
-}
-
-impl From<UtxoRpcError> for ValidateSwapV2TxError {
-    fn from(err: UtxoRpcError) -> Self { ValidateSwapV2TxError::Rpc(err.to_string()) }
-}
-
 /// Enum covering error cases that can happen during taker funding spend preimage validation.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum ValidateTakerFundingSpendPreimageError {
     /// Funding tx has no outputs
     FundingTxNoOutputs,
@@ -1419,52 +1391,33 @@ pub enum ValidateTakerFundingSpendPreimageError {
     /// Error during preimage comparison to an expected one.
     InvalidPreimage(String),
     /// Error during taker's signature check.
+    #[from_stringify("UtxoSignWithKeyPairError")]
     SignatureVerificationFailure(String),
     /// Error during generation of an expected preimage.
+    #[from_stringify("TxGenError")]
     TxGenError(String),
     /// Input payment timelock overflows the type used by specific coin.
     LocktimeOverflow(String),
     /// Coin's RPC error
+    #[from_stringify("UtxoRpcError")]
     Rpc(String),
 }
 
-impl From<UtxoSignWithKeyPairError> for ValidateTakerFundingSpendPreimageError {
-    fn from(err: UtxoSignWithKeyPairError) -> Self {
-        ValidateTakerFundingSpendPreimageError::SignatureVerificationFailure(err.to_string())
-    }
-}
-
-impl From<TxGenError> for ValidateTakerFundingSpendPreimageError {
-    fn from(err: TxGenError) -> Self { ValidateTakerFundingSpendPreimageError::TxGenError(format!("{:?}", err)) }
-}
-
-impl From<UtxoRpcError> for ValidateTakerFundingSpendPreimageError {
-    fn from(err: UtxoRpcError) -> Self { ValidateTakerFundingSpendPreimageError::Rpc(err.to_string()) }
-}
-
 /// Enum covering error cases that can happen during taker payment spend preimage validation.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum ValidateTakerPaymentSpendPreimageError {
     /// Error during signature deserialization.
     InvalidTakerSignature,
     /// Error during preimage comparison to an expected one.
     InvalidPreimage(String),
     /// Error during taker's signature check.
+    #[from_stringify("UtxoSignWithKeyPairError")]
     SignatureVerificationFailure(String),
     /// Error during generation of an expected preimage.
+    #[from_stringify("TxGenError")]
     TxGenError(String),
     /// Input payment timelock overflows the type used by specific coin.
     LocktimeOverflow(String),
-}
-
-impl From<UtxoSignWithKeyPairError> for ValidateTakerPaymentSpendPreimageError {
-    fn from(err: UtxoSignWithKeyPairError) -> Self {
-        ValidateTakerPaymentSpendPreimageError::SignatureVerificationFailure(err.to_string())
-    }
-}
-
-impl From<TxGenError> for ValidateTakerPaymentSpendPreimageError {
-    fn from(err: TxGenError) -> Self { ValidateTakerPaymentSpendPreimageError::TxGenError(format!("{:?}", err)) }
 }
 
 /// Helper trait used for various types serialization to bytes
@@ -1956,14 +1909,11 @@ impl WithdrawRequest {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, EnumFromStringify)]
 #[serde(tag = "type")]
 pub enum StakingInfosDetails {
+    #[from_stringify("QtumStakingInfosDetails")]
     Qtum(QtumStakingInfosDetails),
-}
-
-impl From<QtumStakingInfosDetails> for StakingInfosDetails {
-    fn from(qtum_staking_infos: QtumStakingInfosDetails) -> Self { StakingInfosDetails::Qtum(qtum_staking_infos) }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -1983,13 +1933,17 @@ pub struct VerificationResponse {
 
 /// Please note that no type should have the same structure as another type,
 /// because this enum has the `untagged` deserialization.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, EnumFromStringify)]
 #[serde(tag = "type")]
 pub enum TxFeeDetails {
+    #[from_stringify("UtxoFeeDetails")]
     Utxo(UtxoFeeDetails),
+    #[from_stringify("EthTxFeeDetails")]
     Eth(EthTxFeeDetails),
+    #[from_stringify("Qrc20FeeDetails")]
     Qrc20(Qrc20FeeDetails),
     Slp(SlpFeeDetails),
+    #[from_stringify("TendermintFeeDetails")]
     Tendermint(TendermintFeeDetails),
     #[cfg(all(
         feature = "enable-solana",
@@ -2038,18 +1992,6 @@ impl<'de> Deserialize<'de> for TxFeeDetails {
     }
 }
 
-impl From<EthTxFeeDetails> for TxFeeDetails {
-    fn from(eth_details: EthTxFeeDetails) -> Self { TxFeeDetails::Eth(eth_details) }
-}
-
-impl From<UtxoFeeDetails> for TxFeeDetails {
-    fn from(utxo_details: UtxoFeeDetails) -> Self { TxFeeDetails::Utxo(utxo_details) }
-}
-
-impl From<Qrc20FeeDetails> for TxFeeDetails {
-    fn from(qrc20_details: Qrc20FeeDetails) -> Self { TxFeeDetails::Qrc20(qrc20_details) }
-}
-
 #[cfg(all(
     feature = "enable-solana",
     not(target_os = "ios"),
@@ -2058,10 +2000,6 @@ impl From<Qrc20FeeDetails> for TxFeeDetails {
 ))]
 impl From<SolanaFeeDetails> for TxFeeDetails {
     fn from(solana_details: SolanaFeeDetails) -> Self { TxFeeDetails::Solana(solana_details) }
-}
-
-impl From<TendermintFeeDetails> for TxFeeDetails {
-    fn from(tendermint_details: TendermintFeeDetails) -> Self { TxFeeDetails::Tendermint(tendermint_details) }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -2230,7 +2168,7 @@ pub enum TradePreimageValue {
     UpperBound(BigDecimal),
 }
 
-#[derive(Debug, Display, PartialEq)]
+#[derive(Debug, Display, PartialEq, EnumFromStringify)]
 pub enum TradePreimageError {
     #[display(
         fmt = "Not enough {} to preimage the trade: available {}, required at least {}",
@@ -2248,17 +2186,10 @@ pub enum TradePreimageError {
     #[display(fmt = "Transport error: {}", _0)]
     Transport(String),
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_stringify("NumConversError", "UnexpectedDerivationMethod")]
     InternalError(String),
     #[display(fmt = "Nft Protocol is not supported yet!")]
     NftProtocolNotSupported,
-}
-
-impl From<NumConversError> for TradePreimageError {
-    fn from(e: NumConversError) -> Self { TradePreimageError::InternalError(e.to_string()) }
-}
-
-impl From<UnexpectedDerivationMethod> for TradePreimageError {
-    fn from(e: UnexpectedDerivationMethod) -> Self { TradePreimageError::InternalError(e.to_string()) }
 }
 
 impl TradePreimageError {
@@ -2342,45 +2273,32 @@ impl NumConversError {
     pub fn description(&self) -> &str { &self.0 }
 }
 
-#[derive(Clone, Debug, Display, PartialEq, Serialize, SerializeErrorType)]
+#[derive(Clone, Debug, Display, PartialEq, Serialize, SerializeErrorType, EnumFromStringify)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum BalanceError {
     #[display(fmt = "Transport: {}", _0)]
     Transport(String),
     #[display(fmt = "Invalid response: {}", _0)]
     InvalidResponse(String),
+    #[from_stringify("UnexpectedDerivationMethod")]
     UnexpectedDerivationMethod(UnexpectedDerivationMethod),
     #[display(fmt = "Wallet storage error: {}", _0)]
     WalletStorageError(String),
     #[display(fmt = "Internal: {}", _0)]
+    #[from_stringify("NumConversError", "Bip32Error")]
     Internal(String),
 }
 
-#[derive(Debug, PartialEq, Display)]
+#[derive(Debug, PartialEq, Display, EnumFromStringify)]
 pub enum GetNonZeroBalance {
     #[display(fmt = "Internal error when retrieving balance")]
+    #[from_stringify("BalanceError")]
     MyBalanceError(BalanceError),
     #[display(fmt = "Balance is zero")]
     BalanceIsZero,
 }
 
-impl From<BalanceError> for GetNonZeroBalance {
-    fn from(e: BalanceError) -> Self { GetNonZeroBalance::MyBalanceError(e) }
-}
-
-impl From<NumConversError> for BalanceError {
-    fn from(e: NumConversError) -> Self { BalanceError::Internal(e.to_string()) }
-}
-
-impl From<UnexpectedDerivationMethod> for BalanceError {
-    fn from(e: UnexpectedDerivationMethod) -> Self { BalanceError::UnexpectedDerivationMethod(e) }
-}
-
-impl From<Bip32Error> for BalanceError {
-    fn from(e: Bip32Error) -> Self { BalanceError::Internal(e.to_string()) }
-}
-
-#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType)]
+#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType, EnumFromStringify)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum StakingInfosError {
     #[display(fmt = "Staking infos not available for: {}", coin)]
@@ -2388,6 +2306,7 @@ pub enum StakingInfosError {
     #[display(fmt = "No such coin {}", coin)]
     NoSuchCoin { coin: String },
     #[display(fmt = "Derivation method is not supported: {}", _0)]
+    #[from_stringify("UnexpectedDerivationMethod")]
     UnexpectedDerivationMethod(String),
     #[display(fmt = "Transport error: {}", _0)]
     Transport(String),
@@ -2405,10 +2324,6 @@ impl From<UtxoRpcError> for StakingInfosError {
             UtxoRpcError::Internal(error) => StakingInfosError::Internal(error),
         }
     }
-}
-
-impl From<UnexpectedDerivationMethod> for StakingInfosError {
-    fn from(e: UnexpectedDerivationMethod) -> Self { StakingInfosError::UnexpectedDerivationMethod(e.to_string()) }
 }
 
 impl From<Qrc20AddressError> for StakingInfosError {
@@ -2442,7 +2357,7 @@ impl From<CoinFindError> for StakingInfosError {
     }
 }
 
-#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType)]
+#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType, EnumFromStringify)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum DelegationError {
     #[display(
@@ -2465,6 +2380,7 @@ pub enum DelegationError {
     #[display(fmt = "{}", _0)]
     CannotInteractWithSmartContract(String),
     #[display(fmt = "{}", _0)]
+    #[from_stringify("ScriptHashTypeNotSupported")]
     AddressError(String),
     #[display(fmt = "Already delegating to: {}", _0)]
     AlreadyDelegating(String),
@@ -2540,10 +2456,6 @@ impl From<UnexpectedDerivationMethod> for DelegationError {
     fn from(e: UnexpectedDerivationMethod) -> Self {
         DelegationError::DelegationOpsNotSupported { reason: e.to_string() }
     }
-}
-
-impl From<ScriptHashTypeNotSupported> for DelegationError {
-    fn from(e: ScriptHashTypeNotSupported) -> Self { DelegationError::AddressError(e.to_string()) }
 }
 
 impl HttpStatusCode for DelegationError {
@@ -2871,18 +2783,22 @@ impl HttpStatusCode for SignatureError {
     }
 }
 
-#[derive(Debug, Display, Serialize, SerializeErrorType)]
+#[derive(Debug, Display, Serialize, SerializeErrorType, EnumFromStringify)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum VerificationError {
     #[display(fmt = "Invalid request: {}", _0)]
     InvalidRequest(String),
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_stringify("keys::Error", "ethkey::Error")]
     InternalError(String),
     #[display(fmt = "Signature decoding error: {}", _0)]
+    #[from_stringify("base64::DecodeError")]
     SignatureDecodingError(String),
     #[display(fmt = "Address decoding error: {}", _0)]
+    #[from_stringify("hex::FromHexError")]
     AddressDecodingError(String),
     #[display(fmt = "Coin is not found: {}", _0)]
+    #[from_stringify("CoinFindError")]
     CoinIsNotFound(String),
     #[display(fmt = "sign_message_prefix is not set in coin config")]
     PrefixNotFound,
@@ -2901,14 +2817,6 @@ impl HttpStatusCode for VerificationError {
     }
 }
 
-impl From<base64::DecodeError> for VerificationError {
-    fn from(e: base64::DecodeError) -> Self { VerificationError::SignatureDecodingError(e.to_string()) }
-}
-
-impl From<hex::FromHexError> for VerificationError {
-    fn from(e: hex::FromHexError) -> Self { VerificationError::AddressDecodingError(e.to_string()) }
-}
-
 impl From<FromBase58Error> for VerificationError {
     fn from(e: FromBase58Error) -> Self {
         match e {
@@ -2920,18 +2828,6 @@ impl From<FromBase58Error> for VerificationError {
             },
         }
     }
-}
-
-impl From<keys::Error> for VerificationError {
-    fn from(e: keys::Error) -> Self { VerificationError::InternalError(e.to_string()) }
-}
-
-impl From<ethkey::Error> for VerificationError {
-    fn from(e: ethkey::Error) -> Self { VerificationError::InternalError(e.to_string()) }
-}
-
-impl From<CoinFindError> for VerificationError {
-    fn from(e: CoinFindError) -> Self { VerificationError::CoinIsNotFound(e.to_string()) }
 }
 
 /// NB: Implementations are expected to follow the pImpl idiom, providing cheap reference-counted cloning and garbage collection.
@@ -3120,17 +3016,26 @@ impl SpawnAbortable for CoinFutSpawner {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, EnumFromStringify)]
 #[allow(clippy::large_enum_variant)]
 pub enum MmCoinEnum {
+    #[from_stringify("UtxoStandardCoin")]
     UtxoCoin(UtxoStandardCoin),
+    #[from_stringify("QtumCoin")]
     QtumCoin(QtumCoin),
+    #[from_stringify("Qrc20Coin")]
     Qrc20Coin(Qrc20Coin),
+    #[from_stringify("EthCoin")]
     EthCoin(EthCoin),
+    #[from_stringify("ZCoin")]
     ZCoin(ZCoin),
+    #[from_stringify("BchCoin")]
     Bch(BchCoin),
+    #[from_stringify("SlpToken")]
     SlpToken(SlpToken),
+    #[from_stringify("TendermintCoin")]
     Tendermint(TendermintCoin),
+    #[from_stringify("TendermintToken")]
     TendermintToken(TendermintToken),
     #[cfg(all(
         feature = "enable-solana",
@@ -3138,6 +3043,7 @@ pub enum MmCoinEnum {
         not(target_os = "android"),
         not(target_arch = "wasm32")
     ))]
+    #[from_stringify("SolanaCoin")]
     SolanaCoin(SolanaCoin),
     #[cfg(all(
         feature = "enable-solana",
@@ -3145,75 +3051,13 @@ pub enum MmCoinEnum {
         not(target_os = "android"),
         not(target_arch = "wasm32")
     ))]
+    #[from_stringify("SplToken")]
     SplToken(SplToken),
     #[cfg(not(target_arch = "wasm32"))]
+    #[from_stringify("LightningCoin")]
     LightningCoin(LightningCoin),
+    #[from_stringify("TestCoin")]
     Test(TestCoin),
-}
-
-impl From<UtxoStandardCoin> for MmCoinEnum {
-    fn from(c: UtxoStandardCoin) -> MmCoinEnum { MmCoinEnum::UtxoCoin(c) }
-}
-
-impl From<EthCoin> for MmCoinEnum {
-    fn from(c: EthCoin) -> MmCoinEnum { MmCoinEnum::EthCoin(c) }
-}
-
-impl From<TestCoin> for MmCoinEnum {
-    fn from(c: TestCoin) -> MmCoinEnum { MmCoinEnum::Test(c) }
-}
-
-#[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-impl From<SolanaCoin> for MmCoinEnum {
-    fn from(c: SolanaCoin) -> MmCoinEnum { MmCoinEnum::SolanaCoin(c) }
-}
-
-#[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-impl From<SplToken> for MmCoinEnum {
-    fn from(c: SplToken) -> MmCoinEnum { MmCoinEnum::SplToken(c) }
-}
-
-impl From<QtumCoin> for MmCoinEnum {
-    fn from(coin: QtumCoin) -> Self { MmCoinEnum::QtumCoin(coin) }
-}
-
-impl From<Qrc20Coin> for MmCoinEnum {
-    fn from(c: Qrc20Coin) -> MmCoinEnum { MmCoinEnum::Qrc20Coin(c) }
-}
-
-impl From<BchCoin> for MmCoinEnum {
-    fn from(c: BchCoin) -> MmCoinEnum { MmCoinEnum::Bch(c) }
-}
-
-impl From<SlpToken> for MmCoinEnum {
-    fn from(c: SlpToken) -> MmCoinEnum { MmCoinEnum::SlpToken(c) }
-}
-
-impl From<TendermintCoin> for MmCoinEnum {
-    fn from(c: TendermintCoin) -> Self { MmCoinEnum::Tendermint(c) }
-}
-
-impl From<TendermintToken> for MmCoinEnum {
-    fn from(c: TendermintToken) -> Self { MmCoinEnum::TendermintToken(c) }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl From<LightningCoin> for MmCoinEnum {
-    fn from(c: LightningCoin) -> MmCoinEnum { MmCoinEnum::LightningCoin(c) }
-}
-
-impl From<ZCoin> for MmCoinEnum {
-    fn from(c: ZCoin) -> MmCoinEnum { MmCoinEnum::ZCoin(c) }
 }
 
 // NB: When stable and groked by IDEs, `enum_dispatch` can be used instead of `Deref` to speed things up.
