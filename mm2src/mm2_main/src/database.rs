@@ -72,10 +72,10 @@ fn clean_db(ctx: &MmArc) {
     }
 }
 
-async fn migration_1(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> { fill_my_swaps_from_json_statements(ctx).await }
+async fn migration_1(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> { fill_my_swaps_from_json_statements(ctx, None).await }
 
 async fn migration_2(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> {
-    create_and_fill_stats_swaps_from_json_statements(ctx).await
+    create_and_fill_stats_swaps_from_json_statements(ctx, None).await
 }
 
 fn migration_3() -> Vec<(&'static str, Vec<String>)> { vec![(stats_swaps::ADD_STARTED_AT_INDEX, vec![])] }
@@ -106,7 +106,7 @@ fn migration_9() -> Vec<(&'static str, Vec<String>)> {
 }
 
 async fn migration_10(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> {
-    set_is_finished_for_legacy_swaps_statements(ctx).await
+    set_is_finished_for_legacy_swaps_statements(ctx, None).await
 }
 
 fn migration_11() -> Vec<(&'static str, Vec<String>)> {

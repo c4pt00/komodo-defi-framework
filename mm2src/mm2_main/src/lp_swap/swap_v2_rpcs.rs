@@ -292,12 +292,13 @@ impl From<SwapV2DbError> for GetSwapDataErr {
 
 async fn get_swap_data_by_uuid_and_type(
     ctx: &MmArc,
+    db_id: Option<&str>,
     uuid: Uuid,
     swap_type: u8,
 ) -> MmResult<Option<SwapRpcData>, GetSwapDataErr> {
     match swap_type {
         LEGACY_SWAP_TYPE => {
-            let saved_swap = SavedSwap::load_my_swap_from_db(ctx, uuid).await?;
+            let saved_swap = SavedSwap::load_my_swap_from_db(ctx, db_id, uuid).await?;
             Ok(saved_swap.map(|swap| match swap {
                 SavedSwap::Maker(m) => SwapRpcData::MakerV1(m),
                 SavedSwap::Taker(t) => SwapRpcData::TakerV1(t),
@@ -365,7 +366,7 @@ pub(crate) async fn my_swap_status_rpc(
     let swap_type = get_swap_type(&ctx, &req.uuid)
         .await?
         .or_mm_err(|| MySwapStatusError::NoSwapWithUuid(req.uuid))?;
-    get_swap_data_by_uuid_and_type(&ctx, req.uuid, swap_type)
+    get_swap_data_by_uuid_and_type(&ctx, None, req.uuid, swap_type)
         .await?
         .or_mm_err(|| MySwapStatusError::NoSwapWithUuid(req.uuid))
 }
@@ -428,7 +429,7 @@ pub(crate) async fn my_recent_swaps_rpc(
         .await?;
     let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
     for (uuid, swap_type) in db_result.uuids_and_types.iter() {
-        match get_swap_data_by_uuid_and_type(&ctx, *uuid, *swap_type).await {
+        match get_swap_data_by_uuid_and_type(&ctx, None, *uuid, *swap_type).await {
             Ok(Some(data)) => swaps.push(data),
             Ok(None) => warn!("Swap {} data doesn't exist in DB", uuid),
             Err(e) => error!("Error {} while trying to get swap {} data", e, uuid),
@@ -481,7 +482,7 @@ pub(crate) async fn active_swaps_rpc(
     let statuses = if req.include_status {
         let mut statuses = HashMap::with_capacity(uuids_with_types.len());
         for (uuid, swap_type) in uuids_with_types.iter() {
-            match get_swap_data_by_uuid_and_type(&ctx, *uuid, *swap_type).await {
+            match get_swap_data_by_uuid_and_type(&ctx, None, *uuid, *swap_type).await {
                 Ok(Some(data)) => {
                     statuses.insert(*uuid, data);
                 },

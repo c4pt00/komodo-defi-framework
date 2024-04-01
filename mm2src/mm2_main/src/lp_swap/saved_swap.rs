@@ -157,36 +157,36 @@ impl SavedSwap {
 
 #[async_trait]
 pub trait SavedSwapIo {
-    async fn load_my_swap_from_db(ctx: &MmArc, account_key: &str, uuid: Uuid) -> SavedSwapResult<Option<SavedSwap>>;
+    async fn load_my_swap_from_db(ctx: &MmArc, db_id: Option<&str>, uuid: Uuid) -> SavedSwapResult<Option<SavedSwap>>;
 
-    async fn load_all_my_swaps_from_db(ctx: &MmArc, account_key: &str) -> SavedSwapResult<Vec<SavedSwap>>;
+    async fn load_all_my_swaps_from_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<SavedSwap>>;
 
     #[cfg(not(target_arch = "wasm32"))]
     async fn load_from_maker_stats_db(
         ctx: &MmArc,
-        account_key: &str,
+        db_id: Option<&str>,
         uuid: Uuid,
     ) -> SavedSwapResult<Option<MakerSavedSwap>>;
 
     #[cfg(not(target_arch = "wasm32"))]
-    async fn load_all_from_maker_stats_db(ctx: &MmArc, account_key: &str) -> SavedSwapResult<Vec<MakerSavedSwap>>;
+    async fn load_all_from_maker_stats_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<MakerSavedSwap>>;
 
     #[cfg(not(target_arch = "wasm32"))]
     async fn load_from_taker_stats_db(
         ctx: &MmArc,
-        account_key: &str,
+        db_id: Option<&str>,
         uuid: Uuid,
     ) -> SavedSwapResult<Option<TakerSavedSwap>>;
 
     #[cfg(not(target_arch = "wasm32"))]
-    async fn load_all_from_taker_stats_db(ctx: &MmArc, account_key: &str) -> SavedSwapResult<Vec<TakerSavedSwap>>;
+    async fn load_all_from_taker_stats_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<TakerSavedSwap>>;
 
     /// Save the serialized `SavedSwap` to the swaps db.
-    async fn save_to_db(&self, ctx: &MmArc, account_key: &str) -> SavedSwapResult<()>;
+    async fn save_to_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()>;
 
     /// Save the inner maker/taker swap to the corresponding stats db.
     #[cfg(not(target_arch = "wasm32"))]
-    async fn save_to_stats_db(&self, ctx: &MmArc, account_key: &str) -> SavedSwapResult<()>;
+    async fn save_to_stats_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()>;
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -216,61 +216,61 @@ mod native_impl {
     impl SavedSwapIo for SavedSwap {
         async fn load_my_swap_from_db(
             ctx: &MmArc,
-            account_key: &str,
+            db_id: Option<&str>,
             uuid: Uuid,
         ) -> SavedSwapResult<Option<SavedSwap>> {
-            let path = my_swap_file_path(ctx, account_key, &uuid);
+            let path = my_swap_file_path(ctx, db_id, &uuid);
             Ok(read_json(&path).await?)
         }
 
-        async fn load_all_my_swaps_from_db(ctx: &MmArc, account_key: &str) -> SavedSwapResult<Vec<SavedSwap>> {
-            let path = my_swaps_dir(ctx, account_key);
+        async fn load_all_my_swaps_from_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<SavedSwap>> {
+            let path = my_swaps_dir(ctx, db_id);
             Ok(read_dir_json(&path).await?)
         }
 
         async fn load_from_maker_stats_db(
             ctx: &MmArc,
-            account_key: &str,
+            db_id: Option<&str>,
             uuid: Uuid,
         ) -> SavedSwapResult<Option<MakerSavedSwap>> {
-            let path = stats_maker_swap_file_path(ctx, account_key, &uuid);
+            let path = stats_maker_swap_file_path(ctx, db_id, &uuid);
             Ok(read_json(&path).await?)
         }
 
-        async fn load_all_from_maker_stats_db(ctx: &MmArc, account_key: &str) -> SavedSwapResult<Vec<MakerSavedSwap>> {
-            let path = stats_maker_swap_dir(ctx, account_key);
+        async fn load_all_from_maker_stats_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<MakerSavedSwap>> {
+            let path = stats_maker_swap_dir(ctx, db_id);
             Ok(read_dir_json(&path).await?)
         }
 
         async fn load_from_taker_stats_db(
             ctx: &MmArc,
-            account_key: &str,
+            db_id: Option<&str>,
             uuid: Uuid,
         ) -> SavedSwapResult<Option<TakerSavedSwap>> {
-            let path = stats_taker_swap_file_path(ctx, account_key, &uuid);
+            let path = stats_taker_swap_file_path(ctx, db_id, &uuid);
             Ok(read_json(&path).await?)
         }
 
-        async fn load_all_from_taker_stats_db(ctx: &MmArc, account_key: &str) -> SavedSwapResult<Vec<TakerSavedSwap>> {
-            let path = stats_taker_swap_dir(ctx, account_key);
+        async fn load_all_from_taker_stats_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<TakerSavedSwap>> {
+            let path = stats_taker_swap_dir(ctx, db_id);
             Ok(read_dir_json(&path).await?)
         }
 
-        async fn save_to_db(&self, ctx: &MmArc, account_key: &str) -> SavedSwapResult<()> {
-            let path = my_swap_file_path(ctx, account_key, self.uuid());
+        async fn save_to_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()> {
+            let path = my_swap_file_path(ctx, db_id, self.uuid());
             write_json(self, &path, USE_TMP_FILE).await?;
             Ok(())
         }
 
         /// Save the inner maker/taker swap to the corresponding stats db.
-        async fn save_to_stats_db(&self, ctx: &MmArc, account_key: &str) -> SavedSwapResult<()> {
+        async fn save_to_stats_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()> {
             match self {
                 SavedSwap::Maker(maker) => {
-                    let path = stats_maker_swap_file_path(ctx, account_key & maker.uuid);
+                    let path = stats_maker_swap_file_path(ctx, db_id, &maker.uuid);
                     write_json(self, &path, USE_TMP_FILE).await?;
                 },
                 SavedSwap::Taker(taker) => {
-                    let path = stats_taker_swap_file_path(ctx, account_key, &taker.uuid);
+                    let path = stats_taker_swap_file_path(ctx, db_id, &taker.uuid);
                     write_json(self, &path, USE_TMP_FILE).await?;
                 },
             }

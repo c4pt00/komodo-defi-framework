@@ -337,7 +337,7 @@ fn default_seednodes(netid: u16) -> Vec<RelayAddress> {
 pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
     fix_shared_dbdir(ctx)?;
 
-    let dbdir = ctx.dbdir();
+    let dbdir = ctx.dbdir(None);
     fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
         path: dbdir.clone(),
         error: e.to_string(),
@@ -407,7 +407,7 @@ fn fix_shared_dbdir(ctx: &MmCtx) -> MmInitResult<()> {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn migrate_db(ctx: &MmArc) -> MmInitResult<()> {
-    let migration_num_path = ctx.dbdir().join(".migration");
+    let migration_num_path = ctx.dbdir(None).join(".migration");
     let mut current_migration = match std::fs::read(&migration_num_path) {
         Ok(bytes) => {
             let mut num_bytes = [0; 8];

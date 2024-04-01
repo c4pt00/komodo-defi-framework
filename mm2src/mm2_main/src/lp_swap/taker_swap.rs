@@ -98,26 +98,22 @@ pub const WATCHER_MESSAGE_SENT_LOG: &str = "Watcher message sent...";
 pub const MAKER_PAYMENT_SPENT_BY_WATCHER_LOG: &str = "Maker payment is spent by the watcher...";
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn stats_taker_swap_dir(ctx: &MmArc, account_key: &str) -> PathBuf {
-    ctx.db_root()
-        .join(account_key)
-        .join("SWAPS")
-        .join("STATS")
-        .join("TAKER")
+pub fn stats_taker_swap_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
+    ctx.dbdir(db_id).join("SWAPS").join("STATS").join("TAKER")
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn stats_taker_swap_file_path(ctx: &MmArc, account_key: &str, uuid: &Uuid) -> PathBuf {
-    stats_taker_swap_dir(ctx, account_key).join(format!("{}.json", uuid))
+pub fn stats_taker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid) -> PathBuf {
+    stats_taker_swap_dir(ctx, db_id).join(format!("{}.json", uuid))
 }
 
 async fn save_my_taker_swap_event(
     ctx: &MmArc,
-    account_key: &str,
+    db_id: Option<&str>,
     swap: &TakerSwap,
     event: TakerSavedEvent,
 ) -> Result<(), String> {
-    let swap = match SavedSwap::load_my_swap_from_db(ctx, account_key, swap.uuid).await {
+    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id, swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Taker(TakerSavedSwap {
             uuid: swap.uuid,
@@ -153,7 +149,7 @@ async fn save_my_taker_swap_event(
             taker_swap.fetch_and_set_usd_prices().await;
         }
         let new_swap = SavedSwap::Taker(taker_swap);
-        try_s!(new_swap.save_to_db(ctx, account_key).await);
+        try_s!(new_swap.save_to_db(ctx, db_id).await);
         Ok(())
     } else {
         ERR!("Expected SavedSwap::Taker, got {:?}", swap)
