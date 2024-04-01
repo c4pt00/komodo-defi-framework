@@ -404,11 +404,44 @@ impl SolanaCoin {
 
     fn send_hash_time_locked_payment(&self, args: SendPaymentArgs<'_>) -> SolTxFut {
         let receiver = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(args.swap_contract_address.as_ref().unwrap().as_slice());
-        let amount = sol_to_lamports(args.amount.to_f64().unwrap());
-        let secret_hash: [u8; 32] = <[u8; 32]>::try_from(args.secret_hash).expect("unable to convert to 32 byte array");
+        let swap_program_id = Pubkey::new(match args.swap_contract_address.as_ref() {
+            Some(v) => v.as_slice(),
+            None => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
+                    args.swap_contract_address
+                ))));
+            },
+        });
+        let amount = sol_to_lamports(match args.amount.to_f64() {
+            Some(v) => v,
+            None => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "Unable to extract value from args.amount ( {:?} )",
+                    args.amount
+                ))));
+            },
+        });
+        let secret_hash: [u8; 32] = match <[u8; 32]>::try_from(args.secret_hash) {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "unable to convert to 32 byte array for args.secret_hash ( {:?} ), error: {:?}",
+                    args.secret_hash,
+                    e
+                ))));
+            },
+        };
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, rent_exemption_lamports) =
-            self.create_vaults(args.time_lock, secret_hash, swap_program_id, 41);
+            match self.create_vaults(args.time_lock, secret_hash, swap_program_id, 41) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                        "unable to create vaults, error: {:?}",
+                        e
+                    ))));
+                },
+            };
         let swap_instruction = AtomicSwapInstruction::LamportsPayment {
             secret_hash,
             lock_time: args.time_lock,
@@ -420,23 +453,64 @@ impl SolanaCoin {
         };
 
         let accounts = vec![
-            AccountMeta::new(self.key_pair.pubkey(), true), // Marked as signer
-            AccountMeta::new(vault_pda_data, false),        // Not a signer
-            AccountMeta::new(vault_pda, false),             // Not a signer
-            AccountMeta::new(solana_program::system_program::id(), false), //system_program must be included
+            AccountMeta::new(self.key_pair.pubkey(), true),
+            AccountMeta::new(vault_pda_data, false),
+            AccountMeta::new(vault_pda, false),
+            AccountMeta::new(solana_program::system_program::id(), false),
         ];
         self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
     }
 
     fn spend_hash_time_locked_payment(&self, args: SpendPaymentArgs) -> SolTxFut {
         let sender = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(args.swap_contract_address.as_ref().unwrap().as_slice());
-        let secret: [u8; 32] = <[u8; 32]>::try_from(args.secret).unwrap();
-        let secret_hash = sha256(secret.as_slice());
-        let (lock_time, _secret_hash, amount, token_program) =
-            self.get_transaction_details(args.other_payment_tx).unwrap();
+        let swap_program_id = Pubkey::new(match args.swap_contract_address.as_ref() {
+            Some(v) => v.as_slice(),
+            None => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
+                    args.swap_contract_address
+                ))));
+            },
+        });
+        let secret: [u8; 32] = match <[u8; 32]>::try_from(args.secret) {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "unable to convert to 32 byte array for args.secret ( {:?} ), error: {:?}",
+                    args.secret,
+                    e
+                ))));
+            },
+        };
+        let secret_hash = sha256(secret.as_slice()).take();
+        let (lock_time, _secret_hash, amount, token_program) = match self.get_transaction_details(args.other_payment_tx)
+        {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "unable to get transaction details for args.other_payment_tx ( {:?} ), error: {:?}",
+                    args.other_payment_tx,
+                    e
+                ))));
+            },
+        };
+        if secret_hash != _secret_hash {
+            return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                "Provided secret_hash {:?} does not match transaction secret_hash {:?}",
+                secret_hash,
+                _secret_hash
+            ))));
+        }
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
-            self.create_vaults(lock_time, secret_hash.take(), swap_program_id, 41);
+            match self.create_vaults(lock_time, secret_hash, swap_program_id, 41) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                        "unable to create vaults, error: {:?}",
+                        e
+                    ))));
+                },
+            };
         let swap_instruction = AtomicSwapInstruction::ReceiverSpend {
             secret,
             lock_time,
@@ -447,20 +521,45 @@ impl SolanaCoin {
             vault_bump_seed_data,
         };
         let accounts = vec![
-            AccountMeta::new(self.key_pair.pubkey(), true), // Marked as signer
-            AccountMeta::new(vault_pda_data, false),        // Not a signer
-            AccountMeta::new(vault_pda, false),             // Not a signer
-            AccountMeta::new(solana_program::system_program::id(), false), //system_program must be included
+            AccountMeta::new(self.key_pair.pubkey(), true),
+            AccountMeta::new(vault_pda_data, false),
+            AccountMeta::new(vault_pda, false),
+            AccountMeta::new(solana_program::system_program::id(), false),
         ];
         self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
     }
 
     fn refund_hash_time_locked_payment(&self, args: RefundPaymentArgs) -> SolTxFut {
         let receiver = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(args.swap_contract_address.as_ref().unwrap().as_slice());
-        let (lock_time, secret_hash, amount, token_program) = self.get_transaction_details(args.payment_tx).unwrap();
+        let swap_program_id = Pubkey::new(match args.swap_contract_address.as_ref() {
+            Some(v) => v.as_slice(),
+            None => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
+                    args.swap_contract_address
+                ))));
+            },
+        });
+        let (lock_time, secret_hash, amount, token_program) = match self.get_transaction_details(args.payment_tx) {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    "unable to get transaction details for args.payment_tx ( {:?} ), error: {:?}",
+                    args.payment_tx,
+                    e
+                ))));
+            },
+        };
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
-            self.create_vaults(lock_time, secret_hash, swap_program_id, 41);
+            match self.create_vaults(lock_time, secret_hash, swap_program_id, 41) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                        "unable to create vaults, error: {:?}",
+                        e
+                    ))));
+                },
+            };
         let swap_instruction = AtomicSwapInstruction::SenderRefund {
             secret_hash,
             lock_time,
@@ -490,10 +589,25 @@ impl SolanaCoin {
             Ok(transaction) => {
                 let data = self.extract_instruction_data(&transaction.transaction.transaction);
                 if let Some(data) = data {
-                    let data = bs58::decode(data).into_vec().expect("Failed to decode base58 data");
+                    let data = match bs58::decode(data).into_vec() {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(Box::new(TransactionErr::Plain(ERRL!(
+                                "Failed to decode base58 data: {:?}",
+                                e
+                            ))))
+                        },
+                    };
                     let instruction_data = &data[..];
-                    let instruction = AtomicSwapInstruction::unpack(instruction_data[0], instruction_data)
-                        .expect("error unpacking tx data");
+                    let instruction = match AtomicSwapInstruction::unpack(instruction_data[0], instruction_data) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(Box::new(TransactionErr::Plain(ERRL!(
+                                "error unpacking tx data: {:?}",
+                                e
+                            ))))
+                        },
+                    };
                     match instruction {
                         AtomicSwapInstruction::LamportsPayment {
                             secret_hash,
@@ -534,19 +648,15 @@ impl SolanaCoin {
                         } => Ok((lock_time, secret_hash, amount, token_program)),
                     }
                 } else {
-                    //(0, sha256(&[0; 32]).take(), sol_to_lamports(0.01), Pubkey::new_from_array([0; 32]))
                     Err(Box::new(TransactionErr::Plain(ERRL!(
                         "Solana ClientError: No data found"
                     ))))
                 }
             },
-            Err(e) => {
-                //(0, sha256(&[0; 32]).take(), sol_to_lamports(0.01), Pubkey::new_from_array([0; 32]))
-                Err(Box::new(TransactionErr::Plain(ERRL!(
-                    "Solana ClientError: Error fetching transaction: {:?}",
-                    e
-                ))))
-            },
+            Err(e) => Err(Box::new(TransactionErr::Plain(ERRL!(
+                "Solana ClientError: Error fetching transaction: {:?}",
+                e
+            )))),
         }
     }
 
@@ -607,24 +717,39 @@ impl SolanaCoin {
         secret_hash: [u8; 32],
         program_id: Pubkey,
         space: u64,
-    ) -> (Pubkey, Pubkey, u8, u8, u64) {
+    ) -> Result<(Pubkey, Pubkey, u8, u8, u64), Box<TransactionErr>> {
         let seeds: &[&[u8]] = &[b"swap", &lock_time.to_le_bytes()[..], &secret_hash[..]];
         let (vault_pda, bump_seed) = Pubkey::find_program_address(seeds, &program_id);
 
         let seeds_data: &[&[u8]] = &[b"swap_data", &lock_time.to_le_bytes()[..], &secret_hash[..]];
         let (vault_pda_data, bump_seed_data) = Pubkey::find_program_address(seeds_data, &program_id);
 
-        let rent_exemption_lamports = self
+        let rent_exemption_lamports = match self
             .client
-            .get_minimum_balance_for_rent_exemption(space.try_into().expect("unable to convert space"))
-            .expect("error get_minimum_balance_for_rent_exemption");
-        (
+            .get_minimum_balance_for_rent_exemption(match space.try_into() {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(Box::new(TransactionErr::Plain(ERRL!(
+                        "unable to convert space: {:?}",
+                        e
+                    ))))
+                },
+            }) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(Box::new(TransactionErr::Plain(ERRL!(
+                    "error get_minimum_balance_for_rent_exemption: {:?}",
+                    e
+                ))))
+            },
+        };
+        Ok((
             vault_pda,
             vault_pda_data,
             bump_seed,
             bump_seed_data,
             rent_exemption_lamports,
-        )
+        ))
     }
 }
 
