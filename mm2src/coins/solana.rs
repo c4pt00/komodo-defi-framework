@@ -1,5 +1,5 @@
-use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, SwapOps, ToBytes, TradeFee,
-            Transaction as TransactionCom, TransactionEnum, TransactionErr, WatcherOps};
+use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, SwapOps, ToBytes, TradeFee, Transaction,
+            TransactionEnum, TransactionErr, WatcherOps};
 use crate::coin_errors::{MyAddressError, ValidatePaymentResult};
 use crate::solana::solana_common::{lamports_to_sol, PrepareTransferData, SufficientBalanceError};
 use crate::solana::spl::SplTokenInfo;
@@ -44,7 +44,7 @@ use solana_sdk::native_token::sol_to_lamports;
 use solana_sdk::program_error::ProgramError;
 use solana_sdk::pubkey::ParsePubkeyError;
 pub use solana_sdk::signature::Signature as SolSignature;
-use solana_sdk::transaction::Transaction;
+use solana_sdk::transaction::Transaction as SolTransaction;
 use solana_sdk::{bs58,
                  pubkey::Pubkey,
                  signature::{Keypair, Signer}};
@@ -151,10 +151,10 @@ impl From<AccountError> for WithdrawError {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SolanaActivationParams {
-    pub confirmation_commitment: CommitmentLevel,
-    pub client_url: String,
+    confirmation_commitment: CommitmentLevel,
+    client_url: String,
     #[serde(default)]
-    pub path_to_address: StandardHDCoinAddress,
+    path_to_address: StandardHDCoinAddress,
 }
 
 #[derive(Debug, Display)]
@@ -324,36 +324,11 @@ type SolTxFut = Box<dyn Future<Item = SolSignature, Error = TransactionErr> + Se
 impl ToBytes for SolSignature {
     fn to_bytes(&self) -> Vec<u8> { Vec::from(self.as_ref()) }
 }
-impl TransactionCom for SolSignature {
+impl Transaction for SolSignature {
     fn tx_hex(&self) -> Vec<u8> { self.to_bytes() }
 
     fn tx_hash(&self) -> BytesJson { BytesJson(self.tx_hex()) }
 }
-/*
-pub trait TryToPubkey {
-    fn try_to_pubkey(&self) -> Result<Pubkey, String>;
-}
-
-impl TryToPubkey for BytesJson {
-    fn try_to_pubkey(&self) -> Result<Pubkey, String> { self.0.as_slice().try_to_pubkey() }
-}
-
-impl TryToPubkey for [u8] {
-    fn try_to_pubkey(&self) -> Result<Pubkey, String> { self.try_to_pubkey() }
-}
-
-impl<'a> TryToPubkey for &'a [u8] {
-    fn try_to_pubkey(&self) -> Result<Pubkey, String> { self.try_to_pubkey() }
-}*/
-
-/*impl<T: TryToPubkey> TryToPubkey for Option<T> {
-    fn try_to_pubkey(&self) -> Result<Pubkey, String> {
-        match self {
-            Some(ref inner) => inner.try_to_pubkey(),
-            None => Err("Cannot convert None to pubkey".to_string()),
-        }
-    }
-}*/
 
 impl SolanaCoin {
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
@@ -504,23 +479,16 @@ impl SolanaCoin {
         self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
     }
 
-    fn get_transaction_details(
-        &self,
-        signature_bytes: &[u8],
-    ) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
+    fn get_transaction_details(&self, tx_hash: &[u8]) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
         let coin = self.clone();
-        println!("get_transaction_details: {:?}", signature_bytes);
-        println!("get_transaction_details: {:?}", signature_bytes);
-        let signature = SolSignature::new(signature_bytes);
+        let signature = SolSignature::new(tx_hash);
 
         match coin
             .client
             .get_transaction(&signature, UiTransactionEncoding::JsonParsed)
         {
             Ok(transaction) => {
-                println!("transaction 1: {:#?}", transaction);
                 let data = self.extract_instruction_data(&transaction.transaction.transaction);
-                println!("data 1: {:#?}", data);
                 if let Some(data) = data {
                     let data = bs58::decode(data).into_vec().expect("Failed to decode base58 data");
                     let instruction_data = &data[..];
@@ -566,7 +534,6 @@ impl SolanaCoin {
                         } => Ok((lock_time, secret_hash, amount, token_program)),
                     }
                 } else {
-                    println!("No data found");
                     //(0, sha256(&[0; 32]).take(), sol_to_lamports(0.01), Pubkey::new_from_array([0; 32]))
                     Err(Box::new(TransactionErr::Plain(ERRL!(
                         "Solana ClientError: No data found"
@@ -574,7 +541,6 @@ impl SolanaCoin {
                 }
             },
             Err(e) => {
-                println!("Error fetching transaction: {:?}", e);
                 //(0, sha256(&[0; 32]).take(), sol_to_lamports(0.01), Pubkey::new_from_array([0; 32]))
                 Err(Box::new(TransactionErr::Plain(ERRL!(
                     "Solana ClientError: Error fetching transaction: {:?}",
@@ -585,21 +551,12 @@ impl SolanaCoin {
     }
 
     fn extract_instruction_data(&self, transaction: &EncodedTransaction) -> Option<String> {
-        println!("transaction 2: {:?}", transaction);
         if let EncodedTransaction::Json(transaction) = transaction {
-            println!("transaction 3: {:?}", transaction);
-            if let UiMessage::Parsed(message) = transaction.clone().message {
-                println!("message 4: {:?}", message);
-                if let Some(first_instruction) = message.instructions.get(0) {
-                    println!("first_instruction 5: {:?}", first_instruction);
-                    if let UiInstruction::Parsed(parsed_instruction) = first_instruction {
-                        println!("parsed_instruction 6: {:?}", parsed_instruction);
-                        if let UiParsedInstruction::PartiallyDecoded(instruction) = parsed_instruction {
-                            println!("instruction 7: {:?}", instruction);
-                            println!("data 8: {:?}", instruction.data);
-                            return Some(instruction.data.clone());
-                        }
-                    }
+            if let UiMessage::Parsed(message) = &transaction.message {
+                if let Some(UiInstruction::Parsed(UiParsedInstruction::PartiallyDecoded(instruction))) =
+                    message.instructions.get(0)
+                {
+                    return Some(instruction.data.clone());
                 }
             }
         }
@@ -628,7 +585,7 @@ impl SolanaCoin {
                     )))
                 },
             };
-            let transaction = Transaction::new_signed_with_payer(
+            let transaction = SolTransaction::new_signed_with_payer(
                 &[instruction],
                 Some(&coin.key_pair.pubkey()), //payer pubkey
                 &[&coin.key_pair],             //payer
@@ -636,14 +593,8 @@ impl SolanaCoin {
             );
 
             let res = match coin.client.send_and_confirm_transaction(&transaction) {
-                Ok(signature) => {
-                    println!("Transaction sent successfully. Signature: {}", signature);
-                    Ok(signature)
-                },
-                Err(e) => {
-                    eprintln!("Error: {:?}", e);
-                    Err(TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)))
-                },
+                Ok(signature) => Ok(signature),
+                Err(e) => Err(TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e))),
             };
             res
         };
@@ -675,62 +626,6 @@ impl SolanaCoin {
             rent_exemption_lamports,
         )
     }
-
-    /*fn create_swap_account(&self, receiver_account_pubkey: Pubkey, program_id: Pubkey, space: u64) -> (Keypair, Pubkey, u8){
-        let coin = self.clone();
-        let payer = &coin.key_pair;
-        let swap_account = Keypair::new();
-        let last_blockhash = coin.client.get_latest_blockhash().expect("error getting last_blockhash");
-        // Calculate the minimum balance to make the swap account rent-exempt
-        // for storing 41 bytes of data
-        let minimum_balance = coin.client.get_minimum_balance_for_rent_exemption(space.try_into().expect("unable to convert to usize")).expect("unable to get rent");
-
-        // Create a system instruction to transfer the necessary lamports
-        // to the swap account for it to be rent-exempt
-        let create_account_instruction = system_instruction::create_account(
-            &payer.pubkey(),
-            &swap_account.pubkey(),
-            minimum_balance,
-            space,          // Space in bytes for the account data
-            &program_id, // The owner program ID
-        );
-
-        // Create and sign a transaction for the account creation and funding
-        let mut transaction =
-            Transaction::new_with_payer(&[create_account_instruction], Some(&payer.pubkey()));
-        transaction.sign(&[&payer, &swap_account], last_blockhash);
-
-        // Process the transaction
-        coin.client
-            .send_and_confirm_transaction(&transaction).expect("error creating swap account");
-
-        let assign_instruction = system_instruction::assign(&swap_account.pubkey(), &program_id);
-
-        let mut transaction =
-            Transaction::new_with_payer(&[assign_instruction], Some(&payer.pubkey()));
-        transaction.sign(&[&payer, &swap_account], last_blockhash);
-        coin.client
-            .send_and_confirm_transaction(&transaction).expect("error assigning program as owner of swap account");
-
-        let seeds: &[&[u8]] = &[b"swap", receiver_account_pubkey.as_ref()];
-        let (vault_pda, bump_seed) = Pubkey::find_program_address(seeds, &program_id);
-
-        let transfer_instruction = system_instruction::transfer(
-            &payer.pubkey(),
-            &vault_pda,
-            minimum_balance,
-        );
-
-        // Create and sign a transaction
-        let mut transaction =
-            Transaction::new_with_payer(&[transfer_instruction], Some(&payer.pubkey()));
-        transaction.sign(&[payer], last_blockhash);
-
-        // Process the transaction
-        coin.client
-            .send_and_confirm_transaction(&transaction).expect("error transferring minimum_balance to vault_pda");
-        (swap_account, vault_pda, bump_seed)
-    }*/
 }
 
 #[async_trait]
@@ -777,7 +672,7 @@ impl MarketCoinOps for SolanaCoin {
         let tx = tx.to_owned();
         let fut = async_blocking(move || {
             let bytes = hex::decode(tx).map_to_mm(|e| e).map_err(|e| format!("{:?}", e))?;
-            let tx: Transaction = deserialize(bytes.as_slice())
+            let tx: SolTransaction = deserialize(bytes.as_slice())
                 .map_to_mm(|e| e)
                 .map_err(|e| format!("{:?}", e))?;
             // this is blocking IO
