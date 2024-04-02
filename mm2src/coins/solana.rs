@@ -637,7 +637,7 @@ impl SolanaCoin {
             }
         } else {
             Err(Box::new(TransactionErr::Plain(ERRL!(
-                "Solana ClientError: No data found"
+                "Instruction not found in message"
             ))))
         }
     }
