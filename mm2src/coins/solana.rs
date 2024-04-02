@@ -1,5 +1,5 @@
-use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, SwapOps, ToBytes, TradeFee, Transaction,
-            TransactionEnum, TransactionErr, WatcherOps};
+use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, SwapOps, TradeFee, Transaction, TransactionEnum,
+            TransactionErr, WatcherOps};
 use crate::coin_errors::{MyAddressError, ValidatePaymentResult};
 use crate::solana::solana_common::{lamports_to_sol, PrepareTransferData, SufficientBalanceError};
 use crate::solana::spl::SplTokenInfo;
@@ -43,13 +43,9 @@ use solana_sdk::instruction::Instruction;
 use solana_sdk::native_token::sol_to_lamports;
 use solana_sdk::program_error::ProgramError;
 use solana_sdk::pubkey::ParsePubkeyError;
-pub use solana_sdk::signature::Signature as SolSignature;
-use solana_sdk::transaction::Transaction as SolTransaction;
-use solana_sdk::{bs58,
-                 pubkey::Pubkey,
+pub use solana_sdk::transaction::Transaction as SolTransaction;
+use solana_sdk::{pubkey::Pubkey,
                  signature::{Keypair, Signer}};
-use solana_transaction_status::{EncodedTransaction, UiInstruction, UiMessage, UiParsedInstruction,
-                                UiTransactionEncoding};
 use spl_token::solana_program;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -319,17 +315,16 @@ async fn withdraw_impl(coin: SolanaCoin, req: WithdrawRequest) -> WithdrawResult
     withdraw_base_coin_impl(coin, req).await
 }
 
-type SolTxFut = Box<dyn Future<Item = SolSignature, Error = TransactionErr> + Send + 'static>;
+type SolTxFut = Box<dyn Future<Item = SolTransaction, Error = TransactionErr> + Send + 'static>;
 
-impl ToBytes for SolSignature {
-    fn to_bytes(&self) -> Vec<u8> { Vec::from(self.as_ref()) }
+impl Transaction for SolTransaction {
+    fn tx_hex(&self) -> Vec<u8> { serialize(self).unwrap() }
+
+    fn tx_hash(&self) -> BytesJson {
+        let tx_hex = hex::encode(self.tx_hex());
+        BytesJson(tx_hex.into_bytes())
+    }
 }
-impl Transaction for SolSignature {
-    fn tx_hex(&self) -> Vec<u8> { self.to_bytes() }
-
-    fn tx_hash(&self) -> BytesJson { BytesJson(self.tx_hex()) }
-}
-
 impl SolanaCoin {
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
         let hash = async_blocking({
@@ -579,98 +574,72 @@ impl SolanaCoin {
     }
 
     fn get_transaction_details(&self, tx_hash: &[u8]) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
-        let coin = self.clone();
-        let signature = SolSignature::new(tx_hash);
-
-        match coin
-            .client
-            .get_transaction(&signature, UiTransactionEncoding::JsonParsed)
-        {
-            Ok(transaction) => {
-                let data = self.extract_instruction_data(&transaction.transaction.transaction);
-                if let Some(data) = data {
-                    let data = match bs58::decode(data).into_vec() {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return Err(Box::new(TransactionErr::Plain(ERRL!(
-                                "Failed to decode base58 data: {:?}",
-                                e
-                            ))))
-                        },
-                    };
-                    let instruction_data = &data[..];
-                    let instruction = match AtomicSwapInstruction::unpack(instruction_data[0], instruction_data) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return Err(Box::new(TransactionErr::Plain(ERRL!(
-                                "error unpacking tx data: {:?}",
-                                e
-                            ))))
-                        },
-                    };
-                    match instruction {
-                        AtomicSwapInstruction::LamportsPayment {
-                            secret_hash,
-                            lock_time,
-                            amount,
-                            receiver,
-                            rent_exemption_lamports,
-                            vault_bump_seed,
-                            vault_bump_seed_data,
-                        } => Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32]))),
-                        AtomicSwapInstruction::SLPTokenPayment {
-                            secret_hash,
-                            lock_time,
-                            amount,
-                            receiver,
-                            token_program,
-                            rent_exemption_lamports,
-                            vault_bump_seed,
-                            vault_bump_seed_data,
-                        } => Ok((lock_time, secret_hash, amount, token_program)),
-                        AtomicSwapInstruction::ReceiverSpend {
-                            secret,
-                            lock_time,
-                            amount,
-                            sender,
-                            token_program,
-                            vault_bump_seed,
-                            vault_bump_seed_data,
-                        } => Ok((lock_time, sha256(&secret).take(), amount, token_program)),
-                        AtomicSwapInstruction::SenderRefund {
-                            secret_hash,
-                            lock_time,
-                            amount,
-                            receiver,
-                            token_program,
-                            vault_bump_seed,
-                            vault_bump_seed_data,
-                        } => Ok((lock_time, secret_hash, amount, token_program)),
-                    }
-                } else {
-                    Err(Box::new(TransactionErr::Plain(ERRL!(
-                        "Solana ClientError: No data found"
-                    ))))
-                }
+        let transaction = deserialize(tx_hash);
+        let transaction: SolTransaction = match transaction {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(Box::new(TransactionErr::Plain(ERRL!(
+                    "error unpacking tx data: {:?}",
+                    e
+                ))))
             },
-            Err(e) => Err(Box::new(TransactionErr::Plain(ERRL!(
-                "Solana ClientError: Error fetching transaction: {:?}",
-                e
-            )))),
-        }
-    }
-
-    fn extract_instruction_data(&self, transaction: &EncodedTransaction) -> Option<String> {
-        if let EncodedTransaction::Json(transaction) = transaction {
-            if let UiMessage::Parsed(message) = &transaction.message {
-                if let Some(UiInstruction::Parsed(UiParsedInstruction::PartiallyDecoded(instruction))) =
-                    message.instructions.get(0)
-                {
-                    return Some(instruction.data.clone());
-                }
+        };
+        if let Some(instruction) = &transaction.message.instructions.get(0) {
+            let data = &instruction.data;
+            let instruction_data = &data[..];
+            let instruction = match AtomicSwapInstruction::unpack(instruction_data[0], instruction_data) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(Box::new(TransactionErr::Plain(ERRL!(
+                        "error unpacking tx data: {:?}",
+                        e
+                    ))))
+                },
+            };
+            match instruction {
+                AtomicSwapInstruction::LamportsPayment {
+                    secret_hash,
+                    lock_time,
+                    amount,
+                    receiver,
+                    rent_exemption_lamports,
+                    vault_bump_seed,
+                    vault_bump_seed_data,
+                } => Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32]))),
+                AtomicSwapInstruction::SLPTokenPayment {
+                    secret_hash,
+                    lock_time,
+                    amount,
+                    receiver,
+                    token_program,
+                    rent_exemption_lamports,
+                    vault_bump_seed,
+                    vault_bump_seed_data,
+                } => Ok((lock_time, secret_hash, amount, token_program)),
+                AtomicSwapInstruction::ReceiverSpend {
+                    secret,
+                    lock_time,
+                    amount,
+                    sender,
+                    token_program,
+                    vault_bump_seed,
+                    vault_bump_seed_data,
+                } => Ok((lock_time, sha256(&secret).take(), amount, token_program)),
+                AtomicSwapInstruction::SenderRefund {
+                    secret_hash,
+                    lock_time,
+                    amount,
+                    receiver,
+                    token_program,
+                    vault_bump_seed,
+                    vault_bump_seed_data,
+                } => Ok((lock_time, secret_hash, amount, token_program)),
             }
+        } else {
+            Err(Box::new(TransactionErr::Plain(ERRL!(
+                "Solana ClientError: No data found"
+            ))))
         }
-        None
     }
 
     pub fn sign_and_send_transaction(&self, program_id: Pubkey, accounts: Vec<AccountMeta>, data: Vec<u8>) -> SolTxFut {
@@ -695,7 +664,7 @@ impl SolanaCoin {
                     )))
                 },
             };
-            let transaction = SolTransaction::new_signed_with_payer(
+            let transaction: SolTransaction = SolTransaction::new_signed_with_payer(
                 &[instruction],
                 Some(&coin.key_pair.pubkey()), //payer pubkey
                 &[&coin.key_pair],             //payer
@@ -703,7 +672,7 @@ impl SolanaCoin {
             );
 
             let res = match coin.client.send_and_confirm_transaction(&transaction) {
-                Ok(signature) => Ok(signature),
+                Ok(_signature) => Ok(transaction),
                 Err(e) => Err(TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e))),
             };
             res

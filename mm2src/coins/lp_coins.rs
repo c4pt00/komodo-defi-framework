@@ -273,7 +273,7 @@ pub use solana::spl::SplToken;
     not(target_os = "android"),
     not(target_arch = "wasm32")
 ))]
-pub use solana::{SolSignature, SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
+pub use solana::{SolTransaction, SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
 
 pub mod utxo;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
@@ -588,7 +588,7 @@ pub enum TransactionEnum {
     UtxoTx(UtxoTx),
     SignedEthTx(SignedEthTx),
     #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
-    SolSignature(SolSignature),
+    SolTransaction(SolTransaction),
     ZTransaction(ZTransaction),
     CosmosTransaction(CosmosTransaction),
     #[cfg(not(target_arch = "wasm32"))]
@@ -598,7 +598,7 @@ pub enum TransactionEnum {
 ifrom!(TransactionEnum, UtxoTx);
 ifrom!(TransactionEnum, SignedEthTx);
 #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
-ifrom!(TransactionEnum, SolSignature);
+ifrom!(TransactionEnum, SolTransaction);
 ifrom!(TransactionEnum, ZTransaction);
 #[cfg(not(target_arch = "wasm32"))]
 ifrom!(TransactionEnum, LightningPayment);
@@ -623,7 +623,7 @@ impl Deref for TransactionEnum {
             #[cfg(not(target_arch = "wasm32"))]
             TransactionEnum::LightningPayment(ref p) => p,
             #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
-            TransactionEnum::SolSignature(ref s) => s,
+            TransactionEnum::SolTransaction(ref s) => s,
         }
     }
 }
