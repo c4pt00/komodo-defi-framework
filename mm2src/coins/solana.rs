@@ -579,7 +579,7 @@ impl SolanaCoin {
             Ok(v) => v,
             Err(e) => {
                 return Err(Box::new(TransactionErr::Plain(ERRL!(
-                    "error unpacking tx data: {:?}",
+                    "error deserializing tx_hash: {:?}",
                     e
                 ))))
             },
