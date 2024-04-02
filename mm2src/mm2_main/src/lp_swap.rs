@@ -1668,11 +1668,11 @@ impl SecretHashAlgo {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn detect_secret_hash_algo(maker_coin: &MmCoinEnum, taker_coin: &MmCoinEnum) -> SecretHashAlgo {
     match (maker_coin, taker_coin) {
-        (MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_) | MmCoinEnum::LightningCoin(_), _) => {
+        (MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_) | MmCoinEnum::LightningCoin(_) | MmCoinEnum::SolanaCoin(_), _) => {
             SecretHashAlgo::SHA256
         },
         // If taker is lightning coin the SHA256 of the secret will be sent as part of the maker signed invoice
-        (_, MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_)) => SecretHashAlgo::SHA256,
+        (_, MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_) | MmCoinEnum::SolanaCoin(_)) => SecretHashAlgo::SHA256,
         (_, _) => SecretHashAlgo::DHASH160,
     }
 }
