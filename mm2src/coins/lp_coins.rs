@@ -123,6 +123,27 @@ macro_rules! try_f {
     };
 }
 
+macro_rules! try_tx_fus_err {
+    ($err: expr) => {
+        return Box::new(futures01::future::err(crate::TransactionErr::Plain(ERRL!(
+            "{:?}", $err
+        ))))
+    };
+}
+
+macro_rules! try_tx_fus_opt {
+    ($e: expr, $err: expr) => {
+        match $e {
+            Some(ok) => ok,
+            None => {
+                return Box::new(futures01::future::err(crate::TransactionErr::Plain(ERRL!(
+                    "{:?}", $err
+                ))))
+            },
+        }
+    };
+}
+
 /// `TransactionErr` compatible `try_fus` macro.
 macro_rules! try_tx_fus {
     ($e: expr) => {
