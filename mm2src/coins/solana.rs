@@ -63,6 +63,7 @@ pub mod spl;
 
 pub const SOLANA_DEFAULT_DECIMALS: u64 = 9;
 pub const LAMPORTS_DUMMY_AMOUNT: u64 = 10;
+const PAYMENT_STORAGE_SPACE: u64 = 41;
 
 #[async_trait]
 pub trait SolanaCommonOps {
@@ -321,8 +322,7 @@ impl Transaction for SolTransaction {
     fn tx_hex(&self) -> Vec<u8> { serialize(self).unwrap() }
 
     fn tx_hash(&self) -> BytesJson {
-        let tx_hex = hex::encode(self.tx_hex());
-        BytesJson(tx_hex.into_bytes())
+        BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref()))
     }
 }
 impl SolanaCoin {
@@ -428,7 +428,7 @@ impl SolanaCoin {
             },
         };
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, rent_exemption_lamports) =
-            match self.create_vaults(args.time_lock, secret_hash, swap_program_id, 41) {
+            match self.create_vaults(args.time_lock, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE) {
                 Ok(v) => v,
                 Err(e) => {
                     return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
@@ -478,7 +478,7 @@ impl SolanaCoin {
             },
         };
         let secret_hash = sha256(secret.as_slice()).take();
-        let (lock_time, _secret_hash, amount, token_program) = match self.get_transaction_details(args.other_payment_tx)
+        let (lock_time, tx_secret_hash, amount, token_program) = match self.get_transaction_details(args.other_payment_tx)
         {
             Ok(v) => v,
             Err(e) => {
@@ -489,15 +489,15 @@ impl SolanaCoin {
                 ))));
             },
         };
-        if secret_hash != _secret_hash {
+        if secret_hash != tx_secret_hash {
             return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
                 "Provided secret_hash {:?} does not match transaction secret_hash {:?}",
                 secret_hash,
-                _secret_hash
+                tx_secret_hash
             ))));
         }
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
-            match self.create_vaults(lock_time, secret_hash, swap_program_id, 41) {
+            match self.create_vaults(lock_time, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE) {
                 Ok(v) => v,
                 Err(e) => {
                     return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
@@ -546,7 +546,7 @@ impl SolanaCoin {
             },
         };
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
-            match self.create_vaults(lock_time, secret_hash, swap_program_id, 41) {
+            match self.create_vaults(lock_time, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE) {
                 Ok(v) => v,
                 Err(e) => {
                     return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
