@@ -11,6 +11,8 @@ use std::sync::Arc;
 
 #[cfg(test)] use std::str::FromStr;
 
+const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
+
 /// HTTP(s) client for Sia-protocol coins
 #[derive(Debug)]
 pub struct SiaHttpClientImpl {
@@ -128,7 +130,7 @@ impl SiaApiClientImpl {
     pub async fn get_consensus_tip(&self) -> Result<GetConsensusTipResponse, SiaApiClientError> {
         let base_url = self.base_url.clone();
         let endpoint_url = base_url
-            .join("api/consensus/tip")
+            .join(ENDPOINT_CONSENSUS_TIP)
             .map_err(SiaApiClientError::UrlParse)?;
 
         fetch_and_parse::<GetConsensusTipResponse>(&self.client, endpoint_url).await
