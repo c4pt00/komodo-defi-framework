@@ -23,6 +23,7 @@ use crate::nft::nft_structs::{build_nft_with_empty_meta, BuildNftFields, ClearNf
                               NftTransferCommon, PhishingDomainReq, PhishingDomainRes, RefreshMetadataReq,
                               SpamContractReq, SpamContractRes, TransferMeta, TransferStatus, UriMeta};
 use crate::nft::storage::{NftListStorageOps, NftTransferHistoryStorageOps};
+use common::log::error;
 use common::parse_rfc3339_to_timestamp;
 use crypto::StandardHDCoinAddress;
 use ethereum_types::{Address, H256};
@@ -458,7 +459,7 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
 
     let storage = nft_ctx.lock_db().await?;
     let token_address_str = eth_addr_to_hex(&req.token_address);
-    let moralis_meta = match get_moralis_metadata(
+    let mut moralis_meta = match get_moralis_metadata(
         token_address_str.clone(),
         req.token_id.clone(),
         &req.chain,
@@ -487,10 +488,14 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
         })?;
     let token_uri = check_moralis_ipfs_bafy(moralis_meta.common.token_uri.as_deref());
     let token_domain = get_domain_from_url(token_uri.as_deref());
+    check_token_uri(&mut moralis_meta.common.possible_spam, token_uri.as_deref())?;
+    drop_mutability!(moralis_meta);
     let uri_meta = get_uri_meta(
         token_uri.as_deref(),
         moralis_meta.common.metadata.as_deref(),
         &req.url_antispam,
+        moralis_meta.common.possible_spam,
+        nft_db.possible_phishing,
     )
     .await;
     // Gather domains for phishing checks
@@ -911,14 +916,23 @@ fn check_moralis_ipfs_bafy(token_uri: Option<&str>) -> Option<String> {
     })
 }
 
-async fn get_uri_meta(token_uri: Option<&str>, metadata: Option<&str>, url_antispam: &Url) -> UriMeta {
+async fn get_uri_meta(
+    token_uri: Option<&str>,
+    metadata: Option<&str>,
+    url_antispam: &Url,
+    possible_spam: bool,
+    possible_phishing: bool,
+) -> UriMeta {
     let mut uri_meta = UriMeta::default();
-    // Fetching data from the URL if token_uri is provided
-    if let Some(token_uri) = token_uri {
-        if let Some(url) = construct_camo_url_with_token(token_uri, url_antispam) {
-            uri_meta = fetch_meta_from_url(url).await.unwrap_or_default();
+    if !possible_spam && !possible_phishing {
+        // Fetching data from the URL if token_uri is provided
+        if let Some(token_uri) = token_uri {
+            if let Some(url) = construct_camo_url_with_token(token_uri, url_antispam) {
+                uri_meta = fetch_meta_from_url(url).await.unwrap_or_default();
+            }
         }
     }
+
     // Filling fields from metadata if provided
     if let Some(metadata) = metadata {
         if let Ok(meta_from_meta) = serde_json::from_str::<UriMeta>(metadata) {
@@ -1175,8 +1189,18 @@ async fn handle_receive_erc1155<T: NftListStorageOps + NftTransferHistoryStorage
     Ok(())
 }
 
+// as there is no warranty that if link matches `is_malicious` it is a phishing, so mark it as spam
+fn check_token_uri(possible_spam: &mut bool, token_uri: Option<&str>) -> MmResult<(), regex::Error> {
+    if let Some(uri) = token_uri {
+        if is_malicious(uri)? {
+            *possible_spam = true;
+        }
+    }
+    Ok(())
+}
+
 async fn create_nft_from_moralis_metadata(
-    moralis_meta: Nft,
+    mut moralis_meta: Nft,
     transfer: &NftTransferHistory,
     my_address: &str,
     chain: &Chain,
@@ -1184,10 +1208,13 @@ async fn create_nft_from_moralis_metadata(
 ) -> MmResult<Nft, UpdateNftError> {
     let token_uri = check_moralis_ipfs_bafy(moralis_meta.common.token_uri.as_deref());
     let token_domain = get_domain_from_url(token_uri.as_deref());
+    check_token_uri(&mut moralis_meta.common.possible_spam, token_uri.as_deref())?;
     let uri_meta = get_uri_meta(
         token_uri.as_deref(),
         moralis_meta.common.metadata.as_deref(),
         url_antispam,
+        moralis_meta.common.possible_spam,
+        moralis_meta.possible_phishing,
     )
     .await;
     let nft = Nft {
@@ -1308,6 +1335,18 @@ where
     Ok(())
 }
 
+/// Checks if the given URL is potentially malicious based on certain patterns.
+fn is_malicious(token_uri: &str) -> MmResult<bool, regex::Error> {
+    let patterns = vec![r"\.(xyz|gq|top)(/|$)", r"\.(json|xml|jpg|png)[%?]"];
+    for pattern in patterns {
+        let regex = Regex::new(pattern)?;
+        if regex.is_match(token_uri) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// `contains_disallowed_scheme` function checks if the text contains some link.
 fn contains_disallowed_url(text: &str) -> Result<bool, regex::Error> {
     let url_regex = Regex::new(
@@ -1412,15 +1451,20 @@ fn process_metadata_field(
 
 async fn build_nft_from_moralis(
     chain: Chain,
-    nft_moralis: NftFromMoralis,
+    mut nft_moralis: NftFromMoralis,
     contract_type: ContractType,
     url_antispam: &Url,
 ) -> Nft {
     let token_uri = check_moralis_ipfs_bafy(nft_moralis.common.token_uri.as_deref());
+    if let Err(e) = check_token_uri(&mut nft_moralis.common.possible_spam, token_uri.as_deref()) {
+        error!("Error checking token URI: {}", e);
+    }
     let uri_meta = get_uri_meta(
         token_uri.as_deref(),
         nft_moralis.common.metadata.as_deref(),
         url_antispam,
+        nft_moralis.common.possible_spam,
+        false,
     )
     .await;
     let token_domain = get_domain_from_url(token_uri.as_deref());

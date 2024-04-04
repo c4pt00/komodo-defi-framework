@@ -4,7 +4,7 @@ use crate::nft::nft_structs::{Chain, NftFromMoralis, NftListFilters, NftTransfer
                               SpamContractRes, TransferMeta, UriMeta};
 use crate::nft::storage::db_test_helpers::{get_nft_ctx, nft, nft_list, nft_transfer_history};
 use crate::nft::storage::{NftListStorageOps, NftTransferHistoryStorageOps, RemoveNftResult};
-use crate::nft::{check_moralis_ipfs_bafy, get_domain_from_url, process_metadata_for_spam_link,
+use crate::nft::{check_moralis_ipfs_bafy, get_domain_from_url, is_malicious, process_metadata_for_spam_link,
                  process_text_for_spam_link};
 use common::cross_test;
 use ethereum_types::Address;
@@ -29,6 +29,14 @@ common::cfg_wasm32! {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     use mm2_net::wasm::http::send_request_to_uri;
 }
+
+cross_test!(test_is_malicious, {
+    let token_uri = "https://btrgtrhbyjuyj.xyz/BABYDOGE.json";
+    assert!(is_malicious(token_uri).unwrap());
+
+    let token_uri1 = "https://btrgtrhbyjuyj.com/BABYDOGE.json%00";
+    assert!(is_malicious(token_uri1).unwrap());
+});
 
 cross_test!(test_moralis_ipfs_bafy, {
     let uri = "https://ipfs.moralis.io:2053/ipfs/bafybeifnek24coy5xj5qabdwh24dlp5omq34nzgvazkfyxgnqms4eidsiq/1.json";
