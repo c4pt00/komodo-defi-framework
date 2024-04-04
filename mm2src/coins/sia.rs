@@ -61,6 +61,8 @@ pub struct SiaHttpConf {
     pub auth: String,
 }
 
+// TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
+// for additional fields needed
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiaCoinActivationParams {
     #[serde(default)]
