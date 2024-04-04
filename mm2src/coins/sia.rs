@@ -89,6 +89,8 @@ impl<'a> SiaConfBuilder<'a> {
     }
 }
 
+// TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521668313
+// for additional fields needed
 pub struct SiaCoinFields {
     /// SIA coin config
     pub conf: SiaCoinConf,
