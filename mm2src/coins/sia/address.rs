@@ -1,8 +1,6 @@
-#[allow(unused_imports)] use blake2b_simd::Params;
 use hex::FromHexError;
 use rpc::v1::types::H256;
 use std::convert::TryInto;
-//use std::error::Error;
 use crate::sia::blake2b_internal::standard_unlock_hash;
 use ed25519_dalek::PublicKey;
 use serde::{Deserialize, Serialize};
