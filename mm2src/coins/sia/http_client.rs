@@ -2,7 +2,7 @@ use crate::sia::SiaHttpConf;
 use core::fmt::Display;
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{Client, Url};
+use reqwest::{Client, Error, Url};
 use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -22,6 +22,7 @@ pub struct SiaHttpClientImpl {
 
 #[derive(Clone, Debug)]
 pub struct SiaApiClient(pub Arc<SiaApiClientImpl>);
+
 impl Deref for SiaApiClient {
     type Target = SiaApiClientImpl;
     fn deref(&self) -> &SiaApiClientImpl { &self.0 }
@@ -36,7 +37,7 @@ impl SiaApiClient {
 
 #[derive(Debug)]
 pub struct SiaApiClientImpl {
-    client: reqwest::Client,
+    client: Client,
     base_url: Url,
 }
 
@@ -44,7 +45,7 @@ pub struct SiaApiClientImpl {
 // this can be removed in favor of using ".with_url()" once reqwest is updated to v0.11.23
 #[derive(Debug)]
 pub struct ReqwestErrorWithUrl {
-    error: reqwest::Error,
+    error: Error,
     url: Url,
 }
 
@@ -109,7 +110,7 @@ impl SiaApiClientImpl {
             HeaderValue::from_str(&auth_value).map_err(|e| SiaApiClientError::BuildError(e.to_string()))?,
         );
 
-        let client = reqwest::Client::builder()
+        let client = Client::builder()
             .default_headers(headers)
             .timeout(Duration::from_secs(10)) // TODO make this configurable
             .build()
