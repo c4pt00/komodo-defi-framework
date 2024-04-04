@@ -98,7 +98,7 @@ impl SpendPolicy {
         // if self is a threshold policy, we need to convert all of its subpolicies to opaque
         let mut new_policy = self.clone();
         if let SpendPolicy::Threshold(ref mut p) = new_policy {
-            p.of = p.of.iter().map(|policy| SpendPolicy::opaque(policy)).collect();
+            p.of = p.of.iter().map(SpendPolicy::opaque).collect();
         }
 
         let encoded_policy = new_policy.encode();
@@ -191,7 +191,7 @@ fn test_unlock_condition_unlock_hash_standard() {
         &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
     )
     .unwrap();
-    let unlock_condition = UnlockCondition::new(vec![pubkey.clone()], 0, 1);
+    let unlock_condition = UnlockCondition::new(vec![pubkey], 0, 1);
 
     let hash = unlock_condition.unlock_hash();
     let expected = H256::from("72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515d");

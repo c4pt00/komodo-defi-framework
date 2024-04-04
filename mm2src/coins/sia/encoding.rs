@@ -1,6 +1,9 @@
 use crate::sia::blake2b_internal::hash_blake2b_single;
 use rpc::v1::types::H256;
 
+// https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
+// TODO go implementation limits this to 1024 bytes, should we?
+#[derive(Default)]
 pub struct Encoder {
     pub buffer: Vec<u8>,
 }
@@ -31,14 +34,6 @@ impl Encoder {
     }
 
     pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
-}
-
-impl Default for Encoder {
-    fn default() -> Self {
-        // https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
-        // TODO go implementation limits this to 1024 bytes, should we?
-        Encoder { buffer: Vec::new() }
-    }
 }
 
 #[test]
