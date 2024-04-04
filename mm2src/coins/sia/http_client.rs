@@ -1,3 +1,4 @@
+use crate::sia::SiaHttpConf;
 use core::fmt::Display;
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -5,7 +6,6 @@ use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
-use crate::sia::SiaHttpConf;
 
 use mm2_number::MmNumber;
 
