@@ -13,6 +13,13 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Address(pub H256);
 
+impl Address {
+    pub fn str_without_prefix(&self) -> String {
+        let checksum = blake2b_checksum(self.0 .0.as_ref());
+        format!("{}{}", hex::encode(self.0 .0.as_ref()), hex::encode(checksum))
+    }
+}
+
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let checksum = blake2b_checksum(self.0 .0.as_ref());
@@ -148,4 +155,15 @@ fn test_address_fromstr_invalid_checksum() {
     let address =
         Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a884ffffffffffff");
     assert!(matches!(address, Err(ParseAddressError::InvalidChecksum)));
+}
+
+#[test]
+fn test_address_str_without_prefix() {
+    let address =
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a884ffffffffffff").unwrap();
+
+    assert_eq!(
+        address.str_without_prefix(),
+        "591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a884ffffffffffff"
+    );
 }
