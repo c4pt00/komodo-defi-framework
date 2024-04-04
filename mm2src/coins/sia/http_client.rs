@@ -1,13 +1,15 @@
+use crate::sia::address::Address;
 use crate::sia::SiaHttpConf;
 use core::fmt::Display;
 use core::time::Duration;
+use mm2_number::MmNumber;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Error, Url};
 use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use mm2_number::MmNumber;
+#[cfg(test)] use std::str::FromStr;
 
 /// HTTP(s) client for Sia-protocol coins
 #[derive(Debug)]
@@ -132,15 +134,23 @@ impl SiaApiClientImpl {
         fetch_and_parse::<GetConsensusTipResponse>(&self.client, endpoint_url).await
     }
 
-    pub async fn get_addresses_balance(&self, address: &str) -> Result<GetAddressesBalanceResponse, SiaApiClientError> {
-        let base_url = self.base_url.clone();
+    pub async fn get_addresses_balance(
+        &self,
+        address: &Address,
+    ) -> Result<GetAddressesBalanceResponse, SiaApiClientError> {
+        self.get_addresses_balance_str(&address.str_without_prefix()).await
+    }
 
-        // TODO Validate or sanitize `address` here if necessary
+    // use get_addresses_balance whenever possible to rely on Address deserialization
+    pub async fn get_addresses_balance_str(
+        &self,
+        address: &str,
+    ) -> Result<GetAddressesBalanceResponse, SiaApiClientError> {
+        let base_url = self.base_url.clone();
 
         let endpoint_path = format!("api/addresses/{}/balance", address);
         let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
 
-        println!("endpoint url {}", endpoint_url);
         fetch_and_parse::<GetAddressesBalanceResponse>(&self.client, endpoint_url).await
     }
 
@@ -179,10 +189,9 @@ async fn test_api_client() {
 #[ignore]
 async fn test_api_get_addresses_balance() {
     let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
-    let result = api_client
-        .get_addresses_balance("591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
-        .await
-        .unwrap();
+    let address =
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
+    let result = api_client.get_addresses_balance(&address).await.unwrap();
     println!("ret {:?}", result);
 }
 
@@ -190,6 +199,6 @@ async fn test_api_get_addresses_balance() {
 #[ignore]
 async fn test_api_get_addresses_balance_invalid() {
     let api_client = SiaApiClientImpl::new(Url::parse("http://127.0.0.1:9980").unwrap(), "password").unwrap();
-    let result = api_client.get_addresses_balance("what").await.unwrap();
+    let result = api_client.get_addresses_balance_str("what").await.unwrap();
     println!("ret {:?}", result);
 }
