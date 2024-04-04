@@ -156,6 +156,7 @@ impl HttpStatusCode for GetNftInfoError {
 pub enum UpdateNftError {
     #[display(fmt = "DB error {}", _0)]
     DbError(String),
+    #[from_stringify("regex::Error")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
     GetNftInfoError(GetNftInfoError),

@@ -806,6 +806,7 @@ where
 #[derive(Debug, Deserialize)]
 pub struct ClearNftDbReq {
     /// Specifies the blockchain networks (e.g., Ethereum, BSC) to clear NFT data.
+    #[serde(default)]
     pub(crate) chains: Vec<Chain>,
     /// If `true`, clears NFT data for all chains, ignoring the `chains` field. Defaults to `false`.
     #[serde(default)]
