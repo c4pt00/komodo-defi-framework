@@ -207,6 +207,7 @@ async fn dispatcher_v2(request: MmRpcRequest<String, Json>, ctx: MmArc) -> Dispa
         "ibc_chains" => handle_mmrpc(ctx, request, ibc_chains).await,
         "ibc_transfer_channels" => handle_mmrpc(ctx, request, ibc_transfer_channels).await,
         "withdraw_nft" => handle_mmrpc(ctx, request, withdraw_nft).await,
+        "z_coin_tx_history" => handle_mmrpc(ctx, request, coins::my_tx_history_v2::z_coin_tx_history_rpc).await,
         #[cfg(not(target_arch = "wasm32"))]
         native_only_methods => match native_only_methods {
             #[cfg(all(feature = "enable-solana", not(target_os = "ios"), not(target_os = "android")))]
@@ -215,7 +216,6 @@ async fn dispatcher_v2(request: MmRpcRequest<String, Json>, ctx: MmArc) -> Dispa
             },
             #[cfg(all(feature = "enable-solana", not(target_os = "ios"), not(target_os = "android")))]
             "enable_spl" => handle_mmrpc(ctx, request, enable_token::<SplToken>).await,
-            "z_coin_tx_history" => handle_mmrpc(ctx, request, coins::my_tx_history_v2::z_coin_tx_history_rpc).await,
             _ => MmError::err(DispatcherError::NoSuchMethod),
         },
         #[cfg(target_arch = "wasm32")]
