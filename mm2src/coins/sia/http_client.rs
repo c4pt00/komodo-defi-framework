@@ -5,6 +5,7 @@ use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
+use crate::sia::SiaHttpConf;
 
 use mm2_number::MmNumber;
 
@@ -27,8 +28,8 @@ impl Deref for SiaApiClient {
 }
 
 impl SiaApiClient {
-    pub fn new(_coin_ticker: &str, base_url: Url, auth: &str) -> Result<Self, SiaApiClientError> {
-        let new_arc = SiaApiClientImpl::new(base_url, auth)?;
+    pub fn new(_coin_ticker: &str, http_conf: SiaHttpConf) -> Result<Self, SiaApiClientError> {
+        let new_arc = SiaApiClientImpl::new(http_conf.url, &http_conf.auth)?;
         Ok(SiaApiClient(Arc::new(new_arc)))
     }
 }

@@ -56,13 +56,18 @@ pub struct SiaCoinConf {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SiaHttpConf {
+    pub url: Url,
+    pub auth: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiaCoinActivationParams {
     #[serde(default)]
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
-    pub http_url: Url,
-    pub http_auth: String,
+    pub http_conf: SiaHttpConf,
 }
 
 pub struct SiaConfBuilder<'a> {
@@ -165,7 +170,7 @@ impl<'a> SiaCoinBuilder<'a> {
         let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
         let sia_fields = SiaCoinFields {
             conf,
-            http_client: SiaApiClient::new(self.ticker(), self.params.http_url.clone(), &self.params.http_auth)
+            http_client: SiaApiClient::new(self.ticker(), self.params.http_conf.clone())
                 .map_err(SiaCoinBuildError::ClientError)?,
             key_pair: PrivKeyPolicy::Iguana(self.key_pair),
         };
