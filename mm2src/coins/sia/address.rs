@@ -34,8 +34,6 @@ pub enum ParseAddressError {
     // Add other error kinds as needed
 }
 
-//impl Error for ParseAddressErrorKind {}
-
 impl From<FromHexError> for ParseAddressError {
     fn from(e: FromHexError) -> Self { ParseAddressError::InvalidHexEncoding(e.to_string()) }
 }
