@@ -1,9 +1,10 @@
+use crate::sia::blake2b_internal::standard_unlock_hash;
+use blake2b_simd::Params;
+use ed25519_dalek::PublicKey;
 use hex::FromHexError;
 use rpc::v1::types::H256;
-use std::convert::TryInto;
-use crate::sia::blake2b_internal::standard_unlock_hash;
-use ed25519_dalek::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
@@ -36,7 +37,7 @@ pub enum ParseAddressError {
 //impl Error for ParseAddressErrorKind {}
 
 impl From<FromHexError> for ParseAddressError {
-    fn from(e: FromHexError) -> Self { ParseAddressError::InvalidHexEncoding(format!("{:?}", e)) }
+    fn from(e: FromHexError) -> Self { ParseAddressError::InvalidHexEncoding(e.to_string()) }
 }
 
 impl FromStr for Address {
