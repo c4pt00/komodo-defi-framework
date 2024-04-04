@@ -166,7 +166,6 @@ fn test_withdraw_impl_fee_details() {
         "total_gas_fee": "1",
     }))
     .unwrap();
-    println!("MINER_FEE {expected_miner_fee}");
     assert_eq!(tx_details.fee_details, Some(TxFeeDetails::Qrc20(expected)));
 }
 
