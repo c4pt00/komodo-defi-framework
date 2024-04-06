@@ -113,9 +113,11 @@ impl rustls::client::ServerCertVerifier for NoCertificateVerification {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, EnumFromStringify)]
 pub enum UtxoRpcClientEnum {
+    #[from_stringify("NativeClient")]
     Native(NativeClient),
+    #[from_stringify("ElectrumClient")]
     Electrum(ElectrumClient),
 }
 
@@ -126,14 +128,6 @@ impl ToString for UtxoRpcClientEnum {
             UtxoRpcClientEnum::Electrum(_) => "electrum".to_owned(),
         }
     }
-}
-
-impl From<ElectrumClient> for UtxoRpcClientEnum {
-    fn from(client: ElectrumClient) -> UtxoRpcClientEnum { UtxoRpcClientEnum::Electrum(client) }
-}
-
-impl From<NativeClient> for UtxoRpcClientEnum {
-    fn from(client: NativeClient) -> UtxoRpcClientEnum { UtxoRpcClientEnum::Native(client) }
 }
 
 impl Deref for UtxoRpcClientEnum {

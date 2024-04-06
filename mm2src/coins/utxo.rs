@@ -108,8 +108,7 @@ use super::{big_decimal_from_sat_unsigned, BalanceError, BalanceFut, BalanceResu
             MarketCoinOps, MmCoin, NumConversError, NumConversResult, PrivKeyActivationPolicy, PrivKeyPolicy,
             PrivKeyPolicyNotAllowed, RawTransactionFut, RpcTransportEventHandler, RpcTransportEventHandlerShared,
             TradeFee, TradePreimageError, TradePreimageFut, TradePreimageResult, Transaction, TransactionDetails,
-            TransactionEnum, TransactionErr, UnexpectedDerivationMethod, VerificationError, WithdrawError,
-            WithdrawRequest};
+            TransactionEnum, TransactionErr, UnexpectedDerivationMethod, WithdrawError, WithdrawRequest};
 use crate::coin_balance::{EnableCoinScanPolicy, EnabledCoinBalanceParams, HDAddressBalanceScanner};
 use crate::hd_wallet::{HDAccountOps, HDAccountsMutex, HDAddress, HDAddressId, HDWalletCoinOps, HDWalletOps,
                        InvalidBip44ChainError};
@@ -611,7 +610,7 @@ pub struct UtxoCoinFields {
     scripthash_notification_handler: ScripthashNotificationHandler,
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum UnsupportedAddr {
     #[display(
         fmt = "{} address format activated for {}, but {} format used instead",
@@ -631,36 +630,26 @@ pub enum UnsupportedAddr {
     #[display(fmt = "Segwit not activated in the config for {}", _0)]
     SegwitNotActivated(String),
     #[display(fmt = "Internal error {}", _0)]
+    #[from_stringify("keys::Error")]
     InternalError(String),
 }
 
-impl From<UnsupportedAddr> for WithdrawError {
-    fn from(e: UnsupportedAddr) -> Self { WithdrawError::InvalidAddress(e.to_string()) }
-}
-
-impl From<keys::Error> for UnsupportedAddr {
-    fn from(e: keys::Error) -> Self { UnsupportedAddr::InternalError(e.to_string()) }
-}
-
-#[derive(Debug)]
+#[derive(Debug, EnumFromStringify)]
 #[allow(clippy::large_enum_variant)]
 pub enum GetTxError {
+    #[from_stringify("UtxoRpcError")]
     Rpc(UtxoRpcError),
+    #[from_stringify("SerError")]
     TxDeserialization(SerError),
 }
 
-impl From<UtxoRpcError> for GetTxError {
-    fn from(err: UtxoRpcError) -> GetTxError { GetTxError::Rpc(err) }
-}
-
-impl From<SerError> for GetTxError {
-    fn from(err: SerError) -> GetTxError { GetTxError::TxDeserialization(err) }
-}
-
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum GetTxHeightError {
+    #[from_stringify("UtxoRpcError")]
     HeightNotFound(String),
+    #[from_stringify("BlockHeaderStorageError")]
     StorageError(BlockHeaderStorageError),
+    #[from_stringify("TryFromIntError")]
     ConversionError(TryFromIntError),
 }
 
@@ -674,25 +663,16 @@ impl From<GetTxHeightError> for SPVError {
     }
 }
 
-impl From<UtxoRpcError> for GetTxHeightError {
-    fn from(e: UtxoRpcError) -> Self { GetTxHeightError::HeightNotFound(e.to_string()) }
-}
-
-impl From<BlockHeaderStorageError> for GetTxHeightError {
-    fn from(e: BlockHeaderStorageError) -> Self { GetTxHeightError::StorageError(e) }
-}
-
-impl From<TryFromIntError> for GetTxHeightError {
-    fn from(err: TryFromIntError) -> GetTxHeightError { GetTxHeightError::ConversionError(err) }
-}
-
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum GetBlockHeaderError {
     #[display(fmt = "Block header storage error: {}", _0)]
+    #[from_stringify("BlockHeaderStorageError")]
     StorageError(BlockHeaderStorageError),
     #[display(fmt = "RPC error: {}", _0)]
+    #[from_stringify("JsonRpcError")]
     RpcError(JsonRpcError),
     #[display(fmt = "Serialization error: {}", _0)]
+    #[from_stringify("serialization::Error")]
     SerializationError(serialization::Error),
     #[display(fmt = "Invalid response: {}", _0)]
     InvalidResponse(String),
@@ -700,10 +680,6 @@ pub enum GetBlockHeaderError {
     SPVError(SPVError),
     #[display(fmt = "Internal error: {}", _0)]
     Internal(String),
-}
-
-impl From<JsonRpcError> for GetBlockHeaderError {
-    fn from(err: JsonRpcError) -> Self { GetBlockHeaderError::RpcError(err) }
 }
 
 impl From<UtxoRpcError> for GetBlockHeaderError {
@@ -716,61 +692,30 @@ impl From<UtxoRpcError> for GetBlockHeaderError {
     }
 }
 
-impl From<serialization::Error> for GetBlockHeaderError {
-    fn from(err: serialization::Error) -> Self { GetBlockHeaderError::SerializationError(err) }
-}
-
-impl From<BlockHeaderStorageError> for GetBlockHeaderError {
-    fn from(err: BlockHeaderStorageError) -> Self { GetBlockHeaderError::StorageError(err) }
-}
-
 impl From<GetBlockHeaderError> for SPVError {
     fn from(e: GetBlockHeaderError) -> Self { SPVError::UnableToGetHeader(e.to_string()) }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum GetConfirmedTxError {
+    #[from_stringify("GetTxHeightError")]
     HeightNotFound(GetTxHeightError),
+    #[from_stringify("GetBlockHeaderError")]
     UnableToGetHeader(GetBlockHeaderError),
+    #[from_stringify("JsonRpcError")]
     RpcError(JsonRpcError),
+    #[from_stringify("serialization::Error")]
     SerializationError(serialization::Error),
     SPVError(SPVError),
 }
 
-impl From<GetTxHeightError> for GetConfirmedTxError {
-    fn from(err: GetTxHeightError) -> Self { GetConfirmedTxError::HeightNotFound(err) }
-}
-
-impl From<GetBlockHeaderError> for GetConfirmedTxError {
-    fn from(err: GetBlockHeaderError) -> Self { GetConfirmedTxError::UnableToGetHeader(err) }
-}
-
-impl From<JsonRpcError> for GetConfirmedTxError {
-    fn from(err: JsonRpcError) -> Self { GetConfirmedTxError::RpcError(err) }
-}
-
-impl From<serialization::Error> for GetConfirmedTxError {
-    fn from(err: serialization::Error) -> Self { GetConfirmedTxError::SerializationError(err) }
-}
-
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum AddrFromStrError {
     #[display(fmt = "{}", _0)]
+    #[from_stringify("UnsupportedAddr")]
     Unsupported(UnsupportedAddr),
     #[display(fmt = "Cannot determine format: {:?}", _0)]
     CannotDetermineFormat(Vec<String>),
-}
-
-impl From<UnsupportedAddr> for AddrFromStrError {
-    fn from(e: UnsupportedAddr) -> Self { AddrFromStrError::Unsupported(e) }
-}
-
-impl From<AddrFromStrError> for VerificationError {
-    fn from(e: AddrFromStrError) -> Self { VerificationError::AddressDecodingError(e.to_string()) }
-}
-
-impl From<AddrFromStrError> for WithdrawError {
-    fn from(e: AddrFromStrError) -> Self { WithdrawError::InvalidAddress(e.to_string()) }
 }
 
 impl UtxoCoinFields {
@@ -815,17 +760,14 @@ impl UtxoCoinFields {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 #[allow(clippy::large_enum_variant)]
 pub enum BroadcastTxErr {
     /// RPC client error
+    #[from_stringify("UtxoRpcError")]
     Rpc(UtxoRpcError),
     /// Other specific error
     Other(String),
-}
-
-impl From<UtxoRpcError> for BroadcastTxErr {
-    fn from(err: UtxoRpcError) -> Self { BroadcastTxErr::Rpc(err) }
 }
 
 #[async_trait]

@@ -1,5 +1,7 @@
-use crate::{eth::Web3RpcError, qrc20::Qrc20AbiError, utxo::rpc_clients::UtxoRpcError, NumConversError,
-            UnexpectedDerivationMethod};
+use crate::{eth::Web3RpcError,
+            qrc20::Qrc20AbiError,
+            utxo::{rpc_clients::UtxoRpcError, slp::ParseSlpScriptError},
+            NumConversError, UnexpectedDerivationMethod};
 use enum_derives::EnumFromStringify;
 use futures01::Future;
 use mm2_err_handle::prelude::MmError;
@@ -18,7 +20,7 @@ pub enum ValidatePaymentError {
     #[from_stringify("NumConversError", "UnexpectedDerivationMethod", "keys::Error")]
     InternalError(String),
     /// Problem with deserializing the transaction, or one of the transaction parts is invalid.
-    #[from_stringify("rlp::DecoderError", "serialization::Error", "Qrc20AbiError")]
+    #[from_stringify("rlp::DecoderError", "serialization::Error", "Qrc20AbiError", "ParseSlpScriptError")]
     TxDeserializationError(String),
     /// One of the input parameters is invalid.
     InvalidParameter(String),

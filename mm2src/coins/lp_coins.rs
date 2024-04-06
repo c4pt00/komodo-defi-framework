@@ -295,8 +295,8 @@ use utxo::slp::SlpToken;
 use utxo::slp::{slp_addr_from_pubkey_str, SlpFeeDetails};
 use utxo::utxo_common::big_decimal_from_sat_unsigned;
 use utxo::utxo_standard::{utxo_standard_coin_with_policy, UtxoStandardCoin};
-use utxo::UtxoActivationParams;
-use utxo::{BlockchainNetwork, GenerateTxError, UtxoFeeDetails, UtxoTx};
+use utxo::{AddrFromStrError, BlockchainNetwork, GenerateTxError, UtxoFeeDetails, UtxoTx};
+use utxo::{UnsupportedAddr, UtxoActivationParams};
 
 pub mod nft;
 
@@ -1942,6 +1942,7 @@ pub enum TxFeeDetails {
     Eth(EthTxFeeDetails),
     #[from_stringify("Qrc20FeeDetails")]
     Qrc20(Qrc20FeeDetails),
+    #[from_stringify("SlpFeeDetails")]
     Slp(SlpFeeDetails),
     #[from_stringify("TendermintFeeDetails")]
     Tendermint(TendermintFeeDetails),
@@ -2550,6 +2551,7 @@ pub enum WithdrawError {
         threshold: BigDecimal,
     },
     #[display(fmt = "Invalid address: {}", _0)]
+    #[from_stringify("UnsupportedAddr", "AddrFromStrError")]
     InvalidAddress(String),
     #[display(fmt = "Invalid fee policy: {}", _0)]
     InvalidFeePolicy(String),
@@ -2592,7 +2594,9 @@ pub enum WithdrawError {
         "PrivKeyPolicyNotAllowed",
         "ethabi::Error",
         "MyAddressError",
-        "Qrc20AbiError"
+        "Qrc20AbiError",
+        "CryptoCtxError",
+        "keys::Error"
     )]
     InternalError(String),
     #[display(fmt = "Unsupported error: {}", _0)]
@@ -2805,7 +2809,7 @@ pub enum VerificationError {
     #[from_stringify("base64::DecodeError")]
     SignatureDecodingError(String),
     #[display(fmt = "Address decoding error: {}", _0)]
-    #[from_stringify("hex::FromHexError")]
+    #[from_stringify("hex::FromHexError", "AddrFromStrError")]
     AddressDecodingError(String),
     #[display(fmt = "Coin is not found: {}", _0)]
     #[from_stringify("CoinFindError")]

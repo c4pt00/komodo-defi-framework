@@ -8,32 +8,28 @@ use crypto::trezor::utxo::IGNORE_XPUB_MAGIC;
 use crypto::trezor::{ProcessTrezorResponse, TrezorError, TrezorProcessingError};
 use crypto::{CryptoCtx, CryptoCtxError, DerivationPath, EcdsaCurve, HardwareWalletArc, HwError, HwProcessingError,
              XPub, XPubConverter, XpubError};
+use enum_derives::EnumFromStringify;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use rpc_task::{RpcTask, RpcTaskError, RpcTaskHandleShared};
 
 const SHOW_PUBKEY_ON_DISPLAY: bool = false;
 
-#[derive(Clone)]
+#[derive(Clone, EnumFromStringify)]
 pub enum HDExtractPubkeyError {
     HwContextNotInitialized,
     CoinDoesntSupportTrezor,
     RpcTaskError(RpcTaskError),
+    #[from_stringify("HwError")]
     HardwareWalletError(HwError),
+    #[from_stringify("XpubError")]
     InvalidXpub(String),
+    #[from_stringify("CryptoCtxError")]
     Internal(String),
-}
-
-impl From<CryptoCtxError> for HDExtractPubkeyError {
-    fn from(e: CryptoCtxError) -> Self { HDExtractPubkeyError::Internal(e.to_string()) }
 }
 
 impl From<TrezorError> for HDExtractPubkeyError {
     fn from(e: TrezorError) -> Self { HDExtractPubkeyError::HardwareWalletError(HwError::from(e)) }
-}
-
-impl From<HwError> for HDExtractPubkeyError {
-    fn from(e: HwError) -> Self { HDExtractPubkeyError::HardwareWalletError(e) }
 }
 
 impl From<TrezorProcessingError<RpcTaskError>> for HDExtractPubkeyError {
@@ -53,10 +49,6 @@ impl From<HwProcessingError<RpcTaskError>> for HDExtractPubkeyError {
             HwProcessingError::InternalError(err) => HDExtractPubkeyError::Internal(err),
         }
     }
-}
-
-impl From<XpubError> for HDExtractPubkeyError {
-    fn from(e: XpubError) -> Self { HDExtractPubkeyError::InvalidXpub(e.to_string()) }
 }
 
 impl From<HDExtractPubkeyError> for NewAccountCreatingError {

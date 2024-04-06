@@ -48,11 +48,8 @@ pub enum HDWalletStorageError {
     #[display(fmt = "Error serializing a swap: {}", _0)]
     ErrorSerializing(String),
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_stringify("CryptoCtxError")]
     Internal(String),
-}
-
-impl From<CryptoCtxError> for HDWalletStorageError {
-    fn from(e: CryptoCtxError) -> Self { HDWalletStorageError::Internal(e.to_string()) }
 }
 
 impl HDWalletStorageError {
