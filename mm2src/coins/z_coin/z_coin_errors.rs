@@ -220,26 +220,19 @@ impl From<SqliteError> for ZCoinBuildError {
     fn from(err: SqliteError) -> ZCoinBuildError { ZCoinBuildError::ZcashDBError(err.to_string()) }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Display, EnumFromStringify)]
-pub(super) enum SqlTxHistoryError {
+pub enum ZTxHistoryError {
+    #[cfg(not(target_arch = "wasm32"))]
     #[from_stringify("SqliteError")]
     Sql(SqliteError),
     #[cfg(target_arch = "wasm32")]
+    #[from_stringify("CursorError", "DbTransactionError")]
     IndexedDbError(String),
     FromIdDoesNotExist(i64),
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-impl From<SqlTxHistoryError> for MyTxHistoryErrorV2 {
-    fn from(err: SqlTxHistoryError) -> Self {
-        match err {
-            SqlTxHistoryError::Sql(sql) => MyTxHistoryErrorV2::StorageError(sql.to_string()),
-            SqlTxHistoryError::FromIdDoesNotExist(id) => {
-                MyTxHistoryErrorV2::StorageError(format!("from_id {} does not exist", id))
-            },
-        }
-    }
+impl From<ZTxHistoryError> for MyTxHistoryErrorV2 {
+    fn from(err: ZTxHistoryError) -> Self { Self::StorageError(err.to_string()) }
 }
 
 pub(super) struct NoInfoAboutTx(pub(super) H256Json);
