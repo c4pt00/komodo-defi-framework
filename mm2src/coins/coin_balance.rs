@@ -6,6 +6,7 @@ use crate::{BalanceError, BalanceResult, CoinBalance, CoinWithDerivationMethod, 
 use async_trait::async_trait;
 use common::log::{debug, info};
 use crypto::{Bip44Chain, RpcDerivationPath};
+use enum_derives::EnumFromStringify;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::*;
 use mm2_number::BigDecimal;
@@ -16,22 +17,14 @@ use std::{fmt, iter};
 
 pub type AddressIdRange = Range<u32>;
 
+#[derive(EnumFromStringify)]
 pub enum EnableCoinBalanceError {
+    #[from_stringify("NewAddressDerivingError")]
     NewAddressDerivingError(NewAddressDerivingError),
+    #[from_stringify("NewAccountCreatingError")]
     NewAccountCreatingError(NewAccountCreatingError),
+    #[from_stringify("BalanceError")]
     BalanceError(BalanceError),
-}
-
-impl From<NewAddressDerivingError> for EnableCoinBalanceError {
-    fn from(e: NewAddressDerivingError) -> Self { EnableCoinBalanceError::NewAddressDerivingError(e) }
-}
-
-impl From<NewAccountCreatingError> for EnableCoinBalanceError {
-    fn from(e: NewAccountCreatingError) -> Self { EnableCoinBalanceError::NewAccountCreatingError(e) }
-}
-
-impl From<BalanceError> for EnableCoinBalanceError {
-    fn from(e: BalanceError) -> Self { EnableCoinBalanceError::BalanceError(e) }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

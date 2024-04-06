@@ -56,6 +56,7 @@ use crypto::{Bip32DerPathOps, Bip32Error, Bip44Chain, ChildNumber, DerivationPat
              StandardHDCoinAddress, StandardHDPathError, StandardHDPathToAccount, StandardHDPathToCoin};
 use derive_more::Display;
 #[cfg(not(target_arch = "wasm32"))] use dirs::home_dir;
+use enum_derives::EnumFromStringify;
 use futures::channel::mpsc::{Receiver as AsyncReceiver, Sender as AsyncSender, UnboundedReceiver, UnboundedSender};
 use futures::compat::Future01CompatExt;
 use futures::lock::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
@@ -113,6 +114,7 @@ use crate::coin_balance::{EnableCoinScanPolicy, EnabledCoinBalanceParams, HDAddr
 use crate::hd_wallet::{HDAccountOps, HDAccountsMutex, HDAddress, HDAddressId, HDWalletCoinOps, HDWalletOps,
                        InvalidBip44ChainError};
 use crate::hd_wallet_storage::{HDAccountStorageItem, HDWalletCoinStorage, HDWalletStorageError, HDWalletStorageResult};
+use crate::qrc20::Qrc20AbiError;
 use crate::utxo::tx_cache::UtxoVerboseCacheShared;
 use crate::{CoinAssocTypes, ToBytes};
 
@@ -1232,7 +1234,7 @@ lazy_static! {
     pub static ref UTXO_LOCK: AsyncMutex<()> = AsyncMutex::new(());
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum GenerateTxError {
     #[display(
         fmt = "Couldn't generate tx from empty UTXOs set, required no less than {} satoshis",
@@ -1261,13 +1263,11 @@ pub enum GenerateTxError {
     )]
     NotEnoughUtxos { sum_utxos: u64, required: u64 },
     #[display(fmt = "Transport error: {}", _0)]
+    #[from_stringify("JsonRpcError")]
     Transport(String),
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_stringify("Qrc20AbiError", "NumConversError", "keys::Error")]
     Internal(String),
-}
-
-impl From<JsonRpcError> for GenerateTxError {
-    fn from(rpc_err: JsonRpcError) -> Self { GenerateTxError::Transport(rpc_err.to_string()) }
 }
 
 impl From<UtxoRpcError> for GenerateTxError {
@@ -1280,14 +1280,6 @@ impl From<UtxoRpcError> for GenerateTxError {
             UtxoRpcError::Internal(error) => GenerateTxError::Internal(error),
         }
     }
-}
-
-impl From<NumConversError> for GenerateTxError {
-    fn from(e: NumConversError) -> Self { GenerateTxError::Internal(e.to_string()) }
-}
-
-impl From<keys::Error> for GenerateTxError {
-    fn from(e: keys::Error) -> Self { GenerateTxError::Internal(e.to_string()) }
 }
 
 pub enum RequestTxHistoryResult {

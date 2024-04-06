@@ -2,6 +2,7 @@
 #![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 
 use crate::coin_errors::MyAddressError;
+use crate::qrc20::Qrc20AbiError;
 use crate::utxo::utxo_block_header_storage::BlockHeaderStorage;
 use crate::utxo::{output_script, sat_from_big_decimal, GetBlockHeaderError, GetConfirmedTxError, GetTxError,
                   GetTxHeightError, ScripthashNotification};
@@ -299,7 +300,14 @@ pub enum UtxoRpcError {
     Transport(JsonRpcError),
     ResponseParseError(JsonRpcError),
     InvalidResponse(String),
-    #[from_stringify("MyAddressError", "keys::Error", "NumConversError", "serialization::Error")]
+    // `Qrc20ABIError` is always an internal error
+    #[from_stringify(
+        "MyAddressError",
+        "keys::Error",
+        "NumConversError",
+        "serialization::Error",
+        "Qrc20AbiError"
+    )]
     Internal(String),
 }
 

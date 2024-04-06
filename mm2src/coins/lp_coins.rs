@@ -236,7 +236,7 @@ pub mod my_tx_history_v2;
 
 pub mod qrc20;
 
-use qrc20::{qrc20_coin_with_policy, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
+use qrc20::{qrc20_coin_with_policy, Qrc20AbiError, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
 
 pub mod rpc_command;
 
@@ -2178,8 +2178,9 @@ pub enum TradePreimageError {
     Transport(String),
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.
+    // `Qrc20ABIError` is always an internal error
     #[display(fmt = "Internal error: {}", _0)]
-    #[from_stringify("NumConversError", "UnexpectedDerivationMethod", "ethabi::Error")]
+    #[from_stringify("NumConversError", "UnexpectedDerivationMethod", "ethabi::Error", "Qrc20AbiError")]
     InternalError(String),
     #[display(fmt = "Nft Protocol is not supported yet!")]
     NftProtocolNotSupported,
@@ -2580,6 +2581,7 @@ pub enum WithdrawError {
     Transport(String),
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.
+    // `Qrc20ABIError` is always an internal error
     #[display(fmt = "Internal error: {}", _0)]
     #[from_trait(WithInternal::internal)]
     #[from_stringify(
@@ -2587,7 +2589,8 @@ pub enum WithdrawError {
         "UnexpectedDerivationMethod",
         "PrivKeyPolicyNotAllowed",
         "ethabi::Error",
-        "MyAddressError"
+        "MyAddressError",
+        "Qrc20AbiError"
     )]
     InternalError(String),
     #[display(fmt = "Unsupported error: {}", _0)]
