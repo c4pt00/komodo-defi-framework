@@ -1,3 +1,4 @@
+use crate::coin_errors::MyAddressError;
 use crate::hd_wallet::{AddressDerivingError, InvalidBip44ChainError};
 use crate::tendermint::{TENDERMINT_ASSET_PROTOCOL_TYPE, TENDERMINT_COIN_PROTOCOL_TYPE};
 use crate::tx_history_storage::{CreateTxHistoryStorageError, FilteringAddresses, GetTxHistoryFilters,
@@ -10,6 +11,7 @@ use bitcrypto::sha256;
 use common::{calc_total_pages, ten, HttpStatusCode, PagingOptionsEnum, StatusCode};
 use crypto::StandardHDPath;
 use derive_more::Display;
+use enum_derives::EnumFromStringify;
 use futures::compat::Future01CompatExt;
 use keys::{Address, CashAddress};
 use mm2_core::mm_ctx::MmArc;
@@ -304,15 +306,19 @@ pub struct MyTxHistoryResponseV2<Tx, Id> {
     pub(crate) paging_options: PagingOptionsEnum<Id>,
 }
 
-#[derive(Debug, Display, Serialize, SerializeErrorType)]
+#[derive(Debug, Display, Serialize, SerializeErrorType, EnumFromStringify)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum MyTxHistoryErrorV2 {
     CoinIsNotActive(String),
+    #[from_stringify("InvalidBip44ChainError")]
     InvalidTarget(String),
     StorageIsNotInitialized(String),
+    #[from_stringify("CreateTxHistoryStorageError")]
     StorageError(String),
+    #[from_stringify("UtxoRpcError")]
     RpcError(String),
     NotSupportedFor(String),
+    #[from_stringify("MyAddressError")]
     Internal(String),
 }
 
@@ -350,14 +356,6 @@ impl<T: TxHistoryStorageError> From<T> for MyTxHistoryErrorV2 {
     }
 }
 
-impl From<CreateTxHistoryStorageError> for MyTxHistoryErrorV2 {
-    fn from(e: CreateTxHistoryStorageError) -> Self { MyTxHistoryErrorV2::StorageError(e.to_string()) }
-}
-
-impl From<UtxoRpcError> for MyTxHistoryErrorV2 {
-    fn from(err: UtxoRpcError) -> Self { MyTxHistoryErrorV2::RpcError(err.to_string()) }
-}
-
 impl From<AddressDerivingError> for MyTxHistoryErrorV2 {
     fn from(e: AddressDerivingError) -> Self {
         match e {
@@ -366,10 +364,6 @@ impl From<AddressDerivingError> for MyTxHistoryErrorV2 {
             AddressDerivingError::Internal(internal) => MyTxHistoryErrorV2::Internal(internal),
         }
     }
-}
-
-impl From<InvalidBip44ChainError> for MyTxHistoryErrorV2 {
-    fn from(e: InvalidBip44ChainError) -> Self { MyTxHistoryErrorV2::InvalidTarget(e.to_string()) }
 }
 
 #[async_trait]

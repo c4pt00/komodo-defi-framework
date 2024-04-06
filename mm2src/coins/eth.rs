@@ -186,7 +186,7 @@ pub type GasStationResult = Result<GasStationData, MmError<GasStationReqErr>>;
 type EthPrivKeyPolicy = PrivKeyPolicy<KeyPair>;
 type GasDetails = (U256, U256);
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum GasStationReqErr {
     #[display(fmt = "Transport '{}' error: {}", uri, error)]
     Transport {
@@ -194,12 +194,9 @@ pub enum GasStationReqErr {
         error: String,
     },
     #[display(fmt = "Invalid response: {}", _0)]
+    #[from_stringify("serde_json::Error")]
     InvalidResponse(String),
     Internal(String),
-}
-
-impl From<serde_json::Error> for GasStationReqErr {
-    fn from(e: serde_json::Error) -> Self { GasStationReqErr::InvalidResponse(e.to_string()) }
 }
 
 impl From<SlurpError> for GasStationReqErr {
@@ -215,11 +212,12 @@ impl From<SlurpError> for GasStationReqErr {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum Web3RpcError {
     #[display(fmt = "Transport: {}", _0)]
     Transport(String),
     #[display(fmt = "Invalid response: {}", _0)]
+    #[from_stringify("serde_json::Error")]
     InvalidResponse(String),
     #[display(fmt = "Timeout: {}", _0)]
     Timeout(String),
@@ -239,10 +237,6 @@ impl From<GasStationReqErr> for Web3RpcError {
     }
 }
 
-impl From<serde_json::Error> for Web3RpcError {
-    fn from(e: serde_json::Error) -> Self { Web3RpcError::InvalidResponse(e.to_string()) }
-}
-
 impl From<web3::Error> for Web3RpcError {
     fn from(e: web3::Error) -> Self {
         let error_str = e.to_string();
@@ -256,10 +250,6 @@ impl From<web3::Error> for Web3RpcError {
             _ => Web3RpcError::Internal(error_str),
         }
     }
-}
-
-impl From<web3::Error> for RawTransactionError {
-    fn from(e: web3::Error) -> Self { RawTransactionError::Transport(e.to_string()) }
 }
 
 impl From<Web3RpcError> for RawTransactionError {
@@ -294,18 +284,6 @@ impl From<MetamaskError> for Web3RpcError {
     }
 }
 
-impl From<ethabi::Error> for WithdrawError {
-    fn from(e: ethabi::Error) -> Self {
-        // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
-        // It's an internal error if there are any issues during working with a smart contract ABI.
-        WithdrawError::InternalError(e.to_string())
-    }
-}
-
-impl From<web3::Error> for WithdrawError {
-    fn from(e: web3::Error) -> Self { WithdrawError::Transport(e.to_string()) }
-}
-
 impl From<Web3RpcError> for WithdrawError {
     fn from(e: Web3RpcError) -> Self {
         match e {
@@ -318,10 +296,6 @@ impl From<Web3RpcError> for WithdrawError {
     }
 }
 
-impl From<web3::Error> for TradePreimageError {
-    fn from(e: web3::Error) -> Self { TradePreimageError::Transport(e.to_string()) }
-}
-
 impl From<Web3RpcError> for TradePreimageError {
     fn from(e: Web3RpcError) -> Self {
         match e {
@@ -331,22 +305,6 @@ impl From<Web3RpcError> for TradePreimageError {
             },
             Web3RpcError::NftProtocolNotSupported => TradePreimageError::NftProtocolNotSupported,
         }
-    }
-}
-
-impl From<ethabi::Error> for TradePreimageError {
-    fn from(e: ethabi::Error) -> Self {
-        // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
-        // It's an internal error if there are any issues during working with a smart contract ABI.
-        TradePreimageError::InternalError(e.to_string())
-    }
-}
-
-impl From<ethabi::Error> for BalanceError {
-    fn from(e: ethabi::Error) -> Self {
-        // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
-        // It's an internal error if there are any issues during working with a smart contract ABI.
-        BalanceError::Internal(e.to_string())
     }
 }
 

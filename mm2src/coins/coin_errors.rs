@@ -1,5 +1,4 @@
-use crate::{eth::Web3RpcError, my_tx_history_v2::MyTxHistoryErrorV2, utxo::rpc_clients::UtxoRpcError, DelegationError,
-            NumConversError, TxHistoryError, UnexpectedDerivationMethod, WithdrawError};
+use crate::{eth::Web3RpcError, utxo::rpc_clients::UtxoRpcError, NumConversError, UnexpectedDerivationMethod};
 use enum_derives::EnumFromStringify;
 use futures01::Future;
 use mm2_err_handle::prelude::MmError;
@@ -72,24 +71,4 @@ pub enum MyAddressError {
     #[from_stringify("UnexpectedDerivationMethod")]
     UnexpectedDerivationMethod(String),
     InternalError(String),
-}
-
-impl From<MyAddressError> for WithdrawError {
-    fn from(err: MyAddressError) -> Self { Self::InternalError(err.to_string()) }
-}
-
-impl From<MyAddressError> for UtxoRpcError {
-    fn from(err: MyAddressError) -> Self { Self::Internal(err.to_string()) }
-}
-
-impl From<MyAddressError> for DelegationError {
-    fn from(err: MyAddressError) -> Self { Self::InternalError(err.to_string()) }
-}
-
-impl From<MyAddressError> for TxHistoryError {
-    fn from(err: MyAddressError) -> Self { Self::InternalError(err.to_string()) }
-}
-
-impl From<MyAddressError> for MyTxHistoryErrorV2 {
-    fn from(err: MyAddressError) -> Self { Self::Internal(err.to_string()) }
 }

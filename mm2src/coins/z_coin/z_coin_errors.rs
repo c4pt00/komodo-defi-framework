@@ -252,13 +252,10 @@ pub enum SpendableNotesError {
     DBClientError(String),
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum ZCoinBalanceError {
+    #[from_stringify("ZcoinStorageError")]
     BalanceError(String),
-}
-
-impl From<ZcoinStorageError> for ZCoinBalanceError {
-    fn from(value: ZcoinStorageError) -> Self { ZCoinBalanceError::BalanceError(value.to_string()) }
 }
 
 /// The `ValidateBlocksError` enum encapsulates different types of errors that may occur

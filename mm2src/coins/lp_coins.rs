@@ -360,6 +360,7 @@ pub enum RawTransactionError {
     #[display(fmt = "Invalid  hash: {}", _0)]
     InvalidHashError(String),
     #[display(fmt = "Transport error: {}", _0)]
+    #[from_stringify("web3::Error")]
     Transport(String),
     #[display(fmt = "Hash does not exist: {}", _0)]
     HashNotExist(String),
@@ -520,7 +521,7 @@ pub struct MyWalletAddress {
 pub type SignatureResult<T> = Result<T, MmError<SignatureError>>;
 pub type VerificationResult<T> = Result<T, MmError<VerificationError>>;
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum TxHistoryError {
     ErrorSerializing(String),
     ErrorDeserializing(String),
@@ -532,6 +533,7 @@ pub enum TxHistoryError {
         internal_id: BytesJson,
     },
     NotSupported(String),
+    #[from_stringify("MyAddressError")]
     InternalError(String),
 }
 
@@ -634,12 +636,13 @@ pub enum TxMarshalingErr {
     Internal(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumFromStringify)]
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionErr {
     /// Keeps transactions while throwing errors.
     TxRecoverable(TransactionEnum, String),
     /// Simply for plain error messages.
+    #[from_stringify("keys::Error")]
     Plain(String),
     NftProtocolNotSupported(String),
 }
@@ -663,10 +666,6 @@ impl TransactionErr {
             TransactionErr::NftProtocolNotSupported(err) => err.to_string(),
         }
     }
-}
-
-impl From<keys::Error> for TransactionErr {
-    fn from(e: keys::Error) -> Self { TransactionErr::Plain(e.to_string()) }
 }
 
 #[derive(Debug, PartialEq)]
@@ -1951,6 +1950,7 @@ pub enum TxFeeDetails {
         not(target_os = "android"),
         not(target_arch = "wasm32")
     ))]
+    #[from_stringify("SolanaFeeDetails")]
     Solana(SolanaFeeDetails),
 }
 
@@ -1990,16 +1990,6 @@ impl<'de> Deserialize<'de> for TxFeeDetails {
             TxFeeDetailsUnTagged::Tendermint(f) => Ok(TxFeeDetails::Tendermint(f)),
         }
     }
-}
-
-#[cfg(all(
-    feature = "enable-solana",
-    not(target_os = "ios"),
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-impl From<SolanaFeeDetails> for TxFeeDetails {
-    fn from(solana_details: SolanaFeeDetails) -> Self { TxFeeDetails::Solana(solana_details) }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -2184,9 +2174,12 @@ pub enum TradePreimageError {
     #[display(fmt = "The amount {} less than minimum transaction amount {}", amount, threshold)]
     AmountIsTooSmall { amount: BigDecimal, threshold: BigDecimal },
     #[display(fmt = "Transport error: {}", _0)]
+    #[from_stringify("web3::Error")]
     Transport(String),
+    // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
+    // It's an internal error if there are any issues during working with a smart contract ABI.
     #[display(fmt = "Internal error: {}", _0)]
-    #[from_stringify("NumConversError", "UnexpectedDerivationMethod")]
+    #[from_stringify("NumConversError", "UnexpectedDerivationMethod", "ethabi::Error")]
     InternalError(String),
     #[display(fmt = "Nft Protocol is not supported yet!")]
     NftProtocolNotSupported,
@@ -2284,8 +2277,10 @@ pub enum BalanceError {
     UnexpectedDerivationMethod(UnexpectedDerivationMethod),
     #[display(fmt = "Wallet storage error: {}", _0)]
     WalletStorageError(String),
+    // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
+    // It's an internal error if there are any issues during working with a smart contract ABI.
     #[display(fmt = "Internal: {}", _0)]
-    #[from_stringify("NumConversError", "Bip32Error")]
+    #[from_stringify("NumConversError", "Bip32Error", "ethabi::Error")]
     Internal(String),
 }
 
@@ -2389,6 +2384,7 @@ pub enum DelegationError {
     #[display(fmt = "Transport error: {}", _0)]
     Transport(String),
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_stringify("MyAddressError")]
     InternalError(String),
 }
 
@@ -2580,10 +2576,19 @@ pub enum WithdrawError {
     #[cfg(target_arch = "wasm32")]
     BroadcastExpected(String),
     #[display(fmt = "Transport error: {}", _0)]
+    #[from_stringify("web3::Error")]
     Transport(String),
-    #[from_trait(WithInternal::internal)]
-    #[from_stringify("NumConversError", "UnexpectedDerivationMethod", "PrivKeyPolicyNotAllowed")]
+    // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
+    // It's an internal error if there are any issues during working with a smart contract ABI.
     #[display(fmt = "Internal error: {}", _0)]
+    #[from_trait(WithInternal::internal)]
+    #[from_stringify(
+        "NumConversError",
+        "UnexpectedDerivationMethod",
+        "PrivKeyPolicyNotAllowed",
+        "ethabi::Error",
+        "MyAddressError"
+    )]
     InternalError(String),
     #[display(fmt = "Unsupported error: {}", _0)]
     UnsupportedError(String),
