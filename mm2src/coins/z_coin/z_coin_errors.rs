@@ -212,6 +212,7 @@ pub enum ZCoinBuildError {
     ZCashParamsError(String),
     ZDerivationPathNotSet,
     SaplingParamsInvalidChecksum,
+    FailedSpawningBalanceEvents(String),
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -224,6 +225,8 @@ impl From<SqliteError> for ZCoinBuildError {
 pub(super) enum SqlTxHistoryError {
     #[from_stringify("SqliteError")]
     Sql(SqliteError),
+    #[cfg(target_arch = "wasm32")]
+    IndexedDbError(String),
     FromIdDoesNotExist(i64),
 }
 
