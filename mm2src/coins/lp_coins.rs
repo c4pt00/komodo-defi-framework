@@ -47,6 +47,7 @@ use bip32::ExtendedPrivateKey;
 use common::custom_futures::timeout::TimeoutError;
 use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
                        AbortSettings, AbortedError, SpawnAbortable, SpawnFuture};
+use common::jsonrpc_client::JsonRpcError;
 use common::log::{warn, LogOnError};
 use common::{calc_total_pages, now_sec, ten, HttpStatusCode};
 use crypto::{derive_secp256k1_secret, Bip32Error, CryptoCtx, CryptoCtxError, DerivationPath, GlobalHDAccountArc,
@@ -2174,7 +2175,7 @@ pub enum TradePreimageError {
     #[display(fmt = "The amount {} less than minimum transaction amount {}", amount, threshold)]
     AmountIsTooSmall { amount: BigDecimal, threshold: BigDecimal },
     #[display(fmt = "Transport error: {}", _0)]
-    #[from_stringify("web3::Error")]
+    #[from_stringify("web3::Error", "JsonRpcError")]
     Transport(String),
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.
@@ -2271,6 +2272,7 @@ impl NumConversError {
 #[serde(tag = "error_type", content = "error_data")]
 pub enum BalanceError {
     #[display(fmt = "Transport: {}", _0)]
+    #[from_stringify("JsonRpcError")]
     Transport(String),
     #[display(fmt = "Invalid response: {}", _0)]
     InvalidResponse(String),
@@ -2281,7 +2283,7 @@ pub enum BalanceError {
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.
     #[display(fmt = "Internal: {}", _0)]
-    #[from_stringify("NumConversError", "Bip32Error", "ethabi::Error")]
+    #[from_stringify("NumConversError", "Bip32Error", "ethabi::Error", "keys::Error")]
     Internal(String),
 }
 
