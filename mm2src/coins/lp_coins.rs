@@ -249,8 +249,8 @@ use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskM
 
 pub mod tendermint;
 
-use tendermint::{CosmosTransaction, CustomTendermintMsgType, TendermintCoin, TendermintFeeDetails,
-                 TendermintProtocolInfo, TendermintToken, TendermintTokenProtocolInfo};
+use tendermint::{CosmosTransaction, CustomTendermintMsgType, TendermintCoin, TendermintCoinRpcError,
+                 TendermintFeeDetails, TendermintProtocolInfo, TendermintToken, TendermintTokenProtocolInfo};
 
 #[doc(hidden)]
 #[allow(unused_variables)]
@@ -361,7 +361,7 @@ pub enum RawTransactionError {
     #[display(fmt = "Invalid  hash: {}", _0)]
     InvalidHashError(String),
     #[display(fmt = "Transport error: {}", _0)]
-    #[from_stringify("web3::Error")]
+    #[from_stringify("web3::Error", "TendermintCoinRpcError")]
     Transport(String),
     #[display(fmt = "Hash does not exist: {}", _0)]
     HashNotExist(String),
@@ -2176,7 +2176,7 @@ pub enum TradePreimageError {
     #[display(fmt = "The amount {} less than minimum transaction amount {}", amount, threshold)]
     AmountIsTooSmall { amount: BigDecimal, threshold: BigDecimal },
     #[display(fmt = "Transport error: {}", _0)]
-    #[from_stringify("web3::Error", "JsonRpcError")]
+    #[from_stringify("web3::Error", "JsonRpcError", "TendermintCoinRpcError")]
     Transport(String),
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.
@@ -2551,7 +2551,7 @@ pub enum WithdrawError {
         threshold: BigDecimal,
     },
     #[display(fmt = "Invalid address: {}", _0)]
-    #[from_stringify("UnsupportedAddr", "AddrFromStrError")]
+    #[from_stringify("UnsupportedAddr", "AddrFromStrError", "ScriptHashTypeNotSupported")]
     InvalidAddress(String),
     #[display(fmt = "Invalid fee policy: {}", _0)]
     InvalidFeePolicy(String),
@@ -2581,7 +2581,7 @@ pub enum WithdrawError {
     #[cfg(target_arch = "wasm32")]
     BroadcastExpected(String),
     #[display(fmt = "Transport error: {}", _0)]
-    #[from_stringify("web3::Error")]
+    #[from_stringify("web3::Error", "TendermintCoinRpcError")]
     Transport(String),
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.

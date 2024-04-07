@@ -36,14 +36,11 @@ use std::{convert::TryFrom,
           str::FromStr,
           sync::Arc};
 
-#[derive(Debug)]
+#[derive(Debug, EnumFromStringify)]
 pub enum SplTokenCreationError {
     InvalidPubkey(String),
+    #[from_stringify("AbortedError")]
     Internal(String),
-}
-
-impl From<AbortedError> for SplTokenCreationError {
-    fn from(e: AbortedError) -> Self { SplTokenCreationError::Internal(e.to_string()) }
 }
 
 pub struct SplTokenFields {

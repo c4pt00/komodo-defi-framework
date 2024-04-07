@@ -10,7 +10,7 @@ use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use solana_sdk::signature::{Signature, Signer};
 use std::str::FromStr;
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum SufficientBalanceError {
     #[display(
         fmt = "Not enough {} to withdraw: available {}, required at least {}",
@@ -34,11 +34,8 @@ pub enum SufficientBalanceError {
     #[display(fmt = "Transport: {}", _0)]
     Transport(String),
     #[display(fmt = "Internal: {}", _0)]
+    #[from_stringify("NumConversError")]
     Internal(String),
-}
-
-impl From<NumConversError> for SufficientBalanceError {
-    fn from(e: NumConversError) -> Self { SufficientBalanceError::Internal(e.to_string()) }
 }
 
 impl From<BalanceError> for SufficientBalanceError {

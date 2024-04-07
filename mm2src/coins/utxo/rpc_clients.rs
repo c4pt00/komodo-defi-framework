@@ -300,7 +300,8 @@ pub enum UtxoRpcError {
         "keys::Error",
         "NumConversError",
         "serialization::Error",
-        "Qrc20AbiError"
+        "Qrc20AbiError",
+        "ethabi::Error"
     )]
     Internal(String),
 }

@@ -32,6 +32,7 @@ use common::Future01CompatExt;
 use cosmrs::{bank::MsgSend,
              tx::{Fee, Msg},
              AccountId, Coin, Denom};
+use enum_derives::EnumFromStringify;
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
 use keys::KeyPair;
@@ -73,19 +74,14 @@ pub struct TendermintTokenProtocolInfo {
 #[derive(Clone, Deserialize)]
 pub struct TendermintTokenActivationParams {}
 
+#[derive(EnumFromStringify)]
 pub enum TendermintTokenInitError {
+    #[from_stringify("AbortedError")]
     Internal(String),
     InvalidDenom(String),
+    #[from_stringify("MyAddressError")]
     MyAddressError(String),
     CouldNotFetchBalance(String),
-}
-
-impl From<MyAddressError> for TendermintTokenInitError {
-    fn from(err: MyAddressError) -> Self { TendermintTokenInitError::MyAddressError(err.to_string()) }
-}
-
-impl From<AbortedError> for TendermintTokenInitError {
-    fn from(e: AbortedError) -> Self { TendermintTokenInitError::Internal(e.to_string()) }
 }
 
 impl TendermintToken {
