@@ -889,7 +889,8 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
             &my_z_addr,
         );
 
-        let blocks_db = self.init_blocks_db().await?;
+        let db_id = Some(my_z_addr_encoded.clone());
+        let blocks_db = self.init_blocks_db(db_id.as_deref()).await?;
         let (z_balance_event_sender, z_balance_event_handler) = if self.ctx.event_stream_configuration.is_some() {
             let (sender, receiver) = futures::channel::mpsc::unbounded();
             (Some(sender), Some(Arc::new(AsyncMutex::new(receiver))))
@@ -997,12 +998,12 @@ impl<'a> ZCoinBuilder<'a> {
         }
     }
 
-    async fn init_blocks_db(&self) -> Result<BlockDbImpl, MmError<ZcoinClientInitError>> {
+    async fn init_blocks_db(&self, db_id: Option<&str>) -> Result<BlockDbImpl, MmError<ZcoinClientInitError>> {
         let cache_db_path = self.db_dir_path.join(format!("{}_cache.db", self.ticker));
         let ctx = self.ctx.clone();
         let ticker = self.ticker.to_string();
 
-        BlockDbImpl::new(&ctx, ticker, cache_db_path)
+        BlockDbImpl::new(&ctx, ticker, cache_db_path, db_id)
             .map_err(|err| MmError::new(ZcoinClientInitError::ZcoinStorageError(err.to_string())))
             .await
     }

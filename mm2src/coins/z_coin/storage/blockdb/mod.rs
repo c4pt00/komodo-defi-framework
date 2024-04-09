@@ -38,7 +38,7 @@ mod block_db_storage_tests {
 
     pub(crate) async fn test_insert_block_and_get_latest_block_impl() {
         let ctx = mm_ctx_with_custom_db();
-        let db = BlockDbImpl::new(&ctx, TICKER.to_string(), PathBuf::new())
+        let db = BlockDbImpl::new(&ctx, TICKER.to_string(), PathBuf::new(), None)
             .await
             .unwrap();
         // insert block
@@ -53,7 +53,7 @@ mod block_db_storage_tests {
 
     pub(crate) async fn test_rewind_to_height_impl() {
         let ctx = mm_ctx_with_custom_db();
-        let db = BlockDbImpl::new(&ctx, TICKER.to_string(), PathBuf::new())
+        let db = BlockDbImpl::new(&ctx, TICKER.to_string(), PathBuf::new(), None)
             .await
             .unwrap();
         // insert block
@@ -78,7 +78,7 @@ mod block_db_storage_tests {
     #[allow(unused)]
     pub(crate) async fn test_process_blocks_with_mode_impl() {
         let ctx = mm_ctx_with_custom_db();
-        let db = BlockDbImpl::new(&ctx, TICKER.to_string(), PathBuf::new())
+        let db = BlockDbImpl::new(&ctx, TICKER.to_string(), PathBuf::new(), None)
             .await
             .unwrap();
         // insert block
