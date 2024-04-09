@@ -81,7 +81,7 @@ pub struct MmCtx {
     pub event_stream_configuration: Option<EventStreamConfiguration>,
     /// True if the MarketMaker instance needs to stop.
     pub stop: Constructible<bool>,
-    /// Unique context identifier, allowing us to more easily pass the context through the FFI boundaries.  
+    /// Unique context identifier, allowing us to more easily pass the context through the FFI boundaries.
     /// 0 if the handler ID is allocated yet.
     pub ffi_handle: Constructible<u32>,
     /// The context belonging to the `ordermatch` mod: `OrdermatchContext`.
@@ -109,6 +109,11 @@ pub struct MmCtx {
     pub swaps_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// The context belonging to the `lp_stats` mod: `StatsContext`
     pub stats_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
+    /// Wallet name for this mm2 instance. Optional for backwards compatibility.
+    pub wallet_name: Constructible<Option<String>>,
+    /// The context belonging to the `lp_wallet` mod: `WalletsContext`.
+    #[cfg(target_arch = "wasm32")]
+    pub wallets_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// The RPC sender forwarding requests to writing part of underlying stream.
     #[cfg(target_arch = "wasm32")]
     pub wasm_rpc: Constructible<WasmRpcSender>,
@@ -165,6 +170,9 @@ impl MmCtx {
             coins_needed_for_kick_start: Mutex::new(HashSet::new()),
             swaps_ctx: Mutex::new(None),
             stats_ctx: Mutex::new(None),
+            wallet_name: Constructible::default(),
+            #[cfg(target_arch = "wasm32")]
+            wallets_ctx: Mutex::new(None),
             #[cfg(target_arch = "wasm32")]
             wasm_rpc: Constructible::default(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -278,7 +286,13 @@ impl MmCtx {
             })
     }
 
-    /// MM database path.  
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn wallet_file_path(&self, wallet_name: &str) -> PathBuf {
+        let db_root = path_to_db_root(self.conf["dbdir"].as_str());
+        db_root.join(wallet_name.to_string() + ".dat")
+    }
+
+    /// MM database path.
     /// Defaults to a relative "DB".
     ///
     /// Can be changed via the "dbdir" configuration field, for example:
@@ -288,9 +302,9 @@ impl MmCtx {
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn dbdir(&self, db_id: Option<&str>) -> PathBuf {
-        let db_id = db_id.map(|t| t.to_owned()).unwrap_or_else(|| {
-            hex::encode(self.rmd160().as_slice())
-        });
+        let db_id = db_id
+            .map(|t| t.to_owned())
+            .unwrap_or_else(|| hex::encode(self.rmd160().as_slice()));
 
         path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
     }
@@ -399,6 +413,17 @@ impl Drop for MmCtx {
             .map(|handle| handle.to_string())
             .unwrap_or_else(|| "UNKNOWN".to_owned());
         log::info!("MmCtx ({}) has been dropped", ffi_handle)
+    }
+}
+
+/// Returns the path to the MM database root.
+#[cfg(not(target_arch = "wasm32"))]
+fn path_to_db_root(db_root: Option<&str>) -> &Path {
+    const DEFAULT_ROOT: &str = "DB";
+
+    match db_root {
+        Some(dbdir) if !dbdir.is_empty() => Path::new(dbdir),
+        _ => Path::new(DEFAULT_ROOT),
     }
 }
 
@@ -541,7 +566,7 @@ impl MmArc {
         }
     }
 
-    /// Tries getting access to the MM context.  
+    /// Tries getting access to the MM context.
     /// Fails if an invalid MM context handler is passed (no such context or dropped context).
     #[track_caller]
     pub fn from_ffi_handle(ffi_handle: u32) -> Result<MmArc, String> {
