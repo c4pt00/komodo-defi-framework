@@ -504,7 +504,8 @@ pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitRes
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let dbdir = ctx.dbdir();
+        // Todo: Handle properly
+        let dbdir = ctx.dbdir(None);
         fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
             path: dbdir.clone(),
             error: e.to_string(),

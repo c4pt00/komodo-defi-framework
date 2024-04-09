@@ -542,7 +542,7 @@ impl SwapsContext {
                 ))),
                 locked_amounts: Mutex::new(HashMap::new()),
                 #[cfg(target_arch = "wasm32")]
-                swap_db: ConstructibleDb::new(ctx),
+                swap_db: ConstructibleDb::new(ctx, None),
             })
         })))
     }
@@ -997,9 +997,7 @@ pub struct TransactionIdentifier {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn my_swaps_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
-    ctx.dbdir(db_id).join("SWAPS").join("MY")
-}
+pub fn my_swaps_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf { ctx.dbdir(db_id).join("SWAPS").join("MY") }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn my_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid) -> PathBuf {
@@ -1364,8 +1362,8 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
     let mut coins = HashSet::new();
     let legacy_unfinished_uuids = try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE).await);
     for uuid in legacy_unfinished_uuids {
-        let db_id = todo!();
-        let swap = match SavedSwap::load_my_swap_from_db(&ctx, db_id, uuid).await {
+        // Todo db_id
+        let swap = match SavedSwap::load_my_swap_from_db(&ctx, None, uuid).await {
             Ok(Some(s)) => s,
             Ok(None) => {
                 warn!("Swap {} is indexed, but doesn't exist in DB", uuid);

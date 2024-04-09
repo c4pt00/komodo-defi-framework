@@ -466,8 +466,8 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
                         event: event.clone(),
                     };
 
-                    let account_key = todo!();
-                    save_my_taker_swap_event(&ctx, account_key, &running_swap, to_save)
+                    let account_key = Some(running_swap.my_persistent_pub.to_string());
+                    save_my_taker_swap_event(&ctx, account_key.as_deref(), &running_swap, to_save)
                         .await
                         .expect("!save_my_taker_swap_event");
                     if event.should_ban_maker() {
@@ -1957,9 +1957,9 @@ impl TakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<TakerSwapCommand>), String> {
-        let account_key = todo!();
+        let account_key = taker_coin.account_db_id();
 
-        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key, *swap_uuid).await {
+        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
             Err(e) => return ERR!("{}", e),

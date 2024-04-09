@@ -1,7 +1,6 @@
 use super::{DbIdentifier, DbInstance, InitDbResult};
 use futures::lock::{MappedMutexGuard as AsyncMappedMutexGuard, Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use mm2_core::{mm_ctx::MmArc, DbNamespaceId};
-use primitives::hash::H160;
 use std::sync::{Arc, Weak};
 
 /// The mapped mutex guard.
@@ -14,7 +13,7 @@ pub struct ConstructibleDb<Db> {
     /// It's better to use something like [`Constructible`], but it doesn't provide a method to get the inner value by the mutable reference.
     mutex: AsyncMutex<Option<Db>>,
     db_namespace: DbNamespaceId,
-    wallet_rmd160: Option<H160>,
+    pubkey: Option<String>,
 }
 
 impl<Db: DbInstance> ConstructibleDb<Db> {
@@ -22,22 +21,26 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
 
     /// Creates a new uninitialized `Db` instance from other Iguana and/or HD accounts.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
-    pub fn new(ctx: &MmArc) -> Self {
+    pub fn new(ctx: &MmArc, db_id: Option<&str>) -> Self {
+        let rmd = hex::encode(ctx.rmd160().as_slice());
+        let pubkey = db_id.unwrap_or(&rmd);
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            wallet_rmd160: Some(*ctx.rmd160()),
+            pubkey: Some(pubkey.to_string()),
         }
     }
 
     /// Creates a new uninitialized `Db` instance shared between Iguana and all HD accounts
     /// derived from the same passphrase.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
-    pub fn new_shared_db(ctx: &MmArc) -> Self {
+    pub fn new_shared_db(ctx: &MmArc, db_id: Option<&str>) -> Self {
+        let rmd = hex::encode(ctx.shared_db_id().as_slice());
+        let pubkey = db_id.unwrap_or(&rmd);
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            wallet_rmd160: Some(*ctx.shared_db_id()),
+            pubkey: Some(pubkey.to_string()),
         }
     }
 
@@ -47,7 +50,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            wallet_rmd160: None,
+            pubkey: None,
         }
     }
 
@@ -60,7 +63,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
             return Ok(unwrap_db_instance(locked_db));
         }
 
-        let db_id = DbIdentifier::new::<Db>(self.db_namespace, self.wallet_rmd160);
+        let db_id = DbIdentifier::new::<Db>(self.db_namespace, self.pubkey.clone());
 
         let db = Db::init(db_id).await?;
         *locked_db = Some(db);

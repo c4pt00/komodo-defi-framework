@@ -388,7 +388,7 @@ mod tests {
             })
             .collect();
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<TimestampTable>()
             .build()
@@ -449,7 +449,7 @@ mod tests {
             swap_item!("uuid6", "QRC20", "RICK", 2, 2, 721),
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -501,7 +501,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -558,7 +558,7 @@ mod tests {
             swap_item!("uuid12", "tBTC", "RICK", 92, 6, 721),
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -633,7 +633,7 @@ mod tests {
             swap_item!("uuid25", "DOGE", "tBTC", 9, 10, 711),
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -692,7 +692,7 @@ mod tests {
             TimestampTable::new(u128::MAX, 2, u64::MAX as u128 + 1), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<TimestampTable>()
             .build()
@@ -743,7 +743,7 @@ mod tests {
             swap_item!("uuid4", "RICK", "MORTY", 8, 6, 92),
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -789,7 +789,7 @@ mod tests {
         const DB_NAME: &str = "TEST_REV_ITER_WITHOUT_CONSTRAINTS";
         const DB_VERSION: u32 = 1;
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -826,7 +826,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -877,7 +877,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -930,7 +930,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -978,7 +978,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -1021,7 +1021,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -1065,7 +1065,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -1111,7 +1111,7 @@ mod tests {
             swap_item!("uuid6", "KMD", "MORTY", 12, 3124, 214), // +
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()
@@ -1158,7 +1158,7 @@ mod tests {
             swap_item!("uuid3", "RICK", "FTM", 12, 3124, 214),
         ];
 
-        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME))
+        let db = IndexedDbBuilder::new(DbIdentifier::for_test(DB_NAME, None))
             .with_version(DB_VERSION)
             .with_table::<SwapTable>()
             .build()

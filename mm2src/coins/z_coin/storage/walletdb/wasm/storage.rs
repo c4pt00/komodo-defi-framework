@@ -138,7 +138,7 @@ impl<'a> WalletIndexedDb {
         consensus_params: ZcoinConsensusParams,
     ) -> MmResult<Self, ZcoinStorageError> {
         let db = Self {
-            db: ConstructibleDb::new(ctx).into_shared(),
+            db: ConstructibleDb::new(ctx, None).into_shared(),
             ticker: ticker.to_string(),
             params: consensus_params,
         };
@@ -697,7 +697,7 @@ impl WalletIndexedDb {
     }
 
     /// Asynchronously rewinds the storage to a specified block height, effectively
-    /// removing data beyond the specified height from the storage.    
+    /// removing data beyond the specified height from the storage.
     pub async fn rewind_to_height(&self, block_height: BlockHeight) -> ZcoinStorageRes<()> {
         let locked_db = self.lock_db().await?;
         let db_transaction = locked_db.get_inner().transaction().await?;

@@ -2966,7 +2966,17 @@ pub trait MmCoin:
     /// Loop collecting coin transaction history and saving it to local DB
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
-    fn account_db_id(&self) -> Option<&str> { None }
+    #[cfg(not(target_arch = "wasm32"))]
+    fn account_db_id(&self) -> Option<String> {
+        if let Ok(key) = self.get_public_key() {
+            return Some(key);
+        };
+
+        None
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn account_db_id(&self) -> Option<String> { None }
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
@@ -3409,9 +3419,9 @@ impl CoinsContext {
                 scan_addresses_manager: ScanAddressesTaskManager::new_shared(),
                 withdraw_task_manager: WithdrawTaskManager::new_shared(),
                 #[cfg(target_arch = "wasm32")]
-                tx_history_db: ConstructibleDb::new(ctx).into_shared(),
+                tx_history_db: ConstructibleDb::new(ctx, None).into_shared(),
                 #[cfg(target_arch = "wasm32")]
-                hd_wallet_db: ConstructibleDb::new_shared_db(ctx).into_shared(),
+                hd_wallet_db: ConstructibleDb::new_shared_db(ctx, None).into_shared(),
             })
         })))
     }

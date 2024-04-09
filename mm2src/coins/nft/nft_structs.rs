@@ -740,7 +740,7 @@ impl NftCtx {
     pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             Ok(NftCtx {
-                nft_cache_db: ConstructibleDb::new(ctx).into_shared(),
+                nft_cache_db: ConstructibleDb::new(ctx, None).into_shared(),
             })
         })))
     }

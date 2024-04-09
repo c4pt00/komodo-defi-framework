@@ -78,10 +78,7 @@ pub const MAKER_PAYMENT_SENT_LOG: &str = "Maker payment sent";
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn stats_maker_swap_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
-    ctx.dbdir(db_id)
-        .join("SWAPS")
-        .join("STATS")
-        .join("MAKER")
+    ctx.dbdir(db_id).join("SWAPS").join("STATS").join("MAKER")
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1300,8 +1297,8 @@ impl MakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<MakerSwapCommand>), String> {
-        let account_key = todo!();
-        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key, *swap_uuid).await {
+        let account_key = maker_coin.account_db_id();
+        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
             Err(e) => return ERR!("{}", e),
@@ -2100,6 +2097,7 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
     let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.taker);
     swap_ctx.running_swaps.lock().unwrap().push(weak_ref);
+
     let mut swap_fut = Box::pin(
         async move {
             let mut events;
@@ -2119,8 +2117,8 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                         .dispatch_async(ctx.clone(), LpEvents::MakerSwapStatusChanged(event_to_send))
                         .await;
                     drop(dispatcher);
-                    let account_key = todo!();
-                    save_my_maker_swap_event(&ctx, account_key, &running_swap, to_save)
+                    let account_key = running_swap.maker_coin.account_db_id().clone();
+                    save_my_maker_swap_event(&ctx, account_key.as_deref(), &running_swap, to_save)
                         .await
                         .expect("!save_my_maker_swap_event");
                     if event.should_ban_taker() {

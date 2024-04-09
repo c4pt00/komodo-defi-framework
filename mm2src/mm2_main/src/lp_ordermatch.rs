@@ -2767,7 +2767,7 @@ pub fn init_ordermatch_context(ctx: &MmArc) -> OrdermatchInitResult<()> {
         orderbook_tickers,
         original_tickers,
         #[cfg(target_arch = "wasm32")]
-        ordermatch_db: ConstructibleDb::new(ctx),
+        ordermatch_db: ConstructibleDb::new(ctx, None),
     };
 
     from_ctx(&ctx.ordermatch_ctx, move || Ok(ordermatch_context))
