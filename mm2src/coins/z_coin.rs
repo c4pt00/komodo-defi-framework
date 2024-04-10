@@ -889,8 +889,12 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
             &my_z_addr,
         );
 
-        // TODO: db_id
-        let blocks_db = self.init_blocks_db(None).await?;
+        #[cfg(target_arch = "wasm32")]
+        let db_id = utxo_common::my_public_key(&utxo_arc).ok().map(|k| k.to_string());
+        #[cfg(not(target_arch = "wasm32"))]
+        let db_id: Option<String> = None;
+
+        let blocks_db = self.init_blocks_db(db_id.as_deref()).await?;
 
         let (z_balance_event_sender, z_balance_event_handler) = if self.ctx.event_stream_configuration.is_some() {
             let (sender, receiver) = futures::channel::mpsc::unbounded();
@@ -908,6 +912,7 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
                     blocks_db,
                     &z_spending_key,
                     z_balance_event_sender,
+                    db_id.as_deref(),
                 )
                 .await?
             },
@@ -925,6 +930,7 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
                     skip_sync_params.unwrap_or_default(),
                     &z_spending_key,
                     z_balance_event_sender,
+                    db_id.as_deref(),
                 )
                 .await?
             },

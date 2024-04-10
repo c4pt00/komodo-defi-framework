@@ -501,6 +501,7 @@ impl ZRpcOps for NativeClient {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn init_light_client<'a>(
     builder: &ZCoinBuilder<'a>,
     lightwalletd_urls: Vec<String>,
@@ -509,6 +510,7 @@ pub(super) async fn init_light_client<'a>(
     skip_sync_params: bool,
     z_spending_key: &ExtendedSpendingKey,
     z_balance_event_sender: Option<ZBalanceEventSender>,
+    db_id: Option<&str>,
 ) -> Result<(AsyncMutex<SaplingSyncConnector>, WalletDbShared), MmError<ZcoinClientInitError>> {
     let coin = builder.ticker.to_string();
     let (sync_status_notifier, sync_watcher) = channel(1);
@@ -541,13 +543,12 @@ pub(super) async fn init_light_client<'a>(
     // check if no sync_params was provided and continue syncing from last height in db if it's > 0 or skip_sync_params is true.
     let continue_from_prev_sync =
         (min_height > 0 && sync_params.is_none()) || (skip_sync_params && min_height < sapling_activation_height);
-    // TODO: db_id
     let wallet_db = WalletDbShared::new(
         builder,
         maybe_checkpoint_block,
         z_spending_key,
         continue_from_prev_sync,
-        None,
+        db_id,
     )
     .await?;
     // Check min_height in blocks_db and rewind blocks_db to 0 if sync_height != min_height
@@ -589,12 +590,14 @@ pub(super) async fn init_light_client<'a>(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn init_native_client<'a>(
     builder: &ZCoinBuilder<'a>,
     native_client: NativeClient,
     blocks_db: BlockDbImpl,
     z_spending_key: &ExtendedSpendingKey,
     z_balance_event_sender: Option<ZBalanceEventSender>,
+    db_id: Option<&str>,
 ) -> Result<(AsyncMutex<SaplingSyncConnector>, WalletDbShared), MmError<ZcoinClientInitError>> {
     let coin = builder.ticker.to_string();
     let (sync_status_notifier, sync_watcher) = channel(1);
@@ -608,8 +611,8 @@ pub(super) async fn init_native_client<'a>(
         is_pre_sapling: false,
         actual: checkpoint_height,
     };
-    // TODO: db_id
-    let wallet_db = WalletDbShared::new(builder, checkpoint_block, z_spending_key, true, None)
+
+    let wallet_db = WalletDbShared::new(builder, checkpoint_block, z_spending_key, true, db_id)
         .await
         .mm_err(|err| ZcoinClientInitError::ZcoinStorageError(err.to_string()))?;
 

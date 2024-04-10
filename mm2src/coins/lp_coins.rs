@@ -2967,13 +2967,7 @@ pub trait MmCoin:
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn account_db_id(&self) -> Option<String> {
-        if let Ok(key) = self.get_public_key() {
-            return Some(key);
-        };
-
-        None
-    }
+    fn account_db_id(&self) -> Option<String> { self.get_public_key().ok() }
 
     #[cfg(target_arch = "wasm32")]
     fn account_db_id(&self) -> Option<String> { None }
