@@ -127,7 +127,9 @@ mod wasm_test {
     }
 
     async fn wallet_db_from_zcoin_builder_for_test(ctx: &MmArc, ticker: &str) -> WalletIndexedDb {
-        WalletIndexedDb::new(ctx, ticker, consensus_params()).await.unwrap()
+        WalletIndexedDb::new(ctx, ticker, consensus_params(), None)
+            .await
+            .unwrap()
     }
 
     #[wasm_bindgen_test]

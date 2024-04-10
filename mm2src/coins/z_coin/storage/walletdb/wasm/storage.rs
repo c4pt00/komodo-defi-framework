@@ -56,10 +56,11 @@ impl<'a> WalletDbShared {
         checkpoint_block: Option<CheckPointBlockInfo>,
         z_spending_key: &ExtendedSpendingKey,
         continue_from_prev_sync: bool,
+        db_id: Option<&str>,
     ) -> ZcoinStorageRes<Self> {
         let ticker = builder.ticker;
         let consensus_params = builder.protocol_info.consensus_params.clone();
-        let db = WalletIndexedDb::new(builder.ctx, ticker, consensus_params).await?;
+        let db = WalletIndexedDb::new(builder.ctx, ticker, consensus_params, db_id).await?;
         let extrema = db.block_height_extrema().await?;
         let get_evk = db.get_extended_full_viewing_keys().await?;
         let evk = ExtendedFullViewingKey::from(z_spending_key);
@@ -136,9 +137,10 @@ impl<'a> WalletIndexedDb {
         ctx: &MmArc,
         ticker: &str,
         consensus_params: ZcoinConsensusParams,
+        db_id: Option<&str>,
     ) -> MmResult<Self, ZcoinStorageError> {
         let db = Self {
-            db: ConstructibleDb::new(ctx, None).into_shared(),
+            db: ConstructibleDb::new(ctx, db_id).into_shared(),
             ticker: ticker.to_string(),
             params: consensus_params,
         };

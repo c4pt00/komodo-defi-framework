@@ -541,8 +541,15 @@ pub(super) async fn init_light_client<'a>(
     // check if no sync_params was provided and continue syncing from last height in db if it's > 0 or skip_sync_params is true.
     let continue_from_prev_sync =
         (min_height > 0 && sync_params.is_none()) || (skip_sync_params && min_height < sapling_activation_height);
-    let wallet_db =
-        WalletDbShared::new(builder, maybe_checkpoint_block, z_spending_key, continue_from_prev_sync).await?;
+    // TODO: db_id
+    let wallet_db = WalletDbShared::new(
+        builder,
+        maybe_checkpoint_block,
+        z_spending_key,
+        continue_from_prev_sync,
+        None,
+    )
+    .await?;
     // Check min_height in blocks_db and rewind blocks_db to 0 if sync_height != min_height
     if !continue_from_prev_sync && (sync_height != min_height) {
         // let user know we're clearing cache and re-syncing from new provided height.
@@ -601,7 +608,8 @@ pub(super) async fn init_native_client<'a>(
         is_pre_sapling: false,
         actual: checkpoint_height,
     };
-    let wallet_db = WalletDbShared::new(builder, checkpoint_block, z_spending_key, true)
+    // TODO: db_id
+    let wallet_db = WalletDbShared::new(builder, checkpoint_block, z_spending_key, true, None)
         .await
         .mm_err(|err| ZcoinClientInitError::ZcoinStorageError(err.to_string()))?;
 
