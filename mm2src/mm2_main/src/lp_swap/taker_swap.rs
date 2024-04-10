@@ -107,13 +107,9 @@ pub fn stats_taker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
     stats_taker_swap_dir(ctx, db_id).join(format!("{}.json", uuid))
 }
 
-async fn save_my_taker_swap_event(
-    ctx: &MmArc,
-    db_id: Option<&str>,
-    swap: &TakerSwap,
-    event: TakerSavedEvent,
-) -> Result<(), String> {
-    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id, swap.uuid).await {
+async fn save_my_taker_swap_event(ctx: &MmArc, swap: &TakerSwap, event: TakerSavedEvent) -> Result<(), String> {
+    let db_id = swap.taker_coin.account_db_id();
+    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Taker(TakerSavedSwap {
             uuid: swap.uuid,
@@ -149,7 +145,7 @@ async fn save_my_taker_swap_event(
             taker_swap.fetch_and_set_usd_prices().await;
         }
         let new_swap = SavedSwap::Taker(taker_swap);
-        try_s!(new_swap.save_to_db(ctx, db_id).await);
+        try_s!(new_swap.save_to_db(ctx, db_id.as_deref()).await);
         Ok(())
     } else {
         ERR!("Expected SavedSwap::Taker, got {:?}", swap)
@@ -330,7 +326,7 @@ impl TakerSavedSwap {
         }
     }
 
-    // TODO: Adjust for private coins when/if they are braodcasted
+    // TODO: Adjust for private coins when/if they are broadcasted
     // TODO: Adjust for HD wallet when completed
     pub fn swap_pubkeys(&self) -> Result<SwapPubkeys, String> {
         let taker = match &self.events.first() {
@@ -466,8 +462,7 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
                         event: event.clone(),
                     };
 
-                    let account_key = Some(running_swap.my_persistent_pub.to_string());
-                    save_my_taker_swap_event(&ctx, account_key.as_deref(), &running_swap, to_save)
+                    save_my_taker_swap_event(&ctx, &running_swap, to_save)
                         .await
                         .expect("!save_my_taker_swap_event");
                     if event.should_ban_maker() {
@@ -1958,7 +1953,6 @@ impl TakerSwap {
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<TakerSwapCommand>), String> {
         let account_key = taker_coin.account_db_id();
-
         let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),

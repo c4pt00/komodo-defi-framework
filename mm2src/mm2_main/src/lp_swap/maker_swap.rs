@@ -86,13 +86,9 @@ pub fn stats_maker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
     stats_maker_swap_dir(ctx, db_id).join(format!("{}.json", uuid))
 }
 
-async fn save_my_maker_swap_event(
-    ctx: &MmArc,
-    db_id: Option<&str>,
-    swap: &MakerSwap,
-    event: MakerSavedEvent,
-) -> Result<(), String> {
-    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id, swap.uuid).await {
+async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSavedEvent) -> Result<(), String> {
+    let db_id = swap.maker_coin.account_db_id();
+    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Maker(MakerSavedSwap {
             uuid: swap.uuid,
@@ -118,7 +114,7 @@ async fn save_my_maker_swap_event(
             maker_swap.fetch_and_set_usd_prices().await;
         }
         let new_swap = SavedSwap::Maker(maker_swap);
-        try_s!(new_swap.save_to_db(ctx, db_id).await);
+        try_s!(new_swap.save_to_db(ctx, db_id.as_deref()).await);
         Ok(())
     } else {
         ERR!("Expected SavedSwap::Maker, got {:?}", swap)
@@ -2117,8 +2113,7 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                         .dispatch_async(ctx.clone(), LpEvents::MakerSwapStatusChanged(event_to_send))
                         .await;
                     drop(dispatcher);
-                    let account_key = running_swap.maker_coin.account_db_id().clone();
-                    save_my_maker_swap_event(&ctx, account_key.as_deref(), &running_swap, to_save)
+                    save_my_maker_swap_event(&ctx, &running_swap, to_save)
                         .await
                         .expect("!save_my_maker_swap_event");
                     if event.should_ban_taker() {
