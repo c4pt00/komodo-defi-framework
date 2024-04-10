@@ -2089,16 +2089,9 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
         };
     }
     let running_swap = Arc::new(swap);
+    let account_id = running_swap.maker_coin.account_db_id().expect("Valid maker pubkey");
     let weak_ref = Arc::downgrade(&running_swap);
-    let swap_ctx = SwapsContext::from_ctx(
-        &ctx,
-        running_swap
-            .maker_coin
-            .account_db_id()
-            .expect("Valid maker pubkey")
-            .as_deref(),
-    )
-    .unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx, account_id.as_deref()).unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.taker);
     swap_ctx.running_swaps.lock().unwrap().push(weak_ref);
 
@@ -2146,12 +2139,14 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                         command = c;
                     },
                     None => {
-                        if let Err(e) = mark_swap_as_finished(ctx.clone(), running_swap.uuid).await {
+                        if let Err(e) =
+                            mark_swap_as_finished(ctx.clone(), running_swap.uuid, account_id.as_deref()).await
+                        {
                             error!("!mark_swap_finished({}): {}", uuid, e);
                         }
 
                         if to_broadcast {
-                            if let Err(e) = broadcast_my_swap_status(&ctx, uuid).await {
+                            if let Err(e) = broadcast_my_swap_status(&ctx, uuid, account_id.as_deref()).await {
                                 error!("!broadcast_my_swap_status({}): {}", uuid, e);
                             }
                         }

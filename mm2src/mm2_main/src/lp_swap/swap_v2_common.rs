@@ -212,14 +212,21 @@ pub(super) async fn get_unfinished_swaps_uuids(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(super) async fn mark_swap_as_finished(ctx: MmArc, id: Uuid) -> MmResult<(), SwapStateMachineError> {
+pub(super) async fn mark_swap_as_finished(
+    ctx: MmArc,
+    id: Uuid,
+    _db_id: Option<&str>,
+) -> MmResult<(), SwapStateMachineError> {
     async_blocking(move || Ok(set_swap_is_finished(&ctx.sqlite_connection(), &id.to_string())?)).await
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(super) async fn mark_swap_as_finished(ctx: MmArc, id: Uuid) -> MmResult<(), SwapStateMachineError> {
-    // TODO: db_id
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
+pub(super) async fn mark_swap_as_finished(
+    ctx: MmArc,
+    id: Uuid,
+    db_id: Option<&str>,
+) -> MmResult<(), SwapStateMachineError> {
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;

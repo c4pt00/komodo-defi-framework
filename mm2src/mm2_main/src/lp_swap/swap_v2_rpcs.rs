@@ -34,7 +34,7 @@ cfg_wasm32!(
 );
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid) -> MmResult<Option<u8>, SqlError> {
+pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid, _db_id: Option<&str>) -> MmResult<Option<u8>, SqlError> {
     let ctx = ctx.clone();
     let uuid = uuid.to_string();
 
@@ -76,11 +76,14 @@ impl From<serde_json::Error> for SwapV2DbError {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid) -> MmResult<Option<u8>, SwapV2DbError> {
+pub(super) async fn get_swap_type(
+    ctx: &MmArc,
+    uuid: &Uuid,
+    db_id: Option<&str>,
+) -> MmResult<Option<u8>, SwapV2DbError> {
     use crate::mm2::lp_swap::swap_wasm_db::MySwapsFiltersTable;
 
-    // TODO db_id
-    let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).unwrap();
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -150,22 +153,25 @@ impl<T: DeserializeOwned> MySwapForRpc<T> {
 pub(super) async fn get_maker_swap_data_for_rpc(
     ctx: &MmArc,
     uuid: &Uuid,
+    db_id: Option<&str>,
 ) -> MmResult<Option<MySwapForRpc<MakerSwapEvent>>, SqlError> {
-    get_swap_data_for_rpc_impl(ctx, uuid).await
+    get_swap_data_for_rpc_impl(ctx, uuid, db_id).await
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) async fn get_taker_swap_data_for_rpc(
     ctx: &MmArc,
     uuid: &Uuid,
+    db_id: Option<&str>,
 ) -> MmResult<Option<MySwapForRpc<TakerSwapEvent>>, SqlError> {
-    get_swap_data_for_rpc_impl(ctx, uuid).await
+    get_swap_data_for_rpc_impl(ctx, uuid, db_id).await
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 async fn get_swap_data_for_rpc_impl<T: DeserializeOwned + Send + 'static>(
     ctx: &MmArc,
     uuid: &Uuid,
+    _db_id: Option<&str>,
 ) -> MmResult<Option<MySwapForRpc<T>>, SqlError> {
     let ctx = ctx.clone();
     let uuid = uuid.to_string();
@@ -186,9 +192,9 @@ async fn get_swap_data_for_rpc_impl<T: DeserializeOwned + Send + 'static>(
 pub(super) async fn get_maker_swap_data_for_rpc(
     ctx: &MmArc,
     uuid: &Uuid,
+    db_id: Option<&str>,
 ) -> MmResult<Option<MySwapForRpc<MakerSwapEvent>>, SwapV2DbError> {
-    // TODO: db_id
-    let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).unwrap();
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -227,9 +233,9 @@ pub(super) async fn get_maker_swap_data_for_rpc(
 pub(super) async fn get_taker_swap_data_for_rpc(
     ctx: &MmArc,
     uuid: &Uuid,
+    db_id: Option<&str>,
 ) -> MmResult<Option<MySwapForRpc<TakerSwapEvent>>, SwapV2DbError> {
-    // TODO: db_id
-    let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).unwrap();
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -308,11 +314,11 @@ async fn get_swap_data_by_uuid_and_type(
             }))
         },
         MAKER_SWAP_V2_TYPE => {
-            let data = get_maker_swap_data_for_rpc(ctx, &uuid).await?;
+            let data = get_maker_swap_data_for_rpc(ctx, &uuid, db_id).await?;
             Ok(data.map(SwapRpcData::MakerV2))
         },
         TAKER_SWAP_V2_TYPE => {
-            let data = get_taker_swap_data_for_rpc(ctx, &uuid).await?;
+            let data = get_taker_swap_data_for_rpc(ctx, &uuid, db_id).await?;
             Ok(data.map(SwapRpcData::TakerV2))
         },
         unsupported => MmError::err(GetSwapDataErr::UnsupportedSwapType(unsupported)),
@@ -322,6 +328,7 @@ async fn get_swap_data_by_uuid_and_type(
 #[derive(Deserialize)]
 pub(crate) struct MySwapStatusRequest {
     uuid: Uuid,
+    db_id: Option<String>,
 }
 
 #[derive(Display, Serialize, SerializeErrorType)]
@@ -366,7 +373,7 @@ pub(crate) async fn my_swap_status_rpc(
     ctx: MmArc,
     req: MySwapStatusRequest,
 ) -> MmResult<SwapRpcData, MySwapStatusError> {
-    let swap_type = get_swap_type(&ctx, &req.uuid)
+    let swap_type = get_swap_type(&ctx, &req.uuid, req.db_id.as_deref())
         .await?
         .or_mm_err(|| MySwapStatusError::NoSwapWithUuid(req.uuid))?;
     get_swap_data_by_uuid_and_type(&ctx, None, req.uuid, swap_type)

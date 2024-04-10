@@ -336,7 +336,8 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
             return match json::from_slice::<SwapStatus>(msg) {
                 Ok(mut status) => {
                     status.data.fetch_and_set_usd_prices().await;
-                    if let Err(e) = save_stats_swap(&ctx, &status.data).await {
+                    // TODO: db_id
+                    if let Err(e) = save_stats_swap(&ctx, &status.data, None).await {
                         error!("Error saving the swap {} status: {}", status.data.uuid(), e);
                     }
                     Ok(())
@@ -1034,8 +1035,8 @@ fn add_swap_to_db_index(ctx: &MmArc, swap: &SavedSwap) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn save_stats_swap(ctx: &MmArc, swap: &SavedSwap) -> Result<(), String> {
-    try_s!(swap.save_to_stats_db(ctx, None).await);
+async fn save_stats_swap(ctx: &MmArc, swap: &SavedSwap, db_id: Option<&str>) -> Result<(), String> {
+    try_s!(swap.save_to_stats_db(ctx, db_id).await);
     add_swap_to_db_index(ctx, swap);
     Ok(())
 }
@@ -1117,11 +1118,12 @@ impl From<SavedSwap> for MySwapStatusResponse {
 /// Returns the status of swap performed on `my` node
 pub async fn my_swap_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let uuid: Uuid = try_s!(json::from_value(req["params"]["uuid"].clone()));
-    let swap_type = try_s!(get_swap_type(&ctx, &uuid).await);
+    let db_id: Option<String> = try_s!(json::from_value(req["params"]["db_id"].clone()));
+    let swap_type = try_s!(get_swap_type(&ctx, &uuid, db_id.as_deref()).await);
 
     match swap_type {
         Some(LEGACY_SWAP_TYPE) => {
-            let status = match SavedSwap::load_my_swap_from_db(&ctx, None, uuid).await {
+            let status = match SavedSwap::load_my_swap_from_db(&ctx, db_id.as_deref(), uuid).await {
                 Ok(Some(status)) => status,
                 Ok(None) => return Err("swap data is not found".to_owned()),
                 Err(e) => return ERR!("{}", e),
@@ -1132,13 +1134,13 @@ pub async fn my_swap_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, 
             Ok(try_s!(Response::builder().body(res)))
         },
         Some(MAKER_SWAP_V2_TYPE) => {
-            let swap_data = try_s!(get_maker_swap_data_for_rpc(&ctx, &uuid).await);
+            let swap_data = try_s!(get_maker_swap_data_for_rpc(&ctx, &uuid, db_id.as_deref()).await);
             let res_js = json!({ "result": swap_data });
             let res = try_s!(json::to_vec(&res_js));
             Ok(try_s!(Response::builder().body(res)))
         },
         Some(TAKER_SWAP_V2_TYPE) => {
-            let swap_data = try_s!(get_taker_swap_data_for_rpc(&ctx, &uuid).await);
+            let swap_data = try_s!(get_taker_swap_data_for_rpc(&ctx, &uuid, db_id.as_deref()).await);
             let res_js = json!({ "result": swap_data });
             let res = try_s!(json::to_vec(&res_js));
             Ok(try_s!(Response::builder().body(res)))
@@ -1157,9 +1159,10 @@ pub async fn stats_swap_status(_ctx: MmArc, _req: Json) -> Result<Response<Vec<u
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn stats_swap_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let uuid: Uuid = try_s!(json::from_value(req["params"]["uuid"].clone()));
+    let db_id: Option<String> = try_s!(json::from_value(req["params"]["db_id"].clone()));
 
-    let maker_status = try_s!(SavedSwap::load_from_maker_stats_db(&ctx, None, uuid).await);
-    let taker_status = try_s!(SavedSwap::load_from_taker_stats_db(&ctx, None, uuid).await);
+    let maker_status = try_s!(SavedSwap::load_from_maker_stats_db(&ctx, db_id.as_deref(), uuid).await);
+    let taker_status = try_s!(SavedSwap::load_from_taker_stats_db(&ctx, db_id.as_deref(), uuid).await);
 
     if maker_status.is_none() && taker_status.is_none() {
         return ERR!("swap data is not found");
@@ -1182,15 +1185,15 @@ struct SwapStatus {
 }
 
 /// Broadcasts `my` swap status to P2P network
-async fn broadcast_my_swap_status(ctx: &MmArc, uuid: Uuid) -> Result<(), String> {
-    let mut status = match try_s!(SavedSwap::load_my_swap_from_db(ctx, None, uuid).await) {
+async fn broadcast_my_swap_status(ctx: &MmArc, uuid: Uuid, db_id: Option<&str>) -> Result<(), String> {
+    let mut status = match try_s!(SavedSwap::load_my_swap_from_db(ctx, db_id, uuid).await) {
         Some(status) => status,
         None => return ERR!("swap data is not found"),
     };
     status.hide_secrets();
 
     #[cfg(not(target_arch = "wasm32"))]
-    try_s!(save_stats_swap(ctx, &status).await);
+    try_s!(save_stats_swap(ctx, &status, db_id).await);
 
     let status = SwapStatus {
         method: "swapstatus".into(),
@@ -1240,6 +1243,7 @@ pub struct MyRecentSwapsReq {
     pub paging_options: PagingOptions,
     #[serde(flatten)]
     pub filter: MySwapsFilter,
+    pub db_id: Option<String>,
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -1327,14 +1331,14 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
                 Ok(None) => warn!("No such swap with the uuid '{}'", uuid),
                 Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
             },
-            MAKER_SWAP_V2_TYPE => match get_maker_swap_data_for_rpc(&ctx, uuid).await {
+            MAKER_SWAP_V2_TYPE => match get_maker_swap_data_for_rpc(&ctx, uuid, req.db_id.as_deref()).await {
                 Ok(data) => {
                     let swap_json = try_s!(json::to_value(data));
                     swaps.push(swap_json);
                 },
                 Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
             },
-            TAKER_SWAP_V2_TYPE => match get_taker_swap_data_for_rpc(&ctx, uuid).await {
+            TAKER_SWAP_V2_TYPE => match get_taker_swap_data_for_rpc(&ctx, uuid, req.db_id.as_deref()).await {
                 Ok(data) => {
                     let swap_json = try_s!(json::to_value(data));
                     swaps.push(swap_json);
@@ -1755,7 +1759,6 @@ pub fn process_swap_v2_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PProcessRes
 
     let uuid = Uuid::from_str(topic).map_to_mm(|e| P2PProcessError::DecodeError(e.to_string()))?;
 
-    // TODO: db_id
     let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
     let mut msgs = swap_ctx.swap_v2_msgs.lock().unwrap();
     if let Some(msg_store) = msgs.get_mut(&uuid) {
