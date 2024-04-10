@@ -94,7 +94,6 @@ impl DbIdentifier {
     pub fn db_name(&self) -> &'static str { self.db_name }
 
     pub fn new<Db: DbInstance>(namespace_id: DbNamespaceId, pubkey: Option<String>) -> DbIdentifier {
-        let pubkey = Some(pubkey.unwrap_or_else(|| hex::encode(H160::default().as_slice())));
         DbIdentifier {
             namespace_id,
             pubkey,
