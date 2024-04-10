@@ -179,7 +179,8 @@ impl StateMachineStorage for MakerSwapStorage {
 
     #[cfg(target_arch = "wasm32")]
     async fn store_repr(&mut self, uuid: Self::MachineId, repr: Self::DbRepr) -> Result<(), Self::Error> {
-        let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("SwapsContext::from_ctx should not fail");
+        // TODO: db_id
+        let swaps_ctx = SwapsContext::from_ctx(&self.ctx, None).expect("SwapsContext::from_ctx should not fail");
         let db = swaps_ctx.swap_db().await?;
         let transaction = db.transaction().await?;
 
@@ -682,7 +683,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_payment_spend_trade_fee: _,
                 ..
             } => {
-                let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
+                let swaps_ctx = SwapsContext::from_ctx(&self.ctx, self.maker_coin.account_db_id().as_deref())
+                    .expect("from_ctx should not fail at this point");
                 let maker_coin_ticker: String = self.maker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
                     swap_uuid: self.uuid,
@@ -701,7 +703,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                     .push(new_locked);
             },
             MakerSwapEvent::MakerPaymentSentFundingSpendGenerated { .. } => {
-                let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
+                let swaps_ctx = SwapsContext::from_ctx(&self.ctx, self.maker_coin.account_db_id().as_deref())
+                    .expect("from_ctx should not fail at this point");
                 let ticker = self.maker_coin.ticker();
                 if let Some(maker_coin_locked) = swaps_ctx.locked_amounts.lock().unwrap().get_mut(ticker) {
                     maker_coin_locked.retain(|locked| locked.swap_uuid != self.uuid);
@@ -735,7 +738,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_payment_trade_fee,
                 ..
             } => {
-                let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
+                // TODO: db_id
+                let swaps_ctx =
+                    SwapsContext::from_ctx(&self.ctx, None).expect("from_ctx should not fail at this point");
                 let maker_coin_ticker: String = self.maker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
                     swap_uuid: self.uuid,

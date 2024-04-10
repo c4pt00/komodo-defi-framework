@@ -105,7 +105,8 @@ pub(super) async fn has_db_record_for(ctx: MmArc, id: &Uuid) -> MmResult<bool, S
 
 #[cfg(target_arch = "wasm32")]
 pub(super) async fn has_db_record_for(ctx: MmArc, id: &Uuid) -> MmResult<bool, SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -141,7 +142,8 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr + DeserializeOwned + 
     id: Uuid,
     event: T::Event,
 ) -> MmResult<(), SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -164,7 +166,8 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr + DeserializeOwned + 
 
 #[cfg(target_arch = "wasm32")]
 pub(super) async fn get_swap_repr<T: DeserializeOwned>(ctx: &MmArc, id: Uuid) -> MmResult<T, SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(ctx, None).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
 
@@ -198,8 +201,8 @@ pub(super) async fn get_unfinished_swaps_uuids(
     let index = MultiIndex::new(IS_FINISHED_SWAP_TYPE_INDEX)
         .with_value(BoolAsInt::new(false))?
         .with_value(swap_type)?;
-
-    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -215,7 +218,8 @@ pub(super) async fn mark_swap_as_finished(ctx: MmArc, id: Uuid) -> MmResult<(), 
 
 #[cfg(target_arch = "wasm32")]
 pub(super) async fn mark_swap_as_finished(ctx: MmArc, id: Uuid) -> MmResult<(), SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -230,7 +234,8 @@ pub(super) async fn mark_swap_as_finished(ctx: MmArc, id: Uuid) -> MmResult<(), 
 
 pub(super) fn init_additional_context_impl(ctx: &MmArc, swap_info: ActiveSwapV2Info, other_p2p_pubkey: PublicKey) {
     subscribe_to_topic(ctx, swap_v2_topic(&swap_info.uuid));
-    let swap_ctx = SwapsContext::from_ctx(ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swap_ctx = SwapsContext::from_ctx(ctx, None).expect("SwapsContext::from_ctx should not fail");
     swap_ctx.init_msg_v2_store(swap_info.uuid, other_p2p_pubkey);
     swap_ctx
         .active_swaps_v2_infos
@@ -241,7 +246,8 @@ pub(super) fn init_additional_context_impl(ctx: &MmArc, swap_info: ActiveSwapV2I
 
 pub(super) fn clean_up_context_impl(ctx: &MmArc, uuid: &Uuid, maker_coin: &str, taker_coin: &str) {
     unsubscribe_from_topic(ctx, swap_v2_topic(uuid));
-    let swap_ctx = SwapsContext::from_ctx(ctx).expect("SwapsContext::from_ctx should not fail");
+    // TODO: db_id
+    let swap_ctx = SwapsContext::from_ctx(ctx, None).expect("SwapsContext::from_ctx should not fail");
     swap_ctx.remove_msg_v2_store(uuid);
     swap_ctx.active_swaps_v2_infos.lock().unwrap().remove(uuid);
 

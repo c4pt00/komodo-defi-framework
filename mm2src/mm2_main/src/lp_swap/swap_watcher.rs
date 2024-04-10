@@ -587,7 +587,8 @@ fn spawn_taker_swap_watcher(ctx: MmArc, watcher_data: TakerSwapWatcherData, veri
         return;
     }
 
-    let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
+    // TODO: db_id
+    let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
     if swap_ctx.swap_msgs.lock().unwrap().contains_key(&watcher_data.uuid) {
         return;
     }

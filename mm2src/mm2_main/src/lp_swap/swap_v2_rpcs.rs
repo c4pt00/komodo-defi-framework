@@ -79,7 +79,8 @@ impl From<serde_json::Error> for SwapV2DbError {
 pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid) -> MmResult<Option<u8>, SwapV2DbError> {
     use crate::mm2::lp_swap::swap_wasm_db::MySwapsFiltersTable;
 
-    let swaps_ctx = SwapsContext::from_ctx(ctx).unwrap();
+    // TODO db_id
+    let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -186,7 +187,8 @@ pub(super) async fn get_maker_swap_data_for_rpc(
     ctx: &MmArc,
     uuid: &Uuid,
 ) -> MmResult<Option<MySwapForRpc<MakerSwapEvent>>, SwapV2DbError> {
-    let swaps_ctx = SwapsContext::from_ctx(ctx).unwrap();
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -226,7 +228,8 @@ pub(super) async fn get_taker_swap_data_for_rpc(
     ctx: &MmArc,
     uuid: &Uuid,
 ) -> MmResult<Option<MySwapForRpc<TakerSwapEvent>>, SwapV2DbError> {
-    let swaps_ctx = SwapsContext::from_ctx(ctx).unwrap();
+    // TODO: db_id
+    let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;

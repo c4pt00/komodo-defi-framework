@@ -450,7 +450,7 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
     let to_broadcast = !(swap.maker_coin.is_privacy() || swap.taker_coin.is_privacy());
     let running_swap = Arc::new(swap);
     let weak_ref = Arc::downgrade(&running_swap);
-    let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx, running_swap.taker_coin.account_db_id().as_deref()).unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.maker);
     swap_ctx.running_swaps.lock().unwrap().push(weak_ref);
 

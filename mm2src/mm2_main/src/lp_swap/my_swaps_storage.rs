@@ -176,7 +176,8 @@ mod wasm_impl {
             started_at: u64,
             swap_type: u8,
         ) -> MySwapsResult<()> {
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx).map_to_mm(MySwapsError::InternalError)?;
+            // TODO: db_id
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx, None).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -198,7 +199,8 @@ mod wasm_impl {
             filter: &MySwapsFilter,
             paging_options: Option<&PagingOptions>,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx).map_to_mm(MySwapsError::InternalError)?;
+            // TODO: db_id
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx, None).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;

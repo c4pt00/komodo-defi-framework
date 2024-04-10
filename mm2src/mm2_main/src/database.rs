@@ -72,7 +72,9 @@ fn clean_db(ctx: &MmArc) {
     }
 }
 
-async fn migration_1(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> { fill_my_swaps_from_json_statements(ctx, None).await }
+async fn migration_1(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> {
+    fill_my_swaps_from_json_statements(ctx, None).await
+}
 
 async fn migration_2(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> {
     create_and_fill_stats_swaps_from_json_statements(ctx, None).await

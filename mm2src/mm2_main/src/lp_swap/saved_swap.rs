@@ -313,8 +313,8 @@ mod wasm_impl {
         Ok(migrations.first().map(|(_, m)| m.migration).unwrap_or_default())
     }
 
-    pub async fn migrate_swaps_data(ctx: &MmArc) -> MmResult<(), SavedSwapError> {
-        let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
+    pub async fn migrate_swaps_data(ctx: &MmArc, db_id: Option<&str>) -> MmResult<(), SavedSwapError> {
+        let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
         let db = swaps_ctx.swap_db().await?;
         let transaction = db.transaction().await?;
         let migration_table = transaction.table::<SwapsMigrationTable>().await?;
@@ -402,10 +402,10 @@ mod wasm_impl {
     impl SavedSwapIo for SavedSwap {
         async fn load_my_swap_from_db(
             ctx: &MmArc,
-            _db_id: Option<&str>,
+            db_id: Option<&str>,
             uuid: Uuid,
         ) -> SavedSwapResult<Option<SavedSwap>> {
-            let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
+            let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
             let db = swaps_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SavedSwapTable>().await?;
@@ -418,8 +418,8 @@ mod wasm_impl {
             json::from_value(saved_swap_json).map_to_mm(|e| SavedSwapError::ErrorDeserializing(e.to_string()))
         }
 
-        async fn load_all_my_swaps_from_db(ctx: &MmArc, _db_id: Option<&str>) -> SavedSwapResult<Vec<SavedSwap>> {
-            let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
+        async fn load_all_my_swaps_from_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<SavedSwap>> {
+            let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
             let db = swaps_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SavedSwapTable>().await?;
@@ -433,14 +433,14 @@ mod wasm_impl {
                 .collect()
         }
 
-        async fn save_to_db(&self, ctx: &MmArc, _db_id: Option<&str>) -> SavedSwapResult<()> {
+        async fn save_to_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()> {
             let saved_swap = json::to_value(self).map_to_mm(|e| SavedSwapError::ErrorSerializing(e.to_string()))?;
             let saved_swap_item = SavedSwapTable {
                 uuid: *self.uuid(),
                 saved_swap,
             };
 
-            let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
+            let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
             let db = swaps_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SavedSwapTable>().await?;
@@ -465,7 +465,7 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     async fn get_all_items(ctx: &MmArc) -> Vec<(ItemId, SavedSwapTable)> {
-        let swaps_ctx = SwapsContext::from_ctx(ctx).unwrap();
+        let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
         let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction
@@ -530,7 +530,7 @@ mod tests {
     async fn test_get_current_migration() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
 
-        let swaps_ctx = SwapsContext::from_ctx(&ctx).unwrap();
+        let swaps_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
         let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction
@@ -550,12 +550,12 @@ mod tests {
     async fn test_migrate_swaps_data() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
 
-        let account_id = None;
         let saved_swap_str = r#"{"type":"Maker","error_events":["StartFailed","NegotiateFailed","TakerFeeValidateFailed","MakerPaymentTransactionFailed","MakerPaymentDataSendFailed","TakerPaymentValidateFailed","TakerPaymentSpendFailed","TakerPaymentSpendConfirmFailed","MakerPaymentRefunded","MakerPaymentRefundFailed"],"events":[{"event":{"data":{"lock_duration":7800,"maker_amount":"3.54932734","maker_coin":"KMD","maker_coin_start_block":1452970,"maker_payment_confirmations":1,"maker_payment_lock":1563759539,"my_persistent_pub":"031bb83b58ec130e28e0a6d5d2acf2eb01b0d3f1670e021d47d31db8a858219da8","secret":"e1c9bd12a83f810813dc078ac398069b63d56bf1e94657def995c43cd1975302","started_at":1563743939,"taker":"101ace6b08605b9424b0582b5cce044b70a3c8d8d10cb2965e039b0967ae92b9","taker_amount":"0.02004833998671660000000000","taker_coin":"ETH","taker_coin_start_block":8196380,"taker_payment_confirmations":1,"uuid":"3447b727-fe93-4357-8e5a-8cf2699b7e86"},"type":"Started"},"timestamp":1563743939211},{"event":{"data":{"taker_payment_locktime":1563751737,"taker_pubkey":"03101ace6b08605b9424b0582b5cce044b70a3c8d8d10cb2965e039b0967ae92b9"},"type":"Negotiated"},"timestamp":1563743979835},{"event":{"data":{"tx_hash":"a59203eb2328827de00bed699a29389792906e4f39fdea145eb40dc6b3821bd6","tx_hex":"f8690284ee6b280082520894d8997941dd1346e9231118d5685d866294f59e5b865af3107a4000801ca0743d2b7c9fad65805d882179062012261be328d7628ae12ee08eff8d7657d993a07eecbd051f49d35279416778faa4664962726d516ce65e18755c9b9406a9c2fd"},"type":"TakerFeeValidated"},"timestamp":1563744052878},{"event":{"data":{"error":"lp_swap:1888] eth:654] RPC error: Error { code: ServerError(-32010), message: \"Transaction with the same hash was already imported.\", data: None }"},"type":"MakerPaymentTransactionFailed"},"timestamp":1563744118577},{"event":{"type":"Finished"},"timestamp":1563763243350}],"success_events":["Started","Negotiated","TakerFeeValidated","MakerPaymentSent","TakerPaymentReceived","TakerPaymentWaitConfirmStarted","TakerPaymentValidatedAndConfirmed","TakerPaymentSpent","TakerPaymentSpendConfirmStarted","TakerPaymentSpendConfirmed","TakerPaymentSpendConfirmStarted","TakerPaymentSpendConfirmed","Finished"],"uuid":"3447b727-fe93-4357-8e5a-8cf2699b7e86"}"#;
         let saved_swap: SavedSwap = json::from_str(saved_swap_str).unwrap();
+        let account_id = None;
         saved_swap.save_to_db(&ctx, account_id).await.expect("!save_to_db");
 
-        let swaps_ctx = SwapsContext::from_ctx(&ctx).unwrap();
+        let swaps_ctx = SwapsContext::from_ctx(&ctx, account_id).unwrap();
         {
             let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
             let transaction = db.transaction().await.expect("Error creating transaction");
@@ -575,7 +575,7 @@ mod tests {
             table.add_item(&filter).await.unwrap();
         }
 
-        wasm_impl::migrate_swaps_data(&ctx).await.unwrap();
+        wasm_impl::migrate_swaps_data(&ctx, account_id).await.unwrap();
 
         let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");

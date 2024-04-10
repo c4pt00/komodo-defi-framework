@@ -21,7 +21,8 @@ pub enum BanReason {
 }
 
 pub fn ban_pubkey_on_failed_swap(ctx: &MmArc, pubkey: H256, swap_uuid: &Uuid, event: SwapEvent) {
-    let ctx = SwapsContext::from_ctx(ctx).unwrap();
+    // TODO: db_id
+    let ctx = SwapsContext::from_ctx(ctx, None).unwrap();
     let mut banned = ctx.banned_pubkeys.lock().unwrap();
     banned.insert(pubkey.into(), BanReason::FailedSwap {
         caused_by_swap: *swap_uuid,
@@ -30,13 +31,15 @@ pub fn ban_pubkey_on_failed_swap(ctx: &MmArc, pubkey: H256, swap_uuid: &Uuid, ev
 }
 
 pub fn is_pubkey_banned(ctx: &MmArc, pubkey: &H256Json) -> bool {
-    let ctx = SwapsContext::from_ctx(ctx).unwrap();
+    // TODO: db_id
+    let ctx = SwapsContext::from_ctx(ctx, None).unwrap();
     let banned = ctx.banned_pubkeys.lock().unwrap();
     banned.contains_key(pubkey)
 }
 
 pub async fn list_banned_pubkeys_rpc(ctx: MmArc) -> Result<Response<Vec<u8>>, String> {
-    let ctx = try_s!(SwapsContext::from_ctx(&ctx));
+    // TODO: db_id
+    let ctx = try_s!(SwapsContext::from_ctx(&ctx, None));
     let res = try_s!(json::to_vec(&json!({
         "result": *try_s!(ctx.banned_pubkeys.lock()),
     })));
@@ -51,7 +54,8 @@ struct BanPubkeysReq {
 
 pub async fn ban_pubkey_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: BanPubkeysReq = try_s!(json::from_value(req));
-    let ctx = try_s!(SwapsContext::from_ctx(&ctx));
+    // TODO: db_id
+    let ctx = try_s!(SwapsContext::from_ctx(&ctx, None));
     let mut banned_pubs = try_s!(ctx.banned_pubkeys.lock());
 
     match banned_pubs.entry(req.pubkey) {
@@ -75,7 +79,8 @@ enum UnbanPubkeysReq {
 
 pub async fn unban_pubkeys_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: UnbanPubkeysReq = try_s!(json::from_value(req["unban_by"].clone()));
-    let ctx = try_s!(SwapsContext::from_ctx(&ctx));
+    // TODO: db_id
+    let ctx = try_s!(SwapsContext::from_ctx(&ctx, None));
     let mut banned_pubs = try_s!(ctx.banned_pubkeys.lock());
     let mut unbanned = HashMap::new();
     let mut were_not_banned = vec![];
