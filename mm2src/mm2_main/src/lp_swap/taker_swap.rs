@@ -3215,7 +3215,7 @@ mod taker_swap_tests {
             taker_saved_swap,
         ))
         .unwrap();
-        let swaps_ctx = SwapsContext::from_ctx(&ctx).unwrap();
+        let swaps_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
         let arc = Arc::new(swap);
         let weak_ref = Arc::downgrade(&arc);
         swaps_ctx.running_swaps.lock().unwrap().push(weak_ref);
