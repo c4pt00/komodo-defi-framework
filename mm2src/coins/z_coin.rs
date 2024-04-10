@@ -863,6 +863,13 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
         let utxo = self.build_utxo_fields().await?;
         let utxo_arc = UtxoArc::new(utxo);
 
+        #[cfg(target_arch = "wasm32")]
+        let db_id = utxo_common::my_public_key(&utxo_arc)
+            .ok()
+            .map(|k| k.address_hash().to_string());
+        #[cfg(not(target_arch = "wasm32"))]
+        let db_id: Option<String> = None;
+
         let z_spending_key = match self.z_spending_key {
             Some(ref z_spending_key) => z_spending_key.clone(),
             None => extended_spending_key_from_protocol_info_and_policy(
@@ -883,16 +890,11 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
         .expect("DEX_FEE_Z_ADDR is a valid z-address")
         .expect("DEX_FEE_Z_ADDR is a valid z-address");
 
-        let z_tx_prover = self.z_tx_prover().await?;
+        let z_tx_prover = self.z_tx_prover(db_id.as_deref()).await?;
         let my_z_addr_encoded = encode_payment_address(
             self.protocol_info.consensus_params.hrp_sapling_payment_address(),
             &my_z_addr,
         );
-
-        #[cfg(target_arch = "wasm32")]
-        let db_id = utxo_common::my_public_key(&utxo_arc).ok().map(|k| k.to_string());
-        #[cfg(not(target_arch = "wasm32"))]
-        let db_id: Option<String> = None;
 
         let blocks_db = self.init_blocks_db(db_id.as_deref()).await?;
 
@@ -1016,7 +1018,7 @@ impl<'a> ZCoinBuilder<'a> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    async fn z_tx_prover(&self) -> Result<LocalTxProver, MmError<ZCoinBuildError>> {
+    async fn z_tx_prover(&self, _db_id: Option<&str>) -> Result<LocalTxProver, MmError<ZCoinBuildError>> {
         let params_dir = match &self.z_coin_params.zcash_params_path {
             None => default_params_folder().or_mm_err(|| ZCoinBuildError::ZCashParamsNotFound)?,
             Some(file_path) => PathBuf::from(file_path),
@@ -1035,8 +1037,8 @@ impl<'a> ZCoinBuilder<'a> {
     }
 
     #[cfg(target_arch = "wasm32")]
-    async fn z_tx_prover(&self) -> Result<LocalTxProver, MmError<ZCoinBuildError>> {
-        let params_db = ZcashParamsWasmImpl::new(self.ctx)
+    async fn z_tx_prover(&self, db_id: Option<&str>) -> Result<LocalTxProver, MmError<ZCoinBuildError>> {
+        let params_db = ZcashParamsWasmImpl::new(self.ctx, db_id)
             .await
             .mm_err(|err| ZCoinBuildError::ZCashParamsError(err.to_string()))?;
         let (sapling_spend, sapling_output) = if !params_db

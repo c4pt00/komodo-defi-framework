@@ -108,7 +108,7 @@ pub fn stats_taker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
 }
 
 async fn save_my_taker_swap_event(ctx: &MmArc, swap: &TakerSwap, event: TakerSavedEvent) -> Result<(), String> {
-    let db_id = swap.taker_coin.account_db_id();
+    let db_id = try_s!(swap.taker_coin.account_db_id());
     let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Taker(TakerSavedSwap {
@@ -446,7 +446,15 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
     let to_broadcast = !(swap.maker_coin.is_privacy() || swap.taker_coin.is_privacy());
     let running_swap = Arc::new(swap);
     let weak_ref = Arc::downgrade(&running_swap);
-    let swap_ctx = SwapsContext::from_ctx(&ctx, running_swap.taker_coin.account_db_id().as_deref()).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(
+        &ctx,
+        running_swap
+            .taker_coin
+            .account_db_id()
+            .expect("Valid maker pubkey")
+            .as_deref(),
+    )
+    .unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.maker);
     swap_ctx.running_swaps.lock().unwrap().push(weak_ref);
 
@@ -1952,7 +1960,7 @@ impl TakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<TakerSwapCommand>), String> {
-        let account_key = taker_coin.account_db_id();
+        let account_key = try_s!(taker_coin.account_db_id());
         let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
