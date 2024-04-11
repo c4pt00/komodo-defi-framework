@@ -4136,6 +4136,37 @@ pub async fn lp_coinfind_any(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinS
     Ok(coins.get(ticker).cloned())
 }
 
+#[cfg(target_arch = "wasm32")]
+pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
+    let cctx = try_s!(CoinsContext::from_ctx(ctx));
+    let coins = cctx.coins.lock().await;
+    let coins = coins.values().collect::<Vec<_>>();
+
+    // Using a HashSet to ensure uniqueness efficiently
+    let mut account_ids = HashSet::new();
+    // Add default wallet pubkey
+    account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
+
+    for coin in coins {
+        if let Some(account) = try_s!(coin.inner.account_db_id()) {
+            if coin.is_available() {
+                account_ids.insert(account);
+            }
+        };
+    }
+
+    Ok(account_ids)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+// TODO: complete impl when implementing multikey support for sqlite/native
+pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
+    let cctx = try_s!(CoinsContext::from_ctx(ctx));
+    let mut account_ids = HashSet::new();
+    account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
+    Ok(account_ids)
+}
+
 /// Attempts to find a pair of active coins returning None if one is not enabled
 pub async fn find_pair(ctx: &MmArc, base: &str, rel: &str) -> Result<Option<(MmCoinEnum, MmCoinEnum)>, String> {
     let fut_base = lp_coinfind(ctx, base);

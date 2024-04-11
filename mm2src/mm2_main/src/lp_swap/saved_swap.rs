@@ -2,7 +2,7 @@ use crate::mm2::lp_swap::maker_swap::{MakerSavedSwap, MakerSwap, MakerSwapEvent}
 use crate::mm2::lp_swap::taker_swap::{TakerSavedSwap, TakerSwap, TakerSwapEvent};
 use crate::mm2::lp_swap::{MySwapInfo, RecoveredSwap};
 use async_trait::async_trait;
-use coins::{lp_coinfind, lp_coinfind_any};
+use coins::lp_coinfind;
 use derive_more::Display;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -155,13 +155,14 @@ impl SavedSwap {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn account_db_id(&self, ctx: &MmArc) -> Result<Option<String>, String> {
-        // TODO
-        Ok(None)
+    pub async fn account_db_id(&self, _ctx: &MmArc) -> Result<Option<String>, String> {
+        // TODO  Ok(None)
     }
 
     #[cfg(target_arch = "wasm32")]
     pub async fn account_db_id(&self, ctx: &MmArc) -> Result<Option<String>, String> {
+        use coins::lp_coinfind_any;
+
         let coin_ticker = match self {
             SavedSwap::Maker(swap) => &swap.maker_coin,
             SavedSwap::Taker(swap) => &swap.taker_coin,
@@ -337,6 +338,7 @@ mod wasm_impl {
     }
 
     pub async fn migrate_swaps_data(ctx: &MmArc, db_id: Option<&str>) -> MmResult<(), SavedSwapError> {
+        info!("migrate_swaps_data: {db_id:?}");
         let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
         let db = swaps_ctx.swap_db().await?;
         let transaction = db.transaction().await?;
@@ -457,6 +459,7 @@ mod wasm_impl {
         }
 
         async fn save_to_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()> {
+            info!("save_to_db: {db_id:?}");
             let saved_swap = json::to_value(self).map_to_mm(|e| SavedSwapError::ErrorSerializing(e.to_string()))?;
             let saved_swap_item = SavedSwapTable {
                 uuid: *self.uuid(),
