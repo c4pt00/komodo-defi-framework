@@ -259,14 +259,14 @@ pub fn select_uuids_by_my_swaps_filter(
 }
 
 /// Returns whether a swap with specified uuid exists in DB
-pub fn does_swap_exist(conn: &Connection, uuid: &str) -> SqlResult<bool> {
+pub fn does_swap_exist(conn: &Connection, uuid: &str, _db_id: Option<&str>) -> SqlResult<bool> {
     const SELECT_SWAP_ID_BY_UUID: &str = "SELECT id FROM my_swaps WHERE uuid = :uuid;";
     let res: Option<i64> = query_single_row(conn, SELECT_SWAP_ID_BY_UUID, &[(":uuid", uuid)], |row| row.get(0))?;
     Ok(res.is_some())
 }
 
 /// Queries swap events by uuid
-pub fn get_swap_events(conn: &Connection, uuid: &str) -> SqlResult<String> {
+pub fn get_swap_events(conn: &Connection, uuid: &str, _db_id: Option<&str>) -> SqlResult<String> {
     const SELECT_SWAP_EVENTS_BY_UUID: &str = "SELECT events_json FROM my_swaps WHERE uuid = :uuid;";
     let mut stmt = conn.prepare(SELECT_SWAP_EVENTS_BY_UUID)?;
     let swap_type = stmt.query_row(&[(":uuid", uuid)], |row| row.get(0))?;
@@ -274,7 +274,7 @@ pub fn get_swap_events(conn: &Connection, uuid: &str) -> SqlResult<String> {
 }
 
 /// Updates swap events by uuid
-pub fn update_swap_events(conn: &Connection, uuid: &str, events_json: &str) -> SqlResult<()> {
+pub fn update_swap_events(conn: &Connection, uuid: &str, events_json: &str, _db_id: Option<&str>) -> SqlResult<()> {
     const UPDATE_SWAP_EVENTS_BY_UUID: &str = "UPDATE my_swaps SET events_json = :events_json WHERE uuid = :uuid;";
     let mut stmt = conn.prepare(UPDATE_SWAP_EVENTS_BY_UUID)?;
     stmt.execute(&[(":uuid", uuid), (":events_json", events_json)])
@@ -282,12 +282,16 @@ pub fn update_swap_events(conn: &Connection, uuid: &str, events_json: &str) -> S
 }
 
 const UPDATE_SWAP_IS_FINISHED_BY_UUID: &str = "UPDATE my_swaps SET is_finished = 1 WHERE uuid = :uuid;";
-pub fn set_swap_is_finished(conn: &Connection, uuid: &str) -> SqlResult<()> {
+pub fn set_swap_is_finished(conn: &Connection, uuid: &str, _db_id: Option<&str>) -> SqlResult<()> {
     let mut stmt = conn.prepare(UPDATE_SWAP_IS_FINISHED_BY_UUID)?;
     stmt.execute(&[(":uuid", uuid)]).map(|_| ())
 }
 
-pub fn select_unfinished_swaps_uuids(conn: &Connection, swap_type: u8) -> SqlResult<Vec<Uuid>, SelectSwapsUuidsErr> {
+pub fn select_unfinished_swaps_uuids(
+    conn: &Connection,
+    swap_type: u8,
+    _db_id: Option<&str>,
+) -> SqlResult<Vec<Uuid>, SelectSwapsUuidsErr> {
     const SELECT_UNFINISHED_SWAPS_UUIDS_BY_TYPE: &str =
         "SELECT uuid FROM my_swaps WHERE is_finished = 0 AND swap_type = :type;";
     let mut stmt = conn.prepare(SELECT_UNFINISHED_SWAPS_UUIDS_BY_TYPE)?;

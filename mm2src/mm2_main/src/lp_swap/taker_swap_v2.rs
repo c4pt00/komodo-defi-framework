@@ -257,15 +257,21 @@ impl StateMachineStorage for TakerSwapStorage {
     }
 
     async fn has_record_for(&mut self, id: &Self::MachineId) -> Result<bool, Self::Error> {
-        has_db_record_for(self.ctx.clone(), id).await
+        // TODO: db_id
+        let db_id: Option<String> = None;
+        has_db_record_for(self.ctx.clone(), id, db_id.as_deref()).await
     }
 
     async fn store_event(&mut self, id: Self::MachineId, event: TakerSwapEvent) -> Result<(), Self::Error> {
-        store_swap_event::<TakerSwapDbRepr>(self.ctx.clone(), id, event).await
+        // TODO: db_id
+        let db_id: Option<String> = None;
+        store_swap_event::<TakerSwapDbRepr>(self.ctx.clone(), id, event, db_id.as_deref()).await
     }
 
     async fn get_unfinished(&self) -> Result<Vec<Self::MachineId>, Self::Error> {
-        get_unfinished_swaps_uuids(self.ctx.clone(), TAKER_SWAP_V2_TYPE).await
+        // TODO: db_id
+        let db_id: Option<String> = None;
+        get_unfinished_swaps_uuids(self.ctx.clone(), TAKER_SWAP_V2_TYPE, db_id.as_deref()).await
     }
 
     async fn mark_finished(&mut self, id: Self::MachineId) -> Result<(), Self::Error> {

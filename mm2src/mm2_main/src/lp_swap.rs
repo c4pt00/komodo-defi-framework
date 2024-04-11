@@ -1390,9 +1390,11 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
 pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
     #[cfg(target_arch = "wasm32")]
     try_s!(migrate_swaps_data(&ctx, None).await);
-
+    // TODO: db_id
+    let db_id: Option<String> = None;
     let mut coins = HashSet::new();
-    let legacy_unfinished_uuids = try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE).await);
+    let legacy_unfinished_uuids =
+        try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE, db_id.as_deref()).await);
     for uuid in legacy_unfinished_uuids {
         // Todo db_id
         let swap = match SavedSwap::load_my_swap_from_db(&ctx, None, uuid).await {

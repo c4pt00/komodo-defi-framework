@@ -98,15 +98,24 @@ pub struct SwapRecreateCtx<MakerCoin, TakerCoin> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(super) async fn has_db_record_for(ctx: MmArc, id: &Uuid) -> MmResult<bool, SwapStateMachineError> {
+pub(super) async fn has_db_record_for(
+    ctx: MmArc,
+    id: &Uuid,
+    db_id: Option<&str>,
+) -> MmResult<bool, SwapStateMachineError> {
     let id_str = id.to_string();
-    Ok(async_blocking(move || does_swap_exist(&ctx.sqlite_connection(), &id_str)).await?)
+    let db_id = db_id.map(|e| e.to_string());
+
+    Ok(async_blocking(move || does_swap_exist(&ctx.sqlite_connection(), &id_str, db_id.as_deref())).await?)
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(super) async fn has_db_record_for(ctx: MmArc, id: &Uuid) -> MmResult<bool, SwapStateMachineError> {
-    // TODO: db_id
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
+pub(super) async fn has_db_record_for(
+    ctx: MmArc,
+    id: &Uuid,
+    db_id: Option<&str>,
+) -> MmResult<bool, SwapStateMachineError> {
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -119,18 +128,21 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr>(
     ctx: MmArc,
     id: Uuid,
     event: T::Event,
+    db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError>
 where
     T::Event: DeserializeOwned + Serialize + Send + 'static,
 {
     let id_str = id.to_string();
+    let db_id = db_id.map(|e| e.to_string());
+
     async_blocking(move || {
-        let events_json = get_swap_events(&ctx.sqlite_connection(), &id_str)?;
+        let events_json = get_swap_events(&ctx.sqlite_connection(), &id_str, db_id.as_deref())?;
         let mut events: Vec<T::Event> = serde_json::from_str(&events_json)?;
         events.push(event);
         drop_mutability!(events);
         let serialized_events = serde_json::to_string(&events)?;
-        update_swap_events(&ctx.sqlite_connection(), &id_str, &serialized_events)?;
+        update_swap_events(&ctx.sqlite_connection(), &id_str, &serialized_events, db_id.as_deref())?;
         Ok(())
     })
     .await
@@ -141,9 +153,9 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr + DeserializeOwned + 
     ctx: MmArc,
     id: Uuid,
     event: T::Event,
+    db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError> {
-    // TODO: db_id
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -185,9 +197,11 @@ pub(super) async fn get_swap_repr<T: DeserializeOwned>(ctx: &MmArc, id: Uuid) ->
 pub(super) async fn get_unfinished_swaps_uuids(
     ctx: MmArc,
     swap_type: u8,
+    db_id: Option<&str>,
 ) -> MmResult<Vec<Uuid>, SwapStateMachineError> {
+    let db_id = db_id.map(|e| e.to_string());
     async_blocking(move || {
-        select_unfinished_swaps_uuids(&ctx.sqlite_connection(), swap_type)
+        select_unfinished_swaps_uuids(&ctx.sqlite_connection(), swap_type, db_id.as_deref())
             .map_to_mm(|e| SwapStateMachineError::StorageError(e.to_string()))
     })
     .await
@@ -197,12 +211,12 @@ pub(super) async fn get_unfinished_swaps_uuids(
 pub(super) async fn get_unfinished_swaps_uuids(
     ctx: MmArc,
     swap_type: u8,
+    db_id: Option<&str>,
 ) -> MmResult<Vec<Uuid>, SwapStateMachineError> {
     let index = MultiIndex::new(IS_FINISHED_SWAP_TYPE_INDEX)
         .with_value(BoolAsInt::new(false))?
         .with_value(swap_type)?;
-    // TODO: db_id
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, None).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db().await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -215,9 +229,17 @@ pub(super) async fn get_unfinished_swaps_uuids(
 pub(super) async fn mark_swap_as_finished(
     ctx: MmArc,
     id: Uuid,
-    _db_id: Option<&str>,
+    db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError> {
-    async_blocking(move || Ok(set_swap_is_finished(&ctx.sqlite_connection(), &id.to_string())?)).await
+    let db_id = db_id.map(|e| e.to_string());
+    async_blocking(move || {
+        Ok(set_swap_is_finished(
+            &ctx.sqlite_connection(),
+            &id.to_string(),
+            db_id.as_deref(),
+        )?)
+    })
+    .await
 }
 
 #[cfg(target_arch = "wasm32")]
