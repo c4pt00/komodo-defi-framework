@@ -154,6 +154,13 @@ impl SavedSwap {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn account_db_id(&self, ctx: &MmArc) -> Result<Option<String>, String> {
+        // TODO
+        Ok(None)
+    }
+
+    #[cfg(target_arch = "wasm32")]
     pub async fn account_db_id(&self, ctx: &MmArc) -> Result<Option<String>, String> {
         let coin_ticker = match self {
             SavedSwap::Maker(swap) => &swap.maker_coin,
