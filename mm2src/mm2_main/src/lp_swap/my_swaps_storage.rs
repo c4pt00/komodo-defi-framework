@@ -38,12 +38,14 @@ pub trait MySwapsOps {
         uuid: Uuid,
         started_at: u64,
         swap_type: u8,
+        db_id: Option<&str>,
     ) -> MySwapsResult<()>;
 
     async fn my_recent_swaps_with_filters(
         &self,
         filter: &MySwapsFilter,
         paging_options: Option<&PagingOptions>,
+        db_id: Option<&str>,
     ) -> MySwapsResult<MyRecentSwapsUuids>;
 }
 
@@ -83,6 +85,7 @@ mod native_impl {
             uuid: Uuid,
             started_at: u64,
             swap_type: u8,
+            db_id: Option<&str>,
         ) -> MySwapsResult<()> {
             Ok(insert_new_swap(
                 &self.ctx,
@@ -91,6 +94,7 @@ mod native_impl {
                 &uuid.to_string(),
                 &started_at.to_string(),
                 swap_type,
+                db_id,
             )?)
         }
 
@@ -98,11 +102,13 @@ mod native_impl {
             &self,
             filter: &MySwapsFilter,
             paging_options: Option<&PagingOptions>,
+            db_id: Option<&str>,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
             Ok(select_uuids_by_my_swaps_filter(
                 &self.ctx.sqlite_connection(),
                 filter,
                 paging_options,
+                db_id,
             )?)
         }
     }
@@ -175,9 +181,9 @@ mod wasm_impl {
             uuid: Uuid,
             started_at: u64,
             swap_type: u8,
+            db_id: Option<&str>,
         ) -> MySwapsResult<()> {
-            // TODO: db_id
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx, None).map_to_mm(MySwapsError::InternalError)?;
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx, db_id).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -198,9 +204,9 @@ mod wasm_impl {
             &self,
             filter: &MySwapsFilter,
             paging_options: Option<&PagingOptions>,
+            db_id: Option<&str>,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            // TODO: db_id
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx, None).map_to_mm(MySwapsError::InternalError)?;
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx, db_id).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -387,13 +393,13 @@ mod wasm_tests {
                 });
             }
             my_swaps
-                .save_new_swap(my_coin, other_coin, uuid, started_at, swap_type)
+                .save_new_swap(my_coin, other_coin, uuid, started_at, swap_type, None)
                 .await
                 .expect("!MySwapsStorage::save_new_swap");
         }
 
         let actual = my_swaps
-            .my_recent_swaps_with_filters(&filters, None)
+            .my_recent_swaps_with_filters(&filters, None, None)
             .await
             .expect("!MySwapsStorage::my_recent_swaps_with_filters");
 

@@ -70,6 +70,7 @@ pub fn insert_new_swap(
     uuid: &str,
     started_at: &str,
     swap_type: u8,
+    _db_id: Option<&str>,
 ) -> SqlResult<()> {
     debug!("Inserting new swap {} to the SQLite database", uuid);
     let conn = ctx.sqlite_connection();
@@ -199,6 +200,7 @@ pub fn select_uuids_by_my_swaps_filter(
     conn: &Connection,
     filter: &MySwapsFilter,
     paging_options: Option<&PagingOptions>,
+    _db_id: Option<&str>,
 ) -> SqlResult<MyRecentSwapsUuids, SelectSwapsUuidsErr> {
     let mut query_builder = SqlBuilder::select_from(MY_SWAPS_TABLE);
     let mut params = vec![];

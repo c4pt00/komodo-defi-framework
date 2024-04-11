@@ -3019,6 +3019,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
                 uuid,
                 now,
                 LEGACY_SWAP_TYPE,
+                maker_coin.account_db_id().expect("Valid coin pubkey").as_deref(),
             )
             .await
             {
@@ -3181,6 +3182,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
                 uuid,
                 now,
                 LEGACY_SWAP_TYPE,
+                taker_coin.account_db_id().expect("Valid coin pubkey").as_deref(),
             )
             .await
             {

@@ -336,8 +336,8 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
             return match json::from_slice::<SwapStatus>(msg) {
                 Ok(mut status) => {
                     status.data.fetch_and_set_usd_prices().await;
-                    // TODO: db_id
-                    if let Err(e) = save_stats_swap(&ctx, &status.data, None).await {
+                    let account_id = status.data.account_db_id(&ctx).await.expect("Valid coin pubkey");
+                    if let Err(e) = save_stats_swap(&ctx, &status.data, account_id.as_deref()).await {
                         error!("Error saving the swap {} status: {}", status.data.uuid(), e);
                     }
                     Ok(())
@@ -1020,9 +1020,10 @@ pub async fn insert_new_swap_to_db(
     uuid: Uuid,
     started_at: u64,
     swap_type: u8,
+    db_id: Option<&str>,
 ) -> Result<(), String> {
     MySwapsStorage::new(ctx)
-        .save_new_swap(my_coin, other_coin, uuid, started_at, swap_type)
+        .save_new_swap(my_coin, other_coin, uuid, started_at, swap_type, db_id)
         .await
         .map_err(|e| ERRL!("{}", e))
 }
@@ -1217,9 +1218,10 @@ pub struct MySwapsFilter {
 /// Returns *all* uuids of swaps, which match the selected filter.
 pub async fn all_swaps_uuids_by_filter(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let filter: MySwapsFilter = try_s!(json::from_value(req));
+    // TODO: db_id
     let db_result = try_s!(
         MySwapsStorage::new(ctx)
-            .my_recent_swaps_with_filters(&filter, None)
+            .my_recent_swaps_with_filters(&filter, None, None)
             .await
     );
 
@@ -1264,7 +1266,20 @@ pub enum LatestSwapsErr {
     UnableToLoadSavedSwaps(SavedSwapError),
     #[display(fmt = "Unable to query swaps storage")]
     UnableToQuerySwapStorage,
+    #[display(fmt = "My coin not fouond or activated")]
+    CoinNotFound,
 }
+
+// pub async fn get_account_db_id(ctx: &MmArc, coin: &str) -> Result<Option<String>, String> {
+//     let db_id = try_s!(lp_coinfind_any(&ctx, &coin).await);
+//     let db_id = if let Some(id) = db_id {
+//         try_s!(id.inner.account_db_id())
+//     } else {
+//         None
+//     };
+
+//     Ok(db_id)
+// }
 
 pub async fn latest_swaps_for_pair(
     ctx: MmArc,
@@ -1272,6 +1287,9 @@ pub async fn latest_swaps_for_pair(
     other_coin: String,
     limit: usize,
 ) -> Result<Vec<SavedSwap>, MmError<LatestSwapsErr>> {
+    // TODO: db_id
+    let db_id: Option<String> = None;
+
     let filter = MySwapsFilter {
         my_coin: Some(my_coin),
         other_coin: Some(other_coin),
@@ -1286,7 +1304,7 @@ pub async fn latest_swaps_for_pair(
     };
 
     let db_result = match MySwapsStorage::new(ctx.clone())
-        .my_recent_swaps_with_filters(&filter, Some(&paging_options))
+        .my_recent_swaps_with_filters(&filter, Some(&paging_options), db_id.as_deref())
         .await
     {
         Ok(x) => x,
@@ -1296,7 +1314,7 @@ pub async fn latest_swaps_for_pair(
     let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
     // TODO this is needed for trading bot, which seems not used as of now. Remove the code?
     for (uuid, _) in db_result.uuids_and_types.iter() {
-        let swap = match SavedSwap::load_my_swap_from_db(&ctx, None, *uuid).await {
+        let swap = match SavedSwap::load_my_swap_from_db(&ctx, db_id.as_deref(), *uuid).await {
             Ok(Some(swap)) => swap,
             Ok(None) => {
                 error!("No such swap with the uuid '{}'", uuid);
@@ -1313,9 +1331,11 @@ pub async fn latest_swaps_for_pair(
 /// Returns the data of recent swaps of `my` node.
 pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: MyRecentSwapsReq = try_s!(json::from_value(req));
+
+    // TODO: db_id
     let db_result = try_s!(
         MySwapsStorage::new(ctx.clone())
-            .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options))
+            .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options), None)
             .await
     );
 
@@ -1554,7 +1574,8 @@ pub async fn import_swaps(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
     let mut imported = vec![];
     let mut skipped = HashMap::new();
     for swap in swaps {
-        match swap.save_to_db(&ctx, None).await {
+        let accound_id = swap.account_db_id(&ctx).await?;
+        match swap.save_to_db(&ctx, accound_id.as_deref()).await {
             Ok(_) => {
                 if let Some(info) = swap.get_my_info() {
                     if let Err(e) = insert_new_swap_to_db(
@@ -1564,6 +1585,7 @@ pub async fn import_swaps(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
                         *swap.uuid(),
                         info.started_at,
                         LEGACY_SWAP_TYPE,
+                        accound_id.as_deref(),
                     )
                     .await
                     {

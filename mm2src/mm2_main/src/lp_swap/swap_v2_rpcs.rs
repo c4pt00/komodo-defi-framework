@@ -434,8 +434,9 @@ pub(crate) async fn my_recent_swaps_rpc(
     ctx: MmArc,
     req: MyRecentSwapsRequest,
 ) -> MmResult<MyRecentSwapsResponse, MyRecentSwapsErr> {
+    // TODO: db_id
     let db_result = MySwapsStorage::new(ctx.clone())
-        .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options))
+        .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options), None)
         .await?;
     let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
     for (uuid, swap_type) in db_result.uuids_and_types.iter() {

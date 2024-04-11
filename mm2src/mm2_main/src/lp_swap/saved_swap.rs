@@ -2,7 +2,7 @@ use crate::mm2::lp_swap::maker_swap::{MakerSavedSwap, MakerSwap, MakerSwapEvent}
 use crate::mm2::lp_swap::taker_swap::{TakerSavedSwap, TakerSwap, TakerSwapEvent};
 use crate::mm2::lp_swap::{MySwapInfo, RecoveredSwap};
 use async_trait::async_trait;
-use coins::lp_coinfind;
+use coins::{lp_coinfind, lp_coinfind_any};
 use derive_more::Display;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -152,6 +152,22 @@ impl SavedSwap {
             SavedSwap::Maker(maker) => maker.fetch_and_set_usd_prices().await,
             SavedSwap::Taker(taker) => taker.fetch_and_set_usd_prices().await,
         }
+    }
+
+    pub async fn account_db_id(&self, ctx: &MmArc) -> Result<Option<String>, String> {
+        let coin_ticker = match self {
+            SavedSwap::Maker(swap) => &swap.maker_coin,
+            SavedSwap::Taker(swap) => &swap.taker_coin,
+        };
+
+        if let Some(ticker) = coin_ticker {
+            let coin = lp_coinfind_any(ctx, ticker).await?.map(|c| c.inner);
+            if let Some(coin) = coin {
+                return coin.account_db_id();
+            }
+        }
+
+        Ok(None)
     }
 }
 
