@@ -398,14 +398,14 @@ async fn recv_swap_msg<T>(
     mut getter: impl FnMut(&mut SwapMsgStore) -> Option<T>,
     uuid: &Uuid,
     timeout: u64,
+    db_id: Option<&str>,
 ) -> Result<T, String> {
     let started = now_sec();
     let timeout = BASIC_COMM_TIMEOUT + timeout;
     let wait_until = started + timeout;
     loop {
         Timer::sleep(1.).await;
-        // TODO: db_id
-        let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
+        let swap_ctx = SwapsContext::from_ctx(&ctx, db_id).unwrap();
         let mut msgs = swap_ctx.swap_msgs.lock().unwrap();
         if let Some(msg_store) = msgs.get_mut(uuid) {
             if let Some(msg) = getter(msg_store) {

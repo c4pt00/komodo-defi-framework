@@ -1123,11 +1123,13 @@ impl TakerSwap {
     async fn negotiate(&self) -> Result<(Option<TakerSwapCommand>, Vec<TakerSwapEvent>), String> {
         const NEGOTIATE_TIMEOUT_SEC: u64 = 90;
 
+        let db_id = try_s!(self.maker_coin.account_db_id());
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.negotiation.take(),
             &self.uuid,
             NEGOTIATE_TIMEOUT_SEC,
+            db_id.as_deref(),
         );
         let maker_data = match recv_fut.await {
             Ok(d) => d,
@@ -1234,11 +1236,13 @@ impl TakerSwap {
             NEGOTIATE_TIMEOUT_SEC as f64 / 6.,
             self.p2p_privkey,
         );
+        let db_id = try_s!(self.taker_coin.account_db_id());
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.negotiated.take(),
             &self.uuid,
             NEGOTIATE_TIMEOUT_SEC,
+            db_id.as_deref(),
         );
         let negotiated = match recv_fut.await {
             Ok(d) => d,
@@ -1329,11 +1333,13 @@ impl TakerSwap {
             self.p2p_privkey,
         );
 
+        let db_id = try_s!(self.maker_coin.account_db_id());
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.maker_payment.take(),
             &self.uuid,
             MAKER_PAYMENT_WAIT_TIMEOUT_SEC,
+            db_id.as_deref(),
         );
         let payload = match recv_fut.await {
             Ok(p) => p,
