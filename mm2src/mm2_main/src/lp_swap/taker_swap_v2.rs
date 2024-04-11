@@ -163,10 +163,16 @@ pub enum TakerSwapEvent {
 #[derive(Clone)]
 pub struct TakerSwapStorage {
     ctx: MmArc,
+    pub db_id: Option<String>,
 }
 
 impl TakerSwapStorage {
-    pub fn new(ctx: MmArc) -> Self { TakerSwapStorage { ctx } }
+    pub fn new(ctx: MmArc, db_id: Option<&str>) -> Self {
+        TakerSwapStorage {
+            ctx,
+            db_id: db_id.map(|c| c.to_string()),
+        }
+    }
 }
 
 #[async_trait]
@@ -210,8 +216,8 @@ impl StateMachineStorage for TakerSwapStorage {
 
     #[cfg(target_arch = "wasm32")]
     async fn store_repr(&mut self, uuid: Self::MachineId, repr: Self::DbRepr) -> Result<(), Self::Error> {
-        // TODO: db_id
-        let swaps_ctx = SwapsContext::from_ctx(&self.ctx, None).expect("SwapsContext::from_ctx should not fail");
+        let swaps_ctx =
+            SwapsContext::from_ctx(&self.ctx, self.db_id.as_deref()).expect("SwapsContext::from_ctx should not fail");
         let db = swaps_ctx.swap_db().await?;
         let transaction = db.transaction().await?;
 
@@ -253,31 +259,23 @@ impl StateMachineStorage for TakerSwapStorage {
 
     #[cfg(target_arch = "wasm32")]
     async fn get_repr(&self, id: Self::MachineId) -> Result<Self::DbRepr, Self::Error> {
-        // TODO: db_id
-        let db_id: Option<String> = None;
-        get_swap_repr(&self.ctx, id, db_id.as_deref()).await
+        get_swap_repr(&self.ctx, id, self.db_id.as_deref()).await
     }
 
     async fn has_record_for(&mut self, id: &Self::MachineId) -> Result<bool, Self::Error> {
-        // TODO: db_id
-        let db_id: Option<String> = None;
-        has_db_record_for(self.ctx.clone(), id, db_id.as_deref()).await
+        has_db_record_for(self.ctx.clone(), id, self.db_id.as_deref()).await
     }
 
     async fn store_event(&mut self, id: Self::MachineId, event: TakerSwapEvent) -> Result<(), Self::Error> {
-        // TODO: db_id
-        let db_id: Option<String> = None;
-        store_swap_event::<TakerSwapDbRepr>(self.ctx.clone(), id, event, db_id.as_deref()).await
+        store_swap_event::<TakerSwapDbRepr>(self.ctx.clone(), id, event, self.db_id.as_deref()).await
     }
 
     async fn get_unfinished(&self) -> Result<Vec<Self::MachineId>, Self::Error> {
-        // TODO: db_id
-        let db_id: Option<String> = None;
-        get_unfinished_swaps_uuids(self.ctx.clone(), TAKER_SWAP_V2_TYPE, db_id.as_deref()).await
+        get_unfinished_swaps_uuids(self.ctx.clone(), TAKER_SWAP_V2_TYPE, self.db_id.as_deref()).await
     }
 
     async fn mark_finished(&mut self, id: Self::MachineId) -> Result<(), Self::Error> {
-        mark_swap_as_finished(self.ctx.clone(), id, None).await
+        mark_swap_as_finished(self.ctx.clone(), id, self.db_id.as_deref()).await
     }
 }
 

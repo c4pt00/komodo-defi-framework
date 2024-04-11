@@ -2974,12 +2974,13 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             },
         };
 
+        let account_db_id = maker_coin.account_db_id().expect("Valid coin pubkey");
         if ctx.use_trading_proto_v2() {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
             match (maker_coin, taker_coin) {
                 (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
                     let mut maker_swap_state_machine = MakerSwapStateMachine {
-                        storage: MakerSwapStorage::new(ctx.clone()),
+                        storage: MakerSwapStorage::new(ctx.clone(), account_db_id.as_deref()),
                         abortable_system: ctx
                             .abortable_system
                             .create_subsystem()
@@ -3019,7 +3020,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
                 uuid,
                 now,
                 LEGACY_SWAP_TYPE,
-                maker_coin.account_db_id().expect("Valid coin pubkey").as_deref(),
+                account_db_id.as_deref(),
             )
             .await
             {
@@ -3126,6 +3127,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
         );
 
         let now = now_sec();
+        let account_db_id = taker_coin.account_db_id().expect("Valid taker coin pubkey");
         if ctx.use_trading_proto_v2() {
             let taker_secret = match generate_secret() {
                 Ok(s) => s.into(),
@@ -3138,7 +3140,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             match (maker_coin, taker_coin) {
                 (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
                     let mut taker_swap_state_machine = TakerSwapStateMachine {
-                        storage: TakerSwapStorage::new(ctx.clone()),
+                        storage: TakerSwapStorage::new(ctx.clone(), account_db_id.as_deref()),
                         abortable_system: ctx
                             .abortable_system
                             .create_subsystem()
@@ -3182,7 +3184,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
                 uuid,
                 now,
                 LEGACY_SWAP_TYPE,
-                taker_coin.account_db_id().expect("Valid coin pubkey").as_deref(),
+                account_db_id.as_deref(),
             )
             .await
             {

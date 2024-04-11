@@ -1434,7 +1434,7 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
             ctx.spawner().spawn(fut);
         }
 
-        let maker_swap_storage = MakerSwapStorage::new(ctx.clone());
+        let maker_swap_storage = MakerSwapStorage::new(ctx.clone(), db_id.as_deref());
         let unfinished_maker_uuids = try_s!(maker_swap_storage.get_unfinished().await);
         for maker_uuid in unfinished_maker_uuids {
             info!("Trying to kickstart maker swap {}", maker_uuid);
@@ -1459,7 +1459,7 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
             ctx.spawner().spawn(fut);
         }
 
-        let taker_swap_storage = TakerSwapStorage::new(ctx.clone());
+        let taker_swap_storage = TakerSwapStorage::new(ctx.clone(), db_id.as_deref());
         let unfinished_taker_uuids = try_s!(taker_swap_storage.get_unfinished().await);
         for taker_uuid in unfinished_taker_uuids {
             info!("Trying to kickstart taker swap {}", taker_uuid);

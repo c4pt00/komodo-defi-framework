@@ -4161,7 +4161,6 @@ pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<Strin
 #[cfg(not(target_arch = "wasm32"))]
 // TODO: complete impl when implementing multikey support for sqlite/native
 pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
-    let cctx = try_s!(CoinsContext::from_ctx(ctx));
     let mut account_ids = HashSet::new();
     account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
     Ok(account_ids)

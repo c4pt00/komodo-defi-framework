@@ -156,7 +156,8 @@ impl SavedSwap {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn account_db_id(&self, _ctx: &MmArc) -> Result<Option<String>, String> {
-        // TODO  Ok(None)
+        // TODO
+        Ok(None)
     }
 
     #[cfg(target_arch = "wasm32")]
