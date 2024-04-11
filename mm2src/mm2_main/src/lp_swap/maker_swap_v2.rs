@@ -222,7 +222,9 @@ impl StateMachineStorage for MakerSwapStorage {
 
     #[cfg(target_arch = "wasm32")]
     async fn get_repr(&self, id: Self::MachineId) -> Result<Self::DbRepr, Self::Error> {
-        get_swap_repr(&self.ctx, id).await
+        // TODO: db_id
+        let db_id: Option<String> = None;
+        get_swap_repr(&self.ctx, id, db_id.as_deref()).await
     }
 
     async fn has_record_for(&mut self, id: &Self::MachineId) -> Result<bool, Self::Error> {
