@@ -80,7 +80,9 @@ pub type WithdrawNftResult = Result<TransactionNftDetails, MmError<WithdrawError
 /// Returns `GetNftInfoError` variants for issues like invalid requests, transport failures,
 /// database errors, and spam protection errors.
 pub async fn get_nft_list(ctx: MmArc, req: NftListReq) -> MmResult<NftList, GetNftInfoError> {
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(GetNftInfoError::Internal)?;
+    // TODO: db_id
+    let db_id: Option<String> = None;
+    let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(GetNftInfoError::Internal)?;
 
     let storage = nft_ctx.lock_db().await?;
     for chain in req.chains.iter() {
@@ -105,7 +107,9 @@ pub async fn get_nft_list(ctx: MmArc, req: NftListReq) -> MmResult<NftList, GetN
 /// token ID, and chain, and returns comprehensive information about the NFT.
 /// It also checks and redacts potential spam if `protect_from_spam` in the request is set to true.
 pub async fn get_nft_metadata(ctx: MmArc, req: NftMetadataReq) -> MmResult<Nft, GetNftInfoError> {
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(GetNftInfoError::Internal)?;
+    // TODO: db_id
+    let db_id: Option<String> = None;
+    let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(GetNftInfoError::Internal)?;
 
     let storage = nft_ctx.lock_db().await?;
     if !NftListStorageOps::is_initialized(&storage, &req.chain).await? {
@@ -145,7 +149,9 @@ pub async fn get_nft_metadata(ctx: MmArc, req: NftMetadataReq) -> MmResult<Nft, 
 /// Returns `GetNftInfoError` variants for issues like invalid requests, transport failures,
 /// database errors, and spam protection errors.
 pub async fn get_nft_transfers(ctx: MmArc, req: NftTransfersReq) -> MmResult<NftsTransferHistoryList, GetNftInfoError> {
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(GetNftInfoError::Internal)?;
+    // TODO: db_id
+    let db_id: Option<String> = None;
+    let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(GetNftInfoError::Internal)?;
 
     let storage = nft_ctx.lock_db().await?;
     for chain in req.chains.iter() {
@@ -212,7 +218,9 @@ async fn process_transfers_confirmations(
 /// data fetched from the provided `url`. The function ensures the local cache is in
 /// sync with the latest data from the source, validates against spam contract addresses and phishing domains.
 pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNftError> {
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(GetNftInfoError::Internal)?;
+    // TODO: db_id
+    let db_id: Option<String> = None;
+    let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(GetNftInfoError::Internal)?;
 
     let storage = nft_ctx.lock_db().await?;
     for chain in req.chains.iter() {
@@ -454,7 +462,9 @@ fn prepare_uri_for_blocklist_endpoint(
 /// is identified as spam or matches with any phishing domains, the NFT's `possible_spam` and/or
 /// `possible_phishing` flags are set to true.
 pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResult<(), UpdateNftError> {
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(GetNftInfoError::Internal)?;
+    // TODO: db_id
+    let db_id: Option<String> = None;
+    let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(GetNftInfoError::Internal)?;
 
     let storage = nft_ctx.lock_db().await?;
     let token_address_str = eth_addr_to_hex(&req.token_address);
@@ -1458,8 +1468,10 @@ pub(crate) fn get_domain_from_url(url: Option<&str>) -> Option<String> {
 
 /// Clears NFT data from the database for specified chains.
 pub async fn clear_nft_db(ctx: MmArc, req: ClearNftDbReq) -> MmResult<(), ClearNftDbError> {
+    // TODO: db_id
+    let db_id: Option<String> = None;
     if req.clear_all {
-        let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(ClearNftDbError::Internal)?;
+        let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(ClearNftDbError::Internal)?;
         let storage = nft_ctx.lock_db().await?;
         storage.clear_all_nft_data().await?;
         storage.clear_all_history_data().await?;
@@ -1472,7 +1484,7 @@ pub async fn clear_nft_db(ctx: MmArc, req: ClearNftDbReq) -> MmResult<(), ClearN
         ));
     }
 
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(ClearNftDbError::Internal)?;
+    let nft_ctx = NftCtx::from_ctx(&ctx, db_id.as_deref()).map_to_mm(ClearNftDbError::Internal)?;
     let storage = nft_ctx.lock_db().await?;
     let mut errors = Vec::new();
     for chain in req.chains.iter() {

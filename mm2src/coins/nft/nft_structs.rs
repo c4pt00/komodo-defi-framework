@@ -725,7 +725,7 @@ impl NftCtx {
     ///
     /// If an `NftCtx` instance doesn't already exist in the MM context, it gets created and cached for subsequent use.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
+    pub(crate) fn from_ctx(ctx: &MmArc, _db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             let async_sqlite_connection = ctx
                 .async_sqlite_connection
@@ -737,10 +737,10 @@ impl NftCtx {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
+    pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             Ok(NftCtx {
-                nft_cache_db: ConstructibleDb::new(ctx, None).into_shared(),
+                nft_cache_db: ConstructibleDb::new(ctx, db_id).into_shared(),
             })
         })))
     }
