@@ -7,6 +7,7 @@ pub mod my_orders;
 #[path = "database/stats_swaps.rs"] pub mod stats_swaps;
 
 use crate::CREATE_MY_SWAPS_TABLE;
+use coins::find_unique_account_ids;
 use common::log::{debug, error, info};
 use db_common::sqlite::run_optimization_pragmas;
 use db_common::sqlite::rusqlite::{params_from_iter, Result as SqlResult};
@@ -22,7 +23,7 @@ fn get_current_migration(ctx: &MmArc) -> SqlResult<i64> {
     conn.query_row(SELECT_MIGRATION, [], |row| row.get(0))
 }
 
-pub async fn init_and_migrate_sql_db(ctx: &MmArc) -> SqlResult<()> {
+pub async fn init_and_migrate_sql_db(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<()> {
     info!("Checking the current SQLite migration");
     match get_current_migration(ctx) {
         Ok(current_migration) => {
@@ -43,13 +44,13 @@ pub async fn init_and_migrate_sql_db(ctx: &MmArc) -> SqlResult<()> {
 
     info!("Trying to initialize the SQLite database");
 
-    init_db(ctx)?;
+    init_db(ctx, db_id)?;
     migrate_sqlite_database(ctx, 1).await?;
     info!("SQLite database initialization is successful");
     Ok(())
 }
 
-fn init_db(ctx: &MmArc) -> SqlResult<()> {
+fn init_db(ctx: &MmArc, _db_id: Option<&str>) -> SqlResult<()> {
     let conn = ctx.sqlite_connection();
     run_optimization_pragmas(&conn)?;
     let init_batch = concat!(
@@ -140,23 +141,28 @@ async fn statements_for_migration(ctx: &MmArc, current_migration: i64) -> Option
     }
 }
 
-pub async fn migrate_sqlite_database(ctx: &MmArc, mut current_migration: i64) -> SqlResult<()> {
-    info!("migrate_sqlite_database, current migration {}", current_migration);
-    while let Some(statements_with_params) = statements_for_migration(ctx, current_migration).await {
-        // `statements_for_migration` locks the [`MmCtx::sqlite_connection`] mutex,
-        // so we can't create a transaction outside of this loop.
-        let conn = ctx.sqlite_connection();
-        let transaction = conn.unchecked_transaction()?;
-        for (statement, params) in statements_with_params {
-            debug!("Executing SQL statement {:?} with params {:?}", statement, params);
-            transaction.execute(statement, params_from_iter(params.iter()))?;
+pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64) -> SqlResult<()> {
+    let db_ids = find_unique_account_ids(ctx).await.expect("successful coin find");
+    for db_id in db_ids {
+        let mut current_migration = current_migration;
+        info!("migrate_sqlite_database for db_id=({db_id}), current migration {current_migration}");
+        while let Some(statements_with_params) = statements_for_migration(ctx, current_migration).await {
+            // `statements_for_migration` locks the [`MmCtx::sqlite_connection`] mutex,
+            // so we can't create a transaction outside of this loop.
+            let conn = ctx.sqlite_connection();
+            let transaction = conn.unchecked_transaction()?;
+            for (statement, params) in statements_with_params {
+                debug!("Executing SQL statement {statement:?} with params {params:?} for db_id: {db_id}");
+                transaction.execute(statement, params_from_iter(params.iter()))?;
+            }
+            current_migration += 1;
+            transaction.execute("INSERT INTO migration (current_migration) VALUES (?1);", [
+                current_migration,
+            ])?;
+            transaction.commit()?;
         }
-        current_migration += 1;
-        transaction.execute("INSERT INTO migration (current_migration) VALUES (?1);", [
-            current_migration,
-        ])?;
-        transaction.commit()?;
+        info!("migrate_sqlite_database complete for db_id=({db_id}), migrated to {current_migration}");
     }
-    info!("migrate_sqlite_database complete, migrated to {}", current_migration);
+
     Ok(())
 }

@@ -19,7 +19,7 @@
 //
 
 use bitcrypto::sha256;
-use coins::register_balance_update_handler;
+use coins::{find_unique_account_ids, register_balance_update_handler};
 use common::executor::{SpawnFuture, Timer};
 use common::log::{info, warn};
 use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, WithHwRpcError};
@@ -331,10 +331,10 @@ fn default_seednodes(netid: u16) -> Vec<RelayAddress> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
+pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>) -> MmInitResult<()> {
     fix_shared_dbdir(ctx)?;
 
-    let dbdir = ctx.dbdir(None);
+    let dbdir = ctx.dbdir(db_id);
     fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
         path: dbdir.clone(),
         error: e.to_string(),
@@ -403,8 +403,8 @@ fn fix_shared_dbdir(ctx: &MmCtx) -> MmInitResult<()> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn migrate_db(ctx: &MmArc) -> MmInitResult<()> {
-    let migration_num_path = ctx.dbdir(None).join(".migration");
+fn migrate_db(ctx: &MmArc, db_id: Option<&str>) -> MmInitResult<()> {
+    let migration_num_path = ctx.dbdir(db_id).join(".migration");
     let mut current_migration = match std::fs::read(&migration_num_path) {
         Ok(bytes) => {
             let mut num_bytes = [0; 8];
@@ -462,16 +462,19 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        fix_directories(&ctx)?;
-        ctx.init_sqlite_connection(None)
-            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        ctx.init_shared_sqlite_conn()
-            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        ctx.init_async_sqlite_connection(None)
-            .await
-            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        init_and_migrate_sql_db(&ctx).await?;
-        migrate_db(&ctx)?;
+        let db_ids = find_unique_account_ids(&ctx).await.map_to_mm(MmInitError::Internal)?;
+        for db_id in db_ids.iter() {
+            fix_directories(&ctx, Some(db_id))?;
+            ctx.init_sqlite_connection(None)
+                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+            ctx.init_shared_sqlite_conn()
+                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+            ctx.init_async_sqlite_connection(None)
+                .await
+                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+            init_and_migrate_sql_db(&ctx, Some(db_id)).await?;
+            migrate_db(&ctx, Some(db_id))?;
+        }
     }
 
     init_message_service(&ctx).await?;

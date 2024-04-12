@@ -300,7 +300,7 @@ mod native_tests {
     fn test_init_collection() {
         let for_coin = "init_collection";
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string())
+        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
 
