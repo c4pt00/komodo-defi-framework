@@ -47,9 +47,9 @@ pub struct IDBBlockHeadersStorage {
 }
 
 impl IDBBlockHeadersStorage {
-    pub fn new(ctx: &MmArc, ticker: String) -> Self {
+    pub fn new(ctx: &MmArc, ticker: String, db_id: Option<&str>) -> Self {
         Self {
-            db: ConstructibleDb::new(ctx, None).into_shared(),
+            db: ConstructibleDb::new(ctx, db_id).into_shared(),
             ticker,
         }
     }

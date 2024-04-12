@@ -9,8 +9,9 @@ use crate::utxo::{output_script, utxo_common, ElectrumBuilderArgs, ElectrumProto
                   RecentlySpentOutPoints, ScripthashNotification, ScripthashNotificationSender, TxFee, UtxoCoinConf,
                   UtxoCoinFields, UtxoHDAccount, UtxoHDWallet, UtxoRpcMode, UtxoSyncStatus, UtxoSyncStatusLoopHandle,
                   DEFAULT_GAP_LIMIT, UTXO_DUST_AMOUNT};
-use crate::{BlockchainNetwork, CoinTransportMetrics, DerivationMethod, HistorySyncState, IguanaPrivKey,
-            PrivKeyBuildPolicy, PrivKeyPolicy, PrivKeyPolicyNotAllowed, RpcClientType, UtxoActivationParams};
+use crate::{lp_coinfind_any, BlockchainNetwork, CoinTransportMetrics, DerivationMethod, HistorySyncState,
+            IguanaPrivKey, PrivKeyBuildPolicy, PrivKeyPolicy, PrivKeyPolicyNotAllowed, RpcClientType,
+            UtxoActivationParams};
 use async_trait::async_trait;
 use chain::TxHashAlgo;
 use common::custom_futures::repeatable::{Ready, Retry};
@@ -571,9 +572,17 @@ pub trait UtxoCoinBuilderCommonOps {
             event_handlers.push(ElectrumProtoVerifier { on_event_tx }.into_shared());
         }
 
+        let db_id = match lp_coinfind_any(ctx, self.ticker())
+            .await
+            .map_to_mm(UtxoCoinBuildError::Internal)?
+        {
+            Some(coin) => coin.inner.account_db_id().map_to_mm(UtxoCoinBuildError::Internal)?,
+            None => None,
+        };
         let storage_ticker = self.ticker().replace('-', "_");
-        let block_headers_storage = BlockHeaderStorage::new_from_ctx(self.ctx().clone(), storage_ticker)
-            .map_to_mm(|e| UtxoCoinBuildError::Internal(e.to_string()))?;
+        let block_headers_storage =
+            BlockHeaderStorage::new_from_ctx(self.ctx().clone(), storage_ticker, db_id.as_deref())
+                .map_to_mm(|e| UtxoCoinBuildError::Internal(e.to_string()))?;
         if !block_headers_storage.is_initialized_for().await? {
             block_headers_storage.init().await?;
         }

@@ -206,7 +206,7 @@ mod wasm_impl {
             paging_options: Option<&PagingOptions>,
             db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx, Some(&db_id)).map_to_mm(MySwapsError::InternalError)?;
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx, Some(db_id)).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
