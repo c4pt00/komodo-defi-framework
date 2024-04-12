@@ -28,7 +28,6 @@ impl TxHistory for SiaCoinActivationParams {
     fn tx_history(&self) -> bool { self.tx_history }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl TxHistory for ZcoinActivationParams {
     fn tx_history(&self) -> bool { false }
 }

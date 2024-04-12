@@ -13,7 +13,6 @@ pub struct CoinsActivationContext {
     pub(crate) init_qtum_task_manager: QtumTaskManagerShared,
     #[cfg(feature = "enable-sia")]
     pub(crate) init_sia_coin_task_manager: SiaCoinTaskManagerShared,
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) init_z_coin_task_manager: ZcoinTaskManagerShared,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) init_lightning_task_manager: LightningTaskManagerShared,
