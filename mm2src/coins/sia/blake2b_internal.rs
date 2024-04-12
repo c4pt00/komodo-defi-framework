@@ -74,6 +74,70 @@ impl Accumulator {
     }
 }
 
+pub fn sigs_required_leaf(sigs_required: u64) -> H256 {
+    let sigs_required_array: [u8; 8] = sigs_required.to_le_bytes();
+    let mut combined = Vec::new();
+    combined.extend_from_slice(&LEAF_HASH_PREFIX);
+    combined.extend_from_slice(&sigs_required_array);
+
+    hash_blake2b_single(&combined)
+}
+
+// public key leaf is
+// blake2b(leafHashPrefix + 16_byte_ascii_algorithm_identifier + public_key_length_u64 + public_key)
+pub fn public_key_leaf(pubkey: &PublicKey) -> H256 {
+    let mut combined = Vec::new();
+    combined.extend_from_slice(&LEAF_HASH_PREFIX);
+    combined.extend_from_slice(&ED25519_IDENTIFIER);
+    combined.extend_from_slice(&32u64.to_le_bytes());
+    combined.extend_from_slice(pubkey.as_bytes());
+    hash_blake2b_single(&combined)
+}
+
+pub fn timelock_leaf(timelock: u64) -> H256 {
+    let timelock: [u8; 8] = timelock.to_le_bytes();
+    let mut combined = Vec::new();
+    combined.extend_from_slice(&LEAF_HASH_PREFIX);
+    combined.extend_from_slice(&timelock);
+
+    hash_blake2b_single(&combined)
+}
+
+// https://github.com/SiaFoundation/core/blob/b5b08cde6b7d0f1b3a6f09b8aa9d0b817e769efb/types/hash.go#L96
+// An UnlockHash is the Merkle root of UnlockConditions. Since the standard
+// UnlockConditions use a single public key, the Merkle tree is:
+//
+//           ┌─────────┴──────────┐
+//     ┌─────┴─────┐              │
+//  timelock     pubkey     sigsrequired
+pub fn standard_unlock_hash(pubkey: &PublicKey) -> H256 {
+    let pubkey_leaf = public_key_leaf(pubkey);
+    let timelock_pubkey_node = hash_blake2b_pair(&NODE_HASH_PREFIX, &STANDARD_TIMELOCK_BLAKE2B_HASH, &pubkey_leaf.0);
+    hash_blake2b_pair(
+        &NODE_HASH_PREFIX,
+        &timelock_pubkey_node.0,
+        &STANDARD_SIGS_REQUIRED_BLAKE2B_HASH,
+    )
+}
+
+pub fn hash_blake2b_single(preimage: &[u8]) -> H256 {
+    let hash = Params::new().hash_length(32).to_state().update(preimage).finalize();
+    let ret_array = hash.as_array();
+    ret_array[0..32].into()
+}
+
+fn hash_blake2b_pair(prefix: &[u8], leaf1: &[u8], leaf2: &[u8]) -> H256 {
+    let hash = Params::new()
+        .hash_length(32)
+        .to_state()
+        .update(prefix)
+        .update(leaf1)
+        .update(leaf2)
+        .finalize();
+    let ret_array = hash.as_array();
+    ret_array[0..32].into()
+}
+
 #[test]
 fn test_accumulator_new() {
     let default_accumulator = Accumulator::default();
@@ -189,52 +253,6 @@ fn test_accumulator_add_leaf_1of2_multisig_unlock_hash() {
     assert_eq!(root, expected)
 }
 
-pub fn sigs_required_leaf(sigs_required: u64) -> H256 {
-    let sigs_required_array: [u8; 8] = sigs_required.to_le_bytes();
-    let mut combined = Vec::new();
-    combined.extend_from_slice(&LEAF_HASH_PREFIX);
-    combined.extend_from_slice(&sigs_required_array);
-
-    hash_blake2b_single(&combined)
-}
-
-// public key leaf is
-// blake2b(leafHashPrefix + 16_byte_ascii_algorithm_identifier + public_key_length_u64 + public_key)
-pub fn public_key_leaf(pubkey: &PublicKey) -> H256 {
-    let mut combined = Vec::new();
-    combined.extend_from_slice(&LEAF_HASH_PREFIX);
-    combined.extend_from_slice(&ED25519_IDENTIFIER);
-    combined.extend_from_slice(&32u64.to_le_bytes());
-    combined.extend_from_slice(pubkey.as_bytes());
-    hash_blake2b_single(&combined)
-}
-
-pub fn timelock_leaf(timelock: u64) -> H256 {
-    let timelock: [u8; 8] = timelock.to_le_bytes();
-    let mut combined = Vec::new();
-    combined.extend_from_slice(&LEAF_HASH_PREFIX);
-    combined.extend_from_slice(&timelock);
-
-    hash_blake2b_single(&combined)
-}
-
-// https://github.com/SiaFoundation/core/blob/b5b08cde6b7d0f1b3a6f09b8aa9d0b817e769efb/types/hash.go#L96
-// An UnlockHash is the Merkle root of UnlockConditions. Since the standard
-// UnlockConditions use a single public key, the Merkle tree is:
-//
-//           ┌─────────┴──────────┐
-//     ┌─────┴─────┐              │
-//  timelock     pubkey     sigsrequired
-pub fn standard_unlock_hash(pubkey: &PublicKey) -> H256 {
-    let pubkey_leaf = public_key_leaf(pubkey);
-    let timelock_pubkey_node = hash_blake2b_pair(&NODE_HASH_PREFIX, &STANDARD_TIMELOCK_BLAKE2B_HASH, &pubkey_leaf.0);
-    hash_blake2b_pair(
-        &NODE_HASH_PREFIX,
-        &timelock_pubkey_node.0,
-        &STANDARD_SIGS_REQUIRED_BLAKE2B_HASH,
-    )
-}
-
 #[test]
 fn test_standard_unlock_hash() {
     let pubkey = PublicKey::from_bytes(
@@ -245,24 +263,6 @@ fn test_standard_unlock_hash() {
     let hash = standard_unlock_hash(&pubkey);
     let expected = H256::from("72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515d");
     assert_eq!(hash, expected)
-}
-
-pub fn hash_blake2b_single(preimage: &[u8]) -> H256 {
-    let hash = Params::new().hash_length(32).to_state().update(preimage).finalize();
-    let ret_array = hash.as_array();
-    ret_array[0..32].into()
-}
-
-fn hash_blake2b_pair(prefix: &[u8], leaf1: &[u8], leaf2: &[u8]) -> H256 {
-    let hash = Params::new()
-        .hash_length(32)
-        .to_state()
-        .update(prefix)
-        .update(leaf1)
-        .update(leaf2)
-        .finalize();
-    let ret_array = hash.as_array();
-    ret_array[0..32].into()
 }
 
 #[test]
