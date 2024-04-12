@@ -217,10 +217,12 @@ pub fn select_uuids_by_my_swaps_filter(
     let total_count: isize = conn.query_row_named(&count_query, params_as_trait.as_slice(), |row| row.get(0))?;
     let total_count = total_count.try_into().expect("COUNT should always be >= 0");
     if total_count == 0 {
-        let mut default = MyRecentSwapsUuids::default();
-        default.pubkey = db_id.to_string();
-        drop_mutability!(default);
-        return Ok(default);
+        return Ok(MyRecentSwapsUuids {
+            pubkey: db_id.to_string(),
+            uuids_and_types: vec![],
+            skipped: 0,
+            total_count: 0,
+        });
     }
 
     // query the uuids and types finally

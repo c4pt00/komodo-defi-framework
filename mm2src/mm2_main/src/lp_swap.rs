@@ -1257,7 +1257,7 @@ pub struct MyRecentSwapsReq {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct MyRecentSwapsUuids {
-    /// Pubkey i which swaps belongs to.
+    /// Pubkey which swaps belongs to.
     pub pubkey: String,
     /// UUIDs and types of swaps matching the query
     pub uuids_and_types: Vec<(Uuid, u8)>,
