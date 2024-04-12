@@ -1219,23 +1219,30 @@ pub struct MySwapsFilter {
 /// Returns *all* uuids of swaps, which match the selected filter.
 pub async fn all_swaps_uuids_by_filter(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let filter: MySwapsFilter = try_s!(json::from_value(req));
-    // TODO: db_id
-    let db_result = try_s!(
-        MySwapsStorage::new(ctx)
-            .my_recent_swaps_with_filters(&filter, None, None)
-            .await
-    );
+    let db_ids = try_s!(find_unique_active_account_ids(&ctx).await);
+    let mut res_js = vec![];
 
-    let res_js = json!({
-        "result": {
-            "found_records": db_result.uuids_and_types.len(),
-            "uuids": db_result.uuids_and_types.into_iter().map(|(uuid, _)| uuid).collect::<Vec<_>>(),
-            "my_coin": filter.my_coin,
-            "other_coin": filter.other_coin,
-            "from_timestamp": filter.from_timestamp,
-            "to_timestamp": filter.to_timestamp,
-        },
-    });
+    for db_id in db_ids {
+        let db_result = try_s!(
+            MySwapsStorage::new(ctx.clone())
+                .my_recent_swaps_with_filters(&filter, None, &db_id)
+                .await
+        );
+        let res = json!({
+            "result": {
+                "found_records": db_result.uuids_and_types.len(),
+                "uuids": db_result.uuids_and_types.into_iter().map(|(uuid, _)| uuid).collect::<Vec<_>>(),
+                "my_coin": filter.my_coin,
+                "other_coin": filter.other_coin,
+                "from_timestamp": filter.from_timestamp,
+                "to_timestamp": filter.to_timestamp,
+                "pubkey": db_result.pubkey
+            },
+        });
+
+        res_js.push(res);
+    }
+
     let res = try_s!(json::to_vec(&res_js));
     Ok(try_s!(Response::builder().body(res)))
 }
@@ -1246,11 +1253,12 @@ pub struct MyRecentSwapsReq {
     pub paging_options: PagingOptions,
     #[serde(flatten)]
     pub filter: MySwapsFilter,
-    pub db_id: Option<String>,
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct MyRecentSwapsUuids {
+    /// Pubkey i which swaps belongs to.
+    pub pubkey: String,
     /// UUIDs and types of swaps matching the query
     pub uuids_and_types: Vec<(Uuid, u8)>,
     /// Total count of swaps matching the query
@@ -1267,7 +1275,7 @@ pub enum LatestSwapsErr {
     UnableToLoadSavedSwaps(SavedSwapError),
     #[display(fmt = "Unable to query swaps storage")]
     UnableToQuerySwapStorage,
-    #[display(fmt = "My coin not fouond or activated")]
+    #[display(fmt = "No active coin pubkey not found")]
     CoinNotFound,
 }
 
@@ -1288,42 +1296,44 @@ pub async fn latest_swaps_for_pair(
     other_coin: String,
     limit: usize,
 ) -> Result<Vec<SavedSwap>, MmError<LatestSwapsErr>> {
-    // TODO: db_id
-    let db_id: Option<String> = None;
-
-    let filter = MySwapsFilter {
-        my_coin: Some(my_coin),
-        other_coin: Some(other_coin),
-        from_timestamp: None,
-        to_timestamp: None,
-    };
-
-    let paging_options = PagingOptions {
-        limit,
-        page_number: NonZeroUsize::new(1).expect("1 > 0"),
-        from_uuid: None,
-    };
-
-    let db_result = match MySwapsStorage::new(ctx.clone())
-        .my_recent_swaps_with_filters(&filter, Some(&paging_options), db_id.as_deref())
+    let db_ids = find_unique_active_account_ids(&ctx)
         .await
-    {
-        Ok(x) => x,
-        Err(_) => return Err(MmError::new(LatestSwapsErr::UnableToQuerySwapStorage)),
-    };
+        .map_to_mm(|_| LatestSwapsErr::CoinNotFound)?;
+    let mut swaps = vec![];
 
-    let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
-    // TODO this is needed for trading bot, which seems not used as of now. Remove the code?
-    for (uuid, _) in db_result.uuids_and_types.iter() {
-        let swap = match SavedSwap::load_my_swap_from_db(&ctx, db_id.as_deref(), *uuid).await {
-            Ok(Some(swap)) => swap,
-            Ok(None) => {
-                error!("No such swap with the uuid '{}'", uuid);
-                continue;
-            },
-            Err(e) => return Err(MmError::new(LatestSwapsErr::UnableToLoadSavedSwaps(e.into_inner()))),
+    for db_id in db_ids {
+        let filter = MySwapsFilter {
+            my_coin: Some(my_coin.clone()),
+            other_coin: Some(other_coin.clone()),
+            from_timestamp: None,
+            to_timestamp: None,
         };
-        swaps.push(swap);
+
+        let paging_options = PagingOptions {
+            limit,
+            page_number: NonZeroUsize::new(1).expect("1 > 0"),
+            from_uuid: None,
+        };
+
+        let db_result = match MySwapsStorage::new(ctx.clone())
+            .my_recent_swaps_with_filters(&filter, Some(&paging_options), &db_id)
+            .await
+        {
+            Ok(x) => x,
+            Err(_) => return Err(MmError::new(LatestSwapsErr::UnableToQuerySwapStorage)),
+        };
+
+        for (uuid, _) in db_result.uuids_and_types.iter() {
+            let swap = match SavedSwap::load_my_swap_from_db(&ctx, Some(&db_result.pubkey), *uuid).await {
+                Ok(Some(swap)) => swap,
+                Ok(None) => {
+                    error!("No such swap with the uuid '{}'", uuid);
+                    continue;
+                },
+                Err(e) => return Err(MmError::new(LatestSwapsErr::UnableToLoadSavedSwaps(e.into_inner()))),
+            };
+            swaps.push(swap);
+        }
     }
 
     Ok(swaps)
@@ -1332,46 +1342,47 @@ pub async fn latest_swaps_for_pair(
 /// Returns the data of recent swaps of `my` node.
 pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: MyRecentSwapsReq = try_s!(json::from_value(req));
+    let db_ids = try_s!(find_unique_active_account_ids(&ctx).await);
 
-    // TODO: db_id
-    let db_result = try_s!(
-        MySwapsStorage::new(ctx.clone())
-            .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options), None)
-            .await
-    );
+    let mut res_js = vec![];
+    for db_id in db_ids {
+        let db_result = try_s!(
+            MySwapsStorage::new(ctx.clone())
+                .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options), &db_id)
+                .await
+        );
 
-    // iterate over uuids trying to parse the corresponding files content and add to result vector
-    let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
-    for (uuid, swap_type) in db_result.uuids_and_types.iter() {
-        match *swap_type {
-            LEGACY_SWAP_TYPE => match SavedSwap::load_my_swap_from_db(&ctx, None, *uuid).await {
-                Ok(Some(swap)) => {
-                    let swap_json = try_s!(json::to_value(MySwapStatusResponse::from(swap)));
-                    swaps.push(swap_json)
+        // iterate over uuids trying to parse the corresponding files content and add to result vector
+        let mut swaps = vec![];
+        for (uuid, swap_type) in db_result.uuids_and_types.iter() {
+            match *swap_type {
+                LEGACY_SWAP_TYPE => match SavedSwap::load_my_swap_from_db(&ctx, Some(&db_result.pubkey), *uuid).await {
+                    Ok(Some(swap)) => {
+                        let swap_json = try_s!(json::to_value(MySwapStatusResponse::from(swap)));
+                        swaps.push(swap_json)
+                    },
+                    Ok(None) => warn!("No such swap with the uuid '{}'", uuid),
+                    Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
                 },
-                Ok(None) => warn!("No such swap with the uuid '{}'", uuid),
-                Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
-            },
-            MAKER_SWAP_V2_TYPE => match get_maker_swap_data_for_rpc(&ctx, uuid, req.db_id.as_deref()).await {
-                Ok(data) => {
-                    let swap_json = try_s!(json::to_value(data));
-                    swaps.push(swap_json);
+                MAKER_SWAP_V2_TYPE => match get_maker_swap_data_for_rpc(&ctx, uuid, Some(&db_result.pubkey)).await {
+                    Ok(data) => {
+                        let swap_json = try_s!(json::to_value(data));
+                        swaps.push(swap_json);
+                    },
+                    Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
                 },
-                Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
-            },
-            TAKER_SWAP_V2_TYPE => match get_taker_swap_data_for_rpc(&ctx, uuid, req.db_id.as_deref()).await {
-                Ok(data) => {
-                    let swap_json = try_s!(json::to_value(data));
-                    swaps.push(swap_json);
+                TAKER_SWAP_V2_TYPE => match get_taker_swap_data_for_rpc(&ctx, uuid, Some(&db_result.pubkey)).await {
+                    Ok(data) => {
+                        let swap_json = try_s!(json::to_value(data));
+                        swaps.push(swap_json);
+                    },
+                    Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
                 },
-                Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
-            },
-            unknown_type => error!("Swap with the uuid '{}' has unknown type {}", uuid, unknown_type),
+                unknown_type => error!("Swap with the uuid '{}' has unknown type {}", uuid, unknown_type),
+            }
         }
-    }
 
-    let res_js = json!({
-        "result": {
+        res_js.push(json!({
             "swaps": swaps,
             "from_uuid": req.paging_options.from_uuid,
             "skipped": db_result.skipped,
@@ -1380,8 +1391,11 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
             "page_number": req.paging_options.page_number,
             "total_pages": calc_total_pages(db_result.total_count, req.paging_options.limit),
             "found_records": db_result.uuids_and_types.len(),
-        },
-    });
+            "pubkey": db_result.pubkey
+        }));
+    }
+
+    let res_js = json!({ "result": res_js });
     let res = try_s!(json::to_vec(&res_js));
     Ok(try_s!(Response::builder().body(res)))
 }
@@ -1394,7 +1408,6 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
 
     for db_id in db_ids {
         let db_id = Some(db_id);
-
         #[cfg(target_arch = "wasm32")]
         try_s!(migrate_swaps_data(&ctx, db_id.as_deref()).await);
 

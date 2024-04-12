@@ -2797,7 +2797,7 @@ impl OrdermatchContext {
                 orderbook_tickers: Default::default(),
                 original_tickers: Default::default(),
                 #[cfg(target_arch = "wasm32")]
-                ordermatch_db: ConstructibleDb::new(ctx),
+                ordermatch_db: ConstructibleDb::new(ctx, None),
             })
         })))
     }

@@ -13,7 +13,7 @@ pub struct ConstructibleDb<Db> {
     /// It's better to use something like [`Constructible`], but it doesn't provide a method to get the inner value by the mutable reference.
     mutex: AsyncMutex<Option<Db>>,
     db_namespace: DbNamespaceId,
-    pubkey: Option<String>,
+    db_id: Option<String>,
 }
 
 impl<Db: DbInstance> ConstructibleDb<Db> {
@@ -23,11 +23,11 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new(ctx: &MmArc, db_id: Option<&str>) -> Self {
         let rmd = hex::encode(ctx.rmd160().as_slice());
-        let pubkey = db_id.unwrap_or(&rmd);
+        let db_id = db_id.unwrap_or(&rmd);
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            pubkey: Some(pubkey.to_string()),
+            db_id: Some(db_id.to_string()),
         }
     }
 
@@ -36,11 +36,11 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_shared_db(ctx: &MmArc, db_id: Option<&str>) -> Self {
         let rmd = hex::encode(ctx.shared_db_id().as_slice());
-        let pubkey = db_id.unwrap_or(&rmd);
+        let db_id = db_id.unwrap_or(&rmd);
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            pubkey: Some(pubkey.to_string()),
+            db_id: Some(db_id.to_string()),
         }
     }
 
@@ -50,7 +50,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            pubkey: None,
+            db_id: None,
         }
     }
 
@@ -63,7 +63,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
             return Ok(unwrap_db_instance(locked_db));
         }
 
-        let db_id = DbIdentifier::new::<Db>(self.db_namespace, self.pubkey.clone());
+        let db_id = DbIdentifier::new::<Db>(self.db_namespace, self.db_id.clone());
 
         let db = Db::init(db_id).await?;
         *locked_db = Some(db);

@@ -46,7 +46,7 @@ cfg_wasm32!(
 #[allow(unused_imports)] use prost::Message;
 
 /// Negotiation data representation to be stored in DB.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StoredNegotiationData {
     maker_payment_locktime: u64,
     maker_secret_hash: BytesJson,
@@ -58,7 +58,7 @@ pub struct StoredNegotiationData {
 }
 
 /// Represents events produced by taker swap states.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "event_type", content = "event_data")]
 pub enum TakerSwapEvent {
     /// Swap has been successfully initialized.
@@ -163,7 +163,7 @@ pub enum TakerSwapEvent {
 #[derive(Clone)]
 pub struct TakerSwapStorage {
     ctx: MmArc,
-    pub db_id: Option<String>,
+    db_id: Option<String>,
 }
 
 impl TakerSwapStorage {

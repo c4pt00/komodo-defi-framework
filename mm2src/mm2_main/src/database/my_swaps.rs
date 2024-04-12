@@ -200,7 +200,7 @@ pub fn select_uuids_by_my_swaps_filter(
     conn: &Connection,
     filter: &MySwapsFilter,
     paging_options: Option<&PagingOptions>,
-    _db_id: Option<&str>,
+    db_id: &str,
 ) -> SqlResult<MyRecentSwapsUuids, SelectSwapsUuidsErr> {
     let mut query_builder = SqlBuilder::select_from(MY_SWAPS_TABLE);
     let mut params = vec![];
@@ -217,7 +217,10 @@ pub fn select_uuids_by_my_swaps_filter(
     let total_count: isize = conn.query_row_named(&count_query, params_as_trait.as_slice(), |row| row.get(0))?;
     let total_count = total_count.try_into().expect("COUNT should always be >= 0");
     if total_count == 0 {
-        return Ok(MyRecentSwapsUuids::default());
+        let mut default = MyRecentSwapsUuids::default();
+        default.pubkey = db_id.to_string();
+        drop_mutability!(default);
+        return Ok(default);
     }
 
     // query the uuids and types finally
@@ -255,6 +258,7 @@ pub fn select_uuids_by_my_swaps_filter(
         uuids_and_types,
         total_count,
         skipped,
+        pubkey: db_id.to_string(),
     })
 }
 

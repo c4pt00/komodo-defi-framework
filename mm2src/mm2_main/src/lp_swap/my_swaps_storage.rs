@@ -45,7 +45,7 @@ pub trait MySwapsOps {
         &self,
         filter: &MySwapsFilter,
         paging_options: Option<&PagingOptions>,
-        db_id: Option<&str>,
+        db_id: &str,
     ) -> MySwapsResult<MyRecentSwapsUuids>;
 }
 
@@ -102,7 +102,7 @@ mod native_impl {
             &self,
             filter: &MySwapsFilter,
             paging_options: Option<&PagingOptions>,
-            db_id: Option<&str>,
+            db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
             Ok(select_uuids_by_my_swaps_filter(
                 &self.ctx.sqlite_connection(),
@@ -204,9 +204,9 @@ mod wasm_impl {
             &self,
             filter: &MySwapsFilter,
             paging_options: Option<&PagingOptions>,
-            db_id: Option<&str>,
+            db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx, db_id).map_to_mm(MySwapsError::InternalError)?;
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx, Some(&db_id)).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db().await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -265,7 +265,7 @@ mod wasm_impl {
                 .map(|(_item_id, item)| OrderedUuid::from(item))
                 .collect();
             match paging_options {
-                Some(paging) => take_according_to_paging_opts(uuids, paging),
+                Some(paging) => take_according_to_paging_opts(uuids, paging, db_id),
                 None => {
                     let total_count = uuids.len();
                     Ok(MyRecentSwapsUuids {
@@ -275,6 +275,7 @@ mod wasm_impl {
                             .collect(),
                         total_count,
                         skipped: 0,
+                        pubkey: db_id.to_string(),
                     })
                 },
             }
@@ -284,6 +285,7 @@ mod wasm_impl {
     pub(super) fn take_according_to_paging_opts(
         uuids: BTreeSet<OrderedUuid>,
         paging: &PagingOptions,
+        db_id: &str,
     ) -> MySwapsResult<MyRecentSwapsUuids> {
         let total_count = uuids.len();
 
@@ -310,6 +312,7 @@ mod wasm_impl {
             uuids_and_types,
             total_count,
             skipped: skip,
+            pubkey: db_id.to_string(),
         })
     }
 
@@ -339,6 +342,7 @@ mod wasm_tests {
     use crate::mm2::lp_swap::{LEGACY_SWAP_TYPE, MAKER_SWAP_V2_TYPE, TAKER_SWAP_V2_TYPE};
     use common::log::wasm_log::register_wasm_log;
     use common::new_uuid;
+    use keys::hash::H160;
     use mm2_core::mm_ctx::MmCtxBuilder;
     use rand::seq::SliceRandom;
     use rand::Rng;
@@ -373,6 +377,7 @@ mod wasm_tests {
         filters: MySwapsFilter,
     ) {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
+        let pubkey = hex::encode(H160::default().as_slice());
         let my_swaps = MySwapsStorage::new(ctx);
 
         let mut expected_uuids = BTreeSet::new();
@@ -393,13 +398,13 @@ mod wasm_tests {
                 });
             }
             my_swaps
-                .save_new_swap(my_coin, other_coin, uuid, started_at, swap_type, None)
+                .save_new_swap(my_coin, other_coin, uuid, started_at, swap_type, Some(&pubkey))
                 .await
                 .expect("!MySwapsStorage::save_new_swap");
         }
 
         let actual = my_swaps
-            .my_recent_swaps_with_filters(&filters, None, None)
+            .my_recent_swaps_with_filters(&filters, None, &pubkey)
             .await
             .expect("!MySwapsStorage::my_recent_swaps_with_filters");
 
@@ -411,6 +416,7 @@ mod wasm_tests {
                 .collect(),
             total_count: expected_total_count,
             skipped: 0,
+            pubkey,
         };
         assert_eq!(actual, expected);
     }
@@ -419,6 +425,7 @@ mod wasm_tests {
     fn test_take_according_to_paging_opts() {
         register_wasm_log();
 
+        let pubkey = hex::encode(H160::default().as_slice());
         let uuids: BTreeSet<OrderedUuid> = [
             (1, "49c79ea4-e1eb-4fb2-a0ef-265bded0b77f", TAKER_SWAP_V2_TYPE),
             (2, "2f9afe84-7a89-4194-8947-45fba563118f", MAKER_SWAP_V2_TYPE),
@@ -445,7 +452,7 @@ mod wasm_tests {
             page_number: NonZeroUsize::new(10).unwrap(),
             from_uuid: Some(Uuid::parse_str("8f5b267a-efa8-49d6-a92d-ec0523cca891").unwrap()),
         };
-        let actual = take_according_to_paging_opts(uuids.clone(), &paging).unwrap();
+        let actual = take_according_to_paging_opts(uuids.clone(), &paging, &pubkey).unwrap();
         let expected = MyRecentSwapsUuids {
             uuids_and_types: vec![
                 (
@@ -459,6 +466,7 @@ mod wasm_tests {
             ],
             total_count: uuids.len(),
             skipped: 6,
+            pubkey: pubkey.clone(),
         };
         assert_eq!(actual, expected);
 
@@ -467,7 +475,7 @@ mod wasm_tests {
             page_number: NonZeroUsize::new(2).unwrap(),
             from_uuid: None,
         };
-        let actual = take_according_to_paging_opts(uuids.clone(), &paging).unwrap();
+        let actual = take_according_to_paging_opts(uuids.clone(), &paging, &pubkey).unwrap();
         let expected = MyRecentSwapsUuids {
             uuids_and_types: vec![
                 (
@@ -485,6 +493,7 @@ mod wasm_tests {
             ],
             total_count: uuids.len(),
             skipped: 3,
+            pubkey: pubkey.clone(),
         };
 
         assert_eq!(actual, expected);
@@ -497,7 +506,7 @@ mod wasm_tests {
             // unknown UUID
             from_uuid: Some(from_uuid),
         };
-        let actual = take_according_to_paging_opts(uuids, &paging)
+        let actual = take_according_to_paging_opts(uuids, &paging, &pubkey)
             .expect_err("'take_according_to_paging_opts' must return an error");
         assert_eq!(actual.into_inner(), MySwapsError::FromUuidNotFound(from_uuid));
     }

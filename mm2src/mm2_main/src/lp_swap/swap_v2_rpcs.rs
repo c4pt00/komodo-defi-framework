@@ -5,6 +5,7 @@ use super::taker_swap::TakerSavedSwap;
 use super::taker_swap_v2::TakerSwapEvent;
 use super::{active_swaps, MySwapsFilter, SavedSwap, SavedSwapError, SavedSwapIo, LEGACY_SWAP_TYPE, MAKER_SWAP_V2_TYPE,
             TAKER_SWAP_V2_TYPE};
+use coins::find_unique_active_account_ids;
 use common::log::{error, warn};
 use common::{calc_total_pages, HttpStatusCode, PagingOptions};
 use derive_more::Display;
@@ -95,7 +96,7 @@ pub(super) async fn get_swap_type(
 }
 
 /// Represents data of the swap used for RPC, omits fields that should be kept in secret
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub(crate) struct MySwapForRpc<T> {
     my_coin: String,
     other_coin: String,
@@ -270,7 +271,7 @@ pub(super) async fn get_taker_swap_data_for_rpc(
     }))
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "swap_type", content = "swap_data")]
 pub(crate) enum SwapRpcData {
     MakerV1(MakerSavedSwap),
@@ -389,7 +390,13 @@ pub(crate) struct MyRecentSwapsRequest {
     pub filter: MySwapsFilter,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
+pub(crate) struct MyRecentSwapsMultiResponse {
+    swaps: MyRecentSwapsResponse,
+    pubkey: String,
+}
+
+#[derive(Clone, Serialize)]
 pub(crate) struct MyRecentSwapsResponse {
     swaps: Vec<SwapRpcData>,
     from_uuid: Option<Uuid>,
@@ -407,6 +414,8 @@ pub(crate) enum MyRecentSwapsErr {
     FromUuidSwapNotFound(Uuid),
     InvalidTimeStampRange,
     DbError(String),
+    #[display(fmt = "No active coin pubkey not found")]
+    CoinNotFound,
 }
 
 impl From<MySwapsError> for MyRecentSwapsErr {
@@ -422,9 +431,9 @@ impl From<MySwapsError> for MyRecentSwapsErr {
 impl HttpStatusCode for MyRecentSwapsErr {
     fn status_code(&self) -> StatusCode {
         match self {
-            MyRecentSwapsErr::FromUuidSwapNotFound(_) | MyRecentSwapsErr::InvalidTimeStampRange => {
-                StatusCode::BAD_REQUEST
-            },
+            MyRecentSwapsErr::FromUuidSwapNotFound(_)
+            | MyRecentSwapsErr::InvalidTimeStampRange
+            | MyRecentSwapsErr::CoinNotFound => StatusCode::BAD_REQUEST,
             MyRecentSwapsErr::DbError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -433,30 +442,41 @@ impl HttpStatusCode for MyRecentSwapsErr {
 pub(crate) async fn my_recent_swaps_rpc(
     ctx: MmArc,
     req: MyRecentSwapsRequest,
-) -> MmResult<MyRecentSwapsResponse, MyRecentSwapsErr> {
-    // TODO: db_id
-    let db_result = MySwapsStorage::new(ctx.clone())
-        .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options), None)
-        .await?;
-    let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
-    for (uuid, swap_type) in db_result.uuids_and_types.iter() {
-        match get_swap_data_by_uuid_and_type(&ctx, None, *uuid, *swap_type).await {
-            Ok(Some(data)) => swaps.push(data),
-            Ok(None) => warn!("Swap {} data doesn't exist in DB", uuid),
-            Err(e) => error!("Error {} while trying to get swap {} data", e, uuid),
-        };
+) -> MmResult<Vec<MyRecentSwapsMultiResponse>, MyRecentSwapsErr> {
+    let db_ids = find_unique_active_account_ids(&ctx)
+        .await
+        .map_to_mm(|_| MyRecentSwapsErr::CoinNotFound)?;
+
+    let mut db_results = vec![];
+    for db_id in db_ids {
+        let db_result = MySwapsStorage::new(ctx.clone())
+            .my_recent_swaps_with_filters(&req.filter, Some(&req.paging_options), &db_id)
+            .await?;
+        let mut swaps = Vec::with_capacity(db_result.uuids_and_types.len());
+        for (uuid, swap_type) in db_result.uuids_and_types.iter() {
+            match get_swap_data_by_uuid_and_type(&ctx, Some(&db_id), *uuid, *swap_type).await {
+                Ok(Some(data)) => swaps.push(data),
+                Ok(None) => warn!("Swap {} data doesn't exist in DB", uuid),
+                Err(e) => error!("Error {} while trying to get swap {} data", e, uuid),
+            };
+
+            db_results.push(MyRecentSwapsMultiResponse {
+                swaps: MyRecentSwapsResponse {
+                    swaps: swaps.clone(),
+                    from_uuid: req.paging_options.from_uuid,
+                    skipped: db_result.skipped,
+                    limit: req.paging_options.limit,
+                    total: db_result.total_count,
+                    page_number: req.paging_options.page_number,
+                    total_pages: calc_total_pages(db_result.total_count, req.paging_options.limit),
+                    found_records: db_result.uuids_and_types.len(),
+                },
+                pubkey: db_id.to_string(),
+            })
+        }
     }
 
-    Ok(MyRecentSwapsResponse {
-        swaps,
-        from_uuid: req.paging_options.from_uuid,
-        skipped: db_result.skipped,
-        limit: req.paging_options.limit,
-        total: db_result.total_count,
-        page_number: req.paging_options.page_number,
-        total_pages: calc_total_pages(db_result.total_count, req.paging_options.limit),
-        found_records: db_result.uuids_and_types.len(),
-    })
+    Ok(db_results)
 }
 
 #[derive(Deserialize)]

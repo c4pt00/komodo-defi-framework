@@ -1792,7 +1792,7 @@ impl MakerSwapStatusChanged {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MakerSavedSwap {
     pub uuid: Uuid,
     pub my_order_uuid: Option<Uuid>,

@@ -81,36 +81,36 @@ pub trait DbInstance: Sized {
 }
 
 #[derive(Clone, Display)]
-#[display(fmt = "{}::{}::{}", namespace_id, "self.display_pubkey()", db_name)]
+#[display(fmt = "{}::{}::{}", namespace_id, "self.display_db_id()", db_name)]
 pub struct DbIdentifier {
     namespace_id: DbNamespaceId,
-    /// The pubkey derived from passphrase or coin.
-    /// This value is used to distinguish different databases corresponding to user's coin activation pubkey or seedphrase.
-    pubkey: Option<String>,
+    /// The db_id derived from passphrase or coin.
+    /// This value is used to distinguish different databases corresponding to user's coin activation db_id or seedphrase.
+    db_id: Option<String>,
     db_name: &'static str,
 }
 
 impl DbIdentifier {
     pub fn db_name(&self) -> &'static str { self.db_name }
 
-    pub fn new<Db: DbInstance>(namespace_id: DbNamespaceId, pubkey: Option<String>) -> DbIdentifier {
+    pub fn new<Db: DbInstance>(namespace_id: DbNamespaceId, db_id: Option<String>) -> DbIdentifier {
         DbIdentifier {
             namespace_id,
-            pubkey,
+            db_id,
             db_name: Db::DB_NAME,
         }
     }
 
-    pub fn for_test(db_name: &'static str, pubkey: Option<String>) -> DbIdentifier {
-        let pubkey = Some(pubkey.unwrap_or_else(|| hex::encode(H160::default().as_slice())));
+    pub fn for_test(db_name: &'static str, db_id: Option<String>) -> DbIdentifier {
+        let db_id = Some(db_id.unwrap_or_else(|| hex::encode(H160::default().as_slice())));
         DbIdentifier {
             namespace_id: DbNamespaceId::for_test(),
-            pubkey,
+            db_id,
             db_name,
         }
     }
 
-    pub fn display_pubkey(&self) -> String { self.pubkey.clone().unwrap_or_else(|| "KOMODEFI".to_string()) }
+    pub fn display_db_id(&self) -> String { self.db_id.clone().unwrap_or_else(|| "KOMODEFI".to_string()) }
 }
 
 pub struct IndexedDbBuilder {
