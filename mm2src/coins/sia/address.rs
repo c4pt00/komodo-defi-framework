@@ -22,8 +22,7 @@ impl Address {
 
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let checksum = blake2b_checksum(self.0 .0.as_ref());
-        write!(f, "addr:{}{}", self.0, hex::encode(checksum))
+        write!(f, "addr:{}", self.str_without_prefix())
     }
 }
 
@@ -160,10 +159,10 @@ fn test_address_fromstr_invalid_checksum() {
 #[test]
 fn test_address_str_without_prefix() {
     let address =
-        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a884ffffffffffff").unwrap();
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
 
     assert_eq!(
         address.str_without_prefix(),
-        "591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a884ffffffffffff"
+        "591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f"
     );
 }
