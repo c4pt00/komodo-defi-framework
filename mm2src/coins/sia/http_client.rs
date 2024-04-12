@@ -1,5 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::SiaHttpConf;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _; // required for .encode() method
 use core::fmt::Display;
 use core::time::Duration;
 use mm2_number::MmNumber;
@@ -108,7 +110,7 @@ pub struct GetAddressesBalanceResponse {
 impl SiaApiClientImpl {
     fn new(base_url: Url, password: &str) -> Result<Self, SiaApiClientError> {
         let mut headers = HeaderMap::new();
-        let auth_value = format!("Basic {}", base64::encode(&format!(":{}", password)));
+        let auth_value = format!("Basic {}", BASE64.encode(format!(":{}", password)));
         headers.insert(
             AUTHORIZATION,
             HeaderValue::from_str(&auth_value).map_err(|e| SiaApiClientError::BuildError(e.to_string()))?,
