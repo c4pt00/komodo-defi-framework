@@ -23,7 +23,7 @@ impl Encoder {
 
     pub fn write_u64(&mut self, u: u64) { self.buffer.extend_from_slice(&u.to_le_bytes()); }
 
-    pub fn write_distiguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
+    pub fn write_distinguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
 
     pub fn write_bool(&mut self, b: bool) {
         let mut buf = [0u8; 1];
@@ -77,7 +77,7 @@ fn test_encoder_write_u64() {
 #[test]
 fn test_encoder_write_distiguisher() {
     let mut encoder = Encoder::default();
-    encoder.write_distiguisher("test");
+    encoder.write_distinguisher("test");
     assert_eq!(
         encoder.hash(),
         H256::from("25fb524721bf98a9a1233a53c40e7e198971b003bf23c24f59d547a1bb837f9c")
@@ -114,7 +114,7 @@ fn test_encoder_reset() {
 #[test]
 fn test_encoder_complex() {
     let mut encoder = Encoder::default();
-    encoder.write_distiguisher("test");
+    encoder.write_distinguisher("test");
     encoder.write_bool(true);
     encoder.write_u8(1);
     encoder.write_len_prefixed_bytes(&[1, 2, 3, 4]);

@@ -93,7 +93,7 @@ impl SpendPolicy {
             return unlock_condition.address();
         }
         let mut encoder = Encoder::default();
-        encoder.write_distiguisher("address");
+        encoder.write_distinguisher("address");
 
         // if self is a threshold policy, we need to convert all of its subpolicies to opaque
         let mut new_policy = self.clone();
