@@ -142,7 +142,9 @@ async fn statements_for_migration(ctx: &MmArc, current_migration: i64) -> Option
 }
 
 pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64) -> SqlResult<()> {
-    let db_ids = find_unique_account_ids(ctx).await.expect("successful coin find");
+    let db_ids = find_unique_account_ids(ctx, coins::UniqueAccountIdKind::ActivePassive)
+        .await
+        .expect("successful coin find");
     for db_id in db_ids {
         let mut current_migration = current_migration;
         info!("migrate_sqlite_database for db_id=({db_id}), current migration {current_migration}");

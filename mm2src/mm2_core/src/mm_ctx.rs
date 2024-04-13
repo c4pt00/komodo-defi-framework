@@ -199,6 +199,8 @@ impl MmCtx {
         self.rmd160.or(&|| &*DEFAULT)
     }
 
+    pub fn rmd160_hex(&self) -> String { hex::encode(self.rmd160().as_slice()) }
+
     pub fn shared_db_id(&self) -> &H160 {
         lazy_static! {
             static ref DEFAULT: H160 = [0; 20].into();
@@ -302,9 +304,7 @@ impl MmCtx {
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn dbdir(&self, db_id: Option<&str>) -> PathBuf {
-        let db_id = db_id
-            .map(|t| t.to_owned())
-            .unwrap_or_else(|| hex::encode(self.rmd160().as_slice()));
+        let db_id = db_id.map(|t| t.to_owned()).unwrap_or_else(|| self.rmd160_hex());
 
         path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
     }

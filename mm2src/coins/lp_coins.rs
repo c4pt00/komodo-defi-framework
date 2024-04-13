@@ -4128,6 +4128,11 @@ pub async fn lp_coinfind(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinEnum>
     Ok(None)
 }
 
+pub enum UniqueAccountIdKind {
+    Active,
+    ActivePassive,
+}
+
 /// Returns coins even if they are on the passive mode
 pub async fn lp_coinfind_any(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinStruct>, String> {
     let cctx = try_s!(CoinsContext::from_ctx(ctx));
@@ -4136,8 +4141,16 @@ pub async fn lp_coinfind_any(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinS
     Ok(coins.get(ticker).cloned())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+// TODO: complete impl when implementing multikey support for sqlite/native
+pub async fn find_unique_account_ids(ctx: &MmArc, _kind: UniqueAccountIdKind) -> Result<HashSet<String>, String> {
+    let mut account_ids = HashSet::new();
+    account_ids.insert(ctx.rmd160_hex());
+    Ok(account_ids)
+}
+
 #[cfg(target_arch = "wasm32")]
-pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
+pub async fn find_unique_account_ids(ctx: &MmArc, kind: UniqueAccountIdKind) -> Result<HashSet<String>, String> {
     let cctx = try_s!(CoinsContext::from_ctx(ctx));
     let coins = cctx.coins.lock().await;
     let coins = coins.values().collect::<Vec<_>>();
@@ -4145,52 +4158,23 @@ pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<Strin
     // Using a HashSet to ensure uniqueness efficiently
     let mut account_ids = HashSet::new();
     // Add default wallet pubkey
-    account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
+    account_ids.insert(ctx.rmd160_hex());
 
     for coin in coins {
         if let Some(account) = try_s!(coin.inner.account_db_id()) {
-            if coin.is_available() {
-                account_ids.insert(account);
+            match kind {
+                UniqueAccountIdKind::ActivePassive => {
+                    account_ids.insert(account);
+                },
+                UniqueAccountIdKind::Active => {
+                    if coin.is_available() {
+                        account_ids.insert(account);
+                    };
+                },
             }
         };
     }
 
-    Ok(account_ids)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-// TODO: complete impl when implementing multikey support for sqlite/native
-pub async fn find_unique_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
-    let mut account_ids = HashSet::new();
-    account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
-    Ok(account_ids)
-}
-
-#[cfg(target_arch = "wasm32")]
-pub async fn find_unique_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
-    let cctx = try_s!(CoinsContext::from_ctx(ctx));
-    let coins = cctx.coins.lock().await;
-    let coins = coins.values().collect::<Vec<_>>();
-
-    // Using a HashSet to ensure uniqueness efficiently
-    let mut account_ids = HashSet::new();
-    // Add default wallet pubkey
-    account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
-
-    for coin in coins {
-        if let Some(account) = try_s!(coin.inner.account_db_id()) {
-            account_ids.insert(account);
-        };
-    }
-
-    Ok(account_ids)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-// TODO: complete impl when implementing multikey support for sqlite/native
-pub async fn find_unique_active_account_ids(ctx: &MmArc) -> Result<HashSet<String>, String> {
-    let mut account_ids = HashSet::new();
-    account_ids.insert(hex::encode(ctx.rmd160().as_slice()));
     Ok(account_ids)
 }
 

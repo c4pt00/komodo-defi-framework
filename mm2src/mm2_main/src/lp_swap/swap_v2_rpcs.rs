@@ -5,7 +5,7 @@ use super::taker_swap::TakerSavedSwap;
 use super::taker_swap_v2::TakerSwapEvent;
 use super::{active_swaps, MySwapsFilter, SavedSwap, SavedSwapError, SavedSwapIo, LEGACY_SWAP_TYPE, MAKER_SWAP_V2_TYPE,
             TAKER_SWAP_V2_TYPE};
-use coins::find_unique_active_account_ids;
+use coins::find_unique_account_ids;
 use common::log::{error, warn};
 use common::{calc_total_pages, HttpStatusCode, PagingOptions};
 use derive_more::Display;
@@ -443,7 +443,7 @@ pub(crate) async fn my_recent_swaps_rpc(
     ctx: MmArc,
     req: MyRecentSwapsRequest,
 ) -> MmResult<Vec<MyRecentSwapsMultiResponse>, MyRecentSwapsErr> {
-    let db_ids = find_unique_active_account_ids(&ctx)
+    let db_ids = find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::Active)
         .await
         .map_to_mm(|_| MyRecentSwapsErr::CoinNotFound)?;
 

@@ -462,7 +462,9 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let db_ids = find_unique_account_ids(&ctx).await.map_to_mm(MmInitError::Internal)?;
+        let db_ids = find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::ActivePassive)
+            .await
+            .map_to_mm(MmInitError::Internal)?;
         for db_id in db_ids.iter() {
             fix_directories(&ctx, Some(db_id))?;
             ctx.init_sqlite_connection(None)
