@@ -7,7 +7,7 @@ pub mod my_orders;
 #[path = "database/stats_swaps.rs"] pub mod stats_swaps;
 
 use crate::CREATE_MY_SWAPS_TABLE;
-use coins::find_unique_account_ids;
+use coins::find_unique_account_ids_any;
 use common::log::{debug, error, info};
 use db_common::sqlite::run_optimization_pragmas;
 use db_common::sqlite::rusqlite::{params_from_iter, Result as SqlResult};
@@ -142,9 +142,7 @@ async fn statements_for_migration(ctx: &MmArc, current_migration: i64) -> Option
 }
 
 pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64) -> SqlResult<()> {
-    let db_ids = find_unique_account_ids(ctx, coins::UniqueAccountIdKind::ActivePassive)
-        .await
-        .expect("successful coin find");
+    let db_ids = find_unique_account_ids_any(ctx).await.expect("successful coin find");
     for db_id in db_ids {
         let mut current_migration = current_migration;
         info!("migrate_sqlite_database for db_id=({db_id}), current migration {current_migration}");

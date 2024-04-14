@@ -19,7 +19,7 @@
 //
 
 use bitcrypto::sha256;
-use coins::{find_unique_account_ids, register_balance_update_handler};
+use coins::{find_unique_account_ids_any, register_balance_update_handler};
 use common::executor::{SpawnFuture, Timer};
 use common::log::{info, warn};
 use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, WithHwRpcError};
@@ -462,7 +462,7 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let db_ids = find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::ActivePassive)
+        let db_ids = find_unique_account_ids_any(&ctx)
             .await
             .map_to_mm(MmInitError::Internal)?;
         for db_id in db_ids.iter() {

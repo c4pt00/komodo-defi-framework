@@ -62,8 +62,8 @@ use crate::mm2::lp_network::{broadcast_p2p_msg, Libp2pPeerId, P2PProcessError, P
 use crate::mm2::lp_swap::maker_swap_v2::{MakerSwapStateMachine, MakerSwapStorage};
 use crate::mm2::lp_swap::taker_swap_v2::{TakerSwapStateMachine, TakerSwapStorage};
 use bitcrypto::{dhash160, sha256};
-use coins::{find_unique_account_ids, lp_coinfind, lp_coinfind_or_err, CoinFindError, DexFee, MmCoin, MmCoinEnum,
-            TradeFee, TransactionEnum};
+use coins::{find_unique_account_ids_active, lp_coinfind, lp_coinfind_or_err, CoinFindError, DexFee, MmCoin,
+            MmCoinEnum, TradeFee, TransactionEnum};
 use common::log::{debug, warn};
 use common::now_sec;
 use common::time_cache::DuplicateCache;
@@ -1219,7 +1219,7 @@ pub struct MySwapsFilter {
 /// Returns *all* uuids of swaps, which match the selected filter.
 pub async fn all_swaps_uuids_by_filter(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let filter: MySwapsFilter = try_s!(json::from_value(req));
-    let db_ids = try_s!(find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::Active).await);
+    let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
     let mut res_js = vec![];
 
     for db_id in db_ids {
@@ -1296,7 +1296,7 @@ pub async fn latest_swaps_for_pair(
     other_coin: String,
     limit: usize,
 ) -> Result<Vec<SavedSwap>, MmError<LatestSwapsErr>> {
-    let db_ids = find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::Active)
+    let db_ids = find_unique_account_ids_active(&ctx)
         .await
         .map_to_mm(|_| LatestSwapsErr::CoinNotFound)?;
     let mut swaps = vec![];
@@ -1342,7 +1342,7 @@ pub async fn latest_swaps_for_pair(
 /// Returns the data of recent swaps of `my` node.
 pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: MyRecentSwapsReq = try_s!(json::from_value(req));
-    let db_ids = try_s!(find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::Active).await);
+    let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
 
     let mut res_js = vec![];
     for db_id in db_ids {
@@ -1403,7 +1403,7 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
 /// Find out the swaps that need to be kick-started, continue from the point where swap was interrupted
 /// Return the tickers of coins that must be enabled for swaps to continue
 pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
-    let db_ids = try_s!(find_unique_account_ids(&ctx, coins::UniqueAccountIdKind::Active).await);
+    let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
     let mut coins = HashSet::new();
 
     for db_id in db_ids {

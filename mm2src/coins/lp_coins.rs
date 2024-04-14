@@ -4193,11 +4193,6 @@ pub async fn lp_coinfind(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinEnum>
     Ok(None)
 }
 
-pub enum UniqueAccountIdKind {
-    Active,
-    ActivePassive,
-}
-
 /// Returns coins even if they are on the passive mode
 pub async fn lp_coinfind_any(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinStruct>, String> {
     let cctx = try_s!(CoinsContext::from_ctx(ctx));
@@ -4206,18 +4201,22 @@ pub async fn lp_coinfind_any(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinS
     Ok(coins.get(ticker).cloned())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-// TODO: complete impl when implementing multikey support for sqlite/native
-pub async fn find_unique_account_ids(ctx: &MmArc, _kind: UniqueAccountIdKind) -> Result<HashSet<String>, String> {
-    let mut account_ids = HashSet::new();
-    account_ids.insert(ctx.rmd160_hex());
-    Ok(account_ids)
+pub async fn find_unique_account_ids_any(ctx: &MmArc) -> Result<HashSet<String>, String> {
+    find_unique_account_ids(ctx, false).await
 }
 
-#[cfg(target_arch = "wasm32")]
-pub async fn find_unique_account_ids(ctx: &MmArc, kind: UniqueAccountIdKind) -> Result<HashSet<String>, String> {
+pub async fn find_unique_account_ids_active(ctx: &MmArc) -> Result<HashSet<String>, String> {
+    find_unique_account_ids(ctx, true).await
+}
+
+#[allow(unused)]
+async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
+    // TODO: removee target_arch after implementing native/sqlite
+    #[cfg(target_arch = "wasm32")]
     let cctx = try_s!(CoinsContext::from_ctx(ctx));
+    #[cfg(target_arch = "wasm32")]
     let coins = cctx.coins.lock().await;
+    #[cfg(target_arch = "wasm32")]
     let coins = coins.values().collect::<Vec<_>>();
 
     // Using a HashSet to ensure uniqueness efficiently
@@ -4225,21 +4224,19 @@ pub async fn find_unique_account_ids(ctx: &MmArc, kind: UniqueAccountIdKind) -> 
     // Add default wallet pubkey
     account_ids.insert(ctx.rmd160_hex());
 
-    for coin in coins {
+    // TODO: removee target_arch after implementing native/sqlite
+    #[cfg(target_arch = "wasm32")]
+    for coin in coins.iter() {
         if let Some(account) = try_s!(coin.inner.account_db_id()) {
-            match kind {
-                UniqueAccountIdKind::ActivePassive => {
-                    account_ids.insert(account);
-                },
-                UniqueAccountIdKind::Active => {
-                    if coin.is_available() {
-                        account_ids.insert(account);
-                    };
-                },
+            if active_only && coin.is_available() {
+                account_ids.insert(account);
+            } else {
+                account_ids.insert(account);
             }
-        };
+        }
     }
 
+    info!("{account_ids:?}");
     Ok(account_ids)
 }
 
