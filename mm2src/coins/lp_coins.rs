@@ -4236,7 +4236,7 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
         }
     }
 
-    info!("{account_ids:?}");
+    common::log::info!("{account_ids:?}");
     Ok(account_ids)
 }
 
