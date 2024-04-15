@@ -4209,8 +4209,47 @@ pub async fn find_unique_account_ids_active(ctx: &MmArc) -> Result<HashSet<Strin
     find_unique_account_ids(ctx, true).await
 }
 
-#[allow(unused)]
+#[cfg(not(target_arch = "wasm32"))]
+async fn find_unique_account_ids(ctx: &MmArc, _active_only: bool) -> Result<HashSet<String>, String> {
+    // Using a HashSet to ensure uniqueness efficiently
+    let mut account_ids = HashSet::new();
+    // Add default wallet pubkey
+    account_ids.insert(ctx.rmd160_hex());
+
+    Ok(account_ids)
+}
+
+#[cfg(target_arch = "wasm32")]
 async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
+    // Using a HashSet to ensure uniqueness efficiently
+    let mut account_ids = HashSet::new();
+    // Add default wallet pubkey
+    account_ids.insert(ctx.rmd160_hex());
+
+    let cctx = try_s!(CoinsContext::from_ctx(ctx));
+    let coins = cctx.coins.lock().await;
+    let coins = coins.values().collect::<Vec<_>>();
+
+    for coin in coins.iter() {
+        if let Some(account) = try_s!(coin.inner.account_db_id()) {
+            if active_only && coin.is_available() {
+                account_ids.insert(account.clone());
+                continue;
+            };
+
+            if !active_only {
+                account_ids.insert(account);
+                continue;
+            }
+        }
+    }
+
+    common::log::info!("coin account_ids=({account_ids:?})");
+    Ok(account_ids)
+}
+
+#[allow(unused)]
+async fn find_unique_nft_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
     // TODO: removee target_arch after implementing native/sqlite
     #[cfg(target_arch = "wasm32")]
     let cctx = try_s!(CoinsContext::from_ctx(ctx));

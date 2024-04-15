@@ -90,14 +90,17 @@ pub async fn get_nft_list(ctx: MmArc, req: NftListReq) -> MmResult<NftList, GetN
             NftListStorageOps::init(&storage, chain).await?;
         }
     }
+
     let mut nft_list = storage
         .get_nft_list(req.chains, req.max, req.limit, req.page_number, req.filters)
         .await?;
+
     if req.protect_from_spam {
         for nft in &mut nft_list.nfts {
             protect_from_nft_spam_links(nft, true)?;
         }
     }
+
     Ok(nft_list)
 }
 
@@ -1527,4 +1530,38 @@ fn construct_moralis_uri_for_nft(base_url: &Url, address: &str, chain: &Chain) -
         .append_pair("chain", &chain.to_string())
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     Ok(uri)
+}
+
+pub async fn find_unique_nft_account_ids_any(ctx: &MmArc) -> Result<HashSet<String>, String> {
+    find_unique_nft_account_ids(ctx, false).await
+}
+
+pub async fn find_unique_nft_account_ids_active(ctx: &MmArc) -> Result<HashSet<String>, String> {
+    find_unique_nft_account_ids(ctx, true).await
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn find_unique_nft_account_ids(_ctx: &MmArc, _active_only: bool) -> Result<HashSet<String>, String> { todo!() }
+
+#[cfg(target_arch = "wasm32")]
+async fn find_unique_nft_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
+    // Using a HashSet to ensure uniqueness efficiently
+    let mut account_ids = HashSet::new();
+    // Add default wallet pubkey
+    account_ids.insert(ctx.rmd160_hex());
+
+    let cctx = try_s!(CoinsContext::from_ctx(ctx));
+    let coins = cctx.coins.lock().await;
+    let coins = coins.values().collect::<Vec<_>>();
+
+    for coin in coins.iter() {
+        if let Some(account) = try_s!(coin.inner.account_db_id()) {
+            if let Ok(chain) = Chain::from_ticker(coin.inner.ticker()) {
+                todo!()
+            };
+        }
+    }
+
+    common::log::info!("nft account_ids=({account_ids:?})");
+    Ok(account_ids)
 }
