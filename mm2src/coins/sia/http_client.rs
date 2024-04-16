@@ -65,9 +65,10 @@ impl Display for ReqwestErrorWithUrl {
 pub enum SiaApiClientError {
     Timeout(String),
     BuildError(String),
-    ApiUnreachable(String),
+    ServerUnreachable(String),
     ReqwestError(ReqwestErrorWithUrl),
     UrlParse(url::ParseError),
+    UnexpectedResponse(String),
 }
 
 impl From<SiaApiClientError> for String {
