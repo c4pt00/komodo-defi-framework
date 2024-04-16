@@ -140,6 +140,12 @@ pub struct MmCtx {
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
     pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async_sqlite_connection_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub shared_sqlite_connection_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub sqlite_connection_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
 }
 
 impl MmCtx {
@@ -189,6 +195,12 @@ impl MmCtx {
             nft_ctx: Mutex::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            async_sqlite_connection_ctx: Mutex::new(None),
+            #[cfg(not(target_arch = "wasm32"))]
+            sqlite_connection_ctx: Mutex::new(None),
+            #[cfg(not(target_arch = "wasm32"))]
+            shared_sqlite_connection_ctx: Mutex::new(None),
         }
     }
 
@@ -773,7 +785,7 @@ impl MmCtxBuilder {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
+pub(super) fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
     match sqlite_file_path.canonicalize() {
         Ok(absolute_path) => {
             log::debug!("Trying to open SQLite database file {}", absolute_path.display());
