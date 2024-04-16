@@ -3031,19 +3031,7 @@ pub trait MmCoin:
     /// Loop collecting coin transaction history and saving it to local DB
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn account_db_id(&self) -> Result<Option<String>, String> { Ok(None) }
-
-    #[cfg(target_arch = "wasm32")]
-    fn account_db_id(&self) -> Result<Option<String>, String> {
-        Ok(Some(
-            try_s!(Public::from_slice(
-                try_s!(hex::decode(try_s!(self.get_public_key()))).as_slice()
-            ))
-            .address_hash()
-            .to_string(),
-        ))
-    }
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
