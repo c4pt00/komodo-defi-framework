@@ -4209,17 +4209,8 @@ pub async fn find_unique_account_ids_active(ctx: &MmArc) -> Result<HashSet<Strin
     find_unique_account_ids(ctx, true).await
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-async fn find_unique_account_ids(ctx: &MmArc, _active_only: bool) -> Result<HashSet<String>, String> {
-    // Using a HashSet to ensure uniqueness efficiently
-    let mut account_ids = HashSet::new();
-    // Add default wallet pubkey
-    account_ids.insert(ctx.rmd160_hex());
-
-    Ok(account_ids)
-}
-
-#[cfg(target_arch = "wasm32")]
+// TODO: remove early return and cfg
+#[allow(unused)]
 async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
     // Using a HashSet to ensure uniqueness efficiently
     let mut account_ids = HashSet::new();
@@ -4230,6 +4221,7 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
     let coins = cctx.coins.lock().await;
     let coins = coins.values().collect::<Vec<_>>();
 
+    #[cfg(not(target_arch = "wasm32"))]
     for coin in coins.iter() {
         if let Some(account) = try_s!(coin.inner.account_db_id()) {
             if active_only && coin.is_available() {
@@ -4245,39 +4237,6 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
     }
 
     common::log::info!("coin account_ids=({account_ids:?})");
-    Ok(account_ids)
-}
-
-#[allow(unused)]
-async fn find_unique_nft_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
-    // TODO: removee target_arch after implementing native/sqlite
-    #[cfg(target_arch = "wasm32")]
-    let cctx = try_s!(CoinsContext::from_ctx(ctx));
-    #[cfg(target_arch = "wasm32")]
-    let coins = cctx.coins.lock().await;
-    #[cfg(target_arch = "wasm32")]
-    let coins = coins.values().collect::<Vec<_>>();
-
-    // Using a HashSet to ensure uniqueness efficiently
-    let mut account_ids = HashSet::new();
-    // Add default wallet pubkey
-    account_ids.insert(ctx.rmd160_hex());
-
-    // TODO: removee target_arch after implementing native/sqlite
-    #[cfg(target_arch = "wasm32")]
-    for coin in coins.iter() {
-        if let Some(account) = try_s!(coin.inner.account_db_id()) {
-            if active_only && coin.is_available() {
-                account_ids.insert(account.clone());
-            };
-
-            if !active_only {
-                account_ids.insert(account);
-            }
-        }
-    }
-
-    common::log::info!("{account_ids:?}");
     Ok(account_ids)
 }
 
