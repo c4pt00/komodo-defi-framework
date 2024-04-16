@@ -35,7 +35,6 @@ pub enum ParseAddressError {
     InvalidHexEncoding(String),
     InvalidChecksum,
     InvalidLength,
-    // Add other error kinds as needed
 }
 
 impl From<FromHexError> for ParseAddressError {
