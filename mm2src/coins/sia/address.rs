@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 // TODO this could probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Address(pub H256);
 
 impl Address {
