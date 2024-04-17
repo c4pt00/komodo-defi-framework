@@ -8,6 +8,7 @@ use db_common::sqlite::rusqlite::{Connection, Error as SqlError, Result as SqlRe
 use db_common::sqlite::sql_builder::SqlBuilder;
 use db_common::sqlite::{offset_by_uuid, query_single_row};
 use mm2_core::mm_ctx::MmArc;
+use mm2_core::sql_ctx::SyncSqlConnectionCtx;
 use std::convert::TryInto;
 use uuid::{Error as UuidError, Uuid};
 
@@ -70,10 +71,13 @@ pub fn insert_new_swap(
     uuid: &str,
     started_at: &str,
     swap_type: u8,
-    _db_id: Option<&str>,
+    db_id: Option<&str>,
 ) -> SqlResult<()> {
     debug!("Inserting new swap {} to the SQLite database", uuid);
-    let conn = ctx.sqlite_connection();
+    let conn = SyncSqlConnectionCtx::from_ctx(ctx, db_id)
+        .expect("sqlite_connection is not initialized")
+        .connection(db_id);
+    let conn = conn.lock().unwrap();
     let params = [my_coin, other_coin, uuid, started_at, &swap_type.to_string()];
     conn.execute(INSERT_MY_SWAP, params).map(|_| ())
 }
@@ -123,7 +127,10 @@ const INSERT_MY_SWAP_V2: &str = r#"INSERT INTO my_swaps (
 );"#;
 
 pub fn insert_new_swap_v2(ctx: &MmArc, params: &[(&str, &dyn ToSql)]) -> SqlResult<()> {
-    let conn = ctx.sqlite_connection();
+    let conn = SyncSqlConnectionCtx::from_ctx(ctx, db_id)
+        .expect("sqlite_connection is not initialized")
+        .connection(db_id);
+    let conn = conn.lock().unwrap();
     conn.execute(INSERT_MY_SWAP_V2, params).map(|_| ())
 }
 

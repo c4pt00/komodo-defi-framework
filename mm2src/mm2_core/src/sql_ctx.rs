@@ -13,11 +13,13 @@ pub struct AsyncSqlConnectionCtx {
 }
 
 impl AsyncSqlConnectionCtx {
-    pub fn from_ctx(ctx: &MmArc) -> Result<Arc<Self>, String> {
-        let res = try_s!(from_ctx(&ctx.async_sqlite_connection_ctx, move || Ok(Self {
-            connections: Arc::new(AsyncMutex::new(HashMap::new())),
-            ctx: ctx.clone()
-        })));
+    pub async fn from_ctx(ctx: &MmArc) -> Result<Arc<Self>, String> {
+        let res = try_s!(from_ctx(&ctx.async_sqlite_connection_ctx, move || {
+            Ok(Self {
+                connections: Arc::new(AsyncMutex::new(HashMap::new())),
+                ctx: ctx.clone(),
+            })
+        }));
 
         Ok(res)
     }
@@ -35,34 +37,33 @@ impl AsyncSqlConnectionCtx {
     }
 }
 
+#[derive(Clone)]
 pub struct SyncSqlConnectionCtx {
     connections: Arc<Mutex<HashMap<String, Arc<Mutex<Connection>>>>>,
     ctx: MmArc,
 }
 
 impl SyncSqlConnectionCtx {
-    pub fn from_ctx(ctx: &MmArc) -> Result<Arc<Self>, String> {
-        let res = try_s!(from_ctx(&ctx.sqlite_connection_ctx, move || Ok(Self {
-            connections: Arc::new(Mutex::new(HashMap::new())),
-            ctx: ctx.clone()
-        })));
+    pub fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<Self>, String> {
+        let res = try_s!(from_ctx(&ctx.sqlite_connection_ctx, move || {
+            let sqlite_file_path = ctx.dbdir(db_id).join("KOMODEFI.db");
+            log_sqlite_file_open_attempt(&sqlite_file_path);
+            let connection = try_s!(Connection::open(sqlite_file_path));
+
+            let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| ctx.rmd160_hex());
+            let mut connections = HashMap::new();
+            connections.insert(db_id, Arc::new(Mutex::new(connection)));
+
+            Ok(Self {
+                connections: Arc::new(Mutex::new(connections)),
+                ctx: ctx.clone(),
+            })
+        }));
 
         Ok(res)
     }
 
-    pub fn init(&self, db_id: Option<&str>) -> Result<(), String> {
-        let sqlite_file_path = self.ctx.dbdir(db_id).join("KOMODEFI.db");
-        log_sqlite_file_open_attempt(&sqlite_file_path);
-        let connection = try_s!(Connection::open(sqlite_file_path));
-
-        let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| self.ctx.rmd160_hex());
-        let mut connections = self.connections.lock().unwrap();
-        connections.insert(db_id, Arc::new(Mutex::new(connection)));
-
-        Ok(())
-    }
-
-    pub fn sqlite_conn_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
+    pub fn connection_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
         let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| self.ctx.rmd160_hex());
         if let Ok(connections) = self.connections.lock() {
             return connections.get(&db_id).cloned();
@@ -88,25 +89,23 @@ pub struct SharedSqlConnectionCtx {
 }
 
 impl SharedSqlConnectionCtx {
-    pub fn from_ctx(ctx: &MmArc) -> Result<Arc<Self>, String> {
-        let res = try_s!(from_ctx(&ctx.shared_sqlite_connection_ctx, move || Ok(Self {
-            connections: Arc::new(Mutex::new(HashMap::new())),
-            ctx: ctx.clone()
-        })));
+    pub fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<Self>, String> {
+        let res = try_s!(from_ctx(&ctx.shared_sqlite_connection_ctx, move || {
+            let sqlite_file_path = ctx.dbdir(db_id).join("MM2-shared.db");
+            log_sqlite_file_open_attempt(&sqlite_file_path);
+            let connection = try_s!(Connection::open(sqlite_file_path));
+
+            let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| ctx.rmd160_hex());
+            let mut connections = HashMap::new();
+            connections.insert(db_id, Arc::new(Mutex::new(connection)));
+
+            Ok(Self {
+                connections: Arc::new(Mutex::new(connections)),
+                ctx: ctx.clone(),
+            })
+        }));
 
         Ok(res)
-    }
-
-    pub fn init(&self, db_id: Option<&str>) -> Result<(), String> {
-        let sqlite_file_path = self.ctx.dbdir(db_id).join("MM2-shared.db");
-        log_sqlite_file_open_attempt(&sqlite_file_path);
-        let connection = try_s!(Connection::open(sqlite_file_path));
-
-        let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| self.ctx.rmd160_hex());
-        let mut connections = self.connections.lock().unwrap();
-        connections.insert(db_id, Arc::new(Mutex::new(connection)));
-
-        Ok(())
     }
 
     pub fn connection(&self, db_id: Option<&str>) -> Arc<Mutex<Connection>> {
