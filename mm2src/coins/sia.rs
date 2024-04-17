@@ -363,7 +363,7 @@ impl MarketCoinOps for SiaCoin {
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
         let http_client = self.0.http_client.clone(); // Clone the client
 
-        let height_fut = async move { http_client.get_height().await.map_err(|e| format!("{}", e)) }
+        let height_fut = async move { http_client.current_height().await.map_err(|e| format!("{}", e)) }
             .boxed() // Make the future 'static by boxing
             .compat(); // Convert to a futures 0.1-compatible future
 
