@@ -1,11 +1,9 @@
-#[cfg(not(target_arch = "wasm32"))]
-mod sql_block_header_storage;
+#[cfg(not(target_arch = "wasm32"))] mod sql_block_header_storage;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use sql_block_header_storage::SqliteBlockHeadersStorage;
 
-#[cfg(target_arch = "wasm32")]
-mod wasm;
+#[cfg(target_arch = "wasm32")] mod wasm;
 
 #[cfg(target_arch = "wasm32")]
 pub use wasm::IDBBlockHeadersStorage;
@@ -40,7 +38,10 @@ impl BlockHeaderStorage {
         ))?;
 
         Ok(BlockHeaderStorage {
-            inner: Box::new(SqliteBlockHeadersStorage { ticker, conn: sqlite_connection.clone() }),
+            inner: Box::new(SqliteBlockHeadersStorage {
+                ticker,
+                conn: sqlite_connection.clone(),
+            }),
         })
     }
 

@@ -225,7 +225,7 @@ impl MmCtx {
                             rpcport
                         )
                     })?
-            }
+            },
             None => 7783, // Default port if `rpcport` does not exist in the config
         };
         if port < 1000 {
@@ -240,7 +240,7 @@ impl MmCtx {
         } else {
             "127.0.0.1"
         }
-            .to_string();
+        .to_string();
         let ip: IpAddr = try_s!(rpcip.parse());
         Ok(SocketAddr::new(ip, port as u16))
     }
@@ -531,7 +531,7 @@ impl MmArc {
                     None => {
                         log::info!("MmCtx was dropped. Stop the loop");
                         break;
-                    }
+                    },
                 }
             }
         };
@@ -565,7 +565,7 @@ impl MmArc {
                     ve.insert(self.weak());
                     try_s!(self.ffi_handle.pin(rid));
                     return Ok(rid);
-                }
+                },
             }
         }
     }
@@ -662,8 +662,8 @@ impl MmFutSpawner {
 
 impl SpawnFuture for MmFutSpawner {
     fn spawn<F>(&self, f: F)
-        where
-            F: Future<Output=()> + Send + 'static,
+    where
+        F: Future<Output = ()> + Send + 'static,
     {
         self.inner.spawn(f)
     }
@@ -671,8 +671,8 @@ impl SpawnFuture for MmFutSpawner {
 
 impl SpawnAbortable for MmFutSpawner {
     fn spawn_with_settings<F>(&self, fut: F, settings: AbortSettings)
-        where
-            F: Future<Output=()> + Send + 'static,
+    where
+        F: Future<Output = ()> + Send + 'static,
     {
         self.inner.spawn_with_settings(fut, settings)
     }
@@ -686,9 +686,9 @@ pub fn from_ctx<T, C>(
     ctx_field: &Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     constructor: C,
 ) -> Result<Arc<T>, String>
-    where
-        C: FnOnce() -> Result<T, String>,
-        T: 'static + Send + Sync,
+where
+    C: FnOnce() -> Result<T, String>,
+    T: 'static + Send + Sync,
 {
     let mut ctx_field = try_s!(ctx_field.lock());
     if let Some(ref ctx) = *ctx_field {
@@ -781,9 +781,9 @@ pub(super) fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
     match sqlite_file_path.canonicalize() {
         Ok(absolute_path) => {
             log::debug!("Trying to open SQLite database file {}", absolute_path.display());
-        }
+        },
         Err(_) => {
             log::debug!("Trying to open SQLite database file {}", sqlite_file_path.display());
-        }
+        },
     }
 }
