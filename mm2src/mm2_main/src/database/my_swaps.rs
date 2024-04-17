@@ -8,7 +8,6 @@ use db_common::sqlite::rusqlite::{Connection, Error as SqlError, Result as SqlRe
 use db_common::sqlite::sql_builder::SqlBuilder;
 use db_common::sqlite::{offset_by_uuid, query_single_row};
 use mm2_core::mm_ctx::MmArc;
-use mm2_core::sql_ctx::SyncSqlConnectionCtx;
 use std::convert::TryInto;
 use uuid::{Error as UuidError, Uuid};
 
@@ -71,13 +70,10 @@ pub fn insert_new_swap(
     uuid: &str,
     started_at: &str,
     swap_type: u8,
-    db_id: Option<&str>,
+    _db_id: Option<&str>,
 ) -> SqlResult<()> {
     debug!("Inserting new swap {} to the SQLite database", uuid);
-    let conn = SyncSqlConnectionCtx::from_ctx(ctx, db_id)
-        .expect("sqlite_connection is not initialized")
-        .connection(db_id);
-    let conn = conn.lock().unwrap();
+    let conn = ctx.sqlite_connection();
     let params = [my_coin, other_coin, uuid, started_at, &swap_type.to_string()];
     conn.execute(INSERT_MY_SWAP, params).map(|_| ())
 }
@@ -126,11 +122,8 @@ const INSERT_MY_SWAP_V2: &str = r#"INSERT INTO my_swaps (
     :other_p2p_pub
 );"#;
 
-pub fn insert_new_swap_v2(ctx: &MmArc, params: &[(&str, &dyn ToSql)], db_id: Option<&str>) -> SqlResult<()> {
-    let conn = SyncSqlConnectionCtx::from_ctx(ctx, db_id)
-        .expect("sqlite_connection is not initialized")
-        .connection(db_id);
-    let conn = conn.lock().unwrap();
+pub fn insert_new_swap_v2(ctx: &MmArc, params: &[(&str, &dyn ToSql)], _db_id: Option<&str>) -> SqlResult<()> {
+    let conn = ctx.sqlite_connection();
     conn.execute(INSERT_MY_SWAP_V2, params).map(|_| ())
 }
 
@@ -247,7 +240,7 @@ pub fn select_uuids_by_my_swaps_filter(
             query_builder.limit(paging.limit);
             query_builder.offset(offset);
             offset
-        },
+        }
         None => 0,
     };
 
@@ -295,6 +288,7 @@ pub fn update_swap_events(conn: &Connection, uuid: &str, events_json: &str, _db_
 }
 
 const UPDATE_SWAP_IS_FINISHED_BY_UUID: &str = "UPDATE my_swaps SET is_finished = 1 WHERE uuid = :uuid;";
+
 pub fn set_swap_is_finished(conn: &Connection, uuid: &str, _db_id: Option<&str>) -> SqlResult<()> {
     let mut stmt = conn.prepare(UPDATE_SWAP_IS_FINISHED_BY_UUID)?;
     stmt.execute(&[(":uuid", uuid)]).map(|_| ())

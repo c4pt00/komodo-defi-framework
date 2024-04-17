@@ -1,8 +1,12 @@
-#[cfg(not(target_arch = "wasm32"))] mod sql_block_header_storage;
+#[cfg(not(target_arch = "wasm32"))]
+mod sql_block_header_storage;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub use sql_block_header_storage::SqliteBlockHeadersStorage;
 
-#[cfg(target_arch = "wasm32")] mod wasm;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+
 #[cfg(target_arch = "wasm32")]
 pub use wasm::IDBBlockHeadersStorage;
 
@@ -29,15 +33,14 @@ impl BlockHeaderStorage {
     pub(crate) fn new_from_ctx(
         ctx: MmArc,
         ticker: String,
-        db_id: Option<&str>,
+        _db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
-        use mm2_core::sql_ctx::SyncSqlConnectionCtx;
+        let sqlite_connection = ctx.sqlite_connection.ok_or(BlockHeaderStorageError::Internal(
+            "sqlite_connection is not initialized".to_owned(),
+        ))?;
 
-        let conn = SyncSqlConnectionCtx::from_ctx(&ctx, db_id)
-            .map_err(BlockHeaderStorageError::Internal)?
-            .connection(db_id);
         Ok(BlockHeaderStorage {
-            inner: Box::new(SqliteBlockHeadersStorage { ticker, conn }),
+            inner: Box::new(SqliteBlockHeadersStorage { ticker, conn: sqlite_connection.clone() }),
         })
     }
 
@@ -316,6 +319,7 @@ mod native_tests {
 
     const FOR_COIN_GET: &str = "get";
     const FOR_COIN_INSERT: &str = "insert";
+
     #[test]
     fn test_add_block_headers() { block_on(test_add_block_headers_impl(FOR_COIN_INSERT)) }
 
