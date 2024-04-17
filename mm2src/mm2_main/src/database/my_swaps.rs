@@ -126,7 +126,7 @@ const INSERT_MY_SWAP_V2: &str = r#"INSERT INTO my_swaps (
     :other_p2p_pub
 );"#;
 
-pub fn insert_new_swap_v2(ctx: &MmArc, params: &[(&str, &dyn ToSql)]) -> SqlResult<()> {
+pub fn insert_new_swap_v2(ctx: &MmArc, params: &[(&str, &dyn ToSql)], db_id: Option<&str>) -> SqlResult<()> {
     let conn = SyncSqlConnectionCtx::from_ctx(ctx, db_id)
         .expect("sqlite_connection is not initialized")
         .connection(db_id);

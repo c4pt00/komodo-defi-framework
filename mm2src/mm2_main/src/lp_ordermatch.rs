@@ -2974,7 +2974,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             },
         };
 
-        let account_db_id = maker_coin.account_db_id().expect("Valid coin pubkey");
+        let account_db_id = maker_coin.account_db_id();
         if ctx.use_trading_proto_v2() {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
             match (maker_coin, taker_coin) {
@@ -3127,7 +3127,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
         );
 
         let now = now_sec();
-        let account_db_id = taker_coin.account_db_id().expect("Valid taker coin pubkey");
+        let account_db_id = taker_coin.account_db_id();
         if ctx.use_trading_proto_v2() {
             let taker_secret = match generate_secret() {
                 Ok(s) => s.into(),

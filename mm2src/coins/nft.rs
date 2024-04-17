@@ -1550,7 +1550,7 @@ async fn find_unique_nft_account_ids(ctx: &MmArc, active_only: bool) -> Result<H
 
     #[cfg(not(target_arch = "wasm32"))]
     for coin in coins.iter() {
-        if let Some(account) = try_s!(coin.inner.account_db_id()) {
+        if let Some(account) = coin.inner.account_db_id() {
             if coin.is_available() {
                 if let Ok(chain) = Chain::from_ticker(coin.inner.ticker()) {
                     account_ids.insert(account);

@@ -87,7 +87,7 @@ pub fn stats_maker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
 }
 
 async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSavedEvent) -> Result<(), String> {
-    let db_id = try_s!(swap.maker_coin.account_db_id());
+    let db_id = swap.maker_coin.account_db_id();
     let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Maker(MakerSavedSwap {
@@ -594,7 +594,7 @@ impl MakerSwap {
             NEGOTIATION_TIMEOUT_SEC as f64 / 6.,
             self.p2p_privkey,
         );
-        let db_id = try_s!(self.maker_coin.account_db_id());
+        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.negotiation_reply.take(),
@@ -700,7 +700,7 @@ impl MakerSwap {
             self.p2p_privkey,
         );
 
-        let db_id = try_s!(self.maker_coin.account_db_id());
+        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.taker_fee.take(),
@@ -937,7 +937,7 @@ impl MakerSwap {
 
         // wait for 3/5, we need to leave some time space for transaction to be confirmed
         let wait_duration = (self.r().data.lock_duration * 3) / 5;
-        let db_id = try_s!(self.maker_coin.account_db_id());
+        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.taker_payment.take(),
@@ -1299,7 +1299,7 @@ impl MakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<MakerSwapCommand>), String> {
-        let account_key = try_s!(maker_coin.account_db_id());
+        let account_key = maker_coin.account_db_id();
         let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
@@ -2095,7 +2095,7 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
         };
     }
     let running_swap = Arc::new(swap);
-    let account_id = running_swap.maker_coin.account_db_id().expect("Valid maker pubkey");
+    let account_id = running_swap.maker_coin.account_db_id();
     let weak_ref = Arc::downgrade(&running_swap);
     let swap_ctx = SwapsContext::from_ctx(&ctx, account_id.as_deref()).unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.taker);

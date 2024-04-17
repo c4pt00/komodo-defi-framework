@@ -154,29 +154,22 @@ impl SavedSwap {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn account_db_id(&self, _ctx: &MmArc) -> Result<Option<String>, String> {
-        // TODO
-        Ok(None)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub async fn account_db_id(&self, ctx: &MmArc) -> Result<Option<String>, String> {
-        use coins::lp_coinfind_any;
-
+    pub async fn account_db_id(&self, ctx: &MmArc) -> Option<String> {
         let coin_ticker = match self {
             SavedSwap::Maker(swap) => &swap.maker_coin,
             SavedSwap::Taker(swap) => &swap.taker_coin,
         };
 
         if let Some(ticker) = coin_ticker {
-            let coin = lp_coinfind_any(ctx, ticker).await?.map(|c| c.inner);
-            if let Some(coin) = coin {
-                return coin.account_db_id();
-            }
+            if let Ok(coin) = coins::lp_coinfind_any(ctx, ticker).await {
+                let coin = coin.map(|c| c.inner);
+                if let Some(coin) = coin {
+                    return coin.account_db_id();
+                }
+            };
         }
 
-        Ok(None)
+        None
     }
 }
 

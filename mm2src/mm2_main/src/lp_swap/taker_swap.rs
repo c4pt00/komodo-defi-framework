@@ -108,7 +108,7 @@ pub fn stats_taker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
 }
 
 async fn save_my_taker_swap_event(ctx: &MmArc, swap: &TakerSwap, event: TakerSavedEvent) -> Result<(), String> {
-    let db_id = try_s!(swap.taker_coin.account_db_id());
+    let db_id = swap.taker_coin.account_db_id();
     let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Taker(TakerSavedSwap {
@@ -445,7 +445,7 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
     let uuid = swap.uuid.to_string();
     let to_broadcast = !(swap.maker_coin.is_privacy() || swap.taker_coin.is_privacy());
     let running_swap = Arc::new(swap);
-    let account_id = running_swap.taker_coin.account_db_id().expect("Valid maker pubkey");
+    let account_id = running_swap.taker_coin.account_db_id();
     info!("USING COIN PUBKEY: {account_id:?}");
     let weak_ref = Arc::downgrade(&running_swap);
     let swap_ctx = SwapsContext::from_ctx(&ctx, account_id.as_deref()).unwrap();
@@ -1123,7 +1123,7 @@ impl TakerSwap {
     async fn negotiate(&self) -> Result<(Option<TakerSwapCommand>, Vec<TakerSwapEvent>), String> {
         const NEGOTIATE_TIMEOUT_SEC: u64 = 90;
 
-        let db_id = try_s!(self.maker_coin.account_db_id());
+        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.negotiation.take(),
@@ -1236,7 +1236,7 @@ impl TakerSwap {
             NEGOTIATE_TIMEOUT_SEC as f64 / 6.,
             self.p2p_privkey,
         );
-        let db_id = try_s!(self.taker_coin.account_db_id());
+        let db_id = self.taker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.negotiated.take(),
@@ -1333,7 +1333,7 @@ impl TakerSwap {
             self.p2p_privkey,
         );
 
-        let db_id = try_s!(self.maker_coin.account_db_id());
+        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.maker_payment.take(),
@@ -1964,7 +1964,7 @@ impl TakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<TakerSwapCommand>), String> {
-        let account_key = try_s!(taker_coin.account_db_id());
+        let account_key = taker_coin.account_db_id();
         let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),

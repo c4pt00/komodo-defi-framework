@@ -3031,7 +3031,7 @@ pub trait MmCoin:
     /// Loop collecting coin transaction history and saving it to local DB
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
-    fn account_db_id(&self) -> Result<Option<String>, String> { Ok(None) }
+    fn account_db_id(&self) -> Option<String> { None }
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
@@ -4211,7 +4211,7 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
 
     #[cfg(not(target_arch = "wasm32"))]
     for coin in coins.iter() {
-        if let Some(account) = try_s!(coin.inner.account_db_id()) {
+        if let Some(account) = coin.inner.account_db_id() {
             if active_only && coin.is_available() {
                 account_ids.insert(account.clone());
                 continue;

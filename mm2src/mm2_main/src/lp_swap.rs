@@ -337,7 +337,7 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
             return match json::from_slice::<SwapStatus>(msg) {
                 Ok(mut status) => {
                     status.data.fetch_and_set_usd_prices().await;
-                    let account_id = status.data.account_db_id(&ctx).await.expect("Valid coin pubkey");
+                    let account_id = status.data.account_db_id(&ctx).await;
                     if let Err(e) = save_stats_swap(&ctx, &status.data, account_id.as_deref()).await {
                         error!("Error saving the swap {} status: {}", status.data.uuid(), e);
                     }
@@ -1595,7 +1595,7 @@ pub async fn import_swaps(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
     let mut imported = vec![];
     let mut skipped = HashMap::new();
     for swap in swaps {
-        let accound_id = swap.account_db_id(&ctx).await?;
+        let accound_id = swap.account_db_id(&ctx).await;
         match swap.save_to_db(&ctx, accound_id.as_deref()).await {
             Ok(_) => {
                 if let Some(info) = swap.get_my_info() {
