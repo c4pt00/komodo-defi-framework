@@ -142,7 +142,7 @@ pub const ERC20_ABI: &str = include_str!("eth/erc20_abi.json");
 const ERC721_ABI: &str = include_str!("eth/erc721_abi.json");
 /// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1155.md
 const ERC1155_ABI: &str = include_str!("eth/erc1155_abi.json");
-const NFT_SWAP_CONTRACT_ABI: &str = include_str!("eth/nft_swap_contract_abi.json");
+const NFT_MAKER_SWAP_V2_CONTRACT_ABI: &str = include_str!("eth/nft_maker_swap_v2_contract_abi.json");
 
 /// Payment states from etomic swap smart contract: https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol#L5
 pub enum PaymentState {
@@ -204,7 +204,8 @@ lazy_static! {
     pub static ref ERC20_CONTRACT: Contract = Contract::load(ERC20_ABI.as_bytes()).unwrap();
     pub static ref ERC721_CONTRACT: Contract = Contract::load(ERC721_ABI.as_bytes()).unwrap();
     pub static ref ERC1155_CONTRACT: Contract = Contract::load(ERC1155_ABI.as_bytes()).unwrap();
-    pub static ref NFT_SWAP_CONTRACT: Contract = Contract::load(NFT_SWAP_CONTRACT_ABI.as_bytes()).unwrap();
+    pub static ref NFT_MAKER_SWAP_V2_CONTRACT: Contract =
+        Contract::load(NFT_MAKER_SWAP_V2_CONTRACT_ABI.as_bytes()).unwrap();
 }
 
 pub type Web3RpcFut<T> = Box<dyn Future<Item = T, Error = MmError<Web3RpcError>> + Send>;
