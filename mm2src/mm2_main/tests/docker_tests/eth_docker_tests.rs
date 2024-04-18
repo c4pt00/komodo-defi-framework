@@ -816,7 +816,7 @@ fn send_and_spend_erc1155_maker_payment() {
     let validate_args = ValidateNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
         time_lock,
-        taker_secret_hash: &[0; 32],
+        taker_secret_hash: &[1; 32],
         maker_secret_hash: &maker_secret_hash,
         amount: 3.into(),
         taker_pub: &taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
