@@ -57,7 +57,7 @@ pub struct AddressBalanceResponse {
     pub siacoins: MmNumber,
     #[serde(rename = "immatureSiacoins")]
     pub immature_siacoins: MmNumber,
-    pub siafunds: u64,
+    pub siafunds: MmNumber,
 }
 
 impl SiaApiRequest for AddressBalanceRequest {

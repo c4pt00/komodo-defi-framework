@@ -120,9 +120,9 @@ impl SiaApiClientImpl {
         Ok(response.height)
     }
 
-    pub async fn address_balance(&self, address: Address) -> Result<MmNumber, SiaApiClientError> {
+    pub async fn address_balance(&self, address: Address) -> Result<AddressBalanceResponse, SiaApiClientError> {
         let request = AddressBalanceRequest { address };
-        self.dispatcher(request).await?
+        self.dispatcher(request).await
     }
 }
 
