@@ -4999,7 +4999,6 @@ impl EthCoin {
                 };
 
                 if let Some(receipt) = web3_receipt {
-                    println!("Receipt:\n{:?}", receipt);
                     if receipt.status != Some(1.into()) {
                         return MmError::err(Web3RpcError::Internal(ERRL!(
                             "Tx receipt {:?} status of {} tx {:?} is failed",

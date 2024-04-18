@@ -24,6 +24,7 @@ extern crate serde_json;
 
 use std::io::{BufRead, BufReader};
 use std::process::Command;
+use std::time::Duration;
 use test::{test_main, StaticBenchFn, StaticTestFn, TestDescAndFn};
 use testcontainers::clients::Cli;
 
@@ -72,6 +73,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         utxo_ops.wait_ready(4);
         utxo_ops1.wait_ready(4);
 
+        wait_for_geth_node_ready();
         init_geth_node();
 
         containers.push(utxo_node);
@@ -98,6 +100,27 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         .collect();
     let args: Vec<String> = std::env::args().collect();
     test_main(&args, owned_tests, None);
+}
+
+fn wait_for_geth_node_ready() {
+    let mut attempts = 0;
+    loop {
+        if attempts >= 5 {
+            println!("Failed to connect to Geth node after several attempts.");
+            break;
+        }
+        match block_on(GETH_WEB3.eth().block_number()) {
+            Ok(block_number) => {
+                println!("Geth node is ready, latest block number: {:?}", block_number);
+                break;
+            },
+            Err(e) => {
+                println!("Failed to connect to Geth node: {:?}, retrying...", e);
+                attempts += 1;
+                thread::sleep(Duration::from_secs(5));
+            },
+        }
+    }
 }
 
 fn pull_docker_image(name: &str) {
