@@ -202,8 +202,8 @@ impl FromStr for Chain {
 /// This implementation will use `FromStr` to deserialize `Chain`.
 impl<'de> Deserialize<'de> for Chain {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         s.parse().map_err(de::Error::custom)
@@ -395,9 +395,9 @@ pub(crate) struct NftFromMoralis {
 pub(crate) struct SerdeStringWrap<T>(pub(crate) T);
 
 impl<'de, T> Deserialize<'de> for SerdeStringWrap<T>
-where
-    T: std::str::FromStr,
-    T::Err: std::fmt::Debug + std::fmt::Display,
+    where
+        T: std::str::FromStr,
+        T::Err: std::fmt::Debug + std::fmt::Display,
 {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value: &str = Deserialize::deserialize(deserializer)?;
@@ -512,7 +512,7 @@ pub struct TransactionNftDetails {
 ///
 /// The request provides options such as pagination, limiting the number of results,
 /// and applying specific filters to the history.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct NftTransfersReq {
     /// List of chains to fetch the NFT transfer history from.
     pub(crate) chains: Vec<Chain>,
@@ -637,6 +637,13 @@ pub struct NftsTransferHistoryList {
     pub(crate) skipped: usize,
     pub(crate) total: usize,
 }
+
+#[derive(Debug, Serialize)]
+pub struct NftsTransferHistoryLists {
+    pub(crate) transfer_history: NftsTransferHistoryList,
+    pub(crate) pubkey: String,
+}
+
 
 /// Filters that can be applied to the NFT transfer history.
 ///
@@ -796,16 +803,16 @@ pub(crate) struct PhishingDomainRes {
 }
 
 fn serialize_token_id<S>(token_id: &BigUint, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
+    where
+        S: Serializer,
 {
     let token_id_str = token_id.to_string();
     serializer.serialize_str(&token_id_str)
 }
 
 fn deserialize_token_id<'de, D>(deserializer: D) -> Result<BigUint, D::Error>
-where
-    D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     BigUint::from_str(&s).map_err(serde::de::Error::custom)
