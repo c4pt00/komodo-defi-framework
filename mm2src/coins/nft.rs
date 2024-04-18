@@ -27,7 +27,6 @@ use crypto::StandardHDCoinAddress;
 use ethereum_types::{Address, H256};
 use futures::compat::Future01CompatExt;
 use futures::future::try_join_all;
-use futures_util::future::join_all;
 use mm2_err_handle::map_to_mm::MapToMmResult;
 use mm2_net::transport::send_post_request_to_uri;
 use mm2_number::BigUint;
@@ -137,12 +136,7 @@ pub async fn get_nft_list(ctx: MmArc, req: NftListReq) -> MmResult<Vec<NftLists>
         })
         .collect::<Vec<_>>();
 
-    let mut nft_lists = vec![];
-    for res in join_all(future_list).await {
-        nft_lists.push(res?);
-    }
-
-    Ok(nft_lists)
+    try_join_all(future_list).await
 }
 
 /// Retrieves detailed metadata for a specified NFT.
@@ -238,12 +232,7 @@ pub async fn get_nft_transfers(ctx: MmArc, req: NftTransfersReq) -> MmResult<Vec
         })
         .collect::<Vec<_>>();
 
-    let mut nft_transfers = vec![];
-    for res in join_all(future_list).await {
-        nft_transfers.push(res?);
-    }
-
-    Ok(nft_transfers)
+    try_join_all(future_list).await
 }
 
 async fn process_transfers_confirmations(
