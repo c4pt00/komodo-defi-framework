@@ -36,7 +36,7 @@ cfg_wasm32! {
 ///
 /// The request provides options such as pagination, limiting the number of results,
 /// and applying specific filters to the list.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct NftListReq {
     /// List of chains to fetch the NFTs from.
     pub(crate) chains: Vec<Chain>,
@@ -202,8 +202,8 @@ impl FromStr for Chain {
 /// This implementation will use `FromStr` to deserialize `Chain`.
 impl<'de> Deserialize<'de> for Chain {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         s.parse().map_err(de::Error::custom)
@@ -395,9 +395,9 @@ pub(crate) struct NftFromMoralis {
 pub(crate) struct SerdeStringWrap<T>(pub(crate) T);
 
 impl<'de, T> Deserialize<'de> for SerdeStringWrap<T>
-    where
-        T: std::str::FromStr,
-        T::Err: std::fmt::Debug + std::fmt::Display,
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Debug + std::fmt::Display,
 {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value: &str = Deserialize::deserialize(deserializer)?;
@@ -739,7 +739,7 @@ impl NftCtx {
                 .ok_or("async_sqlite_connection is not initialized".to_owned())?;
             Ok(NftCtx {
                 nft_cache_db: async_sqlite_connection.clone(),
-                _db_id: db_id.map(|e|e.to_string())
+                _db_id: db_id.map(|e| e.to_string()),
             })
         })))
     }
@@ -749,7 +749,7 @@ impl NftCtx {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             Ok(NftCtx {
                 nft_cache_db: ConstructibleDb::new(ctx, db_id).into_shared(),
-                _db_id: db_id.map(|e|e.to_string())
+                _db_id: db_id.map(|e| e.to_string()),
             })
         })))
     }
@@ -796,16 +796,16 @@ pub(crate) struct PhishingDomainRes {
 }
 
 fn serialize_token_id<S>(token_id: &BigUint, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     let token_id_str = token_id.to_string();
     serializer.serialize_str(&token_id_str)
 }
 
 fn deserialize_token_id<'de, D>(deserializer: D) -> Result<BigUint, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     BigUint::from_str(&s).map_err(serde::de::Error::custom)

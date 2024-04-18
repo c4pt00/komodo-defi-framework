@@ -199,6 +199,7 @@ cross_test!(test_nft_list, {
         .get_nft_list(vec![chain], false, 1, Some(NonZeroUsize::new(3).unwrap()), None)
         .await
         .unwrap();
+
     assert_eq!(nft_list.nfts.len(), 1);
     let nft = nft_list.nfts.get(0).unwrap();
     assert_eq!(nft.block_number, 28056721);

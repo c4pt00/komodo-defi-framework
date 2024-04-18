@@ -355,8 +355,10 @@ pub(crate) fn nft_transfer_history() -> Vec<NftTransferHistory> {
 
 pub(crate) async fn get_nft_ctx(_chain: &Chain) -> Arc<NftCtx> {
     #[cfg(not(target_arch = "wasm32"))]
-    let ctx = mm_ctx_with_custom_async_db().await;
+        let ctx = mm_ctx_with_custom_async_db().await;
     #[cfg(target_arch = "wasm32")]
-    let ctx = mm_ctx_with_custom_db();
-    NftCtx::from_ctx(&ctx, None).unwrap()
+        let ctx = mm_ctx_with_custom_db();
+    let nft_ctx = NftCtx::from_ctx(&ctx, None).unwrap();
+
+    nft_ctx
 }
