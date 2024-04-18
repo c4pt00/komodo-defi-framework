@@ -12,17 +12,6 @@ use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// HTTP(s) client for Sia-protocol coins
-#[derive(Debug)]
-pub struct SiaHttpClientImpl {
-    /// Name of coin the http client is intended to work with
-    pub coin_ticker: String,
-    /// The uri to send requests to
-    pub uri: String,
-    /// Value of Authorization header password, e.g. "Basic base64(:password)"
-    pub auth: String,
-}
-
 #[derive(Clone, Debug)]
 pub struct SiaApiClient(pub Arc<SiaApiClientImpl>);
 
