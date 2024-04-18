@@ -36,6 +36,7 @@ pub fn swap_contract() -> Address { unsafe { GETH_SWAP_CONTRACT } }
 /// GETH_NFT_SWAP_CONTRACT is set once during initialization before tests start
 pub fn nft_swap_contract() -> Address { unsafe { GETH_NFT_SWAP_CONTRACT } }
 
+#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_NFT_MAKER_SWAP_V2 is set once during initialization before tests start
@@ -699,8 +700,8 @@ fn send_and_spend_erc721_maker_payment() {
 
     let erc721_nft = TestNftType::Erc721 { token_id: 2 };
 
-    let maker_global_nft = global_nft_with_random_privkey(nft_maker_swap_v2(), Some(erc721_nft));
-    let taker_global_nft = global_nft_with_random_privkey(nft_maker_swap_v2(), None);
+    let maker_global_nft = global_nft_with_random_privkey(nft_swap_contract(), Some(erc721_nft));
+    let taker_global_nft = global_nft_with_random_privkey(nft_swap_contract(), None);
 
     let time_lock = now_sec() + 1000;
     let maker_pubkey = maker_global_nft.derive_htlc_pubkey(&[]);
@@ -713,7 +714,7 @@ fn send_and_spend_erc721_maker_payment() {
         token_address: &erc721_contract(),
         token_id: &BigUint::from(2u32).to_bytes(),
         contract_type: &ContractType::Erc721,
-        swap_contract_address: &nft_maker_swap_v2(),
+        swap_contract_address: &nft_swap_contract(),
     };
 
     let send_payment_args: SendNftMakerPaymentArgs<EthCoin> = SendNftMakerPaymentArgs {
@@ -740,7 +741,7 @@ fn send_and_spend_erc721_maker_payment() {
     let validate_args = ValidateNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
         time_lock,
-        taker_secret_hash: &[0; 32],
+        taker_secret_hash: &[1; 32],
         maker_secret_hash: &maker_secret_hash,
         amount: 1.into(),
         taker_pub: &taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
@@ -759,7 +760,7 @@ fn send_and_spend_erc721_maker_payment() {
         maker_pub: &maker_global_nft.parse_pubkey(&maker_pubkey).unwrap(),
         swap_unique_data: &[],
         contract_type: &ContractType::Erc721,
-        swap_contract_address: &nft_maker_swap_v2(),
+        swap_contract_address: &nft_swap_contract(),
     };
     let spend_tx = block_on(taker_global_nft.spend_nft_maker_payment_v2(spend_payment_args)).unwrap();
 
@@ -821,7 +822,7 @@ fn send_and_spend_erc1155_maker_payment() {
     let validate_args = ValidateNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
         time_lock,
-        taker_secret_hash: &[0; 32],
+        taker_secret_hash: &[1; 32],
         maker_secret_hash: &maker_secret_hash,
         amount: 3.into(),
         taker_pub: &taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
