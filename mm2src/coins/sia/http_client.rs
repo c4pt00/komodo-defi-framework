@@ -61,6 +61,7 @@ impl From<SiaApiClientError> for String {
     fn from(e: SiaApiClientError) -> Self { format!("{:?}", e) }
 }
 
+/// Generic function to fetch data from a URL and deserialize it into a specified type.
 async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Result<T, SiaApiClientError> {
     client
         .get(url.clone())
@@ -77,7 +78,9 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Resu
         .map_err(|e| SiaApiClientError::ReqwestError(ReqwestErrorWithUrl { error: e, url }))
 }
 
+/// Implements the methods for sending specific requests and handling their responses.
 impl SiaApiClientImpl {
+    /// Constructs a new instance of the API client using the provided base URL and password for authentication.
     fn new(base_url: Url, password: &str) -> Result<Self, SiaApiClientError> {
         let mut headers = HeaderMap::new();
         let auth_value = format!("Basic {}", BASE64.encode(format!(":{}", password)));
@@ -99,6 +102,7 @@ impl SiaApiClientImpl {
         Ok(SiaApiClientImpl { client, base_url })
     }
 
+    /// General method for dispatching requests, handling routing and response parsing.
     pub async fn dispatcher<R: SiaApiRequest + Send>(&self, request: R) -> Result<R::Response, SiaApiClientError> {
         let req = request.to_http_request(&self.base_url)?;
         fetch_and_parse::<R::Response>(&self.client, req.url().clone()).await
