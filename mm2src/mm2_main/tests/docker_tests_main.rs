@@ -117,7 +117,7 @@ fn wait_for_geth_node_ready() {
             Err(e) => {
                 println!("Failed to connect to Geth node: {:?}, retrying...", e);
                 attempts += 1;
-                thread::sleep(Duration::from_secs(20));
+                thread::sleep(Duration::from_secs(5));
             },
         }
     }

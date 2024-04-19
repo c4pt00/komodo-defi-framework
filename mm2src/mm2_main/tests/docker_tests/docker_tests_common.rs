@@ -379,11 +379,9 @@ pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) ->
         "--dev".into(),
         "--http".into(),
         "--http.addr=0.0.0.0".into(),
-        format!("--http.port={}", port),
-        "--mine".into(),                     // Ensures that mining starts automatically
-        "--miner.threads=1".into(),          // Set the number of mining threads
-        "--miner.gasprice=100000000".into(), // Set the default gas price to 0.1 Gwei
-        "--verbosity=4".into(),              // Increase the logging level to get more detailed logs
+        "--dev.gaslimit=10000000".into(),
+        "--dev.period=2".into(),
+        "--verbosity=4".into(),
     ];
     let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
     let container = docker.run(image);
