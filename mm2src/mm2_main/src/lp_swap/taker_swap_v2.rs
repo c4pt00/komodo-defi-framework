@@ -44,8 +44,7 @@ cfg_wasm32!(
 );
 
 // This is needed to have Debug on messages
-#[allow(unused_imports)]
-use prost::Message;
+#[allow(unused_imports)] use prost::Message;
 
 /// Negotiation data representation to be stored in DB.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -213,7 +212,7 @@ impl StateMachineStorage for TakerSwapStorage {
             insert_new_swap_v2(&ctx, sql_params, db_id.as_deref())?;
             Ok(())
         })
-            .await
+        .await
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -259,7 +258,7 @@ impl StateMachineStorage for TakerSwapStorage {
                 TakerSwapDbRepr::from_sql_row,
             )?)
         })
-            .await
+        .await
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -433,7 +432,7 @@ pub struct TakerSwapStateMachine<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCo
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2>
-TakerSwapStateMachine<MakerCoin, TakerCoin>
+    TakerSwapStateMachine<MakerCoin, TakerCoin>
 {
     fn maker_payment_conf_timeout(&self) -> u64 { self.started_at + self.lock_duration / 3 }
 
@@ -454,7 +453,7 @@ TakerSwapStateMachine<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableStateMachine
-for TakerSwapStateMachine<MakerCoin, TakerCoin>
+    for TakerSwapStateMachine<MakerCoin, TakerCoin>
 {
     type Storage = TakerSwapStorage;
     type Result = ();
@@ -494,12 +493,12 @@ for TakerSwapStateMachine<MakerCoin, TakerCoin>
         storage: TakerSwapStorage,
         mut repr: TakerSwapDbRepr,
         recreate_ctx: Self::RecreateCtx,
-    ) -> Result<(RestoredMachine<Self>, Box<dyn RestoredState<StateMachine=Self>>), Self::RecreateError> {
+    ) -> Result<(RestoredMachine<Self>, Box<dyn RestoredState<StateMachine = Self>>), Self::RecreateError> {
         if repr.events.is_empty() {
             return MmError::err(SwapRecreateError::ReprEventsEmpty);
         }
 
-        let current_state: Box<dyn RestoredState<StateMachine=Self>> = match repr.events.remove(repr.events.len() - 1)
+        let current_state: Box<dyn RestoredState<StateMachine = Self>> = match repr.events.remove(repr.events.len() - 1)
         {
             TakerSwapEvent::Initialized {
                 maker_coin_start_block,
@@ -735,10 +734,10 @@ for TakerSwapStateMachine<MakerCoin, TakerCoin>
             TakerSwapEvent::Completed => return MmError::err(SwapRecreateError::SwapCompleted),
             TakerSwapEvent::TakerFundingRefunded { .. } => {
                 return MmError::err(SwapRecreateError::SwapFinishedWithRefund);
-            }
+            },
             TakerSwapEvent::TakerPaymentRefunded { .. } => {
                 return MmError::err(SwapRecreateError::SwapFinishedWithRefund);
-            }
+            },
         };
 
         let dex_fee = if repr.dex_fee_burn > MmNumber::default() {
@@ -827,7 +826,7 @@ for TakerSwapStateMachine<MakerCoin, TakerCoin>
                     .entry(taker_coin_ticker)
                     .or_insert_with(Vec::new)
                     .push(new_locked);
-            }
+            },
             TakerSwapEvent::TakerFundingSent { .. } => {
                 let swaps_ctx = SwapsContext::from_ctx(&self.ctx, self.taker_coin.account_db_id().as_deref())
                     .expect("from_ctx should not fail at this point");
@@ -835,7 +834,7 @@ for TakerSwapStateMachine<MakerCoin, TakerCoin>
                 if let Some(taker_coin_locked) = swaps_ctx.locked_amounts.lock().unwrap().get_mut(ticker) {
                     taker_coin_locked.retain(|locked| locked.swap_uuid != self.uuid);
                 };
-            }
+            },
             TakerSwapEvent::Negotiated { .. }
             | TakerSwapEvent::TakerFundingRefundRequired { .. }
             | TakerSwapEvent::MakerPaymentAndFundingSpendPreimgReceived { .. }
@@ -876,7 +875,7 @@ for TakerSwapStateMachine<MakerCoin, TakerCoin>
                     .entry(taker_coin_ticker)
                     .or_insert_with(Vec::new)
                     .push(new_locked);
-            }
+            },
             TakerSwapEvent::TakerFundingSent { .. }
             | TakerSwapEvent::TakerFundingRefundRequired { .. }
             | TakerSwapEvent::MakerPaymentAndFundingSpendPreimgReceived { .. }
@@ -909,14 +908,14 @@ impl<MakerCoin, TakerCoin> Default for Initialize<MakerCoin, TakerCoin> {
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> InitialState
-for Initialize<MakerCoin, TakerCoin>
+    for Initialize<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 }
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for Initialize<MakerCoin, TakerCoin>
+    for Initialize<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -926,7 +925,7 @@ for Initialize<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToGetMakerCoinBlock(e);
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let taker_coin_start_block = match state_machine.taker_coin.current_block().compat().await {
@@ -934,7 +933,7 @@ for Initialize<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToGetTakerCoinBlock(e);
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let total_payment_value =
@@ -951,7 +950,7 @@ for Initialize<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToGetTakerPaymentFee(e.to_string());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let maker_payment_spend_fee = match state_machine.maker_coin.get_receiver_trade_fee(stage).compat().await {
@@ -959,7 +958,7 @@ for Initialize<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToGetMakerPaymentSpendFee(e.to_string());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let prepared_params = TakerSwapPreparedParams {
@@ -982,7 +981,7 @@ for Initialize<MakerCoin, TakerCoin>
             Some(prepared_params),
             FeeApproxStage::StartSwap,
         )
-            .await
+        .await
         {
             let reason = AbortReason::BalanceCheckFailure(e.to_string());
             return Self::change_state(Aborted::new(reason), state_machine).await;
@@ -1013,7 +1012,7 @@ struct Initialized<MakerCoin, TakerCoin> {
 impl<MakerCoin, TakerCoin> TransitionFrom<Initialize<MakerCoin, TakerCoin>> for Initialized<MakerCoin, TakerCoin> {}
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for Initialized<MakerCoin, TakerCoin>
+    for Initialized<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1029,7 +1028,7 @@ for Initialized<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for Initialized<MakerCoin, TakerCoin>
+    for Initialized<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1046,7 +1045,7 @@ for Initialized<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::DidNotReceiveMakerNegotiation(e);
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         debug!("Received maker negotiation message {:?}", maker_negotiation);
@@ -1076,7 +1075,7 @@ for Initialized<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToParsePubkey(e.to_string());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let taker_coin_htlc_pub_from_maker = match state_machine
@@ -1087,7 +1086,7 @@ for Initialized<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToParsePubkey(e.to_string());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let taker_coin_maker_address = match state_machine
@@ -1098,7 +1097,7 @@ for Initialized<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToParseAddress(e.to_string());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let unique_data = state_machine.unique_data();
@@ -1139,7 +1138,7 @@ for Initialized<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::DidNotReceiveMakerNegotiated(e);
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
         drop(abort_handle);
 
@@ -1223,12 +1222,13 @@ struct Negotiated<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2> TransitionFrom<Initialized<MakerCoin, TakerCoin>>
-for Negotiated<MakerCoin, TakerCoin>
-{}
+    for Negotiated<MakerCoin, TakerCoin>
+{
+}
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for Negotiated<MakerCoin, TakerCoin>
+    for Negotiated<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1248,7 +1248,7 @@ for Negotiated<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToSendTakerFunding(format!("{:?}", e));
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         info!(
@@ -1269,7 +1269,7 @@ for Negotiated<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for Negotiated<MakerCoin, TakerCoin>
+    for Negotiated<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1293,7 +1293,7 @@ struct TakerFundingSent<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAsso
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for TakerFundingSent<MakerCoin, TakerCoin>
+    for TakerFundingSent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1333,7 +1333,7 @@ for TakerFundingSent<MakerCoin, TakerCoin>
                     reason: TakerFundingRefundReason::DidNotReceiveMakerPayment(e),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
         drop(abort_handle);
 
@@ -1350,7 +1350,7 @@ for TakerFundingSent<MakerCoin, TakerCoin>
                     reason: TakerFundingRefundReason::FailedToParseMakerPayment(e.to_string()),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
 
         let preimage_tx = match state_machine
@@ -1367,7 +1367,7 @@ for TakerFundingSent<MakerCoin, TakerCoin>
                     reason: TakerFundingRefundReason::FailedToParseFundingSpendPreimg(e.to_string()),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
 
         let preimage_sig = match state_machine
@@ -1384,7 +1384,7 @@ for TakerFundingSent<MakerCoin, TakerCoin>
                     reason: TakerFundingRefundReason::FailedToParseFundingSpendSig(e.to_string()),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
 
         let next_state = MakerPaymentAndFundingSpendPreimgReceived {
@@ -1403,11 +1403,12 @@ for TakerFundingSent<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> TransitionFrom<Negotiated<MakerCoin, TakerCoin>>
-for TakerFundingSent<MakerCoin, TakerCoin>
-{}
+    for TakerFundingSent<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerFundingSent<MakerCoin, TakerCoin>
+    for TakerFundingSent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1434,12 +1435,13 @@ struct MakerPaymentAndFundingSpendPreimgReceived<MakerCoin: ParseCoinAssocTypes,
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<TakerFundingSent<MakerCoin, TakerCoin>>
-for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerFundingSent<MakerCoin, TakerCoin>>
+    for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
+    for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1466,7 +1468,7 @@ for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
+    for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1576,7 +1578,7 @@ for MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>
                         reason: TakerFundingRefundReason::FailedToSendTakerPayment(format!("{:?}", e)),
                     };
                     return Self::change_state(next_state, state_machine).await;
-                }
+                },
             };
 
             info!(
@@ -1607,17 +1609,19 @@ struct TakerPaymentSent<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAsso
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerPaymentSent<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerPaymentSent<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
-for TakerPaymentSent<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
+    for TakerPaymentSent<MakerCoin, TakerCoin>
+{
+}
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for TakerPaymentSent<MakerCoin, TakerCoin>
+    for TakerPaymentSent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1669,7 +1673,7 @@ for TakerPaymentSent<MakerCoin, TakerCoin>
                     reason: TakerPaymentRefundReason::FailedToGenerateSpendPreimage(e.to_string()),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
 
         let preimage_msg = TakerPaymentSpendPreimage {
@@ -1706,7 +1710,7 @@ for TakerPaymentSent<MakerCoin, TakerCoin>
                     reason: TakerPaymentRefundReason::MakerDidNotSpendInTime(format!("{}", e)),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
         info!(
             "Found taker payment spend {} tx {:02x} during swap {}",
@@ -1728,7 +1732,7 @@ for TakerPaymentSent<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerPaymentSent<MakerCoin, TakerCoin>
+    for TakerPaymentSent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1771,21 +1775,24 @@ struct TakerFundingRefundRequired<MakerCoin: ParseCoinAssocTypes, TakerCoin: Par
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<TakerFundingSent<MakerCoin, TakerCoin>> for TakerFundingRefundRequired<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerFundingSent<MakerCoin, TakerCoin>> for TakerFundingRefundRequired<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
-for TakerFundingRefundRequired<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
+    for TakerFundingRefundRequired<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerFundingRefundRequired<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerFundingRefundRequired<MakerCoin, TakerCoin>
+{
+}
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for TakerFundingRefundRequired<MakerCoin, TakerCoin>
+    for TakerFundingRefundRequired<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1814,7 +1821,7 @@ for TakerFundingRefundRequired<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::TakerFundingRefundFailed(e.get_plain_text_format());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let next_state = TakerFundingRefunded {
@@ -1828,7 +1835,7 @@ for TakerFundingRefundRequired<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerFundingRefundRequired<MakerCoin, TakerCoin>
+    for TakerFundingRefundRequired<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1860,16 +1867,18 @@ struct TakerPaymentRefundRequired<MakerCoin: ParseCoinAssocTypes, TakerCoin: Par
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<TakerPaymentSent<MakerCoin, TakerCoin>> for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerPaymentSent<MakerCoin, TakerCoin>> for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
+{
+}
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
+    for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1891,7 +1900,7 @@ for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
                 Err(e) => {
                     error!("Error {} on can_refund_htlc, retrying in 30 seconds", e);
                     Timer::sleep(30.).await;
-                }
+                },
             }
         }
 
@@ -1916,7 +1925,7 @@ for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::TakerPaymentRefundFailed(e.get_plain_text_format());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let next_state = TakerPaymentRefunded {
@@ -1933,7 +1942,7 @@ for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
+    for TakerPaymentRefundRequired<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1959,13 +1968,14 @@ struct MakerPaymentConfirmed<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoi
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
-for MakerPaymentConfirmed<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
+    for MakerPaymentConfirmed<MakerCoin, TakerCoin>
+{
+}
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for MakerPaymentConfirmed<MakerCoin, TakerCoin>
+    for MakerPaymentConfirmed<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -1997,7 +2007,7 @@ for MakerPaymentConfirmed<MakerCoin, TakerCoin>
                     reason: TakerFundingRefundReason::FailedToSendTakerPayment(format!("{:?}", e)),
                 };
                 return Self::change_state(next_state, state_machine).await;
-            }
+            },
         };
 
         info!(
@@ -2019,7 +2029,7 @@ for MakerPaymentConfirmed<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for MakerPaymentConfirmed<MakerCoin, TakerCoin>
+    for MakerPaymentConfirmed<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2054,12 +2064,13 @@ struct TakerPaymentSpent<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAss
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<TakerPaymentSent<MakerCoin, TakerCoin>> for TakerPaymentSpent<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerPaymentSent<MakerCoin, TakerCoin>> for TakerPaymentSpent<MakerCoin, TakerCoin>
+{
+}
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for TakerPaymentSpent<MakerCoin, TakerCoin>
+    for TakerPaymentSpent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2079,7 +2090,7 @@ for TakerPaymentSpent<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::CouldNotExtractSecret(e);
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
 
         let args = SpendMakerPaymentArgs {
@@ -2096,7 +2107,7 @@ for TakerPaymentSpent<MakerCoin, TakerCoin>
             Err(e) => {
                 let reason = AbortReason::FailedToSpendMakerPayment(format!("{:?}", e));
                 return Self::change_state(Aborted::new(reason), state_machine).await;
-            }
+            },
         };
         info!(
             "Spent maker payment {} tx {:02x} during swap {}",
@@ -2117,7 +2128,7 @@ for TakerPaymentSpent<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerPaymentSpent<MakerCoin, TakerCoin>
+    for TakerPaymentSpent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2152,11 +2163,12 @@ struct MakerPaymentSpent<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAss
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2>
-TransitionFrom<TakerPaymentSpent<MakerCoin, TakerCoin>> for MakerPaymentSpent<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerPaymentSpent<MakerCoin, TakerCoin>> for MakerPaymentSpent<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for MakerPaymentSpent<MakerCoin, TakerCoin>
+    for MakerPaymentSpent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2186,7 +2198,7 @@ for MakerPaymentSpent<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> State
-for MakerPaymentSpent<MakerCoin, TakerCoin>
+    for MakerPaymentSpent<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2236,7 +2248,7 @@ impl<MakerCoin, TakerCoin> Aborted<MakerCoin, TakerCoin> {
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> LastState
-for Aborted<MakerCoin, TakerCoin>
+    for Aborted<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2249,7 +2261,7 @@ for Aborted<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for Aborted<MakerCoin, TakerCoin>
+    for Aborted<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2265,20 +2277,24 @@ impl<MakerCoin, TakerCoin> TransitionFrom<Initialize<MakerCoin, TakerCoin>> for 
 impl<MakerCoin, TakerCoin> TransitionFrom<Initialized<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin> {}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2> TransitionFrom<Negotiated<MakerCoin, TakerCoin>>
-for Aborted<MakerCoin, TakerCoin>
-{}
+    for Aborted<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2>
-TransitionFrom<TakerPaymentSpent<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerPaymentSpent<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2>
-TransitionFrom<TakerFundingRefundRequired<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerFundingRefundRequired<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin>
+{
+}
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2>
-TransitionFrom<TakerPaymentRefundRequired<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerPaymentRefundRequired<MakerCoin, TakerCoin>> for Aborted<MakerCoin, TakerCoin>
+{
+}
 
 struct Completed<MakerCoin, TakerCoin> {
     maker_coin: PhantomData<MakerCoin>,
@@ -2295,7 +2311,7 @@ impl<MakerCoin, TakerCoin> Completed<MakerCoin, TakerCoin> {
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for Completed<MakerCoin, TakerCoin>
+    for Completed<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2304,7 +2320,7 @@ for Completed<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> LastState
-for Completed<MakerCoin, TakerCoin>
+    for Completed<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2317,8 +2333,9 @@ for Completed<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<MakerPaymentSpent<MakerCoin, TakerCoin>> for Completed<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<MakerPaymentSpent<MakerCoin, TakerCoin>> for Completed<MakerCoin, TakerCoin>
+{
+}
 
 struct TakerFundingRefunded<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> {
     maker_coin: PhantomData<MakerCoin>,
@@ -2328,7 +2345,7 @@ struct TakerFundingRefunded<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoin
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerFundingRefunded<MakerCoin, TakerCoin>
+    for TakerFundingRefunded<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2349,7 +2366,7 @@ for TakerFundingRefunded<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> LastState
-for TakerFundingRefunded<MakerCoin, TakerCoin>
+    for TakerFundingRefunded<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2365,8 +2382,9 @@ for TakerFundingRefunded<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<TakerFundingRefundRequired<MakerCoin, TakerCoin>> for TakerFundingRefunded<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerFundingRefundRequired<MakerCoin, TakerCoin>> for TakerFundingRefunded<MakerCoin, TakerCoin>
+{
+}
 
 struct TakerPaymentRefunded<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> {
     maker_coin: PhantomData<MakerCoin>,
@@ -2376,7 +2394,7 @@ struct TakerPaymentRefunded<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoin
 }
 
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> StorableState
-for TakerPaymentRefunded<MakerCoin, TakerCoin>
+    for TakerPaymentRefunded<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2394,7 +2412,7 @@ for TakerPaymentRefunded<MakerCoin, TakerCoin>
 
 #[async_trait]
 impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOpsV2> LastState
-for TakerPaymentRefunded<MakerCoin, TakerCoin>
+    for TakerPaymentRefunded<MakerCoin, TakerCoin>
 {
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
@@ -2410,5 +2428,6 @@ for TakerPaymentRefunded<MakerCoin, TakerCoin>
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
-TransitionFrom<TakerPaymentRefundRequired<MakerCoin, TakerCoin>> for TakerPaymentRefunded<MakerCoin, TakerCoin>
-{}
+    TransitionFrom<TakerPaymentRefundRequired<MakerCoin, TakerCoin>> for TakerPaymentRefunded<MakerCoin, TakerCoin>
+{
+}

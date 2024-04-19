@@ -94,11 +94,22 @@ fn insert_node_info_to_db(ctx: &MmArc, node_info: &NodeInfo, db_id: Option<&str>
 }
 
 #[cfg(target_arch = "wasm32")]
-fn insert_node_version_stat_to_db(_ctx: &MmArc, _node_version_stat: NodeVersionStat, _db_id: Option<&str>) -> Result<(), String> { Ok(()) }
+fn insert_node_version_stat_to_db(
+    _ctx: &MmArc,
+    _node_version_stat: NodeVersionStat,
+    _db_id: Option<&str>,
+) -> Result<(), String> {
+    Ok(())
+}
 
 #[cfg(not(target_arch = "wasm32"))]
-fn insert_node_version_stat_to_db(ctx: &MmArc, node_version_stat: NodeVersionStat, db_id: Option<&str>) -> Result<(), String> {
-    crate::mm2::database::stats_nodes::insert_node_version_stat(ctx, node_version_stat, db_id).map_err(|e| e.to_string())
+fn insert_node_version_stat_to_db(
+    ctx: &MmArc,
+    node_version_stat: NodeVersionStat,
+    db_id: Option<&str>,
+) -> Result<(), String> {
+    crate::mm2::database::stats_nodes::insert_node_version_stat(ctx, node_version_stat, db_id)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -239,7 +250,6 @@ pub async fn start_version_stat_collection(ctx: MmArc, req: Json) -> NodeVersion
 
     let interval: f64 = json::from_value(req["interval"].clone())?;
 
-
     let peers_addresses = select_peers_addresses_from_db(&ctx).map_to_mm(NodeVersionError::DatabaseError)?;
 
     let netid = ctx.conf["netid"].as_u64().unwrap_or(0) as u16;
@@ -289,11 +299,11 @@ async fn stat_collection_loop(ctx: MmArc, interval: f64) {
                     StatsCollectionStatus::Updating(i) => {
                         interval = i;
                         *state = StatsCollectionStatus::Running;
-                    }
+                    },
                     StatsCollectionStatus::Stopping => {
                         *state = StatsCollectionStatus::Stopped;
                         break;
-                    }
+                    },
                     StatsCollectionStatus::Stopped => *state = StatsCollectionStatus::Running,
                 }
             }
@@ -305,7 +315,7 @@ async fn stat_collection_loop(ctx: MmArc, interval: f64) {
                     log::error!("Error selecting peers names from db: {}", e);
                     Timer::sleep(10.).await;
                     continue;
-                }
+                },
             };
 
             let peers: Vec<String> = peers_names.keys().cloned().collect();
@@ -316,14 +326,14 @@ async fn stat_collection_loop(ctx: MmArc, interval: f64) {
                 P2PRequest::NetworkInfo(NetworkInfoRequest::GetMm2Version),
                 peers,
             )
-                .await
+            .await
             {
                 Ok(res) => res,
                 Err(e) => {
                     log::error!("Error getting nodes versions from peers: {}", e);
                     Timer::sleep(10.).await;
                     continue;
-                }
+                },
             };
 
             for (peer_id, response) in get_versions_res {
@@ -344,7 +354,7 @@ async fn stat_collection_loop(ctx: MmArc, interval: f64) {
                         if let Err(e) = insert_node_version_stat_to_db(&ctx, node_version_stat, db_id) {
                             log::error!("Error inserting node {} version {} into db: {}", name, v, e);
                         };
-                    }
+                    },
                     PeerDecodedResponse::Err(e) => {
                         log::error!(
                             "Node {} responded to version request with error: {}",
@@ -361,7 +371,7 @@ async fn stat_collection_loop(ctx: MmArc, interval: f64) {
                         if let Err(e) = insert_node_version_stat_to_db(&ctx, node_version_stat, db_id) {
                             log::error!("Error inserting node {} error into db: {}", name, e);
                         };
-                    }
+                    },
                     PeerDecodedResponse::None => {
                         log::debug!("Node {} did not respond to version request", name.clone());
                         let node_version_stat = NodeVersionStat {
@@ -374,7 +384,7 @@ async fn stat_collection_loop(ctx: MmArc, interval: f64) {
                         if let Err(e) = insert_node_version_stat_to_db(&ctx, node_version_stat, db_id) {
                             log::error!("Error inserting no response for node {} into db: {}", name, e);
                         };
-                    }
+                    },
                 }
             }
         }

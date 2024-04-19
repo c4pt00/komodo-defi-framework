@@ -242,7 +242,7 @@ pub fn select_uuids_by_my_swaps_filter(
             query_builder.limit(paging.limit);
             query_builder.offset(offset);
             offset
-        }
+        },
         None => 0,
     };
 

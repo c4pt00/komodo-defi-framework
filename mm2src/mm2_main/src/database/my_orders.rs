@@ -255,7 +255,7 @@ pub fn select_orders_by_filter(
             query_builder.limit(paging.limit);
             query_builder.offset(offset);
             offset
-        }
+        },
         None => 0,
     };
 

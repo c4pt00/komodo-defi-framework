@@ -2,12 +2,9 @@
 ///
 #[path = "database/my_orders.rs"]
 pub mod my_orders;
-#[path = "database/my_swaps.rs"]
-pub mod my_swaps;
-#[path = "database/stats_nodes.rs"]
-pub mod stats_nodes;
-#[path = "database/stats_swaps.rs"]
-pub mod stats_swaps;
+#[path = "database/my_swaps.rs"] pub mod my_swaps;
+#[path = "database/stats_nodes.rs"] pub mod stats_nodes;
+#[path = "database/stats_swaps.rs"] pub mod stats_swaps;
 
 use crate::CREATE_MY_SWAPS_TABLE;
 use coins::find_unique_account_ids_any;
@@ -39,11 +36,11 @@ pub async fn init_and_migrate_sql_db(ctx: &MmArc, db_id: Option<&str>) -> SqlRes
                 migrate_sqlite_database(ctx, current_migration).await?;
                 return Ok(());
             }
-        }
+        },
         Err(e) => {
             debug!("Error '{}' on getting current migration. The database is either empty or corrupted, trying to clean it first", e);
             clean_db(ctx, db_id);
-        }
+        },
     };
 
     info!("Trying to initialize the SQLite database");
@@ -59,11 +56,11 @@ fn init_db(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<()> {
     let conn = conn.lock().unwrap();
     run_optimization_pragmas(&conn)?;
     let init_batch = concat!(
-    "BEGIN;
+        "BEGIN;
         CREATE TABLE IF NOT EXISTS migration (current_migration INTEGER NOT_NULL UNIQUE);
         INSERT INTO migration (current_migration) VALUES (1);",
-    CREATE_MY_SWAPS_TABLE!(),
-    "COMMIT;"
+        CREATE_MY_SWAPS_TABLE!(),
+        "COMMIT;"
     );
     conn.execute_batch(init_batch)
 }

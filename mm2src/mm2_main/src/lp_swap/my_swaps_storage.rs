@@ -106,12 +106,7 @@ mod native_impl {
         ) -> MySwapsResult<MyRecentSwapsUuids> {
             let conn = self.ctx.sqlite_connection_v2(Some(db_id));
             let conn = conn.lock().unwrap();
-            Ok(select_uuids_by_my_swaps_filter(
-                &conn,
-                filter,
-                paging_options,
-                db_id,
-            )?)
+            Ok(select_uuids_by_my_swaps_filter(&conn, filter, paging_options, db_id)?)
         }
     }
 }
@@ -230,7 +225,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                }
+                },
                 (Some(my_coin), None) => {
                     my_swaps_table
                         .cursor_builder()
@@ -240,7 +235,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                }
+                },
                 (None, Some(other_coin)) => {
                     my_swaps_table
                         .cursor_builder()
@@ -250,7 +245,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                }
+                },
                 (None, None) => {
                     my_swaps_table
                         .cursor_builder()
@@ -259,7 +254,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                }
+                },
             };
 
             let uuids: BTreeSet<OrderedUuid> = items
@@ -279,7 +274,7 @@ mod wasm_impl {
                         skipped: 0,
                         pubkey: db_id.to_string(),
                     })
-                }
+                },
             }
         }
     }
@@ -299,7 +294,7 @@ mod wasm_impl {
                     .position(|ordered_uuid| ordered_uuid.uuid == expected_uuid)
                     .or_mm_err(|| MySwapsError::FromUuidNotFound(expected_uuid))?
                     + 1
-            }
+            },
             None => (paging.page_number.get() - 1) * paging.limit,
         };
 
@@ -440,13 +435,13 @@ mod wasm_tests {
             (7, "c52659d7-4e13-41f5-9c1a-30cc2f646033", MAKER_SWAP_V2_TYPE),
             (8, "af5e0383-97f6-4408-8c03-a8eb8d17e46d", LEGACY_SWAP_TYPE),
         ]
-            .iter()
-            .map(|(started_at, uuid, swap_type)| OrderedUuid {
-                started_at: *started_at,
-                uuid: Uuid::parse_str(uuid).unwrap(),
-                swap_type: *swap_type,
-            })
-            .collect();
+        .iter()
+        .map(|(started_at, uuid, swap_type)| OrderedUuid {
+            started_at: *started_at,
+            uuid: Uuid::parse_str(uuid).unwrap(),
+            swap_type: *swap_type,
+        })
+        .collect();
 
         let paging = PagingOptions {
             limit: 2,

@@ -44,15 +44,12 @@ pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid, db_id: Option<&str>)
         const SELECT_SWAP_TYPE_BY_UUID: &str = "SELECT swap_type FROM my_swaps WHERE uuid = :uuid;";
         let conn = ctx.sqlite_connection_v2(db_id.as_deref());
         let conn = conn.lock().unwrap();
-        let maybe_swap_type = query_single_row(
-            &conn,
-            SELECT_SWAP_TYPE_BY_UUID,
-            &[(":uuid", uuid.as_str())],
-            |row| row.get(0),
-        )?;
+        let maybe_swap_type = query_single_row(&conn, SELECT_SWAP_TYPE_BY_UUID, &[(":uuid", uuid.as_str())], |row| {
+            row.get(0)
+        })?;
         Ok(maybe_swap_type)
     })
-        .await
+    .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -192,7 +189,7 @@ async fn get_swap_data_for_rpc_impl<T: DeserializeOwned + Send + 'static>(
         )?;
         Ok(swap_data)
     })
-        .await
+    .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -319,15 +316,15 @@ async fn get_swap_data_by_uuid_and_type(
                 SavedSwap::Maker(m) => SwapRpcData::MakerV1(m),
                 SavedSwap::Taker(t) => SwapRpcData::TakerV1(t),
             }))
-        }
+        },
         MAKER_SWAP_V2_TYPE => {
             let data = get_maker_swap_data_for_rpc(ctx, &uuid, db_id).await?;
             Ok(data.map(SwapRpcData::MakerV2))
-        }
+        },
         TAKER_SWAP_V2_TYPE => {
             let data = get_taker_swap_data_for_rpc(ctx, &uuid, db_id).await?;
             Ok(data.map(SwapRpcData::TakerV2))
-        }
+        },
         unsupported => MmError::err(GetSwapDataErr::UnsupportedSwapType(unsupported)),
     }
 }
@@ -371,7 +368,7 @@ impl HttpStatusCode for MySwapStatusError {
             MySwapStatusError::NoSwapWithUuid(_) => StatusCode::BAD_REQUEST,
             MySwapStatusError::DbError(_) | MySwapStatusError::UnsupportedSwapType(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
-            }
+            },
         }
     }
 }
@@ -522,7 +519,7 @@ pub(crate) async fn active_swaps_rpc(
             match get_swap_data_by_uuid_and_type(&ctx, None, *uuid, *swap_type).await {
                 Ok(Some(data)) => {
                     statuses.insert(*uuid, data);
-                }
+                },
                 Ok(None) => warn!("Swap {} data doesn't exist in DB", uuid),
                 Err(e) => error!("Error {} while trying to get swap {} data", e, uuid),
             }
