@@ -375,13 +375,7 @@ pub fn utxo_asset_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u
 
 pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) -> DockerNode<'a> {
     let image = GenericImage::new(GETH_DOCKER_IMAGE, "stable");
-    let args = vec![
-        "--dev".into(),
-        "--http".into(),
-        "--http.addr=0.0.0.0".into(),
-        //  Enables fast syncing of the blockchain, where the node downloads block headers and bodies, and then pulls state entries in parallel.
-        "--syncmode=fast".into(),
-    ];
+    let args = vec!["--dev".into(), "--http".into(), "--http.addr=0.0.0.0".into()];
     let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
     let container = docker.run(image);
     DockerNode {
