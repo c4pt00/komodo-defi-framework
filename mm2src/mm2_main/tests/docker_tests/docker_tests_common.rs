@@ -375,7 +375,13 @@ pub fn utxo_asset_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u
 
 pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) -> DockerNode<'a> {
     let image = GenericImage::new(GETH_DOCKER_IMAGE, "stable");
-    let args = vec!["--dev".into(), "--http".into(), "--http.addr=0.0.0.0".into()];
+    let args = vec![
+        "--dev".into(),
+        "--http".into(),
+        "--http.addr=0.0.0.0".into(),
+        //  Enables fast syncing of the blockchain, where the node downloads block headers and bodies, and then pulls state entries in parallel.
+        "--syncmode=fast".into(),
+    ];
     let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
     let container = docker.run(image);
     DockerNode {
@@ -1111,6 +1117,8 @@ async fn get_current_gas_limit(web3: &Web3<Http>) {
 pub fn init_geth_node() {
     unsafe {
         block_on(get_current_gas_limit(&GETH_WEB3));
+        let gas_price = block_on(GETH_WEB3.eth().gas_price()).unwrap();
+        log!("Current gas price: {:?}", gas_price);
         let accounts = block_on(GETH_WEB3.eth().accounts()).unwrap();
         GETH_ACCOUNT = accounts[0];
         log!("GETH ACCOUNT {:?}", GETH_ACCOUNT);
