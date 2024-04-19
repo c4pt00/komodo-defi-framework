@@ -62,17 +62,15 @@ impl BlockHeaderStorage {
         ticker: String,
         db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
-        use core::panicking::panic;
         use db_common::sqlite::rusqlite::Connection;
         use std::sync::{Arc, Mutex};
 
         let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| ctx.rmd160_hex());
         let conn = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
         let mut connections = HashMap::new();
-        connecions.insert(db_id, conn);
-        let conn = ctx.sqlite_connection_v2.clone_or(Arc::new(Mutex::new(connections)));
+        connections.insert(db_id.to_owned(), conn.clone());
+        let _ = ctx.sqlite_connection_v2.clone_or(Arc::new(Mutex::new(connections)));
 
-        let conn = ctx.sqlite_connection_res_v2(db_id).unwrap();
         Ok(BlockHeaderStorage {
             inner: Box::new(SqliteBlockHeadersStorage { ticker, conn }),
         })
