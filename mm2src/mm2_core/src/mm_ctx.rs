@@ -42,7 +42,9 @@ const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 
 #[cfg(not(target_arch = "wasm32"))]
-pub type AsyncConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
+pub type AsyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
+#[cfg(not(target_arch = "wasm32"))]
+pub type SyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
 /// MarketMaker state, shared between the various MarketMaker threads.
 ///
 /// Every MarketMaker has one and only one instance of `MmCtx`.
@@ -141,7 +143,7 @@ pub struct MmCtx {
     pub nft_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<HashMap<String, AsyncConnectionArc>>>>,
+    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<HashMap<String, AsyncSqliteConnectionArc>>>>,
 }
 
 impl MmCtx {

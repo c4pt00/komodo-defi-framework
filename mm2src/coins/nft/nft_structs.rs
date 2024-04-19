@@ -24,7 +24,7 @@ use crate::{TransactionType, TxFeeDetails, WithdrawFee};
 cfg_native! {
     use db_common::async_sql_conn::AsyncConnection;
     use futures::lock::Mutex as AsyncMutex;
-    use mm2_core::mm_ctx::{AsyncConnectionArc, log_sqlite_file_open_attempt, ASYNC_SQLITE_DB_ID};
+    use mm2_core::mm_ctx::{AsyncSqliteConnectionArc, log_sqlite_file_open_attempt, ASYNC_SQLITE_DB_ID};
 }
 
 cfg_wasm32! {
@@ -732,7 +732,7 @@ pub(crate) struct NftCtx {
     #[cfg(target_arch = "wasm32")]
     pub(crate) nft_cache_db: SharedDb<NftCacheIDB>,
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) nft_cache_dbs: Arc<AsyncMutex<HashMap<String, AsyncConnectionArc>>>,
+    pub(crate) nft_cache_dbs: Arc<AsyncMutex<HashMap<String, AsyncSqliteConnectionArc>>>,
     _ctx: MmArc,
     _current_db_id: String,
 }
