@@ -60,16 +60,12 @@ impl BlockHeaderStorage {
     pub(crate) fn new_from_ctx(
         ctx: MmArc,
         ticker: String,
-        db_id: Option<&str>,
+        _db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
         use db_common::sqlite::rusqlite::Connection;
         use std::sync::{Arc, Mutex};
 
-        let db_id = db_id.map(|e| e.to_string()).unwrap_or_else(|| ctx.rmd160_hex());
         let conn = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
-        let mut connections = HashMap::new();
-        connections.insert(db_id.to_owned(), conn.clone());
-        let _ = ctx.sqlite_connection_v2.clone_or(Arc::new(Mutex::new(connections)));
 
         Ok(BlockHeaderStorage {
             inner: Box::new(SqliteBlockHeadersStorage { ticker, conn }),
