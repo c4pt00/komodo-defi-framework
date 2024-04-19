@@ -141,9 +141,7 @@ pub struct MmCtx {
     pub nft_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: Constructible<AsyncConnectionArc>,
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection_v2: Constructible<Arc<AsyncMutex<HashMap<String, AsyncConnectionArc>>>>,
+    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<HashMap<String, AsyncConnectionArc>>>>,
 }
 
 impl MmCtx {
@@ -193,8 +191,6 @@ impl MmCtx {
             nft_ctx: Mutex::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
-            #[cfg(not(target_arch = "wasm32"))]
-            async_sqlite_connection_v2: Constructible::default(),
         }
     }
 
@@ -377,22 +373,13 @@ impl MmCtx {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn init_async_sqlite_connection(&self, db_id: Option<&str>) -> Result<(), String> {
-        let sqlite_file_path = self.dbdir(db_id).join("KOMODEFI.db");
-        log_sqlite_file_open_attempt(&sqlite_file_path);
-        let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
-        try_s!(self.async_sqlite_connection.pin(Arc::new(AsyncMutex::new(async_conn))));
-        Ok(())
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn init_async_sqlite_connection_v2(&self, db_id: Option<&str>) -> Result<(), String> {
-        let sqlite_file_path = self.dbdir(db_id).join("KOMODEFI.db");
+        let sqlite_file_path = self.dbdir(db_id).join(ASYNC_SQLITE_DB_ID);
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
 
         let mut store = HashMap::new();
         store.insert(self.rmd160_hex(), Arc::new(AsyncMutex::new(async_conn)));
-        try_s!(self.async_sqlite_connection_v2.pin(Arc::new(AsyncMutex::new(store))));
+        try_s!(self.async_sqlite_connection.pin(Arc::new(AsyncMutex::new(store))));
 
         Ok(())
     }

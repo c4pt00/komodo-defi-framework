@@ -745,7 +745,7 @@ impl NftCtx {
     pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             let async_sqlite_connection = ctx
-                .async_sqlite_connection_v2
+                .async_sqlite_connection
                 .ok_or("async_sqlite_connection is not initialized".to_owned())?;
             Ok(NftCtx {
                 nft_cache_dbs: async_sqlite_connection.clone(),
