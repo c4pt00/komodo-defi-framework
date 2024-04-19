@@ -18,7 +18,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::future::Future;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 cfg_wasm32! {
     use mm2_rpc::wasm_rpc::WasmRpcSender;
@@ -34,7 +34,7 @@ cfg_native! {
     use mm2_metrics::MmMetricsError;
     use std::net::{IpAddr, SocketAddr, AddrParseError};
     use std::path::{Path, PathBuf};
-    use std::sync::MutexGuard;
+    use std::sync::{MutexGuard, Mutex};
 }
 
 /// Default interval to export and record metrics to log.
@@ -44,7 +44,7 @@ pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 #[cfg(not(target_arch = "wasm32"))]
 pub type AsyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
 #[cfg(not(target_arch = "wasm32"))]
-pub type SyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
+pub type SyncSqliteConnectionArc = Arc<Mutex<Connection>>;
 /// MarketMaker state, shared between the various MarketMaker threads.
 ///
 /// Every MarketMaker has one and only one instance of `MmCtx`.
@@ -124,9 +124,14 @@ pub struct MmCtx {
     /// Deprecated, please use `async_sqlite_connection` for new implementations.
     #[cfg(not(target_arch = "wasm32"))]
     pub sqlite_connection: Constructible<Arc<Mutex<Connection>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub sqlite_connection_v2: Constructible<Arc<Mutex<HashMap<String, SyncSqliteConnectionArc>>>>,
     /// Deprecated, please create `shared_async_sqlite_conn` for new implementations and call db `KOMODEFI-shared.db`.
     #[cfg(not(target_arch = "wasm32"))]
     pub shared_sqlite_conn: Constructible<Arc<Mutex<Connection>>>,
+    /// asynchronous handle for rusqlite connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<HashMap<String, AsyncSqliteConnectionArc>>>>,
     pub mm_version: String,
     pub datetime: String,
     pub mm_init_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
@@ -141,9 +146,6 @@ pub struct MmCtx {
     pub db_namespace: DbNamespaceId,
     /// The context belonging to the `nft` mod: `NftCtx`.
     pub nft_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
-    /// asynchronous handle for rusqlite connection.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<HashMap<String, AsyncSqliteConnectionArc>>>>,
 }
 
 impl MmCtx {
@@ -182,7 +184,11 @@ impl MmCtx {
             #[cfg(not(target_arch = "wasm32"))]
             sqlite_connection: Constructible::default(),
             #[cfg(not(target_arch = "wasm32"))]
+            sqlite_connection_v2: Constructible::default(),
+            #[cfg(not(target_arch = "wasm32"))]
             shared_sqlite_conn: Constructible::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            async_sqlite_connection: Constructible::default(),
             mm_version: "".into(),
             datetime: "".into(),
             mm_init_ctx: Mutex::new(None),
@@ -191,8 +197,6 @@ impl MmCtx {
             #[cfg(target_arch = "wasm32")]
             db_namespace: DbNamespaceId::Main,
             nft_ctx: Mutex::new(None),
-            #[cfg(not(target_arch = "wasm32"))]
-            async_sqlite_connection: Constructible::default(),
         }
     }
 
@@ -365,11 +369,25 @@ impl MmCtx {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    pub fn init_sqlite_connection_v2(&self, db_id: Option<&str>) -> Result<(), String> {
+        let sqlite_file_path = self.dbdir(db_id).join("MM2.db");
+        log_sqlite_file_open_attempt(&sqlite_file_path);
+
+        let connection = try_s!(Connection::open(sqlite_file_path));
+        let mut store = HashMap::new();
+        store.insert(self.rmd160_hex(), Arc::new(Mutex::new(connection)));
+        try_s!(self.sqlite_connection_v2.pin(Arc::new(Mutex::new(store))));
+
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn init_shared_sqlite_conn(&self) -> Result<(), String> {
         let sqlite_file_path = self.shared_dbdir().join("MM2-shared.db");
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let connection = try_s!(Connection::open(sqlite_file_path));
         try_s!(self.shared_sqlite_conn.pin(Arc::new(Mutex::new(connection))));
+
         Ok(())
     }
 
@@ -392,11 +410,78 @@ impl MmCtx {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    pub fn sqlite_conn_opt_v2(&self, db_id: Option<&str>) -> Option<SyncSqliteConnectionArc> {
+        if let Some(connections) = self.sqlite_connection_v2.as_option() {
+            let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex().clone());
+            let connections = connections.lock().unwrap();
+            if let Some(connection) = connections.get(&db_id) {
+                return Some(connection.clone());
+            } else {
+                let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
+                log_sqlite_file_open_attempt(&sqlite_file_path);
+
+                let connection = Arc::new(Mutex::new(
+                    Connection::open(sqlite_file_path).expect("failed to open db"),
+                ));
+                let mut store = HashMap::new();
+                store.insert(self.rmd160_hex(), connection.clone());
+                return Some(connection);
+            }
+        };
+
+        None
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn sqlite_connection(&self) -> MutexGuard<Connection> {
         self.sqlite_connection
             .or(&|| panic!("sqlite_connection is not initialized"))
             .lock()
             .unwrap()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn sqlite_connection_v2(&self, db_id: Option<&str>) -> SyncSqliteConnectionArc {
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex().clone());
+        let connections = self
+            .sqlite_connection_v2
+            .or(&|| panic!("sqlite_connection is not initialized"))
+            .lock()
+            .unwrap();
+        if let Some(connection) = connections.get(&db_id) {
+            return connection.clone();
+        } else {
+            let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
+            log_sqlite_file_open_attempt(&sqlite_file_path);
+
+            let connection = Arc::new(Mutex::new(
+                Connection::open(sqlite_file_path).expect("failed to open db"),
+            ));
+            let mut store = HashMap::new();
+            store.insert(self.rmd160_hex(), connection.clone());
+            return connection;
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn sqlite_connection_res_v2(&self, db_id: Option<&str>) -> Result<SyncSqliteConnectionArc, String> {
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex());
+        let connections = self
+            .sqlite_connection_v2
+            .ok_or("sqlite_connection is not initialized".to_string())?
+            .lock()
+            .unwrap();
+        if let Some(connection) = connections.get(&db_id) {
+            Ok(connection.clone())
+        } else {
+            let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
+            log_sqlite_file_open_attempt(&sqlite_file_path);
+
+            let connection = Arc::new(Mutex::new(try_s!(Connection::open(sqlite_file_path))));
+            let mut store = HashMap::new();
+            store.insert(self.rmd160_hex(), connection.clone());
+            Ok(connection)
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

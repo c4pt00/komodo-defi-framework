@@ -31,16 +31,16 @@ impl BlockHeaderStorage {
     pub(crate) fn new_from_ctx(
         ctx: MmArc,
         ticker: String,
-        _db_id: Option<&str>,
+        db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
-        let sqlite_connection = ctx.sqlite_connection.ok_or(BlockHeaderStorageError::Internal(
-            "sqlite_connection is not initialized".to_owned(),
-        ))?;
+        let sqlite_connection = ctx
+            .sqlite_connection_res_v2(db_id)
+            .map_err(|_| BlockHeaderStorageError::Internal("sqlite_connection is not initialized".to_owned()))?;
 
         Ok(BlockHeaderStorage {
             inner: Box::new(SqliteBlockHeadersStorage {
                 ticker,
-                conn: sqlite_connection.clone(),
+                conn: sqlite_connection,
             }),
         })
     }
