@@ -24,6 +24,7 @@ use crate::{TransactionType, TxFeeDetails, WithdrawFee};
 cfg_native! {
     use db_common::async_sql_conn::AsyncConnection;
     use futures::lock::Mutex as AsyncMutex;
+    use mm2_core::mm_ctx::{AsyncConnectionArc, log_sqlite_file_open_attempt};
 }
 
 cfg_wasm32! {
@@ -202,8 +203,8 @@ impl FromStr for Chain {
 /// This implementation will use `FromStr` to deserialize `Chain`.
 impl<'de> Deserialize<'de> for Chain {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         s.parse().map_err(de::Error::custom)
@@ -395,9 +396,9 @@ pub(crate) struct NftFromMoralis {
 pub(crate) struct SerdeStringWrap<T>(pub(crate) T);
 
 impl<'de, T> Deserialize<'de> for SerdeStringWrap<T>
-    where
-        T: std::str::FromStr,
-        T::Err: std::fmt::Debug + std::fmt::Display,
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Debug + std::fmt::Display,
 {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value: &str = Deserialize::deserialize(deserializer)?;
@@ -644,7 +645,6 @@ pub struct NftsTransferHistoryLists {
     pub(crate) pubkey: String,
 }
 
-
 /// Filters that can be applied to the NFT transfer history.
 ///
 /// Allows filtering based on transaction type (send/receive), date range,
@@ -719,6 +719,8 @@ impl From<Nft> for TransferMeta {
         }
     }
 }
+#[cfg(not(target_arch = "wasm32"))]
+pub struct NftCacheDbSql(pub AsyncConnection);
 
 /// The primary context for NFT operations within the MM environment.
 ///
@@ -730,8 +732,8 @@ pub(crate) struct NftCtx {
     #[cfg(target_arch = "wasm32")]
     pub(crate) nft_cache_db: SharedDb<NftCacheIDB>,
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) nft_cache_db: Arc<AsyncMutex<AsyncConnection>>,
-    _db_id: Option<String>,
+    pub(crate) nft_cache_dbs: Arc<AsyncMutex<HashMap<String, AsyncConnectionArc>>>,
+    pub(crate) ctx: MmArc,
 }
 
 impl NftCtx {
@@ -739,24 +741,25 @@ impl NftCtx {
     ///
     /// If an `NftCtx` instance doesn't already exist in the MM context, it gets created and cached for subsequent use.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
+    pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             let async_sqlite_connection = ctx
-                .async_sqlite_connection
+                .async_sqlite_connection_v2
                 .ok_or("async_sqlite_connection is not initialized".to_owned())?;
             Ok(NftCtx {
-                nft_cache_db: async_sqlite_connection.clone(),
-                _db_id: db_id.map(|e| e.to_string()),
+                nft_cache_dbs: async_sqlite_connection.clone(),
+                ctx: ctx.clone(),
             })
         })))
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
+    pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
+            let db_id: Option<&str> = None; // TODO
             Ok(NftCtx {
-                nft_cache_db: ConstructibleDb::new(ctx, db_id).into_shared(),
-                _db_id: db_id.map(|e| e.to_string()),
+                nft_cache_dbs: ConstructibleDb::new(ctx, db_id).into_shared(),
+                ctx: ctx.clone(),
             })
         })))
     }
@@ -765,8 +768,27 @@ impl NftCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) async fn lock_db(
         &self,
+        db_id: Option<&str>,
     ) -> MmResult<impl NftListStorageOps + NftTransferHistoryStorageOps + '_, LockDBError> {
-        Ok(self.nft_cache_db.lock().await)
+        let db_id = db_id.map(|s| s.to_string()).unwrap_or_else(|| self.ctx.rmd160_hex());
+
+        let mut connections = self.nft_cache_dbs.lock().await;
+        if let Some(async_conn) = connections.get(&db_id) {
+            let conn = NftCacheDbSql(async_conn.lock().await.clone());
+            Ok(conn)
+        } else {
+            let sqlite_file_path = self.ctx.dbdir(Some(&db_id)).join("KOMODEFI.db");
+            log_sqlite_file_open_attempt(&sqlite_file_path);
+            let async_conn = Arc::new(AsyncMutex::new(
+                AsyncConnection::open(sqlite_file_path)
+                    .await
+                    .map_to_mm(|e| LockDBError::InternalError(e.to_string()))?,
+            ));
+            connections.insert(db_id.to_string(), async_conn.clone());
+
+            let conn = NftCacheDbSql(async_conn.lock().await.clone());
+            Ok(conn)
+        }
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -803,16 +825,16 @@ pub(crate) struct PhishingDomainRes {
 }
 
 fn serialize_token_id<S>(token_id: &BigUint, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     let token_id_str = token_id.to_string();
     serializer.serialize_str(&token_id_str)
 }
 
 fn deserialize_token_id<'de, D>(deserializer: D) -> Result<BigUint, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     BigUint::from_str(&s).map_err(serde::de::Error::custom)

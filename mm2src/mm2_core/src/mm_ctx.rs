@@ -40,6 +40,7 @@ cfg_native! {
 /// Default interval to export and record metrics to log.
 const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 
+pub type AsyncConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
 /// MarketMaker state, shared between the various MarketMaker threads.
 ///
 /// Every MarketMaker has one and only one instance of `MmCtx`.
@@ -138,9 +139,9 @@ pub struct MmCtx {
     pub nft_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
+    pub async_sqlite_connection: Constructible<AsyncConnectionArc>,
     #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
+    pub async_sqlite_connection_v2: Constructible<Arc<AsyncMutex<HashMap<String, AsyncConnectionArc>>>>,
 }
 
 impl MmCtx {
@@ -191,7 +192,7 @@ impl MmCtx {
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
             #[cfg(not(target_arch = "wasm32"))]
-            async_sqlite_connection_ctx: Mutex::new(None),
+            async_sqlite_connection_v2: Constructible::default(),
         }
     }
 
@@ -378,6 +379,19 @@ impl MmCtx {
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
         try_s!(self.async_sqlite_connection.pin(Arc::new(AsyncMutex::new(async_conn))));
+        Ok(())
+    }
+
+    #[cfg(not(target_Arch = "wasm32"))]
+    pub async fn init_async_sqlite_connection_v2(&self, db_id: Option<&str>) -> Result<(), String> {
+        let sqlite_file_path = self.dbdir(db_id).join("KOMODEFI.db");
+        log_sqlite_file_open_attempt(&sqlite_file_path);
+        let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
+
+        let mut store = HashMap::new();
+        store.insert(self.rmd160_hex(), Arc::new(AsyncMutex::new(async_conn)));
+        try_s!(self.async_sqlite_connection_v2.pin(Arc::new(AsyncMutex::new(store))));
+
         Ok(())
     }
 
@@ -777,7 +791,7 @@ impl MmCtxBuilder {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(super) fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
+pub fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
     match sqlite_file_path.canonicalize() {
         Ok(absolute_path) => {
             log::debug!("Trying to open SQLite database file {}", absolute_path.display());

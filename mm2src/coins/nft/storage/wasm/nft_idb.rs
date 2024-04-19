@@ -33,6 +33,7 @@ impl DbInstance for NftCacheIDB {
             .with_table::<LastScannedBlockTable>()
             .build()
             .await?;
+
         Ok(NftCacheIDB { inner })
     }
 }

@@ -1032,7 +1032,9 @@ pub async fn mm_ctx_with_custom_async_db() -> MmArc {
     let ctx = MmCtxBuilder::new().into_mm_arc();
 
     let connection = AsyncConnection::open_in_memory().await.unwrap();
-    let _ = ctx.async_sqlite_connection.pin(Arc::new(AsyncMutex::new(connection)));
+    let mut store = HashMap::new();
+    store.insert(ctx.rmd160_hex(), Arc::new(AsyncMutex::new(connection)));
+    let _ = ctx.async_sqlite_connection_v2.pin(Arc::new(AsyncMutex::new(store)));
 
     ctx
 }
