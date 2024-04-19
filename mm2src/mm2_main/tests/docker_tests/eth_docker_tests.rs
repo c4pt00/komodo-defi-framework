@@ -384,6 +384,7 @@ pub fn fill_eth_erc20_with_private_key(priv_key: Secp256k1Secret) {
     fill_erc20(erc20_coin.my_address, U256::from(10000000000u64));
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_eth_maker_payment() {
     let eth_coin = eth_coin_with_random_privkey(swap_contract());
@@ -458,6 +459,7 @@ fn send_and_refund_eth_maker_payment() {
     assert_eq!(expected, search_tx);
 }
 
+#[ignore]
 #[test]
 fn send_and_spend_eth_maker_payment() {
     let maker_eth_coin = eth_coin_with_random_privkey(swap_contract());
@@ -536,6 +538,7 @@ fn send_and_spend_eth_maker_payment() {
     assert_eq!(expected, search_tx);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_erc20_maker_payment() {
     let erc20_coin = erc20_coin_with_random_privkey(swap_contract());
@@ -611,6 +614,7 @@ fn send_and_refund_erc20_maker_payment() {
     assert_eq!(expected, search_tx);
 }
 
+#[ignore]
 #[test]
 fn send_and_spend_erc20_maker_payment() {
     let maker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());

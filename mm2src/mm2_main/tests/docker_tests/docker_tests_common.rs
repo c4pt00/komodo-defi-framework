@@ -379,8 +379,7 @@ pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) ->
         "--dev".into(),
         "--http".into(),
         "--http.addr=0.0.0.0".into(),
-        "--dev.gaslimit=10000000".into(),
-        "--dev.period=2".into(),
+        "--dev.period=0".into(),
         "--verbosity=4".into(),
     ];
     let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
