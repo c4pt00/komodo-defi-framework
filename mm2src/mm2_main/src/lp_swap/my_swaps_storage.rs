@@ -104,8 +104,10 @@ mod native_impl {
             paging_options: Option<&PagingOptions>,
             db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
+            let conn = self.ctx.sqlite_connection_v2(Some(db_id));
+            let conn = conn.lock().unwrap();
             Ok(select_uuids_by_my_swaps_filter(
-                &self.ctx.sqlite_connection(),
+                &conn,
                 filter,
                 paging_options,
                 db_id,
@@ -153,17 +155,17 @@ mod wasm_impl {
             let stringified_error = e.to_string();
             match e {
                 // We don't expect that the `String` and `u32` types serialization to fail.
-                CursorError::ErrorSerializingIndexFieldValue {..}
+                CursorError::ErrorSerializingIndexFieldValue { .. }
                 // We don't expect that the `String` and `u32` types deserialization to fail.
-                | CursorError::ErrorDeserializingIndexValue {..}
-                | CursorError::ErrorOpeningCursor {..}
-                | CursorError::AdvanceError {..}
-                | CursorError::InvalidKeyRange {..}
-                | CursorError::TypeMismatch {..}
-                | CursorError::IncorrectNumberOfKeysPerIndex {..}
+                | CursorError::ErrorDeserializingIndexValue { .. }
+                | CursorError::ErrorOpeningCursor { .. }
+                | CursorError::AdvanceError { .. }
+                | CursorError::InvalidKeyRange { .. }
+                | CursorError::TypeMismatch { .. }
+                | CursorError::IncorrectNumberOfKeysPerIndex { .. }
                 | CursorError::UnexpectedState(..)
-                | CursorError::IncorrectUsage {..} => MySwapsError::InternalError(stringified_error),
-                CursorError::ErrorDeserializingItem {..} => MySwapsError::ErrorDeserializingItem(stringified_error),
+                | CursorError::IncorrectUsage { .. } => MySwapsError::InternalError(stringified_error),
+                CursorError::ErrorDeserializingItem { .. } => MySwapsError::ErrorDeserializingItem(stringified_error),
             }
         }
     }
@@ -228,7 +230,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                },
+                }
                 (Some(my_coin), None) => {
                     my_swaps_table
                         .cursor_builder()
@@ -238,7 +240,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                },
+                }
                 (None, Some(other_coin)) => {
                     my_swaps_table
                         .cursor_builder()
@@ -248,7 +250,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                },
+                }
                 (None, None) => {
                     my_swaps_table
                         .cursor_builder()
@@ -257,7 +259,7 @@ mod wasm_impl {
                         .await?
                         .collect()
                         .await?
-                },
+                }
             };
 
             let uuids: BTreeSet<OrderedUuid> = items
@@ -277,7 +279,7 @@ mod wasm_impl {
                         skipped: 0,
                         pubkey: db_id.to_string(),
                     })
-                },
+                }
             }
         }
     }
@@ -297,7 +299,7 @@ mod wasm_impl {
                     .position(|ordered_uuid| ordered_uuid.uuid == expected_uuid)
                     .or_mm_err(|| MySwapsError::FromUuidNotFound(expected_uuid))?
                     + 1
-            },
+            }
             None => (paging.page_number.get() - 1) * paging.limit,
         };
 
@@ -438,13 +440,13 @@ mod wasm_tests {
             (7, "c52659d7-4e13-41f5-9c1a-30cc2f646033", MAKER_SWAP_V2_TYPE),
             (8, "af5e0383-97f6-4408-8c03-a8eb8d17e46d", LEGACY_SWAP_TYPE),
         ]
-        .iter()
-        .map(|(started_at, uuid, swap_type)| OrderedUuid {
-            started_at: *started_at,
-            uuid: Uuid::parse_str(uuid).unwrap(),
-            swap_type: *swap_type,
-        })
-        .collect();
+            .iter()
+            .map(|(started_at, uuid, swap_type)| OrderedUuid {
+                started_at: *started_at,
+                uuid: Uuid::parse_str(uuid).unwrap(),
+                swap_type: *swap_type,
+            })
+            .collect();
 
         let paging = PagingOptions {
             limit: 2,

@@ -95,26 +95,41 @@ use uuid::Uuid;
 #[cfg(feature = "custom-swap-locktime")]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[path = "lp_swap/check_balance.rs"] mod check_balance;
-#[path = "lp_swap/maker_swap.rs"] mod maker_swap;
-#[path = "lp_swap/maker_swap_v2.rs"] pub mod maker_swap_v2;
-#[path = "lp_swap/max_maker_vol_rpc.rs"] mod max_maker_vol_rpc;
-#[path = "lp_swap/my_swaps_storage.rs"] mod my_swaps_storage;
-#[path = "lp_swap/pubkey_banning.rs"] mod pubkey_banning;
-#[path = "lp_swap/recreate_swap_data.rs"] mod recreate_swap_data;
-#[path = "lp_swap/saved_swap.rs"] mod saved_swap;
-#[path = "lp_swap/swap_lock.rs"] mod swap_lock;
+#[path = "lp_swap/check_balance.rs"]
+mod check_balance;
+#[path = "lp_swap/maker_swap.rs"]
+mod maker_swap;
+#[path = "lp_swap/maker_swap_v2.rs"]
+pub mod maker_swap_v2;
+#[path = "lp_swap/max_maker_vol_rpc.rs"]
+mod max_maker_vol_rpc;
+#[path = "lp_swap/my_swaps_storage.rs"]
+mod my_swaps_storage;
+#[path = "lp_swap/pubkey_banning.rs"]
+mod pubkey_banning;
+#[path = "lp_swap/recreate_swap_data.rs"]
+mod recreate_swap_data;
+#[path = "lp_swap/saved_swap.rs"]
+mod saved_swap;
+#[path = "lp_swap/swap_lock.rs"]
+mod swap_lock;
 #[path = "lp_swap/komodefi.swap_v2.pb.rs"]
 #[rustfmt::skip]
 mod swap_v2_pb;
-#[path = "lp_swap/swap_v2_common.rs"] mod swap_v2_common;
-#[path = "lp_swap/swap_v2_rpcs.rs"] pub(crate) mod swap_v2_rpcs;
-#[path = "lp_swap/swap_watcher.rs"] pub(crate) mod swap_watcher;
+#[path = "lp_swap/swap_v2_common.rs"]
+mod swap_v2_common;
+#[path = "lp_swap/swap_v2_rpcs.rs"]
+pub(crate) mod swap_v2_rpcs;
+#[path = "lp_swap/swap_watcher.rs"]
+pub(crate) mod swap_watcher;
 #[path = "lp_swap/taker_restart.rs"]
 pub(crate) mod taker_restart;
-#[path = "lp_swap/taker_swap.rs"] pub(crate) mod taker_swap;
-#[path = "lp_swap/taker_swap_v2.rs"] pub mod taker_swap_v2;
-#[path = "lp_swap/trade_preimage.rs"] mod trade_preimage;
+#[path = "lp_swap/taker_swap.rs"]
+pub(crate) mod taker_swap;
+#[path = "lp_swap/taker_swap_v2.rs"]
+pub mod taker_swap_v2;
+#[path = "lp_swap/trade_preimage.rs"]
+mod trade_preimage;
 
 #[cfg(target_arch = "wasm32")]
 #[path = "lp_swap/swap_wasm_db.rs"]
@@ -241,7 +256,7 @@ pub fn p2p_keypair_and_peer_id_to_broadcast(ctx: &MmArc, p2p_privkey: Option<&Ke
         None => {
             let crypto_ctx = CryptoCtx::from_ctx(ctx).expect("CryptoCtx must be initialized already");
             (*crypto_ctx.mm2_internal_key_pair(), None)
-        },
+        }
     }
 }
 
@@ -257,7 +272,7 @@ pub fn p2p_private_and_peer_id_to_broadcast(ctx: &MmArc, p2p_privkey: Option<&Ke
         None => {
             let crypto_ctx = CryptoCtx::from_ctx(ctx).expect("CryptoCtx must be initialized already");
             (crypto_ctx.mm2_internal_privkey_secret().take(), None)
-        },
+        }
     }
 }
 
@@ -305,7 +320,7 @@ pub fn broadcast_swap_message<T: Serialize>(ctx: &MmArc, topic: String, msg: T, 
         Err(e) => {
             error!("Error encoding and signing swap message: {}", e);
             return;
-        },
+        }
     };
     broadcast_p2p_msg(ctx, topic, encoded_msg, from);
 }
@@ -322,7 +337,7 @@ pub fn broadcast_p2p_tx_msg(ctx: &MmArc, topic: String, msg: &TransactionEnum, p
         Err(e) => {
             error!("Error encoding and signing tx message: {}", e);
             return;
-        },
+        }
     };
     broadcast_p2p_msg(ctx, topic, encoded_msg, from);
 }
@@ -342,14 +357,14 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
                         error!("Error saving the swap {} status: {}", status.data.uuid(), e);
                     }
                     Ok(())
-                },
+                }
                 Err(swap_status_err) => {
                     let error = format!(
                         "Couldn't deserialize swap msg to either 'SwapMsg': {} or to 'SwapStatus': {}",
                         swap_msg_err, swap_status_err
                     );
                     MmError::err(P2PRequestError::DecodeError(error))
-                },
+                }
             };
 
             #[cfg(target_arch = "wasm32")]
@@ -357,7 +372,7 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
                 "Couldn't deserialize 'SwapMsg': {}",
                 swap_msg_err
             )));
-        },
+        }
     };
 
     debug!("Processing swap msg {:?} for uuid {}", msg, uuid);
@@ -1030,8 +1045,9 @@ pub async fn insert_new_swap_to_db(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn add_swap_to_db_index(ctx: &MmArc, swap: &SavedSwap) {
-    if let Some(conn) = ctx.sqlite_conn_opt() {
+fn add_swap_to_db_index(ctx: &MmArc, swap: &SavedSwap, db_id: Option<&str>) {
+    if let Some(conn) = ctx.sqlite_conn_opt_v2(db_id) {
+        let conn = conn.lock().unwrap();
         crate::mm2::database::stats_swaps::add_swap_to_index(&conn, swap)
     }
 }
@@ -1039,7 +1055,7 @@ fn add_swap_to_db_index(ctx: &MmArc, swap: &SavedSwap) {
 #[cfg(not(target_arch = "wasm32"))]
 async fn save_stats_swap(ctx: &MmArc, swap: &SavedSwap, db_id: Option<&str>) -> Result<(), String> {
     try_s!(swap.save_to_stats_db(ctx, db_id).await);
-    add_swap_to_db_index(ctx, swap);
+    add_swap_to_db_index(ctx, swap, db_id);
     Ok(())
 }
 
@@ -1134,19 +1150,19 @@ pub async fn my_swap_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, 
             let res_js = json!({ "result": MySwapStatusResponse::from(status) });
             let res = try_s!(json::to_vec(&res_js));
             Ok(try_s!(Response::builder().body(res)))
-        },
+        }
         Some(MAKER_SWAP_V2_TYPE) => {
             let swap_data = try_s!(get_maker_swap_data_for_rpc(&ctx, &uuid, db_id.as_deref()).await);
             let res_js = json!({ "result": swap_data });
             let res = try_s!(json::to_vec(&res_js));
             Ok(try_s!(Response::builder().body(res)))
-        },
+        }
         Some(TAKER_SWAP_V2_TYPE) => {
             let swap_data = try_s!(get_taker_swap_data_for_rpc(&ctx, &uuid, db_id.as_deref()).await);
             let res_js = json!({ "result": swap_data });
             let res = try_s!(json::to_vec(&res_js));
             Ok(try_s!(Response::builder().body(res)))
-        },
+        }
         Some(unsupported_type) => ERR!("Got unsupported swap type from DB: {}", unsupported_type),
         None => ERR!("No swap with uuid {}", uuid),
     }
@@ -1329,7 +1345,7 @@ pub async fn latest_swaps_for_pair(
                 Ok(None) => {
                     error!("No such swap with the uuid '{}'", uuid);
                     continue;
-                },
+                }
                 Err(e) => return Err(MmError::new(LatestSwapsErr::UnableToLoadSavedSwaps(e.into_inner()))),
             };
             swaps.push(swap);
@@ -1360,7 +1376,7 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
                     Ok(Some(swap)) => {
                         let swap_json = try_s!(json::to_value(MySwapStatusResponse::from(swap)));
                         swaps.push(swap_json)
-                    },
+                    }
                     Ok(None) => warn!("No such swap with the uuid '{}'", uuid),
                     Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
                 },
@@ -1368,14 +1384,14 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
                     Ok(data) => {
                         let swap_json = try_s!(json::to_value(data));
                         swaps.push(swap_json);
-                    },
+                    }
                     Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
                 },
                 TAKER_SWAP_V2_TYPE => match get_taker_swap_data_for_rpc(&ctx, uuid, Some(&db_result.pubkey)).await {
                     Ok(data) => {
                         let swap_json = try_s!(json::to_value(data));
                         swaps.push(swap_json);
-                    },
+                    }
                     Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
                 },
                 unknown_type => error!("Swap with the uuid '{}' has unknown type {}", uuid, unknown_type),
@@ -1419,11 +1435,11 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
                 Ok(None) => {
                     warn!("Swap {} is indexed, but doesn't exist in DB", uuid);
                     continue;
-                },
+                }
                 Err(e) => {
                     error!("Error {} on getting swap {} data from DB", e, uuid);
                     continue;
-                },
+                }
             };
             info!("Kick starting the swap {}", swap.uuid());
             let maker_coin_ticker = match swap.maker_coin_ticker() {
@@ -1431,14 +1447,14 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
                 Err(e) => {
                     error!("Error {} getting maker coin of swap: {}", e, swap.uuid());
                     continue;
-                },
+                }
             };
             let taker_coin_ticker = match swap.taker_coin_ticker() {
                 Ok(t) => t,
                 Err(e) => {
                     error!("Error {} getting taker coin of swap {}", e, swap.uuid());
                     continue;
-                },
+                }
             };
             coins.insert(maker_coin_ticker.clone());
             coins.insert(taker_coin_ticker.clone());
@@ -1456,7 +1472,7 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
                 Err(e) => {
                     error!("Error {} getting DB repr of maker swap {}", e, maker_uuid);
                     continue;
-                },
+                }
             };
             debug!("Got maker swap repr {:?}", maker_swap_repr);
 
@@ -1481,7 +1497,7 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
                 Err(e) => {
                     error!("Error {} getting DB repr of taker swap {}", e, taker_uuid);
                     continue;
-                },
+                }
             };
             debug!("Got taker swap repr {:?}", taker_swap_repr);
 
@@ -1512,11 +1528,11 @@ async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker
                     taker_coin_ticker
                 );
                 Timer::sleep(5.).await;
-            },
+            }
             Err(e) => {
                 error!("Error {} on {} find attempt", e, taker_coin_ticker);
                 return;
-            },
+            }
         };
     };
 
@@ -1530,11 +1546,11 @@ async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker
                     maker_coin_ticker
                 );
                 Timer::sleep(5.).await;
-            },
+            }
             Err(e) => {
                 error!("Error {} on {} find attempt", e, maker_coin_ticker);
                 return;
-            },
+            }
         };
     };
     match swap {
@@ -1547,8 +1563,8 @@ async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker
                 },
                 ctx,
             )
-            .await;
-        },
+                .await;
+        }
         SavedSwap::Taker(saved_swap) => {
             run_taker_swap(
                 RunTakerSwapInput::KickStart {
@@ -1558,8 +1574,8 @@ async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker
                 },
                 ctx,
             )
-            .await;
-        },
+                .await;
+        }
     }
 }
 
@@ -1608,16 +1624,16 @@ pub async fn import_swaps(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
                         LEGACY_SWAP_TYPE,
                         accound_id.as_deref(),
                     )
-                    .await
+                        .await
                     {
                         error!("Error {} on new swap insertion", e);
                     }
                 }
                 imported.push(swap.uuid().to_owned());
-            },
+            }
             Err(e) => {
                 skipped.insert(swap.uuid().to_owned(), ERRL!("{}", e));
-            },
+            }
         }
     }
     let res = try_s!(json::to_vec(&json!({
@@ -1657,14 +1673,14 @@ pub async fn active_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>
                         Err(e) => {
                             error!("Error on loading_from_db: {}", e);
                             continue;
-                        },
+                        }
                     };
                     map.insert(*uuid, status);
-                },
+                }
                 unsupported_type => {
                     error!("active_swaps_rpc doesn't support swap type {}", unsupported_type);
                     continue;
-                },
+                }
             }
         }
         Some(map)
@@ -1728,7 +1744,7 @@ pub fn detect_secret_hash_algo(maker_coin: &MmCoinEnum, taker_coin: &MmCoinEnum)
     match (maker_coin, taker_coin) {
         (MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_) | MmCoinEnum::LightningCoin(_), _) => {
             SecretHashAlgo::SHA256
-        },
+        }
         // If taker is lightning coin the SHA256 of the secret will be sent as part of the maker signed invoice
         (_, MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_)) => SecretHashAlgo::SHA256,
         (_, _) => SecretHashAlgo::DHASH160,
@@ -1839,19 +1855,19 @@ pub fn process_swap_v2_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PProcessRes
         match swap_message.inner {
             Some(swap_message::Inner::MakerNegotiation(maker_negotiation)) => {
                 msg_store.maker_negotiation = Some(maker_negotiation)
-            },
+            }
             Some(swap_message::Inner::TakerNegotiation(taker_negotiation)) => {
                 msg_store.taker_negotiation = Some(taker_negotiation)
-            },
+            }
             Some(swap_message::Inner::MakerNegotiated(maker_negotiated)) => {
                 msg_store.maker_negotiated = Some(maker_negotiated)
-            },
+            }
             Some(swap_message::Inner::TakerFundingInfo(taker_funding)) => msg_store.taker_funding = Some(taker_funding),
             Some(swap_message::Inner::MakerPaymentInfo(maker_payment)) => msg_store.maker_payment = Some(maker_payment),
             Some(swap_message::Inner::TakerPaymentInfo(taker_payment)) => msg_store.taker_payment = Some(taker_payment),
             Some(swap_message::Inner::TakerPaymentSpendPreimage(preimage)) => {
                 msg_store.taker_payment_spend_preimage = Some(preimage)
-            },
+            }
             None => return MmError::err(P2PProcessError::DecodeError("swap_message.inner is None".into())),
         }
     }
@@ -1932,7 +1948,7 @@ mod lp_swap_tests {
         assert_eq!(
             DexFee::WithBurn {
                 fee_amount: "0.00001".into(),
-                burn_amount: "0.00000001".into()
+                burn_amount: "0.00000001".into(),
             },
             actual_fee
         );
@@ -2339,7 +2355,7 @@ mod lp_swap_tests {
             &rick_activation_params,
             maker_key_pair.private().secret,
         ))
-        .unwrap();
+            .unwrap();
 
         println!("Maker address {}", rick_maker.my_address().unwrap());
 
@@ -2350,7 +2366,7 @@ mod lp_swap_tests {
             &morty_activation_params,
             maker_key_pair.private().secret,
         ))
-        .unwrap();
+            .unwrap();
 
         let taker_ctx_conf = json!({
             "netid": 1234,
@@ -2374,7 +2390,7 @@ mod lp_swap_tests {
             &rick_activation_params,
             taker_key_pair.private().secret,
         ))
-        .unwrap();
+            .unwrap();
 
         let morty_taker = block_on(utxo_standard_coin_with_priv_key(
             &taker_ctx,
@@ -2383,7 +2399,7 @@ mod lp_swap_tests {
             &morty_activation_params,
             taker_key_pair.private().secret,
         ))
-        .unwrap();
+            .unwrap();
 
         println!("Taker address {}", rick_taker.my_address().unwrap());
 
@@ -2416,7 +2432,7 @@ mod lp_swap_tests {
         maker_swap.fail_at = maker_fail_at;
 
         #[cfg(any(test, feature = "run-docker-tests"))]
-        let fail_at = std::env::var("TAKER_FAIL_AT").map(taker_swap::FailAt::from).ok();
+            let fail_at = std::env::var("TAKER_FAIL_AT").map(taker_swap::FailAt::from).ok();
 
         let taker_swap = TakerSwap::new(
             taker_ctx.clone(),
@@ -2432,7 +2448,7 @@ mod lp_swap_tests {
             lock_duration,
             None,
             #[cfg(any(test, feature = "run-docker-tests"))]
-            fail_at,
+                fail_at,
         );
 
         block_on(futures::future::join(
@@ -2478,7 +2494,7 @@ mod lp_swap_tests {
             DexFee::Standard(t) => t,
             DexFee::WithBurn { .. } => {
                 panic!("Wrong variant returned for MYCOIN from `dex_fee_amount_from_taker_coin`.")
-            },
+            }
         };
 
         let expected_mycoin_taker_fee = &kmd_taker_fee / &MmNumber::from("0.75");
@@ -2497,7 +2513,7 @@ mod lp_swap_tests {
             DexFee::Standard(t) => t,
             DexFee::WithBurn { .. } => {
                 panic!("Wrong variant returned for MYCOIN from `dex_fee_amount_from_taker_coin`.")
-            },
+            }
         };
 
         let testcoin = coins::TestCoin::default();
@@ -2505,7 +2521,7 @@ mod lp_swap_tests {
             DexFee::Standard(t) => t,
             DexFee::WithBurn { .. } => {
                 panic!("Wrong variant returned for TEST coin from `dex_fee_amount_from_taker_coin`.")
-            },
+            }
         };
 
         assert_eq!(testcoin_taker_fee * MmNumber::from("0.90"), mycoin_taker_fee);

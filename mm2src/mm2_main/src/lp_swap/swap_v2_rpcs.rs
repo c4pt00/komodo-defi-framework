@@ -35,21 +35,24 @@ cfg_wasm32!(
 );
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid, _db_id: Option<&str>) -> MmResult<Option<u8>, SqlError> {
+pub(super) async fn get_swap_type(ctx: &MmArc, uuid: &Uuid, db_id: Option<&str>) -> MmResult<Option<u8>, SqlError> {
     let ctx = ctx.clone();
     let uuid = uuid.to_string();
+    let db_id = db_id.map(|e| e.to_string());
 
     async_blocking(move || {
         const SELECT_SWAP_TYPE_BY_UUID: &str = "SELECT swap_type FROM my_swaps WHERE uuid = :uuid;";
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
         let maybe_swap_type = query_single_row(
-            &ctx.sqlite_connection(),
+            &conn,
             SELECT_SWAP_TYPE_BY_UUID,
             &[(":uuid", uuid.as_str())],
             |row| row.get(0),
         )?;
         Ok(maybe_swap_type)
     })
-    .await
+        .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -172,21 +175,24 @@ pub(super) async fn get_taker_swap_data_for_rpc(
 async fn get_swap_data_for_rpc_impl<T: DeserializeOwned + Send + 'static>(
     ctx: &MmArc,
     uuid: &Uuid,
-    _db_id: Option<&str>,
+    db_id: Option<&str>,
 ) -> MmResult<Option<MySwapForRpc<T>>, SqlError> {
     let ctx = ctx.clone();
     let uuid = uuid.to_string();
+    let db_id = db_id.map(|e| e.to_string());
 
     async_blocking(move || {
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
         let swap_data = query_single_row(
-            &ctx.sqlite_connection(),
+            &conn,
             SELECT_MY_SWAP_V2_FOR_RPC_BY_UUID,
             &[(":uuid", uuid.as_str())],
             MySwapForRpc::from_row,
         )?;
         Ok(swap_data)
     })
-    .await
+        .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -313,15 +319,15 @@ async fn get_swap_data_by_uuid_and_type(
                 SavedSwap::Maker(m) => SwapRpcData::MakerV1(m),
                 SavedSwap::Taker(t) => SwapRpcData::TakerV1(t),
             }))
-        },
+        }
         MAKER_SWAP_V2_TYPE => {
             let data = get_maker_swap_data_for_rpc(ctx, &uuid, db_id).await?;
             Ok(data.map(SwapRpcData::MakerV2))
-        },
+        }
         TAKER_SWAP_V2_TYPE => {
             let data = get_taker_swap_data_for_rpc(ctx, &uuid, db_id).await?;
             Ok(data.map(SwapRpcData::TakerV2))
-        },
+        }
         unsupported => MmError::err(GetSwapDataErr::UnsupportedSwapType(unsupported)),
     }
 }
@@ -365,7 +371,7 @@ impl HttpStatusCode for MySwapStatusError {
             MySwapStatusError::NoSwapWithUuid(_) => StatusCode::BAD_REQUEST,
             MySwapStatusError::DbError(_) | MySwapStatusError::UnsupportedSwapType(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
-            },
+            }
         }
     }
 }
@@ -516,7 +522,7 @@ pub(crate) async fn active_swaps_rpc(
             match get_swap_data_by_uuid_and_type(&ctx, None, *uuid, *swap_type).await {
                 Ok(Some(data)) => {
                     statuses.insert(*uuid, data);
-                },
+                }
                 Ok(None) => warn!("Swap {} data doesn't exist in DB", uuid),
                 Err(e) => error!("Error {} while trying to get swap {} data", e, uuid),
             }

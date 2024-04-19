@@ -7,7 +7,8 @@ use derive_more::Display;
 use futures::{FutureExt, TryFutureExt};
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
-#[cfg(test)] use mocktopus::macros::*;
+#[cfg(test)]
+use mocktopus::macros::*;
 use uuid::Uuid;
 
 pub type MyOrdersResult<T> = Result<T, MmError<MyOrdersError>>;
@@ -36,7 +37,8 @@ pub enum MyOrdersError {
 }
 
 pub async fn save_my_new_maker_order(ctx: MmArc, order: &MakerOrder) -> MyOrdersResult<()> {
-    let storage = MyOrdersStorage::new(ctx);
+    // TODO db_id shouldn't be None
+    let storage = MyOrdersStorage::new(ctx, None);
     storage
         .save_new_active_maker_order(order)
         .await
@@ -49,7 +51,8 @@ pub async fn save_my_new_maker_order(ctx: MmArc, order: &MakerOrder) -> MyOrders
 }
 
 pub async fn save_my_new_taker_order(ctx: MmArc, order: &TakerOrder) -> MyOrdersResult<()> {
-    let storage = MyOrdersStorage::new(ctx);
+// TODO db_id
+    let storage = MyOrdersStorage::new(ctx, None);
     storage
         .save_new_active_taker_order(order)
         .await
@@ -62,7 +65,8 @@ pub async fn save_my_new_taker_order(ctx: MmArc, order: &TakerOrder) -> MyOrders
 }
 
 pub async fn save_maker_order_on_update(ctx: MmArc, order: &MakerOrder) -> MyOrdersResult<()> {
-    let storage = MyOrdersStorage::new(ctx);
+    // TODO db_id
+    let storage = MyOrdersStorage::new(ctx, None);
     storage.update_active_maker_order(order).await?;
 
     if order.save_in_history {
@@ -77,7 +81,8 @@ pub fn delete_my_taker_order(ctx: MmArc, order: TakerOrder, reason: TakerOrderCa
         let uuid = order.request.uuid;
         let save_in_history = order.save_in_history;
 
-        let storage = MyOrdersStorage::new(ctx);
+        // TODO db_id
+        let storage = MyOrdersStorage::new(ctx, None);
         storage
             .delete_active_taker_order(uuid)
             .await
@@ -92,7 +97,7 @@ pub fn delete_my_taker_order(ctx: MmArc, order: TakerOrder, reason: TakerOrderCa
                         .await
                         .error_log_with_msg("!save_order_in_history");
                 }
-            },
+            }
         }
 
         if save_in_history {
@@ -113,7 +118,8 @@ pub fn delete_my_maker_order(ctx: MmArc, order: MakerOrder, reason: MakerOrderCa
         let uuid = order_to_save.uuid;
         let save_in_history = order_to_save.save_in_history;
 
-        let storage = MyOrdersStorage::new(ctx);
+        // TODO db_id
+        let storage = MyOrdersStorage::new(ctx, None);
         if order_to_save.was_updated() {
             if let Ok(order_from_file) = storage.load_active_maker_order(order_to_save.uuid).await {
                 order_to_save = order_from_file;
@@ -222,7 +228,7 @@ mod native_impl {
                 FsJsonError::Serializing(serializing) => MyOrdersError::ErrorSerializing(serializing.to_string()),
                 FsJsonError::Deserializing(deserializing) => {
                     MyOrdersError::ErrorDeserializing(deserializing.to_string())
-                },
+                }
             }
         }
     }
@@ -230,10 +236,11 @@ mod native_impl {
     #[derive(Clone)]
     pub struct MyOrdersStorage {
         ctx: MmArc,
+        pub db_id: Option<String>,
     }
 
     impl MyOrdersStorage {
-        pub fn new(ctx: MmArc) -> MyOrdersStorage { MyOrdersStorage { ctx } }
+        pub fn new(ctx: MmArc, db_id: Option<&str>) -> MyOrdersStorage { MyOrdersStorage { ctx, db_id: db_id.map(|e| e.to_string()) } }
     }
 
     #[async_trait]
@@ -315,34 +322,38 @@ mod native_impl {
             filter: &MyOrdersFilter,
             paging_options: Option<&PagingOptions>,
         ) -> MyOrdersResult<RecentOrdersSelectResult> {
-            select_orders_by_filter(&self.ctx.sqlite_connection(), filter, paging_options)
+            let conn = self.ctx.sqlite_connection_v2(self.db_id.as_deref());
+            let conn = conn.lock().unwrap();
+            select_orders_by_filter(&conn, filter, paging_options)
                 .map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
         }
 
         async fn select_order_status(&self, uuid: Uuid) -> MyOrdersResult<String> {
-            select_status_by_uuid(&self.ctx.sqlite_connection(), &uuid)
+            let conn = self.ctx.sqlite_connection_v2(self.db_id.as_deref());
+            let conn = conn.lock().unwrap();
+            select_status_by_uuid(&conn, &uuid)
                 .map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
         }
 
         async fn save_maker_order_in_filtering_history(&self, order: &MakerOrder) -> MyOrdersResult<()> {
-            insert_maker_order(&self.ctx, order.uuid, order).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
+            insert_maker_order(&self.ctx, order.uuid, order, self.db_id.as_deref()).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
         }
 
         async fn save_taker_order_in_filtering_history(&self, order: &TakerOrder) -> MyOrdersResult<()> {
-            insert_taker_order(&self.ctx, order.request.uuid, order)
+            insert_taker_order(&self.ctx, order.request.uuid, order, self.db_id.as_deref())
                 .map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
         }
 
         async fn update_maker_order_in_filtering_history(&self, order: &MakerOrder) -> MyOrdersResult<()> {
-            update_maker_order(&self.ctx, order.uuid, order).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
+            update_maker_order(&self.ctx, order.uuid, order, self.db_id.as_deref()).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
         }
 
         async fn update_order_status_in_filtering_history(&self, uuid: Uuid, status: String) -> MyOrdersResult<()> {
-            update_order_status(&self.ctx, uuid, status).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
+            update_order_status(&self.ctx, uuid, status, self.db_id.as_deref()).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
         }
 
         async fn update_was_taker_in_filtering_history(&self, uuid: Uuid) -> MyOrdersResult<()> {
-            update_was_taker(&self.ctx, uuid).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
+            update_was_taker(&self.ctx, uuid, self.db_id.as_deref()).map_to_mm(|e| MyOrdersError::ErrorSaving(e.to_string()))
         }
     }
 }
@@ -773,7 +784,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_delete_my_maker_order() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
-        let storage = MyOrdersStorage::new(ctx.clone());
+        let storage = MyOrdersStorage::new(ctx.clone(), None);
 
         let maker1 = maker_order_for_test();
 
@@ -786,9 +797,9 @@ mod tests {
             maker1.clone(),
             MakerOrderCancellationReason::InsufficientBalance,
         )
-        .compat()
-        .await
-        .unwrap();
+            .compat()
+            .await
+            .unwrap();
 
         let actual_active_maker_orders = storage
             .load_active_taker_orders()
@@ -809,7 +820,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_delete_my_taker_order() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
-        let storage = MyOrdersStorage::new(ctx.clone());
+        let storage = MyOrdersStorage::new(ctx.clone(), None);
 
         let taker1 = taker_order_for_test();
         let taker2 = TakerOrder {
@@ -867,7 +878,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_load_active_maker_taker_orders() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
-        let storage = MyOrdersStorage::new(ctx.clone());
+        let storage = MyOrdersStorage::new(ctx.clone(), None);
 
         let maker1 = maker_order_for_test();
         let mut maker2 = MakerOrder {
@@ -914,7 +925,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_filtering_history() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
-        let storage = MyOrdersStorage::new(ctx.clone());
+        let storage = MyOrdersStorage::new(ctx.clone(), None);
 
         let maker1 = maker_order_for_test();
         let mut maker2 = MakerOrder {
@@ -964,9 +975,9 @@ mod tests {
             maker_order_to_filtering_history_item(&maker2, "Updated".to_owned(), false).unwrap(),
             taker_order_to_filtering_history_item(&taker1, "MyCustomStatus".to_owned()).unwrap(),
         ]
-        .into_iter()
-        .sorted_by(|x, y| x.uuid.cmp(&y.uuid))
-        .collect();
+            .into_iter()
+            .sorted_by(|x, y| x.uuid.cmp(&y.uuid))
+            .collect();
 
         assert_eq!(actual_items, expected_items);
 

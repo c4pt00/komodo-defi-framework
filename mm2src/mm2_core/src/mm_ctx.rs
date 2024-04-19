@@ -45,6 +45,7 @@ pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 pub type AsyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type SyncSqliteConnectionArc = Arc<Mutex<Connection>>;
+
 /// MarketMaker state, shared between the various MarketMaker threads.
 ///
 /// Every MarketMaker has one and only one instance of `MmCtx`.
@@ -230,7 +231,7 @@ impl MmCtx {
                             rpcport
                         )
                     })?
-            },
+            }
             None => 7783, // Default port if `rpcport` does not exist in the config
         };
         if port < 1000 {
@@ -245,7 +246,7 @@ impl MmCtx {
         } else {
             "127.0.0.1"
         }
-        .to_string();
+            .to_string();
         let ip: IpAddr = try_s!(rpcip.parse());
         Ok(SocketAddr::new(ip, port as u16))
     }
@@ -265,7 +266,7 @@ impl MmCtx {
                         return ERR!("IP address {} must be specified", ip);
                     }
                     Ok(())
-                },
+                }
                 Ok(ServerName::DnsName(_)) => Ok(()),
                 // NOTE: We need to have this wild card since `ServerName` is a non_exhaustive enum.
                 Ok(_) => ERR!("Only IpAddress and DnsName are allowed in `alt_names`"),
@@ -412,10 +413,10 @@ impl MmCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sqlite_conn_opt_v2(&self, db_id: Option<&str>) -> Option<SyncSqliteConnectionArc> {
         if let Some(connections) = self.sqlite_connection_v2.as_option() {
-            let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex().clone());
+            let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex());
             let connections = connections.lock().unwrap();
-            if let Some(connection) = connections.get(&db_id) {
-                return Some(connection.clone());
+            return if let Some(connection) = connections.get(&db_id) {
+                Some(connection.clone())
             } else {
                 let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
                 log_sqlite_file_open_attempt(&sqlite_file_path);
@@ -425,8 +426,9 @@ impl MmCtx {
                 ));
                 let mut store = HashMap::new();
                 store.insert(self.rmd160_hex(), connection.clone());
-                return Some(connection);
-            }
+                drop(connections);
+                Some(connection)
+            };
         };
 
         None
@@ -442,14 +444,14 @@ impl MmCtx {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sqlite_connection_v2(&self, db_id: Option<&str>) -> SyncSqliteConnectionArc {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex().clone());
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex());
         let connections = self
             .sqlite_connection_v2
             .or(&|| panic!("sqlite_connection is not initialized"))
             .lock()
             .unwrap();
-        if let Some(connection) = connections.get(&db_id) {
-            return connection.clone();
+        return if let Some(connection) = connections.get(&db_id) {
+            connection.clone()
         } else {
             let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
             log_sqlite_file_open_attempt(&sqlite_file_path);
@@ -459,8 +461,10 @@ impl MmCtx {
             ));
             let mut store = HashMap::new();
             store.insert(self.rmd160_hex(), connection.clone());
-            return connection;
-        }
+
+            drop(connections);
+            connection
+        };
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -480,6 +484,8 @@ impl MmCtx {
             let connection = Arc::new(Mutex::new(try_s!(Connection::open(sqlite_file_path))));
             let mut store = HashMap::new();
             store.insert(self.rmd160_hex(), connection.clone());
+
+            drop(connections);
             Ok(connection)
         }
     }
@@ -621,7 +627,7 @@ impl MmArc {
                     None => {
                         log::info!("MmCtx was dropped. Stop the loop");
                         break;
-                    },
+                    }
                 }
             }
         };
@@ -655,7 +661,7 @@ impl MmArc {
                     ve.insert(self.weak());
                     try_s!(self.ffi_handle.pin(rid));
                     return Ok(rid);
-                },
+                }
             }
         }
     }
@@ -752,8 +758,8 @@ impl MmFutSpawner {
 
 impl SpawnFuture for MmFutSpawner {
     fn spawn<F>(&self, f: F)
-    where
-        F: Future<Output = ()> + Send + 'static,
+        where
+            F: Future<Output=()> + Send + 'static,
     {
         self.inner.spawn(f)
     }
@@ -761,8 +767,8 @@ impl SpawnFuture for MmFutSpawner {
 
 impl SpawnAbortable for MmFutSpawner {
     fn spawn_with_settings<F>(&self, fut: F, settings: AbortSettings)
-    where
-        F: Future<Output = ()> + Send + 'static,
+        where
+            F: Future<Output=()> + Send + 'static,
     {
         self.inner.spawn_with_settings(fut, settings)
     }
@@ -776,9 +782,9 @@ pub fn from_ctx<T, C>(
     ctx_field: &Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     constructor: C,
 ) -> Result<Arc<T>, String>
-where
-    C: FnOnce() -> Result<T, String>,
-    T: 'static + Send + Sync,
+    where
+        C: FnOnce() -> Result<T, String>,
+        T: 'static + Send + Sync,
 {
     let mut ctx_field = try_s!(ctx_field.lock());
     if let Some(ref ctx) = *ctx_field {
@@ -871,9 +877,9 @@ pub fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
     match sqlite_file_path.canonicalize() {
         Ok(absolute_path) => {
             log::debug!("Trying to open SQLite database file {}", absolute_path.display());
-        },
+        }
         Err(_) => {
             log::debug!("Trying to open SQLite database file {}", sqlite_file_path.display());
-        },
+        }
     }
 }

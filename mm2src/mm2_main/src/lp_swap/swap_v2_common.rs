@@ -106,7 +106,11 @@ pub(super) async fn has_db_record_for(
     let id_str = id.to_string();
     let db_id = db_id.map(|e| e.to_string());
 
-    Ok(async_blocking(move || does_swap_exist(&ctx.sqlite_connection(), &id_str, db_id.as_deref())).await?)
+    Ok(async_blocking(move || {
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
+        does_swap_exist(&conn, &id_str, db_id.as_deref())
+    }).await?)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -130,22 +134,26 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr>(
     event: T::Event,
     db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError>
-where
-    T::Event: DeserializeOwned + Serialize + Send + 'static,
+    where
+        T::Event: DeserializeOwned + Serialize + Send + 'static,
 {
     let id_str = id.to_string();
     let db_id = db_id.map(|e| e.to_string());
 
     async_blocking(move || {
-        let events_json = get_swap_events(&ctx.sqlite_connection(), &id_str, db_id.as_deref())?;
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
+        let events_json = get_swap_events(&conn, &id_str, db_id.as_deref())?;
         let mut events: Vec<T::Event> = serde_json::from_str(&events_json)?;
         events.push(event);
         drop_mutability!(events);
         let serialized_events = serde_json::to_string(&events)?;
-        update_swap_events(&ctx.sqlite_connection(), &id_str, &serialized_events, db_id.as_deref())?;
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
+        update_swap_events(&conn, &id_str, &serialized_events, db_id.as_deref())?;
         Ok(())
     })
-    .await
+        .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -204,10 +212,12 @@ pub(super) async fn get_unfinished_swaps_uuids(
 ) -> MmResult<Vec<Uuid>, SwapStateMachineError> {
     let db_id = db_id.map(|e| e.to_string());
     async_blocking(move || {
-        select_unfinished_swaps_uuids(&ctx.sqlite_connection(), swap_type, db_id.as_deref())
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
+        select_unfinished_swaps_uuids(&conn, swap_type, db_id.as_deref())
             .map_to_mm(|e| SwapStateMachineError::StorageError(e.to_string()))
     })
-    .await
+        .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -236,13 +246,15 @@ pub(super) async fn mark_swap_as_finished(
 ) -> MmResult<(), SwapStateMachineError> {
     let db_id = db_id.map(|e| e.to_string());
     async_blocking(move || {
+        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = conn.lock().unwrap();
         Ok(set_swap_is_finished(
-            &ctx.sqlite_connection(),
+            &conn,
             &id.to_string(),
             db_id.as_deref(),
         )?)
     })
-    .await
+        .await
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -306,7 +318,7 @@ pub(super) async fn acquire_reentrancy_lock_impl(ctx: &MmArc, uuid: Uuid) -> MmR
                     attempts += 1;
                     Timer::sleep(40.).await;
                 }
-            },
+            }
         }
     }
 }
@@ -333,7 +345,7 @@ pub(super) trait GetSwapCoins {
 /// Generic function for upgraded swaps kickstart handling.
 /// It is implemented only for UtxoStandardCoin/UtxoStandardCoin case temporary.
 pub(super) async fn swap_kickstart_handler<
-    T: StorableStateMachine<RecreateCtx = SwapRecreateCtx<UtxoStandardCoin, UtxoStandardCoin>>,
+    T: StorableStateMachine<RecreateCtx=SwapRecreateCtx<UtxoStandardCoin, UtxoStandardCoin>>,
 >(
     ctx: MmArc,
     swap_repr: <T::Storage as StateMachineStorage>::DbRepr,
@@ -356,11 +368,11 @@ pub(super) async fn swap_kickstart_handler<
                     uuid, taker_coin_ticker,
                 );
                 Timer::sleep(1.).await;
-            },
+            }
             Err(e) => {
                 error!("Error {} on {} find attempt", e, taker_coin_ticker);
                 return;
-            },
+            }
         };
     };
 
@@ -375,11 +387,11 @@ pub(super) async fn swap_kickstart_handler<
                     uuid, maker_coin_ticker,
                 );
                 Timer::sleep(1.).await;
-            },
+            }
             Err(e) => {
                 error!("Error {} on {} find attempt", e, maker_coin_ticker);
                 return;
-            },
+            }
         };
     };
 
@@ -391,7 +403,7 @@ pub(super) async fn swap_kickstart_handler<
                 maker_coin_ticker, taker_coin_ticker
             );
             return;
-        },
+        }
     };
 
     let recreate_context = SwapRecreateCtx { maker_coin, taker_coin };
@@ -401,7 +413,7 @@ pub(super) async fn swap_kickstart_handler<
         Err(e) => {
             error!("Error {} on trying to recreate the swap {}", e, uuid);
             return;
-        },
+        }
     };
 
     if let Err(e) = state_machine.kickstart(state).await {
