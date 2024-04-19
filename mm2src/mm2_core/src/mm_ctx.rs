@@ -39,7 +39,9 @@ cfg_native! {
 
 /// Default interval to export and record metrics to log.
 const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
+pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 
+#[cfg(not(target_arch = "wasm32"))]
 pub type AsyncConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
 /// MarketMaker state, shared between the various MarketMaker threads.
 ///
@@ -382,7 +384,7 @@ impl MmCtx {
         Ok(())
     }
 
-    #[cfg(not(target_Arch = "wasm32"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn init_async_sqlite_connection_v2(&self, db_id: Option<&str>) -> Result<(), String> {
         let sqlite_file_path = self.dbdir(db_id).join("KOMODEFI.db");
         log_sqlite_file_open_attempt(&sqlite_file_path);
