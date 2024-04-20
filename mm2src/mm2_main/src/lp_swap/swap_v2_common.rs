@@ -107,7 +107,7 @@ pub(super) async fn has_db_record_for(
     let db_id = db_id.map(|e| e.to_string());
 
     Ok(async_blocking(move || {
-        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = ctx.sqlite_connection(db_id.as_deref());
         let conn = conn.lock().unwrap();
         does_swap_exist(&conn, &id_str, db_id.as_deref())
     })
@@ -142,14 +142,14 @@ where
     let db_id = db_id.map(|e| e.to_string());
 
     async_blocking(move || {
-        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = ctx.sqlite_connection(db_id.as_deref());
         let conn = conn.lock().unwrap();
         let events_json = get_swap_events(&conn, &id_str, db_id.as_deref())?;
         let mut events: Vec<T::Event> = serde_json::from_str(&events_json)?;
         events.push(event);
         drop_mutability!(events);
         let serialized_events = serde_json::to_string(&events)?;
-        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = ctx.sqlite_connection(db_id.as_deref());
         let conn = conn.lock().unwrap();
         update_swap_events(&conn, &id_str, &serialized_events, db_id.as_deref())?;
         Ok(())
@@ -213,7 +213,7 @@ pub(super) async fn get_unfinished_swaps_uuids(
 ) -> MmResult<Vec<Uuid>, SwapStateMachineError> {
     let db_id = db_id.map(|e| e.to_string());
     async_blocking(move || {
-        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = ctx.sqlite_connection(db_id.as_deref());
         let conn = conn.lock().unwrap();
         select_unfinished_swaps_uuids(&conn, swap_type, db_id.as_deref())
             .map_to_mm(|e| SwapStateMachineError::StorageError(e.to_string()))
@@ -247,7 +247,7 @@ pub(super) async fn mark_swap_as_finished(
 ) -> MmResult<(), SwapStateMachineError> {
     let db_id = db_id.map(|e| e.to_string());
     async_blocking(move || {
-        let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+        let conn = ctx.sqlite_connection(db_id.as_deref());
         let conn = conn.lock().unwrap();
         Ok(set_swap_is_finished(&conn, &id.to_string(), db_id.as_deref())?)
     })

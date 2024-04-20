@@ -34,7 +34,7 @@ impl BlockHeaderStorage {
         db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
         let sqlite_connection = ctx
-            .sqlite_connection_res_v2(db_id)
+            .sqlite_connection_res(db_id)
             .map_err(|_| BlockHeaderStorageError::Internal("sqlite_connection is not initialized".to_owned()))?;
 
         Ok(BlockHeaderStorage {

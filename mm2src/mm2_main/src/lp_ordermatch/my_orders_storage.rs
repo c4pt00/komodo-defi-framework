@@ -7,7 +7,8 @@ use derive_more::Display;
 use futures::{FutureExt, TryFutureExt};
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
-#[cfg(test)] use mocktopus::macros::*;
+#[cfg(test)]
+use mocktopus::macros::*;
 use uuid::Uuid;
 
 pub type MyOrdersResult<T> = Result<T, MmError<MyOrdersError>>;
@@ -96,7 +97,7 @@ pub fn delete_my_taker_order(ctx: MmArc, order: TakerOrder, reason: TakerOrderCa
                         .await
                         .error_log_with_msg("!save_order_in_history");
                 }
-            },
+            }
         }
 
         if save_in_history {
@@ -227,7 +228,7 @@ mod native_impl {
                 FsJsonError::Serializing(serializing) => MyOrdersError::ErrorSerializing(serializing.to_string()),
                 FsJsonError::Deserializing(deserializing) => {
                     MyOrdersError::ErrorDeserializing(deserializing.to_string())
-                },
+                }
             }
         }
     }
@@ -326,14 +327,14 @@ mod native_impl {
             filter: &MyOrdersFilter,
             paging_options: Option<&PagingOptions>,
         ) -> MyOrdersResult<RecentOrdersSelectResult> {
-            let conn = self.ctx.sqlite_connection_v2(self.db_id.as_deref());
+            let conn = self.ctx.sqlite_connection(self.db_id.as_deref());
             let conn = conn.lock().unwrap();
             select_orders_by_filter(&conn, filter, paging_options)
                 .map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
         }
 
         async fn select_order_status(&self, uuid: Uuid) -> MyOrdersResult<String> {
-            let conn = self.ctx.sqlite_connection_v2(self.db_id.as_deref());
+            let conn = self.ctx.sqlite_connection(self.db_id.as_deref());
             let conn = conn.lock().unwrap();
             select_status_by_uuid(&conn, &uuid).map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
         }
@@ -411,7 +412,7 @@ mod wasm_impl {
     }
 
     impl MyOrdersStorage {
-        pub fn new(ctx: MmArc) -> MyOrdersStorage {
+        pub fn new(ctx: MmArc, _db_id: Option<&str>) -> MyOrdersStorage {
             MyOrdersStorage {
                 ctx: OrdermatchContext::from_ctx(&ctx).expect("!OrdermatchContext::from_ctx"),
             }
@@ -804,9 +805,9 @@ mod tests {
             maker1.clone(),
             MakerOrderCancellationReason::InsufficientBalance,
         )
-        .compat()
-        .await
-        .unwrap();
+            .compat()
+            .await
+            .unwrap();
 
         let actual_active_maker_orders = storage
             .load_active_taker_orders()
@@ -982,9 +983,9 @@ mod tests {
             maker_order_to_filtering_history_item(&maker2, "Updated".to_owned(), false).unwrap(),
             taker_order_to_filtering_history_item(&taker1, "MyCustomStatus".to_owned()).unwrap(),
         ]
-        .into_iter()
-        .sorted_by(|x, y| x.uuid.cmp(&y.uuid))
-        .collect();
+            .into_iter()
+            .sorted_by(|x, y| x.uuid.cmp(&y.uuid))
+            .collect();
 
         assert_eq!(actual_items, expected_items);
 

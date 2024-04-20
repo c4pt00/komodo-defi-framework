@@ -3,7 +3,6 @@ use crate::mm2::lp_ordermatch::new_protocol::{MakerOrderUpdated, PubkeyKeepAlive
 use coins::{MmCoin, TestCoin};
 use common::{block_on, executor::spawn};
 use crypto::privkey::key_pair_from_seed;
-use db_common::sqlite::rusqlite::Connection;
 use futures::{channel::mpsc, StreamExt};
 use mm2_core::mm_ctx::{MmArc, MmCtx};
 use mm2_libp2p::AdexBehaviourCmd;
@@ -15,7 +14,6 @@ use rand::{seq::SliceRandom, thread_rng, Rng};
 use secp256k1::PublicKey;
 use std::collections::HashSet;
 use std::iter::{self, FromIterator};
-use std::sync::Mutex;
 
 #[test]
 fn test_match_maker_order_and_taker_request() {
@@ -1044,8 +1042,7 @@ fn test_cancel_by_single_coin() {
     let ctx = mm_ctx_with_iguana(None);
     let rx = prepare_for_cancel_by(&ctx);
 
-    let connection = Connection::open_in_memory().unwrap();
-    let _ = ctx.sqlite_connection.pin(Arc::new(Mutex::new(connection)));
+    let _ = ctx.init_sqlite_connection_for_test(None);
 
     delete_my_maker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
     delete_my_taker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
@@ -1063,8 +1060,7 @@ fn test_cancel_by_pair() {
     let ctx = mm_ctx_with_iguana(None);
     let rx = prepare_for_cancel_by(&ctx);
 
-    let connection = Connection::open_in_memory().unwrap();
-    let _ = ctx.sqlite_connection.pin(Arc::new(Mutex::new(connection)));
+    let _ = ctx.init_sqlite_connection_for_test(None);
 
     delete_my_maker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
     delete_my_taker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
@@ -1086,8 +1082,7 @@ fn test_cancel_by_all() {
     let ctx = mm_ctx_with_iguana(None);
     let rx = prepare_for_cancel_by(&ctx);
 
-    let connection = Connection::open_in_memory().unwrap();
-    let _ = ctx.sqlite_connection.pin(Arc::new(Mutex::new(connection)));
+    let _ = ctx.init_sqlite_connection_for_test(None);
 
     delete_my_maker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
     delete_my_taker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));

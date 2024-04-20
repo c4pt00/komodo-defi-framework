@@ -250,7 +250,7 @@ impl StateMachineStorage for TakerSwapStorage {
         let db_id = self.db_id.clone();
 
         async_blocking(move || {
-            let conn = ctx.sqlite_connection_v2(db_id.as_deref());
+            let conn = ctx.sqlite_connection(db_id.as_deref());
             let conn = conn.lock().unwrap();
             Ok(conn.query_row(
                 SELECT_MY_SWAP_V2_BY_UUID,

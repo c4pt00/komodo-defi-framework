@@ -1014,8 +1014,10 @@ pub fn mm_ctx_with_custom_db_with_conf(conf: Option<Json>) -> MmArc {
     }
     let ctx = ctx_builder.into_mm_arc();
 
-    let connection = Connection::open_in_memory().unwrap();
-    let _ = ctx.sqlite_connection.pin(Arc::new(Mutex::new(connection)));
+    let mut connections = HashMap::new();
+    let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
+    connections.insert(ctx.rmd160_hex(), connection);
+    let _ = ctx.sqlite_connection.pin(Arc::new(Mutex::new(connections)));
 
     let connection = Connection::open_in_memory().unwrap();
     let _ = ctx.shared_sqlite_conn.pin(Arc::new(Mutex::new(connection)));
@@ -1044,6 +1046,7 @@ pub struct RaiiKill {
     pub handle: Child,
     running: bool,
 }
+
 impl RaiiKill {
     pub fn from_handle(handle: Child) -> RaiiKill { RaiiKill { handle, running: true } }
     pub fn running(&mut self) -> bool {
@@ -1059,6 +1062,7 @@ impl RaiiKill {
         }
     }
 }
+
 impl Drop for RaiiKill {
     fn drop(&mut self) {
         // The cached `running` check might provide some protection against killing a wrong process under the same PID,
@@ -1079,6 +1083,7 @@ pub struct RaiiDump {
     #[cfg(not(target_arch = "wasm32"))]
     pub log_path: PathBuf,
 }
+
 #[cfg(not(target_arch = "wasm32"))]
 impl Drop for RaiiDump {
     fn drop(&mut self) {
@@ -2122,7 +2127,7 @@ pub async fn init_lightning(mm: &MarketMakerIt, coin: &str) -> Json {
 
 pub async fn init_lightning_status(mm: &MarketMakerIt, task_id: u64) -> Json {
     let request = mm
-        .rpc(&json! ({
+        .rpc(&json!({
             "userpass": mm.userpass,
             "method": "task::enable_lightning::status",
             "mmrpc": "2.0",
@@ -2796,7 +2801,7 @@ pub async fn max_maker_vol(mm: &MarketMakerIt, coin: &str) -> RpcResponse {
 }
 
 pub async fn disable_coin(mm: &MarketMakerIt, coin: &str, force_disable: bool) -> DisableResult {
-    let req = json! ({
+    let req = json!({
         "userpass": mm.userpass,
         "method": "disable_coin",
         "coin": coin,
@@ -2812,7 +2817,7 @@ pub async fn disable_coin(mm: &MarketMakerIt, coin: &str, force_disable: bool) -
 /// Returns a `DisableCoinError` error.
 pub async fn disable_coin_err(mm: &MarketMakerIt, coin: &str, force_disable: bool) -> DisableCoinError {
     let disable = mm
-        .rpc(&json! ({
+        .rpc(&json!({
             "userpass": mm.userpass,
             "method": "disable_coin",
             "coin": coin,
@@ -2826,7 +2831,7 @@ pub async fn disable_coin_err(mm: &MarketMakerIt, coin: &str, force_disable: boo
 
 pub async fn assert_coin_not_found_on_balance(mm: &MarketMakerIt, coin: &str) {
     let balance = mm
-        .rpc(&json! ({
+        .rpc(&json!({
             "userpass": mm.userpass,
             "method": "my_balance",
             "coin": coin
@@ -3159,7 +3164,7 @@ pub async fn test_qrc20_history_impl(local_start: Option<LocalStart>) {
     ]);
 
     let mut mm = MarketMakerIt::start_async(
-        json! ({
+        json!({
             "gui": "nogui",
             "netid": 9998,
             "myipaddr": env::var ("BOB_TRADE_IP") .ok(),

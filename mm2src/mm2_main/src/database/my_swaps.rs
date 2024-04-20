@@ -73,7 +73,7 @@ pub fn insert_new_swap(
     db_id: Option<&str>,
 ) -> SqlResult<()> {
     debug!("Inserting new swap {} to the SQLite database", uuid);
-    let conn = ctx.sqlite_connection_v2(db_id);
+    let conn = ctx.sqlite_connection(db_id);
     let conn = conn.lock().unwrap();
     let params = [my_coin, other_coin, uuid, started_at, &swap_type.to_string()];
     conn.execute(INSERT_MY_SWAP, params).map(|_| ())
@@ -124,7 +124,7 @@ const INSERT_MY_SWAP_V2: &str = r#"INSERT INTO my_swaps (
 );"#;
 
 pub fn insert_new_swap_v2(ctx: &MmArc, params: &[(&str, &dyn ToSql)], db_id: Option<&str>) -> SqlResult<()> {
-    let conn = ctx.sqlite_connection_v2(db_id);
+    let conn = ctx.sqlite_connection(db_id);
     let conn = conn.lock().unwrap();
     conn.execute(INSERT_MY_SWAP_V2, params).map(|_| ())
 }

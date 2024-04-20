@@ -406,7 +406,7 @@ fn fix_shared_dbdir(ctx: &MmCtx) -> MmInitResult<()> {
 #[cfg(not(target_arch = "wasm32"))]
 fn migrate_db(ctx: &MmArc, db_id: Option<&str>) -> MmInitResult<()> {
     let migration_num_path = ctx.dbdir(db_id).join(".migration");
-    let mut current_migration = match std::fs::read(&migration_num_path) {
+    let mut current_migration = match fs::read(&migration_num_path) {
         Ok(bytes) => {
             let mut num_bytes = [0; 8];
             if bytes.len() == 8 {
@@ -469,8 +469,6 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
         for db_id in db_ids.iter() {
             fix_directories(&ctx, Some(db_id))?;
             ctx.init_sqlite_connection(Some(db_id))
-                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-            ctx.init_sqlite_connection_v2(Some(db_id))
                 .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
             ctx.init_shared_sqlite_conn()
                 .map_to_mm(MmInitError::ErrorSqliteInitializing)?;

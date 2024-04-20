@@ -104,7 +104,7 @@ mod native_impl {
             paging_options: Option<&PagingOptions>,
             db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            let conn = self.ctx.sqlite_connection_v2(Some(db_id));
+            let conn = self.ctx.sqlite_connection(Some(db_id));
             let conn = conn.lock().unwrap();
             Ok(select_uuids_by_my_swaps_filter(&conn, filter, paging_options, db_id)?)
         }
