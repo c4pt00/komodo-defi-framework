@@ -463,21 +463,16 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let db_ids = find_unique_account_ids_any(&ctx)
+        fix_directories(&ctx, None)?;
+        ctx.init_sqlite_connection(None)
+            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        ctx.init_shared_sqlite_conn()
+            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        ctx.init_async_sqlite_connection(None)
             .await
-            .map_to_mm(MmInitError::Internal)?;
-        for db_id in db_ids.iter() {
-            fix_directories(&ctx, Some(db_id))?;
-            ctx.init_sqlite_connection(Some(db_id))
-                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-            ctx.init_shared_sqlite_conn()
-                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-            ctx.init_async_sqlite_connection(Some(db_id))
-                .await
-                .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-            init_and_migrate_sql_db(&ctx, Some(db_id)).await?;
-            migrate_db(&ctx, Some(db_id))?;
-        }
+            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        init_and_migrate_sql_db(&ctx, None).await?;
+        migrate_db(&ctx, None)?;
     }
 
     init_message_service(&ctx).await?;
