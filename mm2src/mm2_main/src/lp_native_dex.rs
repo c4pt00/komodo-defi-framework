@@ -63,10 +63,8 @@ cfg_native! {
     use rustls_pemfile as pemfile;
 }
 
-#[path = "lp_init/init_context.rs"]
-mod init_context;
-#[path = "lp_init/init_hw.rs"]
-pub mod init_hw;
+#[path = "lp_init/init_context.rs"] mod init_context;
+#[path = "lp_init/init_hw.rs"] pub mod init_hw;
 
 cfg_wasm32! {
     use mm2_net::wasm_event_stream::handle_worker_stream;
@@ -124,9 +122,9 @@ pub type MmInitResult<T> = Result<T, MmError<MmInitError>>;
 #[derive(Clone, Debug, Display, Serialize)]
 pub enum P2PInitError {
     #[display(
-    fmt = "Invalid WSS key/cert at {:?}. The file must contain {}'",
-    path,
-    expected_format
+        fmt = "Invalid WSS key/cert at {:?}. The file must contain {}'",
+        path,
+        expected_format
     )]
     InvalidWssCert { path: PathBuf, expected_format: String },
     #[display(fmt = "Error deserializing '{}' config field: {}", field, error)]
@@ -224,7 +222,7 @@ impl From<P2PInitError> for MmInitError {
         match e {
             P2PInitError::ErrorDeserializingConfig { field, error } => {
                 MmInitError::ErrorDeserializingConfig { field, error }
-            }
+            },
             P2PInitError::FieldNotFoundInConfig { field } => MmInitError::FieldNotFoundInConfig { field },
             P2PInitError::Internal(e) => MmInitError::Internal(e),
             other => MmInitError::P2PError(other),
@@ -242,7 +240,7 @@ impl From<OrdermatchInitError> for MmInitError {
         match e {
             OrdermatchInitError::ErrorDeserializingConfig { field, error } => {
                 MmInitError::ErrorDeserializingConfig { field, error }
-            }
+            },
             OrdermatchInitError::Internal(internal) => MmInitError::Internal(internal),
         }
     }
@@ -253,7 +251,7 @@ impl From<WalletInitError> for MmInitError {
         match e {
             WalletInitError::ErrorDeserializingConfig { field, error } => {
                 MmInitError::ErrorDeserializingConfig { field, error }
-            }
+            },
             other => MmInitError::WalletInitError(other.to_string()),
         }
     }
@@ -264,7 +262,7 @@ impl From<InitMessageServiceError> for MmInitError {
         match e {
             InitMessageServiceError::ErrorDeserializingConfig { field, error } => {
                 MmInitError::ErrorDeserializingConfig { field, error }
-            }
+            },
         }
     }
 }
@@ -417,7 +415,7 @@ fn migrate_db(ctx: &MmArc, db_id: Option<&str>) -> MmInitResult<()> {
             } else {
                 0
             }
-        }
+        },
         Err(_) => 0,
     };
 
@@ -456,7 +454,7 @@ fn init_wasm_event_streaming(ctx: &MmArc) {
 }
 
 pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
-    init_ordermatch_context(&ctx)?;
+    init_ordermatch_context(&ctx, None)?;
     init_p2p(ctx.clone()).await?;
 
     if !CryptoCtx::is_init(&ctx)? {
@@ -632,7 +630,7 @@ pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
             connected_peers_count as f64
         );
     })
-        .await;
+    .await;
     let (cmd_tx, event_rx, peer_id) = spawn_result?;
     ctx.peer_id.pin(peer_id.to_string()).map_to_mm(P2PInitError::Internal)?;
     let p2p_context = P2PContext::new(cmd_tx);
@@ -715,8 +713,8 @@ fn light_node_type(ctx: &MmArc) -> P2PResult<NodeType> {
 /// Returns non-empty vector of keys/certs or an error.
 #[cfg(not(target_arch = "wasm32"))]
 fn extract_cert_from_file<T, P>(path: PathBuf, parser: P, expected_format: String) -> P2PResult<Vec<T>>
-    where
-        P: Fn(&mut dyn io::BufRead) -> Result<Vec<T>, io::Error>,
+where
+    P: Fn(&mut dyn io::BufRead) -> Result<Vec<T>, io::Error>,
 {
     let certfile = fs::File::open(path.as_path()).map_to_mm(|e| P2PInitError::ErrorReadingCertFile {
         path: path.clone(),
@@ -753,14 +751,14 @@ fn wss_certs(ctx: &MmArc) -> P2PResult<Option<WssCerts>> {
         pemfile::pkcs8_private_keys,
         "Private key, DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format".to_owned(),
     )
-        // or try to extract all PKCS1 private keys
-        .or_else(|_| {
-            extract_cert_from_file(
-                certs.server_priv_key.clone(),
-                pemfile::rsa_private_keys,
-                "Private key, DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format".to_owned(),
-            )
-        })?;
+    // or try to extract all PKCS1 private keys
+    .or_else(|_| {
+        extract_cert_from_file(
+            certs.server_priv_key.clone(),
+            pemfile::rsa_private_keys,
+            "Private key, DER-encoded ASN.1 in either PKCS#8 or PKCS#1 format".to_owned(),
+        )
+    })?;
     // `extract_cert_from_file` returns either non-empty vector or an error.
     let server_priv_key = rustls::PrivateKey(server_priv_keys.remove(0));
 
@@ -769,9 +767,9 @@ fn wss_certs(ctx: &MmArc) -> P2PResult<Option<WssCerts>> {
         pemfile::certs,
         "Certificate, DER-encoded X.509 format".to_owned(),
     )?
-        .into_iter()
-        .map(rustls::Certificate)
-        .collect();
+    .into_iter()
+    .map(rustls::Certificate)
+    .collect();
 
     Ok(Some(WssCerts { server_priv_key, certs }))
 }

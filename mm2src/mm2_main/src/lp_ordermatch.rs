@@ -2735,7 +2735,8 @@ struct OrdermatchContext {
     ordermatch_db: ConstructibleDb<OrdermatchDb>,
 }
 
-pub fn init_ordermatch_context(ctx: &MmArc) -> OrdermatchInitResult<()> {
+#[allow(unused)]
+pub fn init_ordermatch_context(ctx: &MmArc, db_id: Option<&str>) -> OrdermatchInitResult<()> {
     // Helper
     #[derive(Deserialize)]
     struct CoinConf {
@@ -2768,7 +2769,7 @@ pub fn init_ordermatch_context(ctx: &MmArc) -> OrdermatchInitResult<()> {
         orderbook_tickers,
         original_tickers,
         #[cfg(target_arch = "wasm32")]
-        ordermatch_db: ConstructibleDb::new(ctx, None),
+        ordermatch_db: ConstructibleDb::new(ctx, db_id),
     };
 
     from_ctx(&ctx.ordermatch_ctx, move || Ok(ordermatch_context))
