@@ -139,7 +139,7 @@ macro_rules! try_tx_fus {
                 return Box::new(futures01::future::err(crate::TransactionErr::TxRecoverable(
                     TransactionEnum::from($tx),
                     ERRL!("{:?}", err),
-                )))
+                )));
             },
         }
     };
@@ -156,7 +156,7 @@ macro_rules! try_tx_s {
                     file!(),
                     line!(),
                     err
-                )))
+                )));
             },
         }
     };
@@ -167,7 +167,7 @@ macro_rules! try_tx_s {
                 return Err(crate::TransactionErr::TxRecoverable(
                     TransactionEnum::from($tx),
                     format!("{}:{}] {:?}", file!(), line!(), err),
-                ))
+                ));
             },
         }
     };
@@ -208,6 +208,7 @@ pub mod lp_price;
 pub mod watcher_common;
 
 pub mod coin_errors;
+
 use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut};
 
 #[doc(hidden)]
@@ -215,6 +216,7 @@ use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut};
 pub mod coins_tests;
 
 pub mod eth;
+
 use eth::GetValidEthWithdrawAddError;
 use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetailsErr, EthTxFeeDetails,
           GetEthAddressError, SignedEthTx};
@@ -224,6 +226,7 @@ pub mod hd_confirm_address;
 pub mod hd_pubkey;
 
 pub mod hd_wallet;
+
 use hd_wallet::{HDAccountAddressId, HDAddress};
 
 pub mod hd_wallet_storage;
@@ -232,9 +235,11 @@ pub mod hd_wallet_storage;
 pub mod my_tx_history_v2;
 
 pub mod qrc20;
+
 use qrc20::{qrc20_coin_with_policy, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
 
 pub mod rpc_command;
+
 use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskManagerShared},
                   init_account_balance::{AccountBalanceTaskManager, AccountBalanceTaskManagerShared},
                   init_create_account::{CreateAccountTaskManager, CreateAccountTaskManagerShared},
@@ -242,12 +247,14 @@ use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskM
                   init_withdraw::{WithdrawTaskManager, WithdrawTaskManagerShared}};
 
 pub mod tendermint;
+
 use tendermint::{CosmosTransaction, CustomTendermintMsgType, TendermintCoin, TendermintFeeDetails,
                  TendermintProtocolInfo, TendermintToken, TendermintTokenProtocolInfo};
 
 #[doc(hidden)]
 #[allow(unused_variables)]
 pub mod test_coin;
+
 pub use test_coin::TestCoin;
 
 pub mod tx_history_storage;
@@ -261,6 +268,7 @@ pub mod tx_history_storage;
     not(target_arch = "wasm32")
 ))]
 pub mod solana;
+
 #[cfg(all(
     feature = "enable-solana",
     not(target_os = "ios"),
@@ -277,6 +285,7 @@ pub use solana::spl::SplToken;
 pub use solana::{SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
 
 pub mod utxo;
+
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
 use utxo::qtum::{self, qtum_coin_with_policy, Qrc20AddressError, QtumCoin, QtumDelegationOps, QtumDelegationRequest,
                  QtumStakingInfosDetails, ScriptHashTypeNotSupported};
@@ -289,10 +298,12 @@ use utxo::UtxoActivationParams;
 use utxo::{BlockchainNetwork, GenerateTxError, UtxoFeeDetails, UtxoTx};
 
 pub mod nft;
+
 use nft::nft_errors::GetNftInfoError;
 use script::Script;
 
 pub mod z_coin;
+
 use crate::coin_errors::ValidatePaymentResult;
 use crate::utxo::swap_proto_v2_scripts;
 use crate::utxo::utxo_common::{payment_script, WaitForOutputSpendErr};
@@ -4096,11 +4107,11 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
         CoinProtocol::LIGHTNING { .. } => return ERR!("Lightning protocol is not supported by lp_coininit"),
         #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
         CoinProtocol::SOLANA => {
-            return ERR!("Solana protocol is not supported by lp_coininit - use enable_solana_with_tokens instead")
+            return ERR!("Solana protocol is not supported by lp_coininit - use enable_solana_with_tokens instead");
         },
         #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
         CoinProtocol::SPLTOKEN { .. } => {
-            return ERR!("SplToken protocol is not supported by lp_coininit - use enable_spl instead")
+            return ERR!("SplToken protocol is not supported by lp_coininit - use enable_spl instead");
         },
     };
 
@@ -4144,7 +4155,7 @@ pub async fn lp_register_coin(
     let mut coins = cctx.coins.lock().await;
     match coins.raw_entry_mut().from_key(&ticker) {
         RawEntryMut::Occupied(_oe) => {
-            return MmError::err(RegisterCoinError::CoinIsInitializedAlready { coin: ticker.clone() })
+            return MmError::err(RegisterCoinError::CoinIsInitializedAlready { coin: ticker.clone() });
         },
         RawEntryMut::Vacant(ve) => ve.insert(ticker.clone(), MmCoinStruct::new(coin.clone())),
     };
@@ -4197,19 +4208,16 @@ pub async fn find_unique_account_ids_active(ctx: &MmArc) -> Result<HashSet<Strin
     find_unique_account_ids(ctx, true).await
 }
 
-// TODO: remove early return and cfg
-#[allow(unused)]
 async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
     // Using a HashSet to ensure uniqueness efficiently
     let mut account_ids = HashSet::new();
-    // Add default wallet pubkey
+    // Add default wallet pubkey as coin.account_db_id() will return None by default
     account_ids.insert(ctx.rmd160_hex());
 
     let cctx = try_s!(CoinsContext::from_ctx(ctx));
     let coins = cctx.coins.lock().await;
     let coins = coins.values().collect::<Vec<_>>();
 
-    #[cfg(not(target_arch = "wasm32"))]
     for coin in coins.iter() {
         if let Some(account) = coin.inner.account_db_id() {
             if active_only && coin.is_available() {
@@ -4224,7 +4232,6 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
         }
     }
 
-    common::log::info!("coin account_ids=({account_ids:?})");
     Ok(account_ids)
 }
 
@@ -4362,7 +4369,7 @@ pub async fn remove_delegation(ctx: MmArc, req: RemoveDelegateRequest) -> Delega
         _ => {
             return MmError::err(DelegationError::CoinDoesntSupportDelegation {
                 coin: coin.ticker().to_string(),
-            })
+            });
         },
     }
 }
@@ -4374,7 +4381,7 @@ pub async fn get_staking_infos(ctx: MmArc, req: GetStakingInfosRequest) -> Staki
         _ => {
             return MmError::err(StakingInfosError::CoinDoesntSupportStakingInfos {
                 coin: coin.ticker().to_string(),
-            })
+            });
         },
     }
 }
@@ -4387,7 +4394,7 @@ pub async fn add_delegation(ctx: MmArc, req: AddDelegateRequest) -> DelegationRe
         _ => {
             return MmError::err(DelegationError::CoinDoesntSupportDelegation {
                 coin: coin.ticker().to_string(),
-            })
+            });
         },
     };
     match req.staking_details {
