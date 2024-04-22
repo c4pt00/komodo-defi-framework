@@ -63,9 +63,9 @@ pub enum UtxoCoinBuildError {
     ErrorDetectingDecimals(String),
     InvalidBlockchainNetwork(String),
     #[display(
-    fmt = "Failed to connect to at least 1 of {:?} in {} seconds.",
-    electrum_servers,
-    seconds
+        fmt = "Failed to connect to at least 1 of {:?} in {} seconds.",
+        electrum_servers,
+        seconds
     )]
     FailedToConnectToElectrums {
         electrum_servers: Vec<ElectrumRpcRequest>,
@@ -80,7 +80,7 @@ pub enum UtxoCoinBuildError {
     HwContextNotInitialized,
     HDWalletStorageError(HDWalletStorageError),
     #[display(
-    fmt = "Coin doesn't support Trezor hardware wallet. Please consider adding the 'trezor_coin' field to the coins config"
+        fmt = "Coin doesn't support Trezor hardware wallet. Please consider adding the 'trezor_coin' field to the coins config"
     )]
     CoinDoesntSupportTrezor,
     BlockHeaderStorageError(BlockHeaderStorageError),
@@ -134,7 +134,7 @@ impl From<keys::Error> for UtxoCoinBuildError {
 
 #[async_trait]
 pub trait UtxoCoinBuilder:
-UtxoFieldsWithIguanaSecretBuilder + UtxoFieldsWithGlobalHDBuilder + UtxoFieldsWithHardwareWalletBuilder
+    UtxoFieldsWithIguanaSecretBuilder + UtxoFieldsWithGlobalHDBuilder + UtxoFieldsWithHardwareWalletBuilder
 {
     type ResultCoin;
     type Error: NotMmError;
@@ -148,7 +148,7 @@ UtxoFieldsWithIguanaSecretBuilder + UtxoFieldsWithGlobalHDBuilder + UtxoFieldsWi
             PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => self.build_utxo_fields_with_iguana_secret(priv_key).await,
             PrivKeyBuildPolicy::GlobalHDAccount(global_hd_ctx) => {
                 self.build_utxo_fields_with_global_hd(global_hd_ctx).await
-            }
+            },
             PrivKeyBuildPolicy::Trezor => self.build_utxo_fields_with_trezor().await,
         }
     }
@@ -229,8 +229,8 @@ async fn build_utxo_coin_fields_with_conf_and_policy<Builder>(
     conf: UtxoCoinConf,
     priv_key_policy: PrivKeyPolicy<KeyPair>,
 ) -> UtxoCoinBuildResult<UtxoCoinFields>
-    where
-        Builder: UtxoCoinBuilderCommonOps + Sync + ?Sized,
+where
+    Builder: UtxoCoinBuilderCommonOps + Sync + ?Sized,
 {
     let key_pair = priv_key_policy.activated_key_or_err()?;
     let addr_format = builder.address_format()?;
@@ -241,9 +241,9 @@ async fn build_utxo_coin_fields_with_conf_and_policy<Builder>(
         conf.address_prefixes.clone(),
         conf.bech32_hrp.clone(),
     )
-        .as_pkh()
-        .build()
-        .map_to_mm(UtxoCoinBuildError::Internal)?;
+    .as_pkh()
+    .build()
+    .map_to_mm(UtxoCoinBuildError::Internal)?;
 
     let my_script_pubkey = output_script(&my_address).map(|script| script.to_bytes())?;
     let derivation_method = DerivationMethod::SingleAddress(my_address);
@@ -440,7 +440,7 @@ pub trait UtxoCoinBuilderCommonOps {
                 } else {
                     from_req
                 }
-            }
+            },
             None => format_from_conf,
         };
 
@@ -504,7 +504,7 @@ pub trait UtxoCoinBuilderCommonOps {
                         .map_to_mm(UtxoCoinBuildError::ErrorDetectingFeeMethod)?,
                 };
                 TxFee::Dynamic(fee_method)
-            }
+            },
             Some(fee) => TxFee::FixedPerKb(fee),
         };
         Ok(tx_fee)
@@ -534,7 +534,7 @@ pub trait UtxoCoinBuilderCommonOps {
                     let native = self.native_client()?;
                     Ok(UtxoRpcClientEnum::Native(native))
                 }
-            }
+            },
             UtxoRpcMode::Electrum { servers } => {
                 let electrum = self
                     .electrum_client(
@@ -545,7 +545,7 @@ pub trait UtxoCoinBuilderCommonOps {
                     )
                     .await?;
                 Ok(UtxoRpcClientEnum::Electrum(electrum))
-            }
+            },
         }
     }
 
@@ -580,9 +580,8 @@ pub trait UtxoCoinBuilderCommonOps {
             None => None,
         };
         let storage_ticker = self.ticker().replace('-', "_");
-        let block_headers_storage =
-            BlockHeaderStorage::new_from_ctx(self.ctx(), storage_ticker, db_id.as_deref())
-                .map_to_mm(|e| UtxoCoinBuildError::Internal(e.to_string()))?;
+        let block_headers_storage = BlockHeaderStorage::new_from_ctx(self.ctx(), storage_ticker, db_id.as_deref())
+            .map_to_mm(|e| UtxoCoinBuildError::Internal(e.to_string()))?;
         if !block_headers_storage.is_initialized_for().await? {
             block_headers_storage.init().await?;
         }
@@ -690,14 +689,14 @@ pub trait UtxoCoinBuilderCommonOps {
                                 .as_str()
                                 .or_mm_err(|| UtxoConfError::CurrencyNameIsNotSet)?;
                             (name, false)
-                        }
+                        },
                     }
                 };
                 let data_dir = coin_daemon_data_dir(name, is_asset_chain);
                 let confname = format!("{}.conf", name);
 
                 return Ok(data_dir.join(&confname[..]));
-            }
+            },
         };
 
         let (confpath, rel_to_home) = match declared_confpath.strip_prefix("~/") {
@@ -830,7 +829,7 @@ fn read_native_mode_conf(
                 filename.as_ref().display(),
                 err
             );
-        }
+        },
     };
     let rpc_port = match read_property(&conf, network, "rpcport") {
         Some(port) => port.parse::<u16>().ok(),
@@ -888,12 +887,12 @@ fn spawn_electrum_version_loop<Spawner: SpawnAbortable>(
             match event {
                 ElectrumProtoVerifierEvent::Connected(electrum_addr) => {
                     check_electrum_server_version(weak_client.clone(), client_name.clone(), electrum_addr).await
-                }
+                },
                 ElectrumProtoVerifierEvent::Disconnected(electrum_addr) => {
                     if let Some(client) = weak_client.upgrade() {
                         client.reset_protocol_version(&electrum_addr).await.error_log();
                     }
-                }
+                },
             }
         }
     };
@@ -928,7 +927,7 @@ async fn check_electrum_server_version(
                     remove_server(client, &electrum_addr).await;
                 };
                 return;
-            }
+            },
         };
 
         // check if the version is allowed
@@ -938,7 +937,7 @@ async fn check_electrum_server_version(
                 error!("Error on parse protocol_version: {:?}", e);
                 remove_server(client, &electrum_addr).await;
                 return;
-            }
+            },
         };
 
         if !available_protocols.contains(&actual_version) {
@@ -976,10 +975,10 @@ async fn wait_for_protocol_version_checked(client: &ElectrumClientImpl) -> Resul
         }
         Retry(())
     })
-        .repeat_every_secs(0.5)
-        .attempts(10)
-        .await
-        .map_err(|_exceed| ERRL!("Failed protocol version verifying of at least 1 of Electrums in 5 seconds."))
-        // Flatten `Result< Result<(), String>, String >`
-        .flatten()
+    .repeat_every_secs(0.5)
+    .attempts(10)
+    .await
+    .map_err(|_exceed| ERRL!("Failed protocol version verifying of at least 1 of Electrums in 5 seconds."))
+    // Flatten `Result< Result<(), String>, String >`
+    .flatten()
 }
