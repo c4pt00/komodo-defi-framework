@@ -1,9 +1,11 @@
-#[cfg(not(target_arch = "wasm32"))] mod sql_block_header_storage;
+#[cfg(not(target_arch = "wasm32"))]
+mod sql_block_header_storage;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use sql_block_header_storage::SqliteBlockHeadersStorage;
 
-#[cfg(target_arch = "wasm32")] mod wasm;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
 
 #[cfg(target_arch = "wasm32")]
 pub use wasm::IDBBlockHeadersStorage;
@@ -29,7 +31,7 @@ impl Debug for BlockHeaderStorage {
 impl BlockHeaderStorage {
     #[cfg(all(not(test), not(target_arch = "wasm32")))]
     pub(crate) fn new_from_ctx(
-        ctx: MmArc,
+        ctx: &MmArc,
         ticker: String,
         db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
@@ -47,7 +49,7 @@ impl BlockHeaderStorage {
 
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn new_from_ctx(
-        ctx: MmArc,
+        ctx: &MmArc,
         ticker: String,
         db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
@@ -58,7 +60,7 @@ impl BlockHeaderStorage {
 
     #[cfg(all(test, not(target_arch = "wasm32")))]
     pub(crate) fn new_from_ctx(
-        _ctx: MmArc,
+        _ctx: &MmArc,
         ticker: String,
         _db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {

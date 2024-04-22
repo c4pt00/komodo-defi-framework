@@ -40,6 +40,7 @@ cfg_native! {
 /// Default interval to export and record metrics to log.
 const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
+pub const SYNC_SQLITE_DB_ID: &str = "MM2.db";
 
 #[cfg(not(target_arch = "wasm32"))]
 pub type AsyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
@@ -227,7 +228,7 @@ impl MmCtx {
                             rpcport
                         )
                     })?
-            },
+            }
             None => 7783, // Default port if `rpcport` does not exist in the config
         };
         if port < 1000 {
@@ -242,7 +243,7 @@ impl MmCtx {
         } else {
             "127.0.0.1"
         }
-        .to_string();
+            .to_string();
         let ip: IpAddr = try_s!(rpcip.parse());
         Ok(SocketAddr::new(ip, port as u16))
     }
@@ -262,7 +263,7 @@ impl MmCtx {
                         return ERR!("IP address {} must be specified", ip);
                     }
                     Ok(())
-                },
+                }
                 Ok(ServerName::DnsName(_)) => Ok(()),
                 // NOTE: We need to have this wild card since `ServerName` is a non_exhaustive enum.
                 Ok(_) => ERR!("Only IpAddress and DnsName are allowed in `alt_names`"),
@@ -358,7 +359,7 @@ impl MmCtx {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn init_sqlite_connection(&self, db_id: Option<&str>) -> Result<(), String> {
-        let sqlite_file_path = self.dbdir(db_id).join("MM2.db");
+        let sqlite_file_path = self.dbdir(db_id).join(SYNC_SQLITE_DB_ID);
         log_sqlite_file_open_attempt(&sqlite_file_path);
 
         let connection = try_s!(Connection::open(sqlite_file_path));
@@ -401,7 +402,7 @@ impl MmCtx {
             return if let Some(connection) = connections.get(&db_id) {
                 Some(connection.clone())
             } else {
-                let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
+                let sqlite_file_path = self.dbdir(Some(&db_id)).join(SYNC_SQLITE_DB_ID);
                 log_sqlite_file_open_attempt(&sqlite_file_path);
 
                 let connection = Arc::new(Mutex::new(
@@ -428,7 +429,7 @@ impl MmCtx {
         return if let Some(connection) = connections.get(&db_id) {
             connection.clone()
         } else {
-            let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
+            let sqlite_file_path = self.dbdir(Some(&db_id)).join(SYNC_SQLITE_DB_ID);
             log_sqlite_file_open_attempt(&sqlite_file_path);
 
             let connection = Arc::new(Mutex::new(
@@ -452,7 +453,7 @@ impl MmCtx {
         if let Some(connection) = connections.get(&db_id) {
             Ok(connection.clone())
         } else {
-            let sqlite_file_path = self.dbdir(Some(&db_id)).join("MM2.db");
+            let sqlite_file_path = self.dbdir(Some(&db_id)).join(SYNC_SQLITE_DB_ID);
             log_sqlite_file_open_attempt(&sqlite_file_path);
 
             let connection = Arc::new(Mutex::new(try_s!(Connection::open(sqlite_file_path))));
@@ -612,7 +613,7 @@ impl MmArc {
                     None => {
                         log::info!("MmCtx was dropped. Stop the loop");
                         break;
-                    },
+                    }
                 }
             }
         };
@@ -646,7 +647,7 @@ impl MmArc {
                     ve.insert(self.weak());
                     try_s!(self.ffi_handle.pin(rid));
                     return Ok(rid);
-                },
+                }
             }
         }
     }
@@ -743,8 +744,8 @@ impl MmFutSpawner {
 
 impl SpawnFuture for MmFutSpawner {
     fn spawn<F>(&self, f: F)
-    where
-        F: Future<Output = ()> + Send + 'static,
+        where
+            F: Future<Output=()> + Send + 'static,
     {
         self.inner.spawn(f)
     }
@@ -752,8 +753,8 @@ impl SpawnFuture for MmFutSpawner {
 
 impl SpawnAbortable for MmFutSpawner {
     fn spawn_with_settings<F>(&self, fut: F, settings: AbortSettings)
-    where
-        F: Future<Output = ()> + Send + 'static,
+        where
+            F: Future<Output=()> + Send + 'static,
     {
         self.inner.spawn_with_settings(fut, settings)
     }
@@ -767,9 +768,9 @@ pub fn from_ctx<T, C>(
     ctx_field: &Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     constructor: C,
 ) -> Result<Arc<T>, String>
-where
-    C: FnOnce() -> Result<T, String>,
-    T: 'static + Send + Sync,
+    where
+        C: FnOnce() -> Result<T, String>,
+        T: 'static + Send + Sync,
 {
     let mut ctx_field = try_s!(ctx_field.lock());
     if let Some(ref ctx) = *ctx_field {
@@ -862,9 +863,9 @@ pub fn log_sqlite_file_open_attempt(sqlite_file_path: &Path) {
     match sqlite_file_path.canonicalize() {
         Ok(absolute_path) => {
             log::debug!("Trying to open SQLite database file {}", absolute_path.display());
-        },
+        }
         Err(_) => {
             log::debug!("Trying to open SQLite database file {}", sqlite_file_path.display());
-        },
+        }
     }
 }
