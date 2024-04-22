@@ -67,6 +67,7 @@ lazy_static! {
     static ref ETH_DISTRIBUTOR: EthCoin = eth_distributor();
     pub static ref MM_CTX: MmArc = MmCtxBuilder::new().into_mm_arc();
     pub static ref GETH_WEB3: Web3<Http> = Web3::new(Http::new(GETH_RPC_URL).unwrap());
+    pub static ref SEPOLIA_WEB3: Web3<Http> = Web3::new(Http::new(SEPOLIA_RPC_URL).unwrap());
     // Mutex used to prevent nonce re-usage during funding addresses used in tests
     pub static ref GETH_NONCE_LOCK: Mutex<()> = Mutex::new(());
 }
@@ -92,6 +93,7 @@ pub static mut GETH_NFT_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// NFT Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_NFT_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 pub static GETH_RPC_URL: &str = "http://127.0.0.1:8545";
+pub static SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
 
 pub const UTXO_ASSET_DOCKER_IMAGE: &str = "docker.io/artempikulin/testblockchain";
 pub const UTXO_ASSET_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/artempikulin/testblockchain:multiarch";
