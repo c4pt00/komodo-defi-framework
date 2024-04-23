@@ -73,9 +73,6 @@ lazy_static! {
     // Mutex used to prevent nonce re-usage during funding addresses used in tests
     pub static ref GETH_NONCE_LOCK: Mutex<()> = Mutex::new(());
     pub static ref SEPOLIA_NONCE_LOCK: Mutex<()> = Mutex::new(());
-    pub static ref SEPOLIA_ETOMIC_MAKER_NFT_SWAP: EthAddress = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
-    pub static ref SEPOLIA_ERC721_CONTRACT: EthAddress = EthAddress::from_str("0xde3a479f463c17a6f0a4cbe67e506467e97e2c52").unwrap();
-    pub static ref SEPOLIA_ERC1155_CONTRACT: EthAddress = EthAddress::from_str("0xfb53b8764be6033d89ceacafa36631b09d60a1d2").unwrap();
 }
 
 pub static mut QICK_TOKEN_ADDRESS: Option<H160Eth> = None;
@@ -98,6 +95,9 @@ pub static mut GETH_ERC1155_CONTRACT: H160Eth = H160Eth::zero();
 pub static mut GETH_NFT_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// NFT Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_NFT_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
+pub static mut SEPOLIA_ETOMIC_MAKER_NFT_SWAP: H160Eth = H160Eth::zero();
+pub static mut SEPOLIA_ERC721_CONTRACT: H160Eth = H160Eth::zero();
+pub static mut SEPOLIA_ERC1155_CONTRACT: H160Eth = H160Eth::zero();
 pub static GETH_RPC_URL: &str = "http://127.0.0.1:8545";
 pub static SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
 
@@ -1411,6 +1411,10 @@ pub fn init_geth_node() {
             }
             thread::sleep(Duration::from_millis(100));
         }
+
+        SEPOLIA_ETOMIC_MAKER_NFT_SWAP = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
+        SEPOLIA_ERC721_CONTRACT = EthAddress::from_str("0xde3a479f463c17a6f0a4cbe67e506467e97e2c52").unwrap();
+        SEPOLIA_ERC1155_CONTRACT = EthAddress::from_str("0xfb53b8764be6033d89ceacafa36631b09d60a1d2").unwrap();
 
         let alice_passphrase = get_passphrase!(".env.client", "ALICE_PASSPHRASE").unwrap();
         let alice_keypair = key_pair_from_seed(&alice_passphrase).unwrap();
