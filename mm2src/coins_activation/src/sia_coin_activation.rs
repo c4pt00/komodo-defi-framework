@@ -187,7 +187,7 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
     type UserAction = SiaCoinUserAction;
 
     fn rpc_task_manager(activation_ctx: &CoinsActivationContext) -> &SiaCoinTaskManagerShared {
-        &activation_ctx.init_sia_coin_task_manager
+        &activation_ctx.init_sia_task_manager
     }
 
     async fn init_standalone_coin(

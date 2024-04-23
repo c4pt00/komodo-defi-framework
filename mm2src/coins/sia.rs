@@ -210,7 +210,6 @@ impl SiaArc {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SiaCoinProtocolInfo;
 
-
 #[async_trait]
 impl MmCoin for SiaCoin {
     fn is_asset_chain(&self) -> bool { false }
@@ -318,7 +317,9 @@ impl MarketCoinOps for SiaCoin {
 
     fn sign_message(&self, _message: &str) -> SignatureResult<String> { unimplemented!() }
 
-    fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> { unimplemented!() }
+    fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> {
+        unimplemented!()
+    }
 
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
         let fut = async move {
@@ -358,7 +359,7 @@ impl MarketCoinOps for SiaCoin {
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
         let http_client = self.0.http_client.clone(); // Clone the client
 
-        let height_fut = async move { http_client.get_height().await.map_err(e.to_string()) }
+        let height_fut = async move { http_client.get_height().await.map_err(|e| e.to_string()) }
             .boxed() // Make the future 'static by boxing
             .compat(); // Convert to a futures 0.1-compatible future
 
