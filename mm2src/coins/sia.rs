@@ -24,6 +24,7 @@ use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
+use url::Url;
 
 pub mod address;
 use address::v1_standard_address_from_pubkey;
