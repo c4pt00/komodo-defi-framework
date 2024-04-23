@@ -6,7 +6,8 @@ use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC7
                                  SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
-use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, Action, EthCoin, ERC20_ABI};
+use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, Action, EthCoin, SignedEthTx,
+                 ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{CoinProtocol, ConfirmPaymentInput, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, NftSwapInfo,
             ParseCoinAssocTypes, PrivKeyBuildPolicy, RefundPaymentArgs, SearchForSwapTxSpendInput,
@@ -409,7 +410,7 @@ fn send_safe_transfer_from(
     token_address: Address,
     to_address: Address,
     nft_type: TestNftType,
-) -> web3::Result<()> {
+) -> web3::Result<SignedEthTx> {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
 
     let contract = match nft_type {
@@ -446,10 +447,11 @@ fn send_safe_transfer_from(
         global_nft
             .sign_and_send_transaction(0.into(), Action::Call(token_address), data, U256::from(150_000))
             .compat(),
-    );
+    )
+    .unwrap();
 
     println!("Transaction sent: {:?}", result);
-    Ok(())
+    Ok(result)
 }
 
 /// Fills the private key's public address with ETH and ERC20 tokens
@@ -893,13 +895,22 @@ fn send_and_spend_erc721_maker_payment() {
     assert_eq!(new_owner, taker_global_nft.my_address);
 
     // send nft back to maker
-    send_safe_transfer_from(
+    let send_back_tx = send_safe_transfer_from(
         &taker_global_nft,
         *SEPOLIA_ERC721_CONTRACT,
         maker_global_nft.my_address,
         erc721_nft,
     )
     .unwrap();
+    let confirm_input = ConfirmPaymentInput {
+        payment_tx: send_back_tx.tx_hex(),
+        confirmations: 1,
+        requires_nota: false,
+        wait_until: now_sec() + 70,
+        check_every: 1,
+    };
+    taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
+
     let new_owner = erc712_owner(U256::from(1));
     assert_eq!(new_owner, maker_global_nft.my_address);
 }
@@ -988,13 +999,21 @@ fn send_and_spend_erc1155_maker_payment() {
     assert_eq!(balance, U256::from(3));
 
     // send nft back to maker
-    send_safe_transfer_from(
+    let send_back_tx = send_safe_transfer_from(
         &taker_global_nft,
         *SEPOLIA_ERC1155_CONTRACT,
         maker_global_nft.my_address,
         erc1155_nft,
     )
     .unwrap();
+    let confirm_input = ConfirmPaymentInput {
+        payment_tx: send_back_tx.tx_hex(),
+        confirmations: 1,
+        requires_nota: false,
+        wait_until: now_sec() + 80,
+        check_every: 1,
+    };
+    taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
     let balance = erc1155_balance(maker_global_nft.my_address, U256::from(1));
     assert_eq!(balance, U256::from(3));
 }
