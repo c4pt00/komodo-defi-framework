@@ -408,12 +408,14 @@ mod wasm_impl {
     #[derive(Clone)]
     pub struct MyOrdersStorage {
         ctx: Arc<OrdermatchContext>,
+        db_id: Option<String>,
     }
 
     impl MyOrdersStorage {
-        pub fn new(ctx: MmArc, _db_id: Option<&str>) -> MyOrdersStorage {
+        pub fn new(ctx: MmArc, db_id: Option<&str>) -> MyOrdersStorage {
             MyOrdersStorage {
                 ctx: OrdermatchContext::from_ctx(&ctx).expect("!OrdermatchContext::from_ctx"),
+                db_id: db_id.map(|e| e.to_string()),
             }
         }
     }
@@ -421,7 +423,7 @@ mod wasm_impl {
     #[async_trait]
     impl MyActiveOrders for MyOrdersStorage {
         async fn load_active_maker_orders(&self) -> MyOrdersResult<Vec<MakerOrder>> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveMakerOrdersTable>().await?;
             let maker_orders = table.get_all_items().await?;
@@ -432,7 +434,7 @@ mod wasm_impl {
         }
 
         async fn load_active_maker_order(&self, uuid: Uuid) -> MyOrdersResult<MakerOrder> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveMakerOrdersTable>().await?;
 
@@ -444,7 +446,7 @@ mod wasm_impl {
         }
 
         async fn load_active_taker_orders(&self) -> MyOrdersResult<Vec<TakerOrder>> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveTakerOrdersTable>().await?;
             let maker_orders = table.get_all_items().await?;
@@ -455,7 +457,7 @@ mod wasm_impl {
         }
 
         async fn save_new_active_maker_order(&self, order: &MakerOrder) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveMakerOrdersTable>().await?;
 
@@ -468,7 +470,7 @@ mod wasm_impl {
         }
 
         async fn save_new_active_taker_order(&self, order: &TakerOrder) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveTakerOrdersTable>().await?;
 
@@ -481,7 +483,7 @@ mod wasm_impl {
         }
 
         async fn delete_active_maker_order(&self, uuid: Uuid) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveMakerOrdersTable>().await?;
             table.delete_item_by_unique_index("uuid", uuid).await?;
@@ -489,7 +491,7 @@ mod wasm_impl {
         }
 
         async fn delete_active_taker_order(&self, uuid: Uuid) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveTakerOrdersTable>().await?;
             table.delete_item_by_unique_index("uuid", uuid).await?;
@@ -497,7 +499,7 @@ mod wasm_impl {
         }
 
         async fn update_active_maker_order(&self, order: &MakerOrder) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveMakerOrdersTable>().await?;
 
@@ -510,7 +512,7 @@ mod wasm_impl {
         }
 
         async fn update_active_taker_order(&self, order: &TakerOrder) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyActiveTakerOrdersTable>().await?;
 
@@ -528,7 +530,7 @@ mod wasm_impl {
     #[async_trait]
     impl MyOrdersHistory for MyOrdersStorage {
         async fn save_order_in_history(&self, order: &Order) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyHistoryOrdersTable>().await?;
 
@@ -541,7 +543,7 @@ mod wasm_impl {
         }
 
         async fn load_order_from_history(&self, uuid: Uuid) -> MyOrdersResult<Order> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyHistoryOrdersTable>().await?;
 
@@ -567,7 +569,7 @@ mod wasm_impl {
         }
 
         async fn select_order_status(&self, uuid: Uuid) -> MyOrdersResult<String> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyFilteringHistoryOrdersTable>().await?;
 
@@ -581,7 +583,7 @@ mod wasm_impl {
         async fn save_maker_order_in_filtering_history(&self, order: &MakerOrder) -> MyOrdersResult<()> {
             let item = maker_order_to_filtering_history_item(order, "Created".to_owned(), false)?;
 
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyFilteringHistoryOrdersTable>().await?;
             table.add_item(&item).await?;
@@ -591,7 +593,7 @@ mod wasm_impl {
         async fn save_taker_order_in_filtering_history(&self, order: &TakerOrder) -> MyOrdersResult<()> {
             let item = taker_order_to_filtering_history_item(order, "Created".to_owned())?;
 
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyFilteringHistoryOrdersTable>().await?;
             table.add_item(&item).await?;
@@ -599,7 +601,7 @@ mod wasm_impl {
         }
 
         async fn update_maker_order_in_filtering_history(&self, order: &MakerOrder) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyFilteringHistoryOrdersTable>().await?;
             // get the previous item to see if the order was taker
@@ -614,7 +616,7 @@ mod wasm_impl {
         }
 
         async fn update_order_status_in_filtering_history(&self, uuid: Uuid, status: String) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyFilteringHistoryOrdersTable>().await?;
 
@@ -629,7 +631,7 @@ mod wasm_impl {
         }
 
         async fn update_was_taker_in_filtering_history(&self, uuid: Uuid) -> MyOrdersResult<()> {
-            let db = self.ctx.ordermatch_db().await?;
+            let db = self.ctx.ordermatch_db(self.db_id.as_deref()).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<MyFilteringHistoryOrdersTable>().await?;
 
@@ -776,7 +778,7 @@ mod tests {
 
     async fn get_all_items<Table: TableSignature>(ctx: &MmArc) -> Vec<Table> {
         let ordermatch_ctx = OrdermatchContext::from_ctx(ctx).unwrap();
-        let db = ordermatch_ctx.ordermatch_db().await.unwrap();
+        let db = ordermatch_ctx.ordermatch_db(None).await.unwrap();
         let transaction = db.transaction().await.unwrap();
         let table = transaction.table::<Table>().await.unwrap();
         table
