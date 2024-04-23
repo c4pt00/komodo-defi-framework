@@ -11,12 +11,12 @@ const POLICY_VERSION: u8 = 1u8;
 
 #[derive(Debug, Clone)]
 pub enum SpendPolicy {
-    Above(PolicyTypeAbove),
-    After(PolicyTypeAfter),
-    PublicKey(PolicyTypePublicKey),
-    Hash(PolicyTypeHash),
+    Above(u64),
+    After(u64),
+    PublicKey(PublicKey),
+    Hash(H256),
     Threshold(PolicyTypeThreshold),
-    Opaque(PolicyTypeOpaque),
+    Opaque(Address),
     UnlockConditions(PolicyTypeUnlockConditions), // For v1 compatibility
 }
 
@@ -44,19 +44,19 @@ impl SpendPolicy {
         let mut encoder = Encoder::default();
         let opcode = self.to_u8();
         match self {
-            SpendPolicy::Above(PolicyTypeAbove(height)) => {
+            SpendPolicy::Above(height) => {
                 encoder.write_u8(opcode);
                 encoder.write_u64(*height);
             },
-            SpendPolicy::After(PolicyTypeAfter(time)) => {
+            SpendPolicy::After(time) => {
                 encoder.write_u8(opcode);
                 encoder.write_u64(*time);
             },
-            SpendPolicy::PublicKey(PolicyTypePublicKey(pubkey)) => {
+            SpendPolicy::PublicKey(pubkey) => {
                 encoder.write_u8(opcode);
                 encoder.write_slice(&pubkey.to_bytes());
             },
-            SpendPolicy::Hash(PolicyTypeHash(hash)) => {
+            SpendPolicy::Hash(hash) => {
                 encoder.write_u8(opcode);
                 encoder.write_slice(&hash.0);
             },
@@ -68,7 +68,7 @@ impl SpendPolicy {
                     encoder.write_slice(&policy.encode_wo_prefix().buffer);
                 }
             },
-            SpendPolicy::Opaque(PolicyTypeOpaque(p)) => {
+            SpendPolicy::Opaque(p) => {
                 encoder.write_u8(opcode);
                 encoder.write_slice(&p.0 .0);
             },
@@ -104,41 +104,26 @@ impl SpendPolicy {
         Address(encoder.hash())
     }
 
-    pub fn above(height: u64) -> Self { SpendPolicy::Above(PolicyTypeAbove(height)) }
+    pub fn above(height: u64) -> Self { SpendPolicy::Above(height) }
 
-    pub fn after(time: u64) -> Self { SpendPolicy::After(PolicyTypeAfter(time)) }
+    pub fn after(time: u64) -> Self { SpendPolicy::After(time) }
 
-    pub fn public_key(pk: PublicKey) -> Self { SpendPolicy::PublicKey(PolicyTypePublicKey(pk)) }
+    pub fn public_key(pk: PublicKey) -> Self { SpendPolicy::PublicKey(pk) }
 
-    pub fn hash(h: H256) -> Self { SpendPolicy::Hash(PolicyTypeHash(h)) }
+    pub fn hash(h: H256) -> Self { SpendPolicy::Hash(h) }
 
     pub fn threshold(n: u8, of: Vec<SpendPolicy>) -> Self { SpendPolicy::Threshold(PolicyTypeThreshold { n, of }) }
 
-    pub fn opaque(p: &SpendPolicy) -> Self { SpendPolicy::Opaque(PolicyTypeOpaque(p.address())) }
+    pub fn opaque(p: &SpendPolicy) -> Self { SpendPolicy::Opaque(p.address()) }
 
     pub fn anyone_can_spend() -> Self { SpendPolicy::threshold(0, vec![]) }
 }
-
-#[derive(Debug, Clone)]
-pub struct PolicyTypeAbove(u64);
-
-#[derive(Debug, Clone)]
-pub struct PolicyTypeAfter(u64);
-
-#[derive(Debug, Clone)]
-pub struct PolicyTypePublicKey(PublicKey);
-
-#[derive(Debug, Clone)]
-pub struct PolicyTypeHash(H256);
 
 #[derive(Debug, Clone)]
 pub struct PolicyTypeThreshold {
     pub n: u8,
     pub of: Vec<SpendPolicy>,
 }
-
-#[derive(Debug, Clone)]
-pub struct PolicyTypeOpaque(Address);
 
 // Compatibility with Sia's "UnlockConditions"
 #[derive(Debug, Clone)]
@@ -266,7 +251,7 @@ fn test_spend_policy_encode_pubkey() {
         &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
     )
     .unwrap();
-    let policy = SpendPolicy::PublicKey(PolicyTypePublicKey(pubkey));
+    let policy = SpendPolicy::PublicKey(pubkey);
 
     let hash = policy.encode().hash();
     let expected = H256::from("4355c8f80f6e5a98b70c9c2f9a22f17747989b4744783c90439b2b034f698bfe");
@@ -281,7 +266,7 @@ fn test_spend_policy_encode_pubkey() {
 #[test]
 fn test_spend_policy_encode_hash() {
     let hash = H256::from("0102030000000000000000000000000000000000000000000000000000000000");
-    let policy = SpendPolicy::Hash(PolicyTypeHash(hash));
+    let policy = SpendPolicy::Hash(hash);
 
     let encoded = policy.encode();
     let hash = encoded.hash();
