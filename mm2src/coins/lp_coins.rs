@@ -204,62 +204,22 @@ macro_rules! ok_or_continue_after_sleep {
 }
 
 pub mod coin_balance;
-pub mod lp_price;
-pub mod watcher_common;
-
 pub mod coin_errors;
-
-use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut};
-
 #[doc(hidden)]
 #[cfg(test)]
 pub mod coins_tests;
-
 pub mod eth;
-
-use eth::GetValidEthWithdrawAddError;
-use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetailsErr, EthTxFeeDetails,
-          GetEthAddressError, SignedEthTx};
-use ethereum_types::U256;
-
 pub mod hd_confirm_address;
 pub mod hd_pubkey;
-
 pub mod hd_wallet;
-
-use hd_wallet::{HDAccountAddressId, HDAddress};
-
 pub mod hd_wallet_storage;
 #[cfg(not(target_arch = "wasm32"))] pub mod lightning;
+pub mod lp_price;
 #[cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 pub mod my_tx_history_v2;
-
+pub mod nft;
 pub mod qrc20;
-
-use qrc20::{qrc20_coin_with_policy, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
-
 pub mod rpc_command;
-
-use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskManagerShared},
-                  init_account_balance::{AccountBalanceTaskManager, AccountBalanceTaskManagerShared},
-                  init_create_account::{CreateAccountTaskManager, CreateAccountTaskManagerShared},
-                  init_scan_for_new_addresses::{ScanAddressesTaskManager, ScanAddressesTaskManagerShared},
-                  init_withdraw::{WithdrawTaskManager, WithdrawTaskManagerShared}};
-
-pub mod tendermint;
-
-use tendermint::htlc::CustomTendermintMsgType;
-use tendermint::{CosmosTransaction, TendermintCoin, TendermintFeeDetails, TendermintProtocolInfo, TendermintToken,
-                 TendermintTokenProtocolInfo};
-
-#[doc(hidden)]
-#[allow(unused_variables)]
-pub mod test_coin;
-
-pub use test_coin::TestCoin;
-
-pub mod tx_history_storage;
-
 #[doc(hidden)]
 #[allow(unused_variables)]
 #[cfg(all(
@@ -269,7 +229,33 @@ pub mod tx_history_storage;
     not(target_arch = "wasm32")
 ))]
 pub mod solana;
+pub mod tendermint;
+#[doc(hidden)]
+#[allow(unused_variables)]
+pub mod test_coin;
+pub mod tx_history_storage;
+pub mod utxo;
+pub mod watcher_common;
+pub mod z_coin;
 
+use crate::coin_errors::ValidatePaymentResult;
+use crate::utxo::swap_proto_v2_scripts;
+use crate::utxo::utxo_common::{payment_script, WaitForOutputSpendErr};
+
+use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut};
+use eth::GetValidEthWithdrawAddError;
+use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetailsErr, EthTxFeeDetails,
+          GetEthAddressError, SignedEthTx};
+use ethereum_types::U256;
+use hd_wallet::{HDAccountAddressId, HDAddress};
+use nft::nft_errors::GetNftInfoError;
+use qrc20::{qrc20_coin_with_policy, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
+use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskManagerShared},
+                  init_account_balance::{AccountBalanceTaskManager, AccountBalanceTaskManagerShared},
+                  init_create_account::{CreateAccountTaskManager, CreateAccountTaskManagerShared},
+                  init_scan_for_new_addresses::{ScanAddressesTaskManager, ScanAddressesTaskManagerShared},
+                  init_withdraw::{WithdrawTaskManager, WithdrawTaskManagerShared}};
+use script::Script;
 #[cfg(all(
     feature = "enable-solana",
     not(target_os = "ios"),
@@ -284,9 +270,10 @@ pub use solana::spl::SplToken;
     not(target_arch = "wasm32")
 ))]
 pub use solana::{SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
-
-pub mod utxo;
-
+use tendermint::htlc::CustomTendermintMsgType;
+use tendermint::{CosmosTransaction, TendermintCoin, TendermintFeeDetails, TendermintProtocolInfo, TendermintToken,
+                 TendermintTokenProtocolInfo};
+pub use test_coin::TestCoin;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
 use utxo::qtum::{self, qtum_coin_with_policy, Qrc20AddressError, QtumCoin, QtumDelegationOps, QtumDelegationRequest,
                  QtumStakingInfosDetails, ScriptHashTypeNotSupported};
@@ -297,17 +284,6 @@ use utxo::utxo_common::big_decimal_from_sat_unsigned;
 use utxo::utxo_standard::{utxo_standard_coin_with_policy, UtxoStandardCoin};
 use utxo::UtxoActivationParams;
 use utxo::{BlockchainNetwork, GenerateTxError, UtxoFeeDetails, UtxoTx};
-
-pub mod nft;
-
-use nft::nft_errors::GetNftInfoError;
-use script::Script;
-
-pub mod z_coin;
-
-use crate::coin_errors::ValidatePaymentResult;
-use crate::utxo::swap_proto_v2_scripts;
-use crate::utxo::utxo_common::{payment_script, WaitForOutputSpendErr};
 use z_coin::{ZCoin, ZcoinProtocolInfo};
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
