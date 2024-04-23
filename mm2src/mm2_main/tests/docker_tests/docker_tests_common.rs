@@ -99,7 +99,7 @@ pub static mut GETH_NFT_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// NFT Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_NFT_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 pub static GETH_RPC_URL: &str = "http://127.0.0.1:8545";
-pub static SEPOLIA_RPC_URL: &str = "http://ethereum-sepolia-rpc.publicnode.com";
+pub static SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
 
 pub const UTXO_ASSET_DOCKER_IMAGE: &str = "docker.io/artempikulin/testblockchain";
 pub const UTXO_ASSET_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/artempikulin/testblockchain:multiarch";
