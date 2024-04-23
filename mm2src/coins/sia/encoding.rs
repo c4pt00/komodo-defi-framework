@@ -26,11 +26,7 @@ impl Encoder {
     pub fn write_distinguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
 
     pub fn write_bool(&mut self, b: bool) {
-        let mut buf = [0u8; 1];
-        if b {
-            buf[0] = 1;
-        }
-        self.buffer.extend_from_slice(&buf);
+        self.buffer.push(b as u8)
     }
 
     pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
