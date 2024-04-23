@@ -318,7 +318,7 @@ impl MarketCoinOps for SiaCoin {
 
     fn sign_message(&self, _message: &str) -> SignatureResult<String> { unimplemented!() }
 
-    fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> { Ok(true) }
+    fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> { unimplemented!() }
 
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
         let fut = async move {
