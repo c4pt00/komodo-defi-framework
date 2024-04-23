@@ -11,7 +11,7 @@ pub struct Encoder {
 impl Encoder {
     pub fn reset(&mut self) { self.buffer.clear(); }
 
-    // writes a length-prefixed []byte to the underlying stream.
+    /// writes a length-prefixed []byte to the underlying stream.
     pub fn write_len_prefixed_bytes(&mut self, data: &[u8]) {
         self.buffer.extend_from_slice(&data.len().to_le_bytes());
         self.buffer.extend_from_slice(data);
