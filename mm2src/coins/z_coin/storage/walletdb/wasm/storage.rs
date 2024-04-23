@@ -130,6 +130,7 @@ pub struct WalletIndexedDb {
     pub db: SharedDb<WalletDbInner>,
     pub ticker: String,
     pub params: ZcoinConsensusParams,
+    pub db_id: Option<String>,
 }
 
 impl<'a> WalletIndexedDb {
@@ -143,6 +144,7 @@ impl<'a> WalletIndexedDb {
             db: ConstructibleDb::new(ctx, db_id).into_shared(),
             ticker: ticker.to_string(),
             params: consensus_params,
+            db_id: db_id.map(|e| e.to_string()),
         };
 
         Ok(db)
@@ -150,7 +152,7 @@ impl<'a> WalletIndexedDb {
 
     pub(crate) async fn lock_db(&self) -> ZcoinStorageRes<WalletDbInnerLocked<'_>> {
         self.db
-            .get_or_initialize(None)
+            .get_or_initialize(self.db_id.as_deref())
             .await
             .mm_err(|err| ZcoinStorageError::DbError(err.to_string()))
     }

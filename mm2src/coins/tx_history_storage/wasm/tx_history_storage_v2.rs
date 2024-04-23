@@ -27,7 +27,7 @@ pub struct IndexedDbTxHistoryStorage {
 }
 
 impl IndexedDbTxHistoryStorage {
-    pub fn new(ctx: &MmArc) -> MmResult<Self, CreateTxHistoryStorageError>
+    pub fn new(ctx: &MmArc, _db_id: Option<&str>) -> MmResult<Self, CreateTxHistoryStorageError>
     where
         Self: Sized,
     {

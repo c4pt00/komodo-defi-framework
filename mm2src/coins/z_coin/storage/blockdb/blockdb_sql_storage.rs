@@ -45,7 +45,8 @@ impl From<ChainError<NoteId>> for ZcoinStorageError {
 
 impl BlockDbImpl {
     #[cfg(all(not(test)))]
-    pub async fn new(_ctx: &MmArc, ticker: String, path: PathBuf, _db_id: Option<&str>) -> ZcoinStorageRes<Self> {
+    pub async fn new(_ctx: &MmArc, ticker: String, path: PathBuf, db_id: Option<&str>) -> ZcoinStorageRes<Self> {
+        let db_id = db_id.map(|e| e.to_string());
         async_blocking(move || {
             let conn = Connection::open(path).map_to_mm(|err| ZcoinStorageError::DbError(err.to_string()))?;
             let conn = Arc::new(Mutex::new(conn));
@@ -62,7 +63,11 @@ impl BlockDbImpl {
                 )
                 .map_to_mm(|err| ZcoinStorageError::DbError(err.to_string()))?;
 
-            Ok(Self { db: conn, ticker })
+            Ok(Self {
+                db: conn,
+                ticker,
+                db_id,
+            })
         })
         .await
     }
@@ -72,8 +77,9 @@ impl BlockDbImpl {
         _ctx: &MmArc,
         ticker: String,
         _path: PathBuf,
-        _db_id: Option<&str>,
+        db_id: Option<&str>,
     ) -> ZcoinStorageRes<Self> {
+        let db_id = db_id.map(|e| e.to_string());
         let conn = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
         let conn_clone = conn.clone();
         async_blocking(move || {
@@ -89,7 +95,11 @@ impl BlockDbImpl {
                 )
                 .map_to_mm(|err| ZcoinStorageError::DbError(err.to_string()))?;
 
-            Ok(BlockDbImpl { db: conn, ticker })
+            Ok(BlockDbImpl {
+                db: conn,
+                ticker,
+                db_id,
+            })
         })
         .await
     }

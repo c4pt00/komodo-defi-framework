@@ -286,7 +286,7 @@ pub(super) async fn test_hd_utxo_tx_history_impl(rpc_client: ElectrumClient) {
 
     let coin = utxo_coin_from_fields(fields);
     let current_balances = coin.my_addresses_balances().await.unwrap();
-    let storage = TxHistoryStorageBuilder::new(&ctx).build().unwrap();
+    let storage = TxHistoryStorageBuilder::new(&ctx, None).build().unwrap();
     spawn(utxo_history_loop(
         coin.clone(),
         storage,
@@ -311,7 +311,7 @@ pub(super) async fn test_hd_utxo_tx_history_impl(rpc_client: ElectrumClient) {
         _ => unimplemented!(),
     }
 
-    let storage = TxHistoryStorageBuilder::new(&ctx).build().unwrap();
+    let storage = TxHistoryStorageBuilder::new(&ctx, None).build().unwrap();
     spawn(utxo_history_loop(
         coin.clone(),
         storage,

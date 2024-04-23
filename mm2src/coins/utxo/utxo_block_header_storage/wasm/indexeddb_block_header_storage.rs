@@ -44,6 +44,7 @@ impl IDBBlockHeadersInner {
 pub struct IDBBlockHeadersStorage {
     pub db: SharedDb<IDBBlockHeadersInner>,
     pub ticker: String,
+    pub db_id: Option<String>,
 }
 
 impl IDBBlockHeadersStorage {
@@ -51,6 +52,7 @@ impl IDBBlockHeadersStorage {
         Self {
             db: ConstructibleDb::new(ctx, db_id).into_shared(),
             ticker,
+            db_id: db_id.map(|e| e.to_string()),
         }
     }
 

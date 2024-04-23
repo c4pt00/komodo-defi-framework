@@ -205,16 +205,25 @@ where
         .await?;
 
         let result = coin
-            .get_activation_result(self.ctx.clone(), task_handle, &self.request.activation_params)
+            .get_activation_result(self.ctx.clone(), task_handle.clone(), &self.request.activation_params)
             .await?;
         log::info!("{} current block {}", ticker, result.current_block());
 
         let tx_history = self.request.activation_params.tx_history();
         if tx_history {
             let current_balances = result.get_addresses_balances();
+            let coin_clone = Standalone::init_standalone_coin(
+                self.ctx.clone(),
+                ticker.clone(),
+                self.coin_conf.clone(),
+                &self.request.activation_params,
+                self.protocol_info.clone(),
+                task_handle.clone(),
+            )
+            .await?;
             coin.start_history_background_fetching(
                 self.ctx.metrics.clone(),
-                TxHistoryStorageBuilder::new(&self.ctx).build()?,
+                TxHistoryStorageBuilder::new(&self.ctx, coin_clone.into().account_db_id()).build()?,
                 current_balances,
             );
         }

@@ -62,7 +62,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// initializes it if it's required, and returns the locked instance.
     pub async fn get_or_initialize(&self, db_id: Option<&str>) -> InitDbResult<DbLocked<'_, Db>> {
         let mut locked_db = self.mutex.lock().await;
-        let mut locked_db_id = self.db_id.lock().await;
+        let locked_db_id = self.db_id.lock().await;
 
         // Check if the database is initialized and if the db_id matches
         if let Some(current_db_id) = &*locked_db_id {
@@ -72,6 +72,10 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
             }
         }
 
+        // Check if there is already an initialized database instance (`locked_db`)
+        // and if no specific db_id is provided. It then verifies whether
+        // the current db_id matches the default default_db_id.
+        // If these conditions are met, the function returns the existing database instance.
         if locked_db.is_some() && db_id.is_none() && Some(self.default_db_id.as_str()) == locked_db_id.as_deref() {
             return Ok(unwrap_db_instance(locked_db));
         }

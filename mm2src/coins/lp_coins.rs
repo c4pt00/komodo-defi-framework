@@ -3620,8 +3620,8 @@ impl CoinsContext {
     }
 
     #[cfg(target_arch = "wasm32")]
-    async fn tx_history_db(&self) -> TxHistoryResult<TxHistoryDbLocked<'_>> {
-        Ok(self.tx_history_db.get_or_initialize(None).await?)
+    async fn tx_history_db(&self, db_id: Option<&str>) -> TxHistoryResult<TxHistoryDbLocked<'_>> {
+        Ok(self.tx_history_db.get_or_initialize(db_id).await?)
     }
 }
 
@@ -4739,10 +4739,11 @@ where
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
     let my_address = try_f!(coin.my_address());
+    let db_id = coin.account_db_id();
 
     let fut = async move {
         let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
-        let db = coins_ctx.tx_history_db().await?;
+        let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
         let err = match load_tx_history(&db, &ticker, &my_address).await {
             Ok(history) => return Ok(history),
             Err(e) => e,
@@ -4813,12 +4814,13 @@ where
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
     let my_address = try_f!(coin.my_address());
+    let db_id = coin.account_db_id();
 
     history.sort_unstable_by(compare_transaction_details);
 
     let fut = async move {
         let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
-        let db = coins_ctx.tx_history_db().await?;
+        let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
         save_tx_history(&db, &ticker, &my_address, history).await?;
         Ok(())
     };

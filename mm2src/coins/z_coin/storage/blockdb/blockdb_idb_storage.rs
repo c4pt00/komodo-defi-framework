@@ -71,12 +71,13 @@ impl BlockDbImpl {
         Ok(Self {
             db: ConstructibleDb::new(ctx, db_id).into_shared(),
             ticker,
+            db_id: db_id.map(|e| e.to_string()),
         })
     }
 
     async fn lock_db(&self) -> ZcoinStorageRes<BlockDbInnerLocked<'_>> {
         self.db
-            .get_or_initialize(None)
+            .get_or_initialize(self.db_id.as_deref())
             .await
             .mm_err(|err| ZcoinStorageError::DbError(err.to_string()))
     }

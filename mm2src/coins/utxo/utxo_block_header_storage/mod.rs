@@ -52,7 +52,7 @@ impl BlockHeaderStorage {
         db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
         Ok(BlockHeaderStorage {
-            inner: Box::new(IDBBlockHeadersStorage::new(&ctx, ticker, db_id)),
+            inner: Box::new(IDBBlockHeadersStorage::new(ctx, ticker, db_id)),
         })
     }
 

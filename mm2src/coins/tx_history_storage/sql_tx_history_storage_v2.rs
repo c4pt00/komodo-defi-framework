@@ -375,9 +375,8 @@ impl WalletId {
 pub struct SqliteTxHistoryStorage(Arc<Mutex<Connection>>);
 
 impl SqliteTxHistoryStorage {
-    pub fn new(ctx: &MmArc) -> Result<Self, MmError<CreateTxHistoryStorageError>> {
-        // TODO db_id
-        let sqlite_connection = ctx.sqlite_connection_res(None).map_to_mm(|_| {
+    pub fn new(ctx: &MmArc, db_id: Option<&str>) -> Result<Self, MmError<CreateTxHistoryStorageError>> {
+        let sqlite_connection = ctx.sqlite_connection_res(db_id).map_to_mm(|_| {
             CreateTxHistoryStorageError::Internal("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
         })?;
 
