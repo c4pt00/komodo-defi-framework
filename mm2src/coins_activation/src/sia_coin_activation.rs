@@ -31,10 +31,9 @@ pub type SiaCoinAwaitingStatus = HwRpcTaskAwaitingStatus;
 pub type SiaCoinUserAction = HwRpcTaskUserAction;
 
 /// `SiaCoinActivationResult` provides information/data for Sia activation.
-///
-/// - `ticker`: A string representing the ticker of the SiaCoin.
 #[derive(Clone, Serialize)]
 pub struct SiaCoinActivationResult {
+    /// A string representing the ticker of the SiaCoin.
     pub ticker: String,
     pub current_block: u64,
     pub wallet_balance: CoinBalanceReport,
