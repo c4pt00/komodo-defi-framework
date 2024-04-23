@@ -210,10 +210,6 @@ impl SiaArc {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SiaCoinProtocolInfo {}
 
-#[derive(Debug)]
-pub struct SiaCoinImpl {
-    pub ticker: String,
-}
 
 #[async_trait]
 impl MmCoin for SiaCoin {
