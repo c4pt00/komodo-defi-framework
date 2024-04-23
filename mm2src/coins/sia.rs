@@ -254,7 +254,7 @@ impl MmCoin for SiaCoin {
         unimplemented!()
     }
 
-    fn required_confirmations(&self) -> u64 { 1 }
+    fn required_confirmations(&self) -> u64 { unimplemented!() }
 
     fn requires_notarization(&self) -> bool { false }
 
