@@ -34,8 +34,6 @@ pub mod http_client;
 use http_client::{SiaApiClient, SiaApiClientError};
 pub mod spend_policy;
 
-use url::Url;
-
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
 #[derive(Clone)]
