@@ -51,14 +51,13 @@ impl GetAddressesBalances for SiaCoinActivationResult {
 
 /// `SiaCoinInProgressStatus` enumerates different states that may occur during the execution of
 /// SiaCoin-related operations during coin activation.
-///
-/// - `ActivatingCoin`: Indicates that SiaCoin is in the process of activating.
-/// - `Finishing`: Represents the finishing state of an operation.
 #[derive(Clone, Serialize)]
 #[non_exhaustive]
 pub enum SiaCoinInProgressStatus {
+    /// Indicates that SiaCoin is in the process of activating.
     ActivatingCoin,
     RequestingWalletBalance,
+    /// Represents the finishing state of an operation.
     Finishing,
 }
 
