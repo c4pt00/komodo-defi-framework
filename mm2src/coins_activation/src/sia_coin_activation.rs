@@ -31,10 +31,9 @@ pub type SiaCoinAwaitingStatus = HwRpcTaskAwaitingStatus;
 pub type SiaCoinUserAction = HwRpcTaskUserAction;
 
 /// `SiaCoinActivationResult` provides information/data for Sia activation.
-///
-/// - `ticker`: A string representing the ticker of the SiaCoin.
 #[derive(Clone, Serialize)]
 pub struct SiaCoinActivationResult {
+    /// A string representing the ticker of the SiaCoin.
     pub ticker: String,
     pub current_block: u64,
     pub wallet_balance: CoinBalanceReport,
@@ -52,14 +51,13 @@ impl GetAddressesBalances for SiaCoinActivationResult {
 
 /// `SiaCoinInProgressStatus` enumerates different states that may occur during the execution of
 /// SiaCoin-related operations during coin activation.
-///
-/// - `ActivatingCoin`: Indicates that SiaCoin is in the process of activating.
-/// - `Finishing`: Represents the finishing state of an operation.
 #[derive(Clone, Serialize)]
 #[non_exhaustive]
 pub enum SiaCoinInProgressStatus {
+    /// Indicates that SiaCoin is in the process of activating.
     ActivatingCoin,
     RequestingWalletBalance,
+    /// Represents the finishing state of an operation.
     Finishing,
 }
 
@@ -187,7 +185,7 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
     type UserAction = SiaCoinUserAction;
 
     fn rpc_task_manager(activation_ctx: &CoinsActivationContext) -> &SiaCoinTaskManagerShared {
-        &activation_ctx.init_sia_coin_task_manager
+        &activation_ctx.init_sia_task_manager
     }
 
     async fn init_standalone_coin(

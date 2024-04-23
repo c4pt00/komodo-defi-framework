@@ -24,17 +24,15 @@ use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
+use url::Url;
 
 pub mod address;
 use address::v1_standard_address_from_pubkey;
 pub mod blake2b_internal;
 pub mod encoding;
 pub mod http_client;
-pub mod http_endpoints;
-pub mod spend_policy;
 use http_client::{SiaApiClient, SiaApiClientError};
-
-use url::Url;
+pub mod spend_policy;
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
@@ -111,7 +109,7 @@ pub async fn sia_coin_from_conf_and_params(
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = generate_keypair_from_slice(priv_key.as_slice());
+    let key_pair = generate_keypair_from_slice(priv_key.as_slice())?;
     let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
     builder.build().await
 }
@@ -142,24 +140,25 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 }
 
-fn generate_keypair_from_slice(priv_key: &[u8]) -> ed25519_dalek::Keypair {
-    // this is only safe to unwrap because iguana seeds are already ed25519 compatible
-    let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key).unwrap();
+fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<ed25519_dalek::Keypair, SiaCoinBuildError> {
+    let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key).map_err(SiaCoinBuildError::EllipticCurveError)?;
     let public_key = ed25519_dalek::PublicKey::from(&secret_key);
-    ed25519_dalek::Keypair {
+    Ok(ed25519_dalek::Keypair {
         secret: secret_key,
         public: public_key,
-    }
+    })
 }
 
 impl From<SiaConfError> for SiaCoinBuildError {
     fn from(e: SiaConfError) -> Self { SiaCoinBuildError::ConfError(e) }
 }
+
 #[derive(Debug, Display)]
 pub enum SiaCoinBuildError {
     ConfError(SiaConfError),
     UnsupportedPrivKeyPolicy,
     ClientError(SiaApiClientError),
+    EllipticCurveError(ed25519_dalek::ed25519::Error),
 }
 
 impl<'a> SiaCoinBuilder<'a> {
@@ -209,12 +208,7 @@ impl SiaArc {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SiaCoinProtocolInfo {}
-
-#[derive(Debug)]
-pub struct SiaCoinImpl {
-    pub ticker: String,
-}
+pub struct SiaCoinProtocolInfo;
 
 #[async_trait]
 impl MmCoin for SiaCoin {
@@ -259,7 +253,7 @@ impl MmCoin for SiaCoin {
         unimplemented!()
     }
 
-    fn required_confirmations(&self) -> u64 { 1 }
+    fn required_confirmations(&self) -> u64 { unimplemented!() }
 
     fn requires_notarization(&self) -> bool { false }
 
@@ -323,7 +317,9 @@ impl MarketCoinOps for SiaCoin {
 
     fn sign_message(&self, _message: &str) -> SignatureResult<String> { unimplemented!() }
 
-    fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> { Ok(true) }
+    fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> {
+        unimplemented!()
+    }
 
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
         let fut = async move {
@@ -363,7 +359,7 @@ impl MarketCoinOps for SiaCoin {
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
         let http_client = self.0.http_client.clone(); // Clone the client
 
-        let height_fut = async move { http_client.current_height().await.map_err(|e| format!("{}", e)) }
+        let height_fut = async move { http_client.get_height().await.map_err(|e| e.to_string()) }
             .boxed() // Make the future 'static by boxing
             .compat(); // Convert to a futures 0.1-compatible future
 
@@ -372,9 +368,9 @@ impl MarketCoinOps for SiaCoin {
 
     fn display_priv_key(&self) -> Result<String, String> { unimplemented!() }
 
-    fn min_tx_amount(&self) -> BigDecimal { Default::default() }
+    fn min_tx_amount(&self) -> BigDecimal { unimplemented!() }
 
-    fn min_trading_vol(&self) -> MmNumber { MmNumber::from("0.00777") }
+    fn min_trading_vol(&self) -> MmNumber { unimplemented!() }
 }
 
 #[async_trait]

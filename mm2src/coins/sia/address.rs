@@ -15,8 +15,9 @@ pub struct Address(pub H256);
 
 impl Address {
     pub fn str_without_prefix(&self) -> String {
-        let checksum = blake2b_checksum(self.0 .0.as_ref());
-        format!("{}{}", hex::encode(self.0 .0.as_ref()), hex::encode(checksum))
+        let bytes = self.0 .0.as_ref();
+        let checksum = blake2b_checksum(bytes);
+        format!("{}{}", hex::encode(bytes), hex::encode(checksum))
     }
 }
 

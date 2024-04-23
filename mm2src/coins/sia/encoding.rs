@@ -11,7 +11,7 @@ pub struct Encoder {
 impl Encoder {
     pub fn reset(&mut self) { self.buffer.clear(); }
 
-    // writes a length-prefixed []byte to the underlying stream.
+    /// writes a length-prefixed []byte to the underlying stream.
     pub fn write_len_prefixed_bytes(&mut self, data: &[u8]) {
         self.buffer.extend_from_slice(&data.len().to_le_bytes());
         self.buffer.extend_from_slice(data);
@@ -25,13 +25,7 @@ impl Encoder {
 
     pub fn write_distinguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
 
-    pub fn write_bool(&mut self, b: bool) {
-        let mut buf = [0u8; 1];
-        if b {
-            buf[0] = 1;
-        }
-        self.buffer.extend_from_slice(&buf);
-    }
+    pub fn write_bool(&mut self, b: bool) { self.buffer.push(b as u8) }
 
     pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
 }

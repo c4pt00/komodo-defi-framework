@@ -12,7 +12,7 @@ pub struct CoinsActivationContext {
     pub(crate) init_utxo_standard_task_manager: UtxoStandardTaskManagerShared,
     pub(crate) init_qtum_task_manager: QtumTaskManagerShared,
     #[cfg(feature = "enable-sia")]
-    pub(crate) init_sia_coin_task_manager: SiaCoinTaskManagerShared,
+    pub(crate) init_sia_task_manager: SiaCoinTaskManagerShared,
     pub(crate) init_z_coin_task_manager: ZcoinTaskManagerShared,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) init_lightning_task_manager: LightningTaskManagerShared,
@@ -24,7 +24,7 @@ impl CoinsActivationContext {
         from_ctx(&ctx.coins_activation_ctx, move || {
             Ok(CoinsActivationContext {
                 #[cfg(feature = "enable-sia")]
-                init_sia_coin_task_manager: RpcTaskManager::new_shared(),
+                init_sia_task_manager: RpcTaskManager::new_shared(),
                 init_utxo_standard_task_manager: RpcTaskManager::new_shared(),
                 init_qtum_task_manager: RpcTaskManager::new_shared(),
                 init_z_coin_task_manager: RpcTaskManager::new_shared(),
