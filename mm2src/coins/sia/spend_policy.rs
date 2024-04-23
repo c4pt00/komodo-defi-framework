@@ -1,4 +1,3 @@
-// use super::address::v1_standard_address_from_pubkey;
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator, ED25519_IDENTIFIER};
