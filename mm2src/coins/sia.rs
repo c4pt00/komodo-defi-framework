@@ -208,7 +208,7 @@ impl SiaArc {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SiaCoinProtocolInfo {}
+pub struct SiaCoinProtocolInfo;
 
 
 #[async_trait]
