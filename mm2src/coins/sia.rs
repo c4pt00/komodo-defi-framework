@@ -109,7 +109,7 @@ pub async fn sia_coin_from_conf_and_params(
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = generate_keypair_from_slice(priv_key.as_slice());
+    let key_pair = generate_keypair_from_slice(priv_key.as_slice())?;
     let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
     builder.build().await
 }
@@ -140,24 +140,25 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 }
 
-fn generate_keypair_from_slice(priv_key: &[u8]) -> ed25519_dalek::Keypair {
-    // this is only safe to unwrap because iguana seeds are already ed25519 compatible
-    let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key).unwrap();
+fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<ed25519_dalek::Keypair, SiaCoinBuildError> {
+    let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key).map_err(SiaCoinBuildError::EllipticCurveError)?;
     let public_key = ed25519_dalek::PublicKey::from(&secret_key);
-    ed25519_dalek::Keypair {
+    Ok(ed25519_dalek::Keypair {
         secret: secret_key,
         public: public_key,
-    }
+    })
 }
 
 impl From<SiaConfError> for SiaCoinBuildError {
     fn from(e: SiaConfError) -> Self { SiaCoinBuildError::ConfError(e) }
 }
+
 #[derive(Debug, Display)]
 pub enum SiaCoinBuildError {
     ConfError(SiaConfError),
     UnsupportedPrivKeyPolicy,
     ClientError(SiaApiClientError),
+    EllipticCurveError(ed25519_dalek::ed25519::Error),
 }
 
 impl<'a> SiaCoinBuilder<'a> {
