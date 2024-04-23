@@ -8,7 +8,6 @@ use rpc::v1::types::H256;
 #[cfg(test)] use std::str::FromStr;
 
 const POLICY_VERSION: u8 = 1u8;
-pub trait Policy {}
 
 #[derive(Debug, Clone)]
 pub enum SpendPolicy {
@@ -120,7 +119,6 @@ impl SpendPolicy {
     pub fn anyone_can_spend() -> Self { SpendPolicy::threshold(0, vec![]) }
 }
 
-impl Policy for SpendPolicy {}
 #[derive(Debug, Clone)]
 pub struct PolicyTypeAbove(u64);
 
