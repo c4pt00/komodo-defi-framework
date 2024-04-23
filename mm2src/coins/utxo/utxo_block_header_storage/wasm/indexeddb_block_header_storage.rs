@@ -56,7 +56,7 @@ impl IDBBlockHeadersStorage {
 
     async fn lock_db(&self) -> IDBBlockHeadersStorageRes<IDBBlockHeadersInnerLocked<'_>> {
         self.db
-            .get_or_initialize()
+            .get_or_initialize(None)
             .await
             .mm_err(|err| BlockHeaderStorageError::init_err(&self.ticker, err.to_string()))
     }

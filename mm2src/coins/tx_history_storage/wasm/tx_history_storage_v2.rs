@@ -342,7 +342,7 @@ impl IndexedDbTxHistoryStorage {
                             transactions: Vec::new(),
                             skipped: 0,
                             total: total_count,
-                        })
+                        });
                     },
                 }
             },
@@ -357,7 +357,7 @@ impl IndexedDbTxHistoryStorage {
     }
 
     async fn lock_db(&self) -> WasmTxHistoryResult<TxHistoryDbLocked<'_>> {
-        self.db.get_or_initialize().await.mm_err(WasmTxHistoryError::from)
+        self.db.get_or_initialize(None).await.mm_err(WasmTxHistoryError::from)
     }
 }
 

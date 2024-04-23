@@ -96,7 +96,10 @@ impl WalletsContext {
         })))
     }
 
-    pub async fn wallets_db(&self) -> InitDbResult<WalletsDbLocked<'_>> { self.wallets_db.get_or_initialize().await }
+    // TODO
+    pub async fn wallets_db(&self) -> InitDbResult<WalletsDbLocked<'_>> {
+        self.wallets_db.get_or_initialize(None).await
+    }
 }
 
 // Utility function for deserialization to reduce repetition

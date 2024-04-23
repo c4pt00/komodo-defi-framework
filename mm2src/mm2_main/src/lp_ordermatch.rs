@@ -2819,7 +2819,8 @@ impl OrdermatchContext {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn ordermatch_db(&self) -> InitDbResult<OrdermatchDbLocked<'_>> {
-        self.ordermatch_db.get_or_initialize().await
+        // TODO
+        self.ordermatch_db.get_or_initialize(None).await
     }
 }
 

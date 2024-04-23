@@ -13,7 +13,8 @@ pub struct ConstructibleDb<Db> {
     /// It's better to use something like [`Constructible`], but it doesn't provide a method to get the inner value by the mutable reference.
     mutex: AsyncMutex<Option<Db>>,
     db_namespace: DbNamespaceId,
-    db_id: Option<String>,
+    db_id: AsyncMutex<Option<String>>,
+    default_db_id: String,
 }
 
 impl<Db: DbInstance> ConstructibleDb<Db> {
@@ -27,7 +28,8 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            db_id: Some(db_id.to_string()),
+            db_id: AsyncMutex::new(Some(db_id.to_string())),
+            default_db_id: rmd,
         }
     }
 
@@ -40,7 +42,8 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            db_id: Some(db_id.to_string()),
+            db_id: AsyncMutex::new(Some(db_id.to_string())),
+            default_db_id: rmd,
         }
     }
 
@@ -50,23 +53,33 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
-            db_id: None,
+            db_id: AsyncMutex::new(None),
+            default_db_id: ctx.rmd160_hex(),
         }
     }
 
     /// Locks the given mutex and checks if the inner database is initialized already or not,
     /// initializes it if it's required, and returns the locked instance.
-    pub async fn get_or_initialize(&self) -> InitDbResult<DbLocked<'_, Db>> {
+    pub async fn get_or_initialize(&self, db_id: Option<&str>) -> InitDbResult<DbLocked<'_, Db>> {
         let mut locked_db = self.mutex.lock().await;
-        // Db is initialized already
-        if locked_db.is_some() {
+        let mut locked_db_id = self.db_id.lock().await;
+
+        // Check if the database is initialized and if the db_id matches
+        if let Some(current_db_id) = &*locked_db_id {
+            if locked_db.is_some() && (db_id.map(|id| id.to_string()) == Some(current_db_id.clone())) {
+                // If the database is initialized and the db_id matches, return the existing instance
+                return Ok(unwrap_db_instance(locked_db));
+            }
+        }
+
+        if locked_db.is_some() && db_id.is_none() && Some(self.default_db_id.as_str()) == locked_db_id.as_deref() {
             return Ok(unwrap_db_instance(locked_db));
         }
 
-        let db_id = DbIdentifier::new::<Db>(self.db_namespace, self.db_id.clone());
-
-        let db = Db::init(db_id).await?;
+        // Initialize the new DB instance as the db_id is different or no DB was initialized before
+        let db = Db::init(DbIdentifier::new::<Db>(self.db_namespace, locked_db_id.clone())).await?;
         *locked_db = Some(db);
+
         Ok(unwrap_db_instance(locked_db))
     }
 }

@@ -76,7 +76,7 @@ impl BlockDbImpl {
 
     async fn lock_db(&self) -> ZcoinStorageRes<BlockDbInnerLocked<'_>> {
         self.db
-            .get_or_initialize()
+            .get_or_initialize(None)
             .await
             .mm_err(|err| ZcoinStorageError::DbError(err.to_string()))
     }

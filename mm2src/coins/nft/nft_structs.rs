@@ -85,7 +85,7 @@ pub struct NftMetadataReq {
 }
 
 /// Contains parameters required to refresh metadata for a specified NFT.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct RefreshMetadataReq {
     /// The address of the NFT token whose metadata needs to be refreshed.
     pub(crate) token_address: Address,
@@ -664,7 +664,7 @@ pub struct NftTransferHistoryFilters {
 }
 
 /// Contains parameters required to update NFT transfer history and NFT list.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct UpdateNftReq {
     /// A list of blockchains for which the NFTs need to be updated.
     pub(crate) chains: Vec<Chain>,
@@ -719,6 +719,7 @@ impl From<Nft> for TransferMeta {
         }
     }
 }
+
 #[cfg(not(target_arch = "wasm32"))]
 pub struct NftCacheDbSql(pub AsyncConnection);
 
@@ -733,8 +734,8 @@ pub(crate) struct NftCtx {
     pub(crate) nft_cache_db: SharedDb<NftCacheIDB>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) nft_cache_dbs: Arc<AsyncMutex<HashMap<String, AsyncSqliteConnectionArc>>>,
-    _ctx: MmArc,
-    _current_db_id: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    ctx: MmArc,
 }
 
 impl NftCtx {
@@ -742,26 +743,23 @@ impl NftCtx {
     ///
     /// If an `NftCtx` instance doesn't already exist in the MM context, it gets created and cached for subsequent use.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
+    pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             let async_sqlite_connection = ctx
                 .async_sqlite_connection
                 .ok_or("async_sqlite_connection is not initialized".to_owned())?;
             Ok(NftCtx {
                 nft_cache_dbs: async_sqlite_connection.clone(),
-                _current_db_id: db_id.map(|d| d.to_string()).unwrap_or_else(|| ctx.rmd160_hex()),
-                _ctx: ctx.clone(),
+                ctx: ctx.clone(),
             })
         })))
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<NftCtx>, String> {
+    pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             Ok(NftCtx {
-                nft_cache_db: ConstructibleDb::new(ctx, db_id).into_shared(),
-                _current_db_id: db_id.map(|d| d.to_string()).unwrap_or_else(|| ctx.rmd160_hex()),
-                _ctx: ctx.clone(),
+                nft_cache_db: ConstructibleDb::new(ctx, None).into_shared(),
             })
         })))
     }
@@ -770,20 +768,22 @@ impl NftCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) async fn lock_db(
         &self,
+        db_id: Option<&str>,
     ) -> MmResult<impl NftListStorageOps + NftTransferHistoryStorageOps + '_, LockDBError> {
+        let db_id = db_id.map(|d| d.to_string()).unwrap_or_else(|| self.ctx.rmd160_hex());
         let mut connections = self.nft_cache_dbs.lock().await;
-        if let Some(async_conn) = connections.get(&self._current_db_id) {
+        if let Some(async_conn) = connections.get(&db_id) {
             let conn = NftCacheDbSql(async_conn.lock().await.clone());
             Ok(conn)
         } else {
-            let sqlite_file_path = self._ctx.dbdir(Some(&self._current_db_id)).join(ASYNC_SQLITE_DB_ID);
+            let sqlite_file_path = self.ctx.dbdir(Some(&db_id)).join(ASYNC_SQLITE_DB_ID);
             log_sqlite_file_open_attempt(&sqlite_file_path);
             let async_conn = Arc::new(AsyncMutex::new(
                 AsyncConnection::open(sqlite_file_path)
                     .await
                     .map_to_mm(|e| LockDBError::InternalError(e.to_string()))?,
             ));
-            connections.insert(self._current_db_id.to_owned(), async_conn.clone());
+            connections.insert(db_id, async_conn.clone());
 
             let conn = NftCacheDbSql(async_conn.lock().await.clone());
             Ok(conn)
@@ -793,9 +793,10 @@ impl NftCtx {
     #[cfg(target_arch = "wasm32")]
     pub(crate) async fn lock_db(
         &self,
+        db_id: Option<&str>,
     ) -> MmResult<impl NftListStorageOps + NftTransferHistoryStorageOps + '_, LockDBError> {
         self.nft_cache_db
-            .get_or_initialize()
+            .get_or_initialize(db_id)
             .await
             .mm_err(WasmNftCacheError::from)
             .mm_err(LockDBError::from)

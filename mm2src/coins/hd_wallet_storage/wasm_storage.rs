@@ -53,17 +53,17 @@ impl From<CursorError> for HDWalletStorageError {
         let stringified_error = e.to_string();
         match e {
             // We don't expect that the `String` and `u32` types serialization to fail.
-            CursorError::ErrorSerializingIndexFieldValue {..}
+            CursorError::ErrorSerializingIndexFieldValue { .. }
             // We don't expect that the `String` and `u32` types deserialization to fail.
-            | CursorError::ErrorDeserializingIndexValue {..}
-            | CursorError::ErrorOpeningCursor {..}
-            | CursorError::AdvanceError {..}
-            | CursorError::InvalidKeyRange {..}
-            | CursorError::TypeMismatch {..}
-            | CursorError::IncorrectNumberOfKeysPerIndex {..}
+            | CursorError::ErrorDeserializingIndexValue { .. }
+            | CursorError::ErrorOpeningCursor { .. }
+            | CursorError::AdvanceError { .. }
+            | CursorError::InvalidKeyRange { .. }
+            | CursorError::TypeMismatch { .. }
+            | CursorError::IncorrectNumberOfKeysPerIndex { .. }
             | CursorError::UnexpectedState(..)
-            | CursorError::IncorrectUsage {..} => HDWalletStorageError::Internal(stringified_error),
-            CursorError::ErrorDeserializingItem {..} => HDWalletStorageError::ErrorDeserializing(stringified_error),
+            | CursorError::IncorrectUsage { .. } => HDWalletStorageError::Internal(stringified_error),
+            CursorError::ErrorDeserializingItem { .. } => HDWalletStorageError::ErrorDeserializing(stringified_error),
         }
     }
 }
@@ -271,7 +271,7 @@ impl HDWalletIndexedDbStorage {
     }
 
     async fn lock_db_mutex(db: &SharedDb<HDWalletDb>) -> HDWalletStorageResult<HDWalletDbLocked<'_>> {
-        db.get_or_initialize().await.mm_err(HDWalletStorageError::from)
+        db.get_or_initialize(None).await.mm_err(HDWalletStorageError::from)
     }
 
     async fn find_account(
@@ -316,7 +316,7 @@ impl HDWalletIndexedDbStorage {
 /// This function is used in `hd_wallet_storage::tests`.
 pub(super) async fn get_all_storage_items(ctx: &MmArc) -> Vec<HDAccountStorageItem> {
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
-    let db = coins_ctx.hd_wallet_db.get_or_initialize().await.unwrap();
+    let db = coins_ctx.hd_wallet_db.get_or_initialize(None).await.unwrap();
     let transaction = db.inner.transaction().await.unwrap();
     let table = transaction.table::<HDAccountTable>().await.unwrap();
     table

@@ -150,7 +150,7 @@ impl<'a> WalletIndexedDb {
 
     pub(crate) async fn lock_db(&self) -> ZcoinStorageRes<WalletDbInnerLocked<'_>> {
         self.db
-            .get_or_initialize()
+            .get_or_initialize(None)
             .await
             .mm_err(|err| ZcoinStorageError::DbError(err.to_string()))
     }

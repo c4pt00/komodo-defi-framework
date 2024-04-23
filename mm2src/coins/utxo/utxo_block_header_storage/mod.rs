@@ -146,7 +146,7 @@ mod block_headers_storage_tests {
 
     pub(crate) async fn test_add_block_headers_impl(for_coin: &str) {
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
+        let storage = BlockHeaderStorage::new_from_ctx(&ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
         storage.init().await.unwrap();
@@ -160,7 +160,7 @@ mod block_headers_storage_tests {
 
     pub(crate) async fn test_get_block_header_impl(for_coin: &str) {
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
+        let storage = BlockHeaderStorage::new_from_ctx(&ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
         storage.init().await.unwrap();
@@ -185,7 +185,7 @@ mod block_headers_storage_tests {
 
     pub(crate) async fn test_get_last_block_header_with_non_max_bits_impl(for_coin: &str) {
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
+        let storage = BlockHeaderStorage::new_from_ctx(&ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
         storage.init().await.unwrap();
@@ -220,7 +220,7 @@ mod block_headers_storage_tests {
 
     pub(crate) async fn test_get_last_block_height_impl(for_coin: &str) {
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
+        let storage = BlockHeaderStorage::new_from_ctx(&ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
         storage.init().await.unwrap();
@@ -248,7 +248,7 @@ mod block_headers_storage_tests {
 
     pub(crate) async fn test_remove_headers_from_storage_impl(for_coin: &str) {
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
+        let storage = BlockHeaderStorage::new_from_ctx(&ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
         storage.init().await.unwrap();
@@ -302,7 +302,7 @@ mod native_tests {
     fn test_init_collection() {
         let for_coin = "init_collection";
         let ctx = mm_ctx_with_custom_db();
-        let storage = BlockHeaderStorage::new_from_ctx(ctx, for_coin.to_string(), None)
+        let storage = BlockHeaderStorage::new_from_ctx(&ctx, for_coin.to_string(), None)
             .unwrap()
             .into_inner();
 

@@ -75,7 +75,7 @@ impl ZcashParamsWasmImpl {
 
     async fn lock_db(&self) -> ZcashParamsWasmRes<ZcashParamsInnerLocked<'_>> {
         self.0
-            .get_or_initialize()
+            .get_or_initialize(None)
             .await
             .mm_err(|err| ZcoinStorageError::DbError(err.to_string()))
     }

@@ -358,5 +358,5 @@ pub(crate) async fn get_nft_ctx(_chain: &Chain) -> Arc<NftCtx> {
     let ctx = mm_ctx_with_custom_async_db().await;
     #[cfg(target_arch = "wasm32")]
     let ctx = mm_ctx_with_custom_db();
-    NftCtx::from_ctx(&ctx, None).unwrap()
+    NftCtx::from_ctx(&ctx).unwrap()
 }
