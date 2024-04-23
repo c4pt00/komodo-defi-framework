@@ -367,9 +367,9 @@ impl MarketCoinOps for SiaCoin {
 
     fn display_priv_key(&self) -> Result<String, String> { unimplemented!() }
 
-    fn min_tx_amount(&self) -> BigDecimal { Default::default() }
+    fn min_tx_amount(&self) -> BigDecimal { unimplemented!() }
 
-    fn min_trading_vol(&self) -> MmNumber { MmNumber::from("0.00777") }
+    fn min_trading_vol(&self) -> MmNumber { unimplemented!() }
 }
 
 #[async_trait]
