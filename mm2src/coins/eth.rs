@@ -45,8 +45,8 @@ use crypto::{CryptoCtx, CryptoCtxError, GlobalHDAccountArc, KeyPairPolicy, Stand
 use derive_more::Display;
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Function, Token};
-pub use ethcore_transaction::SignedTransaction as SignedEthTx;
-use ethcore_transaction::{Action, Transaction as UnSignedEthTx, UnverifiedTransaction};
+pub use ethcore_transaction::{Action, SignedTransaction as SignedEthTx};
+use ethcore_transaction::{Transaction as UnSignedEthTx, UnverifiedTransaction};
 use ethereum_types::{Address, H160, H256, U256};
 use ethkey::{public_to_address, sign, verify_address, KeyPair, Public, Signature};
 use futures::compat::Future01CompatExt;
@@ -3445,7 +3445,7 @@ impl EthCoin {
 
 #[cfg_attr(test, mockable)]
 impl EthCoin {
-    pub(crate) fn sign_and_send_transaction(&self, value: U256, action: Action, data: Vec<u8>, gas: U256) -> EthTxFut {
+    pub fn sign_and_send_transaction(&self, value: U256, action: Action, data: Vec<u8>, gas: U256) -> EthTxFut {
         let ctx = try_tx_fus!(MmArc::from_weak(&self.ctx).ok_or("!ctx"));
         let coin = self.clone();
         let fut = async move {

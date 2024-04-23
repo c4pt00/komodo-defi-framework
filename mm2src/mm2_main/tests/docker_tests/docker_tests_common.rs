@@ -44,6 +44,7 @@ use serde_json::{self as json, Value as Json};
 pub use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+use std::str::FromStr;
 use std::sync::Mutex;
 pub use std::thread;
 use std::time::Duration;
@@ -51,6 +52,7 @@ use testcontainers::clients::Cli;
 use testcontainers::core::WaitFor;
 use testcontainers::{Container, GenericImage, RunnableImage};
 use web3::transports::Http;
+use web3::types::Address as EthAddress;
 use web3::types::{BlockId, BlockNumber, TransactionRequest};
 use web3::Web3;
 
@@ -70,6 +72,10 @@ lazy_static! {
     pub static ref SEPOLIA_WEB3: Web3<Http> = Web3::new(Http::new(SEPOLIA_RPC_URL).unwrap());
     // Mutex used to prevent nonce re-usage during funding addresses used in tests
     pub static ref GETH_NONCE_LOCK: Mutex<()> = Mutex::new(());
+    pub static ref SEPOLIA_NONCE_LOCK: Mutex<()> = Mutex::new(());
+    pub static ref SEPOLIA_ETOMIC_MAKER_NFT_SWAP: EthAddress = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
+    pub static ref SEPOLIA_ERC721_CONTRACT: EthAddress = EthAddress::from_str("0xde3a479f463c17a6f0a4cbe67e506467e97e2c52").unwrap();
+    pub static ref SEPOLIA_ERC1155_CONTRACT: EthAddress = EthAddress::from_str("0xfb53b8764be6033d89ceacafa36631b09d60a1d2").unwrap();
 }
 
 pub static mut QICK_TOKEN_ADDRESS: Option<H160Eth> = None;
@@ -93,7 +99,7 @@ pub static mut GETH_NFT_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// NFT Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_NFT_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 pub static GETH_RPC_URL: &str = "http://127.0.0.1:8545";
-pub static SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
+pub static SEPOLIA_RPC_URL: &str = "http://ethereum-sepolia-rpc.publicnode.com";
 
 pub const UTXO_ASSET_DOCKER_IMAGE: &str = "docker.io/artempikulin/testblockchain";
 pub const UTXO_ASSET_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/artempikulin/testblockchain:multiarch";
