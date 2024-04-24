@@ -85,6 +85,9 @@ impl SiaApiClientImpl {
         let auth_value = format!("Basic {}", BASE64.encode(format!(":{}", password)));
         headers.insert(
             AUTHORIZATION,
+            // This error does not require a test case as it is impossible to trigger in practice
+            // the from_str method can only return Err if the str is invalid ASCII
+            // the encode() method can only return valid ASCII
             HeaderValue::from_str(&auth_value).map_err(|e| SiaApiClientError::BuildError(e.to_string()))?,
         );
 
@@ -92,6 +95,7 @@ impl SiaApiClientImpl {
             .default_headers(headers)
             .timeout(Duration::from_secs(10)) // TODO make this configurable
             .build()
+            // covering this with a unit test seems to require altering the system's ssl certificates
             .map_err(|e| {
                 SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
                     error: e,
