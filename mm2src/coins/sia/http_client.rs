@@ -6,7 +6,7 @@ use base64::Engine as _; // required for .encode() method
 use core::fmt::Display;
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{Client, Error, Url};
+use reqwest::{Client, Error as ReqwestError, Url};
 use serde::de::DeserializeOwned;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -36,7 +36,7 @@ pub struct SiaApiClientImpl {
 // this can be removed in favor of using ".with_url()" once reqwest is updated to v0.11.23
 #[derive(Debug)]
 pub struct ReqwestErrorWithUrl {
-    error: Error,
+    error: ReqwestError,
     url: Url,
 }
 
