@@ -58,7 +58,7 @@ pub struct SiaCoinConf {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiaHttpConf {
     pub url: Url,
-    pub auth: String,
+    pub password: String,
 }
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
@@ -175,7 +175,7 @@ impl<'a> SiaCoinBuilder<'a> {
         let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
         let sia_fields = SiaCoinFields {
             conf,
-            http_client: SiaApiClient::new(self.ticker(), self.params.http_conf.clone())
+            http_client: SiaApiClient::new(self.params.http_conf.clone())
                 .map_err(SiaCoinBuildError::ClientError)?,
             key_pair: PrivKeyPolicy::Iguana(self.key_pair),
         };

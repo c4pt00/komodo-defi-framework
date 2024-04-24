@@ -8,28 +8,11 @@ use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Error as ReqwestError, Url};
 use serde::de::DeserializeOwned;
-use std::ops::Deref;
-use std::sync::Arc;
 
-#[derive(Clone, Debug)]
-pub struct SiaApiClient(pub Arc<SiaApiClientImpl>);
-
-impl Deref for SiaApiClient {
-    type Target = SiaApiClientImpl;
-    fn deref(&self) -> &SiaApiClientImpl { &self.0 }
-}
-
-impl SiaApiClient {
-    pub fn new(_coin_ticker: &str, http_conf: SiaHttpConf) -> Result<Self, SiaApiClientError> {
-        let new_arc = SiaApiClientImpl::new(http_conf.url, &http_conf.auth)?;
-        Ok(SiaApiClient(Arc::new(new_arc)))
-    }
-}
-
-#[derive(Debug)]
-pub struct SiaApiClientImpl {
+#[derive(Debug, Clone)]
+pub struct SiaApiClient {
     client: Client,
-    base_url: Url,
+    conf: SiaHttpConf,
 }
 
 // this is neccesary to show the URL in error messages returned to the user
@@ -78,11 +61,11 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Resu
 }
 
 /// Implements the methods for sending specific requests and handling their responses.
-impl SiaApiClientImpl {
+impl SiaApiClient {
     /// Constructs a new instance of the API client using the provided base URL and password for authentication.
-    fn new(base_url: Url, password: &str) -> Result<Self, SiaApiClientError> {
+    pub fn new(conf: SiaHttpConf) -> Result<Self, SiaApiClientError> {
         let mut headers = HeaderMap::new();
-        let auth_value = format!("Basic {}", BASE64.encode(format!(":{}", password)));
+        let auth_value = format!("Basic {}", BASE64.encode(format!(":{}", conf.password)));
         headers.insert(
             AUTHORIZATION,
             // This error does not require a test case as it is impossible to trigger in practice
@@ -99,15 +82,15 @@ impl SiaApiClientImpl {
             .map_err(|e| {
                 SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
                     error: e,
-                    url: base_url.clone(),
+                    url: conf.url.clone(),
                 })
             })?;
-        Ok(SiaApiClientImpl { client, base_url })
+        Ok(SiaApiClient { client, conf })
     }
 
     /// General method for dispatching requests, handling routing and response parsing.
     pub async fn dispatcher<R: SiaApiRequest + Send>(&self, request: R) -> Result<R::Response, SiaApiClientError> {
-        let req = request.to_http_request(&self.base_url)?;
+        let req = request.to_http_request(&self.conf.url)?;
         fetch_and_parse::<R::Response>(&self.client, req.url().clone()).await
     }
 
