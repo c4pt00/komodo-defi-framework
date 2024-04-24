@@ -5,7 +5,6 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _; // required for .encode() method
 use core::fmt::Display;
 use core::time::Duration;
-use mm2_number::MmNumber;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Error, Url};
 use serde::de::DeserializeOwned;
