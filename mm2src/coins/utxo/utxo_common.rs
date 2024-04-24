@@ -1181,13 +1181,13 @@ pub async fn sign_and_send_taker_funding_spend<T: UtxoCommonOps>(
         SIGHASH_ALL,
         coin.as_ref().conf.fork_id
     ));
-    let sig_hash_all_fork_id = (SIGHASH_ALL | coin.as_ref().conf.fork_id) as u8;
+    let sig_hash_all_fork_id = SIGHASH_ALL | coin.as_ref().conf.fork_id;
 
     let mut maker_signature_with_sighash = preimage.signature.to_vec();
     maker_signature_with_sighash.push(sig_hash_all_fork_id);
     drop_mutability!(maker_signature_with_sighash);
 
-    let mut taker_signature_with_sighash: Vec<u8> = taker_signature.take();
+    let mut taker_signature_with_sighash = taker_signature.take();
     taker_signature_with_sighash.push(sig_hash_all_fork_id);
     drop_mutability!(taker_signature_with_sighash);
 
@@ -1427,14 +1427,14 @@ pub async fn sign_and_broadcast_taker_payment_spend<T: UtxoCommonOps>(
     ));
     let mut taker_signature_with_sighash = preimage.signature.to_vec();
     let taker_sig_hash = match gen_args.dex_fee {
-        DexFee::Standard(_) => (SIGHASH_SINGLE | coin.as_ref().conf.fork_id) as u8,
-        DexFee::WithBurn { .. } => (SIGHASH_ALL | coin.as_ref().conf.fork_id) as u8,
+        DexFee::Standard(_) => SIGHASH_SINGLE | coin.as_ref().conf.fork_id,
+        DexFee::WithBurn { .. } => SIGHASH_ALL | coin.as_ref().conf.fork_id,
     };
 
     taker_signature_with_sighash.push(taker_sig_hash);
     drop_mutability!(taker_signature_with_sighash);
 
-    let sig_hash_all_fork_id = (SIGHASH_ALL | coin.as_ref().conf.fork_id) as u8;
+    let sig_hash_all_fork_id = SIGHASH_ALL | coin.as_ref().conf.fork_id;
     let mut maker_signature_with_sighash: Vec<u8> = maker_signature.take();
     maker_signature_with_sighash.push(sig_hash_all_fork_id);
     drop_mutability!(maker_signature_with_sighash);
