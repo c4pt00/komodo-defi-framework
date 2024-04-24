@@ -34,7 +34,9 @@ pub enum SiaApiClientError {
     Timeout(String),
     BuildError(String),
     ServerUnreachable(String),
-    ReqwestError(ReqwestErrorWithUrl),
+    ReqwestFetchError(ReqwestErrorWithUrl), // TODO make an enum
+    ReqwestParseError(ReqwestErrorWithUrl),
+    ReqwestTlsError(ReqwestErrorWithUrl),
     UrlParse(url::ParseError),
     UnexpectedResponse(String),
 }
@@ -45,25 +47,27 @@ impl From<SiaApiClientError> for String {
 
 /// Generic function to fetch data from a URL and deserialize it into a specified type.
 async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Result<T, SiaApiClientError> {
-    client
+    let fetched = client
         .get(url.clone())
         .send()
         .await
         .map_err(|e| {
-            SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
+            SiaApiClientError::ReqwestFetchError(ReqwestErrorWithUrl {
                 error: e,
                 url: url.clone(),
             })
-        })?
+        })?;
+    let parsed = fetched
         .json::<T>()
         .await
-        .map_err(|e| SiaApiClientError::ReqwestError(ReqwestErrorWithUrl { error: e, url }))
+        .map_err(|e| SiaApiClientError::ReqwestParseError(ReqwestErrorWithUrl { error: e, url }));
+    parsed
 }
 
 /// Implements the methods for sending specific requests and handling their responses.
 impl SiaApiClient {
     /// Constructs a new instance of the API client using the provided base URL and password for authentication.
-    pub fn new(conf: SiaHttpConf) -> Result<Self, SiaApiClientError> {
+    pub async fn new(conf: SiaHttpConf) -> Result<Self, SiaApiClientError> {
         let mut headers = HeaderMap::new();
         let auth_value = format!("Basic {}", BASE64.encode(format!(":{}", conf.password)));
         headers.insert(
@@ -80,12 +84,14 @@ impl SiaApiClient {
             .build()
             // covering this with a unit test seems to require altering the system's ssl certificates
             .map_err(|e| {
-                SiaApiClientError::ReqwestError(ReqwestErrorWithUrl {
+                SiaApiClientError::ReqwestTlsError(ReqwestErrorWithUrl {
                     error: e,
                     url: conf.url.clone(),
                 })
             })?;
-        Ok(SiaApiClient { client, conf })
+        let ret = SiaApiClient { client, conf };
+        ret.dispatcher(ConsensusTipRequest).await?;
+        Ok(ret)
     }
 
     /// General method for dispatching requests, handling routing and response parsing.
@@ -101,6 +107,45 @@ impl SiaApiClient {
 
     pub async fn address_balance(&self, address: Address) -> Result<AddressBalanceResponse, SiaApiClientError> {
         self.dispatcher(AddressBalanceRequest { address }).await
+    }
+}
+
+//#[cfg(test)] use std::str::FromStr;
+#[cfg(test)]
+const TEST_URL: &str = "http://localhost:9980/";
+
+#[tokio::test]
+async fn test_api_client_new() {
+    let conf = SiaHttpConf {
+        url: Url::parse(TEST_URL).unwrap(),
+        password: "password".to_string(),
+    };
+    let _api_client = SiaApiClient::new(conf).await.unwrap();
+}
+
+#[tokio::test]
+async fn test_api_client_new_bad_auth() {
+    let conf = SiaHttpConf {
+        url: Url::parse(TEST_URL).unwrap(),
+        password: "foo".to_string(),
+    };
+    let api_client = SiaApiClient::new(conf).await;
+    match api_client {
+        Err(SiaApiClientError::ReqwestParseError(e)) => assert!(e.error.is_decode()),
+        _ => panic!("unexpected result: {:?}", api_client),
+    }
+}
+
+#[tokio::test]
+async fn test_api_client_new_connection_refused() {
+    let conf = SiaHttpConf {
+        url: Url::parse("http://localhost:19999").unwrap(),
+        password: "password".to_string(),
+    };
+    let api_client = SiaApiClient::new(conf).await;
+    match api_client {
+        Err(SiaApiClientError::ReqwestFetchError(e)) => assert!(e.error.is_connect()),
+        _ => panic!("unexpected result: {:?}", api_client),
     }
 }
 
