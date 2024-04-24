@@ -36,14 +36,13 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// Creates a new uninitialized `Db` instance shared between Iguana and all HD accounts
     /// derived from the same passphrase.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
-    pub fn new_shared_db(ctx: &MmArc, db_id: Option<&str>) -> Self {
-        let rmd = hex::encode(ctx.shared_db_id().as_slice());
-        let db_id = db_id.unwrap_or(&rmd);
+    pub fn new_shared_db(ctx: &MmArc) -> Self {
+        let db_id = hex::encode(ctx.shared_db_id().as_slice());
         ConstructibleDb {
             mutex: AsyncMutex::new(None),
             db_namespace: ctx.db_namespace,
             db_id: AsyncMutex::new(Some(db_id.to_string())),
-            default_db_id: rmd,
+            default_db_id: db_id,
         }
     }
 
