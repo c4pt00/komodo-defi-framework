@@ -2,7 +2,7 @@ use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC7
                                  GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT,
                                  GETH_NFT_MAKER_SWAP_V2, GETH_NFT_SWAP_CONTRACT, GETH_NONCE_LOCK, GETH_RPC_URL,
                                  GETH_SWAP_CONTRACT, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX,
-                                 SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP,
+                                 SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2,
                                  SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
@@ -77,8 +77,8 @@ pub fn erc1155_contract() -> Address { unsafe { GETH_ERC1155_CONTRACT } }
 
 /// # Safety
 ///
-/// SEPOLIA_ETOMIC_MAKER_NFT_SWAP address is set once during initialization before tests start
-pub fn sepolia_etomic_maker_nft() -> Address { unsafe { SEPOLIA_ETOMIC_MAKER_NFT_SWAP } }
+/// SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 address is set once during initialization before tests start
+pub fn sepolia_etomic_maker_nft() -> Address { unsafe { SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 } }
 
 /// # Safety
 ///
