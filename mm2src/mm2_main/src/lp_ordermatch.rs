@@ -2753,6 +2753,7 @@ struct OrdermatchContext {
     pending_maker_reserved: AsyncMutex<HashMap<Uuid, Vec<MakerReserved>>>,
     #[cfg(target_arch = "wasm32")]
     ordermatch_db: ConstructibleDb<OrdermatchDb>,
+    db_id: Option<String>,
 }
 
 #[allow(unused)]
@@ -2790,6 +2791,7 @@ pub fn init_ordermatch_context(ctx: &MmArc, db_id: Option<&str>) -> OrdermatchIn
         original_tickers,
         #[cfg(target_arch = "wasm32")]
         ordermatch_db: ConstructibleDb::new(ctx, db_id),
+        db_id: db_id.map(|d| d.to_string()),
     };
 
     from_ctx(&ctx.ordermatch_ctx, move || Ok(ordermatch_context))
@@ -2819,7 +2821,8 @@ impl OrdermatchContext {
                 orderbook_tickers: Default::default(),
                 original_tickers: Default::default(),
                 #[cfg(target_arch = "wasm32")]
-                ordermatch_db: ConstructibleDb::new(ctx, None),
+                ordermatch_db: ConstructibleDb::new(ctx, db_id),
+                db_id: None,
             })
         })))
     }
@@ -3390,8 +3393,7 @@ pub async fn clean_memory_loop(ctx_weak: MmWeak) {
 /// The function locks the [`OrdermatchContext::my_maker_orders`] and [`OrdermatchContext::my_taker_orders`] mutexes.
 async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchContext) {
     let mut my_taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
-    // TODO db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
+    let storage = MyOrdersStorage::new(ctx.clone(), ordermatch_ctx.db_id.clone());
     let mut my_actual_taker_orders = HashMap::with_capacity(my_taker_orders.len());
 
     for (uuid, order) in my_taker_orders.drain() {
@@ -3481,8 +3483,7 @@ async fn check_balance_for_maker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchC
 /// The function locks the [`OrdermatchContext::my_maker_orders`] mutex.
 async fn handle_timed_out_maker_matches(ctx: MmArc, ordermatch_ctx: &OrdermatchContext) {
     let now = now_ms();
-    // TODO db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
+    let storage = MyOrdersStorage::new(ctx.clone(), ordermatch_ctx.db_id.clone());
     let my_maker_orders = ordermatch_ctx.maker_orders_ctx.lock().orders.clone();
 
     for (_, order) in my_maker_orders.iter() {
@@ -3596,8 +3597,7 @@ async fn process_maker_reserved(ctx: MmArc, from_pubkey: H256Json, reserved_msg:
                 my_order
                     .matches
                     .insert(taker_match.reserved.maker_order_uuid, taker_match);
-                // TODO db_id
-                MyOrdersStorage::new(ctx, None)
+                MyOrdersStorage::new(ctx, base_coin.account_db_id())
                     .update_active_taker_order(my_order)
                     .await
                     .error_log_with_msg("!update_active_taker_order");
@@ -3674,8 +3674,7 @@ async fn process_taker_request(ctx: MmArc, from_pubkey: H256Json, taker_request:
     }
 
     let ordermatch_ctx = OrdermatchContext::from_ctx(&ctx).unwrap();
-    // TODO db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
+    let storage = MyOrdersStorage::new(ctx.clone(), ordermatch_ctx.db_id.clone());
     let mut my_orders = ordermatch_ctx.maker_orders_ctx.lock().orders.clone();
     let filtered = my_orders
         .iter_mut()
@@ -3824,8 +3823,7 @@ async fn process_taker_connect(ctx: MmArc, sender_pubkey: PublicKey, connect_msg
             updated_msg.with_new_max_volume(my_order.available_amount().into());
             maker_order_updated_p2p_notify(ctx.clone(), topic, updated_msg, my_order.p2p_keypair());
         }
-        // TODO db_id
-        MyOrdersStorage::new(ctx, None)
+        MyOrdersStorage::new(ctx, ordermatch_ctx.db_id.clone())
             .update_active_maker_order(&my_order)
             .await
             .error_log_with_msg("!update_active_maker_order");
@@ -5088,70 +5086,68 @@ pub struct FilteringOrder {
 
 /// Returns *all* uuids of swaps, which match the selected filter.
 pub async fn orders_history_by_filter(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
-    // TODO db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
-
+    let mut results = vec![];
+    let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
     let filter: MyOrdersFilter = try_s!(json::from_value(req));
-    let db_result = try_s!(storage.select_orders_by_filter(&filter, None).await);
+    for db_id in db_ids {
+        let storage = MyOrdersStorage::new(ctx.clone(), Some(db_id.clone()));
+        let db_result = try_s!(storage.select_orders_by_filter(&filter, None).await);
+        let mut warnings = vec![];
 
-    let mut warnings = vec![];
-    let rpc_orders = if filter.include_details {
-        let mut vec = Vec::with_capacity(db_result.orders.len());
-        for order in db_result.orders.iter() {
-            let uuid = match Uuid::parse_str(order.uuid.as_str()) {
-                Ok(uuid) => uuid,
-                Err(e) => {
-                    let warning = format!(
-                        "Order details for Uuid {} were skipped because uuid could not be parsed",
-                        order.uuid
-                    );
-                    warn!("{}, error {}", warning, e);
-                    warnings.push(UuidParseError {
-                        uuid: order.uuid.clone(),
-                        warning,
-                    });
+        if filter.include_details {
+            let mut vec = Vec::with_capacity(db_result.orders.len());
+            for order in db_result.orders.iter() {
+                let uuid = match Uuid::parse_str(order.uuid.as_str()) {
+                    Ok(uuid) => uuid,
+                    Err(e) => {
+                        let warning = format!(
+                            "Order details for Uuid {} were skipped because uuid could not be parsed",
+                            order.uuid
+                        );
+                        warn!("{}, error {}", warning, e);
+                        warnings.push(UuidParseError {
+                            uuid: order.uuid.clone(),
+                            warning,
+                        });
+                        continue;
+                    },
+                };
+
+                if let Ok(order) = storage.load_order_from_history(uuid).await {
+                    vec.push(order);
                     continue;
-                },
-            };
-
-            if let Ok(order) = storage.load_order_from_history(uuid).await {
-                vec.push(order);
-                continue;
-            }
-
-            let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(&ctx));
-            if order.order_type == "Maker" {
-                let maybe_order_mutex = ordermatch_ctx.maker_orders_ctx.lock().get_order(&uuid).cloned();
-                if let Some(maker_order_mutex) = maybe_order_mutex {
-                    let maker_order = maker_order_mutex.lock().await.clone();
-                    vec.push(Order::Maker(maker_order));
                 }
-                continue;
+
+                let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(&ctx));
+                if order.order_type == "Maker" {
+                    let maybe_order_mutex = ordermatch_ctx.maker_orders_ctx.lock().get_order(&uuid).cloned();
+                    if let Some(maker_order_mutex) = maybe_order_mutex {
+                        let maker_order = maker_order_mutex.lock().await.clone();
+                        vec.push(Order::Maker(maker_order));
+                    }
+                    continue;
+                }
+
+                let taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
+                if let Some(taker_order) = taker_orders.get(&uuid) {
+                    vec.push(Order::Taker(taker_order.to_owned()));
+                }
             }
 
-            let taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
-            if let Some(taker_order) = taker_orders.get(&uuid) {
-                vec.push(Order::Taker(taker_order.to_owned()));
-            }
+            let details: Vec<_> = vec.iter().map(OrderForRpc::from).collect();
+            results.push(json!({
+                "result": {
+                    "orders": db_result.orders,
+                    "details": details,
+                    "found_records": db_result.total_count,
+                    "warnings": warnings,
+                    "db_id": db_id
+                }
+            }));
         }
-        vec
-    } else {
-        vec![]
-    };
+    }
 
-    let details: Vec<_> = rpc_orders.iter().map(OrderForRpc::from).collect();
-
-    let json = json!({
-    "result": {
-        "orders": db_result.orders,
-        "details": details,
-        "found_records": db_result.total_count,
-        "warnings": warnings,
-    }});
-
-    let res = try_s!(json::to_vec(&json));
-
-    Ok(try_s!(Response::builder().body(res)))
+    Ok(try_s!(Response::builder().body(try_s!(json::to_vec(&results)))))
 }
 
 #[derive(Deserialize)]
