@@ -47,21 +47,27 @@ impl From<SiaApiClientError> for String {
 
 /// Generic function to fetch data from a URL and deserialize it into a specified type.
 async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Result<T, SiaApiClientError> {
-    let fetched = client
-        .get(url.clone())
-        .send()
-        .await
-        .map_err(|e| {
-            SiaApiClientError::ReqwestFetchError(ReqwestErrorWithUrl {
-                error: e,
-                url: url.clone(),
-            })
-        })?;
-    let parsed = fetched
+    let fetched = client.get(url.clone()).send().await.map_err(|e| {
+        SiaApiClientError::ReqwestFetchError(ReqwestErrorWithUrl {
+            error: e,
+            url: url.clone(),
+        })
+    })?;
+    match fetched.status().as_u16() {
+        200 => {}
+        _ => {
+            return Err(SiaApiClientError::UnexpectedResponse(format!(
+                "Unexpected response code: {}",
+                fetched.status()
+            )))
+        }
+    } 
+    // COME BACK TO THIS - handle OK 200 but unexpected response
+    // eg, internal error or user error
+    fetched
         .json::<T>()
         .await
-        .map_err(|e| SiaApiClientError::ReqwestParseError(ReqwestErrorWithUrl { error: e, url }));
-    parsed
+        .map_err(|e| SiaApiClientError::ReqwestParseError(ReqwestErrorWithUrl { error: e, url }))
 }
 
 /// Implements the methods for sending specific requests and handling their responses.
@@ -110,7 +116,7 @@ impl SiaApiClient {
     }
 }
 
-//#[cfg(test)] use std::str::FromStr;
+#[cfg(test)] use std::str::FromStr;
 #[cfg(test)]
 const TEST_URL: &str = "http://localhost:9980/";
 
@@ -147,6 +153,21 @@ async fn test_api_client_new_connection_refused() {
         Err(SiaApiClientError::ReqwestFetchError(e)) => assert!(e.error.is_connect()),
         _ => panic!("unexpected result: {:?}", api_client),
     }
+}
+
+#[tokio::test]
+#[ignore] // WIP COME BACK
+async fn test_api_address_balance() {
+    let conf = SiaHttpConf {
+        url: Url::parse(TEST_URL).unwrap(),
+        password: "password".to_string(),
+    };
+    let api_client = SiaApiClient::new(conf).await.unwrap();
+
+    let address = Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
+
+    let balance_resp = api_client.address_balance(address).await.unwrap();
+    println!("balance_resp: {:?}", balance_resp);
 }
 
 /*
