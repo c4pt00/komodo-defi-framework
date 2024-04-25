@@ -25,8 +25,8 @@ use best_orders::BestOrdersAction;
 use blake2::digest::{Update, VariableOutput};
 use blake2::Blake2bVar;
 use coins::utxo::{compressed_pub_key_from_priv_raw, ChecksumType, UtxoAddressFormat};
-use coins::{coin_conf, find_pair, find_unique_account_ids_active, lp_coinfind, BalanceTradeFeeUpdatedHandler,
-            CoinProtocol, CoinsContext, FeeApproxStage, MarketCoinOps, MmCoinEnum};
+use coins::{coin_conf, find_pair, find_unique_account_ids_active, lp_coinfind, lp_coinfind_or_err,
+            BalanceTradeFeeUpdatedHandler, CoinProtocol, CoinsContext, FeeApproxStage, MarketCoinOps, MmCoinEnum};
 use common::executor::{simple_map::AbortableSimpleMap, AbortSettings, AbortableSystem, AbortedError, SpawnAbortable,
                        SpawnFuture, Timer};
 use common::log::{error, info, warn, LogOnError};
@@ -100,6 +100,8 @@ cfg_wasm32! {
 
 pub use lp_bot::{start_simple_market_maker_bot, stop_simple_market_maker_bot, StartSimpleMakerBotRequest,
                  TradingBotEvent};
+
+use self::my_orders_storage::{MyOrdersError, MyOrdersResult};
 
 #[path = "lp_ordermatch/my_orders_storage.rs"]
 mod my_orders_storage;
@@ -1678,6 +1680,15 @@ impl TakerOrder {
     }
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
+
+    async fn db_id(&self, ctx: &MmArc) -> MyOrdersResult<Option<String>> {
+        lp_coinfind_or_err(ctx, &self.request.base)
+            .await
+            .mm_err(|err| {
+                MyOrdersError::ErrorSaving(format!("Error finding/deriving wallet pubkey for db_id: {err:?}"))
+            })
+            .map(|coin| coin.account_db_id())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -2095,6 +2106,15 @@ impl MakerOrder {
     fn was_updated(&self) -> bool { self.updated_at != Some(self.created_at) }
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
+
+    async fn db_id(&self, ctx: &MmArc) -> MyOrdersResult<Option<String>> {
+        lp_coinfind_or_err(ctx, &self.base)
+            .await
+            .mm_err(|err| {
+                MyOrdersError::ErrorSaving(format!("Error finding/deriving wallet pubkey for db_id: {err:?}"))
+            })
+            .map(|coin| coin.account_db_id())
+    }
 }
 
 impl From<TakerOrder> for MakerOrder {
@@ -4957,7 +4977,7 @@ pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
     }
 
     for db_id in db_ids {
-        let storage = MyOrdersStorage::new(ctx.clone(), Some(&db_id));
+        let storage = MyOrdersStorage::new(ctx.clone(), Some(db_id.clone()));
         if let (Ok(order), Ok(cancellation_reason)) = (
             storage.load_order_from_history(req.uuid).await,
             &storage.select_order_status(req.uuid).await,
@@ -5408,7 +5428,7 @@ pub async fn orders_kick_start(ctx: &MmArc) -> Result<HashSet<String>, String> {
 
     let db_ids = find_unique_account_ids_active(ctx).await?;
     for db_id in db_ids {
-        let storage = MyOrdersStorage::new(ctx.clone(), Some(&db_id));
+        let storage = MyOrdersStorage::new(ctx.clone(), Some(db_id));
         let saved_maker_orders = try_s!(storage.load_active_maker_orders().await);
         let saved_taker_orders = try_s!(storage.load_active_taker_orders().await);
 

@@ -1,7 +1,7 @@
 use super::{MakerOrder, MakerOrderCancellationReason, MyOrdersFilter, Order, RecentOrdersSelectResult, TakerOrder,
             TakerOrderCancellationReason};
 use async_trait::async_trait;
-use common::log::LogOnError;
+use common::log::{error, warn, LogOnError};
 use common::{BoxFut, PagingOptions};
 use derive_more::Display;
 use futures::{FutureExt, TryFutureExt};
@@ -36,8 +36,8 @@ pub enum MyOrdersError {
 }
 
 pub async fn save_my_new_maker_order(ctx: MmArc, order: &MakerOrder) -> MyOrdersResult<()> {
-    // TODO db_id shouldn't be None
-    let storage = MyOrdersStorage::new(ctx, None);
+    let db_id = order.db_id(&ctx).await?;
+    let storage = MyOrdersStorage::new(ctx, db_id);
     storage
         .save_new_active_maker_order(order)
         .await
@@ -50,8 +50,8 @@ pub async fn save_my_new_maker_order(ctx: MmArc, order: &MakerOrder) -> MyOrders
 }
 
 pub async fn save_my_new_taker_order(ctx: MmArc, order: &TakerOrder) -> MyOrdersResult<()> {
-    // TODO db_id
-    let storage = MyOrdersStorage::new(ctx, None);
+    let db_id = order.db_id(&ctx).await?;
+    let storage = MyOrdersStorage::new(ctx, db_id);
     storage
         .save_new_active_taker_order(order)
         .await
@@ -64,8 +64,8 @@ pub async fn save_my_new_taker_order(ctx: MmArc, order: &TakerOrder) -> MyOrders
 }
 
 pub async fn save_maker_order_on_update(ctx: MmArc, order: &MakerOrder) -> MyOrdersResult<()> {
-    // TODO db_id
-    let storage = MyOrdersStorage::new(ctx, None);
+    let db_id = order.db_id(&ctx).await?;
+    let storage = MyOrdersStorage::new(ctx, db_id);
     storage.update_active_maker_order(order).await?;
 
     if order.save_in_history {
@@ -80,8 +80,14 @@ pub fn delete_my_taker_order(ctx: MmArc, order: TakerOrder, reason: TakerOrderCa
         let uuid = order.request.uuid;
         let save_in_history = order.save_in_history;
 
-        // TODO db_id
-        let storage = MyOrdersStorage::new(ctx, None);
+        let db_id = match order.db_id(&ctx).await {
+            Ok(val) => val,
+            Err(err) => {
+                error!("{err}");
+                None
+            },
+        };
+        let storage = MyOrdersStorage::new(ctx, db_id);
         storage
             .delete_active_taker_order(uuid)
             .await
@@ -117,8 +123,14 @@ pub fn delete_my_maker_order(ctx: MmArc, order: MakerOrder, reason: MakerOrderCa
         let uuid = order_to_save.uuid;
         let save_in_history = order_to_save.save_in_history;
 
-        // TODO db_id
-        let storage = MyOrdersStorage::new(ctx, None);
+        let db_id = match order_to_save.db_id(&ctx).await {
+            Ok(val) => val,
+            Err(err) => {
+                warn!("{err}");
+                None
+            },
+        };
+        let storage = MyOrdersStorage::new(ctx, db_id);
         if order_to_save.was_updated() {
             if let Ok(order_from_file) = storage.load_active_maker_order(order_to_save.uuid).await {
                 order_to_save = order_from_file;
@@ -239,12 +251,7 @@ mod native_impl {
     }
 
     impl MyOrdersStorage {
-        pub fn new(ctx: MmArc, db_id: Option<&str>) -> MyOrdersStorage {
-            MyOrdersStorage {
-                ctx,
-                db_id: db_id.map(|e| e.to_string()),
-            }
-        }
+        pub fn new(ctx: MmArc, db_id: Option<String>) -> MyOrdersStorage { MyOrdersStorage { ctx, db_id } }
     }
 
     #[async_trait]
@@ -412,10 +419,10 @@ mod wasm_impl {
     }
 
     impl MyOrdersStorage {
-        pub fn new(ctx: MmArc, db_id: Option<&str>) -> MyOrdersStorage {
+        pub fn new(ctx: MmArc, db_id: Option<String>) -> MyOrdersStorage {
             MyOrdersStorage {
                 ctx: OrdermatchContext::from_ctx(&ctx).expect("!OrdermatchContext::from_ctx"),
-                db_id: db_id.map(|e| e.to_string()),
+                db_id,
             }
         }
     }
