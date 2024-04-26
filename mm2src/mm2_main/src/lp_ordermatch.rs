@@ -5421,28 +5421,25 @@ pub struct HistoricalOrder {
 pub async fn orders_kick_start(ctx: &MmArc) -> Result<HashSet<String>, String> {
     let mut coins = HashSet::new();
     let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(ctx));
+    let db_id: Option<&str> = None; // TODO
+    let storage = MyOrdersStorage::new(ctx.clone(), db_id);
+    let saved_maker_orders = try_s!(storage.load_active_maker_orders().await);
+    let saved_taker_orders = try_s!(storage.load_active_taker_orders().await);
 
-    let db_ids = find_unique_account_ids_active(ctx).await?;
-    for db_id in db_ids {
-        let storage = MyOrdersStorage::new(ctx.clone(), Some(db_id));
-        let saved_maker_orders = try_s!(storage.load_active_maker_orders().await);
-        let saved_taker_orders = try_s!(storage.load_active_taker_orders().await);
-
-        {
-            let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
-            for order in saved_maker_orders {
-                coins.insert(order.base.clone());
-                coins.insert(order.rel.clone());
-                maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
-            }
+    {
+        let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
+        for order in saved_maker_orders {
+            coins.insert(order.base.clone());
+            coins.insert(order.rel.clone());
+            maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
         }
+    }
 
-        let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
-        for order in saved_taker_orders {
-            coins.insert(order.request.base.clone());
-            coins.insert(order.request.rel.clone());
-            taker_orders.insert(order.request.uuid, order);
-        }
+    let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
+    for order in saved_taker_orders {
+        coins.insert(order.request.base.clone());
+        coins.insert(order.request.rel.clone());
+        taker_orders.insert(order.request.uuid, order);
     }
 
     Ok(coins)
