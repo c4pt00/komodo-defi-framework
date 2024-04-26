@@ -5074,12 +5074,11 @@ impl EthCoin {
                         return ERR!("Couldn't get nonce after 5 errored attempts, aborting");
                     }
                 } else {
-                    let mut max = nonces
+                    let max = nonces
                         .iter()
                         .map(|(n, _)| *n)
                         .max()
                         .expect("nonces should not be empty!");
-                    max = max + 1;
                     break Ok((
                         max,
                         nonces
