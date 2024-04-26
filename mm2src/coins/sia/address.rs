@@ -10,11 +10,7 @@ use std::str::FromStr;
 
 // TODO this could probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
-<<<<<<< HEAD
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-=======
-#[derive(Debug, Clone, PartialEq)]
->>>>>>> kp/dev
 pub struct Address(pub H256);
 
 impl Address {
@@ -40,10 +36,6 @@ pub enum ParseAddressError {
     InvalidHexEncoding(String),
     InvalidChecksum,
     InvalidLength,
-<<<<<<< HEAD
-=======
-    // Add other error kinds as needed
->>>>>>> kp/dev
 }
 
 impl From<FromHexError> for ParseAddressError {

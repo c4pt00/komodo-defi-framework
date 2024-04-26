@@ -32,10 +32,7 @@ pub mod blake2b_internal;
 pub mod encoding;
 pub mod http_client;
 use http_client::{SiaApiClient, SiaApiClientError};
-<<<<<<< HEAD
 pub mod http_endpoints;
-=======
->>>>>>> kp/dev
 pub mod spend_policy;
 
 #[derive(Clone)]
@@ -61,11 +58,7 @@ pub struct SiaCoinConf {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiaHttpConf {
     pub url: Url,
-<<<<<<< HEAD
     pub password: String,
-=======
-    pub auth: String,
->>>>>>> kp/dev
 }
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
@@ -101,11 +94,7 @@ impl<'a> SiaConfBuilder<'a> {
 pub struct SiaCoinFields {
     /// SIA coin config
     pub conf: SiaCoinConf,
-<<<<<<< HEAD
-    pub key_pair: PrivKeyPolicy<ed25519_dalek::Keypair>,
-=======
     pub priv_key_policy: PrivKeyPolicy<ed25519_dalek::Keypair>,
->>>>>>> kp/dev
     /// HTTP(s) client
     pub http_client: SiaApiClient,
 }
@@ -186,16 +175,9 @@ impl<'a> SiaCoinBuilder<'a> {
         let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
         let sia_fields = SiaCoinFields {
             conf,
-<<<<<<< HEAD
             http_client: SiaApiClient::new(self.params.http_conf.clone())
-                .await
-                .map_err(SiaCoinBuildError::ClientError)?,
-            key_pair: PrivKeyPolicy::Iguana(self.key_pair),
-=======
-            http_client: SiaApiClient::new(self.ticker(), self.params.http_conf.clone())
-                .map_err(SiaCoinBuildError::ClientError)?,
+                .map_err(SiaCoinBuildError::ClientError).await?,
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
->>>>>>> kp/dev
         };
         let sia_arc = SiaArc::new(sia_fields);
 
@@ -310,11 +292,7 @@ impl MarketCoinOps for SiaCoin {
 
     // needs test coverage FIXME COME BACK
     fn my_address(&self) -> MmResult<String, MyAddressError> {
-<<<<<<< HEAD
-        let key_pair = match &self.0.key_pair {
-=======
         let key_pair = match &self.0.priv_key_policy {
->>>>>>> kp/dev
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
                 return Err(MyAddressError::UnexpectedDerivationMethod(
@@ -334,11 +312,7 @@ impl MarketCoinOps for SiaCoin {
         Ok(address.to_string())
     }
 
-<<<<<<< HEAD
-    fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { unimplemented!() }
-=======
     async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { unimplemented!() }
->>>>>>> kp/dev
 
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { unimplemented!() }
 
@@ -386,11 +360,7 @@ impl MarketCoinOps for SiaCoin {
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
         let http_client = self.0.http_client.clone(); // Clone the client
 
-<<<<<<< HEAD
         let height_fut = async move { http_client.current_height().await.map_err(|e| e.to_string()) }
-=======
-        let height_fut = async move { http_client.get_height().await.map_err(|e| e.to_string()) }
->>>>>>> kp/dev
             .boxed() // Make the future 'static by boxing
             .compat(); // Convert to a futures 0.1-compatible future
 
@@ -402,11 +372,8 @@ impl MarketCoinOps for SiaCoin {
     fn min_tx_amount(&self) -> BigDecimal { unimplemented!() }
 
     fn min_trading_vol(&self) -> MmNumber { unimplemented!() }
-<<<<<<< HEAD
-=======
 
     fn is_trezor(&self) -> bool { self.0.priv_key_policy.is_trezor() }
->>>>>>> kp/dev
 }
 
 #[async_trait]
@@ -417,13 +384,6 @@ impl SwapOps for SiaCoin {
 
     fn send_taker_payment(&self, _taker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
 
-<<<<<<< HEAD
-    fn send_maker_spends_taker_payment(&self, _maker_spends_payment_args: SpendPaymentArgs) -> TransactionFut {
-        unimplemented!()
-    }
-
-    fn send_taker_spends_maker_payment(&self, _taker_spends_payment_args: SpendPaymentArgs) -> TransactionFut {
-=======
     async fn send_maker_spends_taker_payment(
         &self,
         _maker_spends_payment_args: SpendPaymentArgs<'_>,
@@ -435,7 +395,6 @@ impl SwapOps for SiaCoin {
         &self,
         _taker_spends_payment_args: SpendPaymentArgs<'_>,
     ) -> TransactionResult {
->>>>>>> kp/dev
         unimplemented!()
     }
 
