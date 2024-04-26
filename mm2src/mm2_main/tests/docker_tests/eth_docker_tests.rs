@@ -225,7 +225,6 @@ pub(crate) fn erc1155_balance(wallet_addr: Address, token_id: U256) -> U256 {
     .unwrap()
 }
 
-#[allow(dead_code)]
 pub(crate) async fn fill_erc1155_info(eth_coin: &EthCoin, token_address: Address, token_id: u32, amount: u32) {
     let nft_infos_lock = eth_coin.nfts_infos.clone();
     let mut nft_infos = nft_infos_lock.lock().await;
@@ -242,7 +241,6 @@ pub(crate) async fn fill_erc1155_info(eth_coin: &EthCoin, token_address: Address
     nft_infos.insert(erc1155_key, erc1155_nft_info);
 }
 
-#[allow(dead_code)]
 pub(crate) async fn fill_erc721_info(eth_coin: &EthCoin, token_address: Address, token_id: u32) {
     let nft_infos_lock = eth_coin.nfts_infos.clone();
     let mut nft_infos = nft_infos_lock.lock().await;
@@ -425,6 +423,7 @@ fn global_nft_from_privkey(
 fn send_safe_transfer_from(
     global_nft: &EthCoin,
     token_address: Address,
+    from_address: Address,
     to_address: Address,
     nft_type: TestNftType,
 ) -> web3::Result<SignedEthTx> {
@@ -440,14 +439,14 @@ fn send_safe_transfer_from(
     };
     let tokens = match nft_type {
         TestNftType::Erc1155 { token_id, amount } => vec![
-            Token::Address(global_nft.my_address),
+            Token::Address(from_address),
             Token::Address(to_address),
             Token::Uint(U256::from(token_id)),
             Token::Uint(U256::from(amount)),
             Token::Bytes(vec![]),
         ],
         TestNftType::Erc721 { token_id } => vec![
-            Token::Address(global_nft.my_address),
+            Token::Address(from_address),
             Token::Address(to_address),
             Token::Uint(U256::from(token_id)),
         ],
@@ -903,14 +902,16 @@ fn send_and_spend_erc721_maker_payment() {
     taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
     let new_owner = erc712_owner(U256::from(1));
-    let my_address = block_on(taker_global_nft.my_addr());
-    assert_eq!(new_owner, my_address);
+    let taker_address = block_on(taker_global_nft.my_addr());
+    assert_eq!(new_owner, taker_address);
 
     // send nft back to maker
+    let maker_address = block_on(maker_global_nft.my_addr());
     let send_back_tx = send_safe_transfer_from(
         &taker_global_nft,
         sepolia_erc721(),
-        maker_global_nft.my_address,
+        taker_address,
+        maker_address,
         erc721_nft,
     )
     .unwrap();
@@ -924,7 +925,7 @@ fn send_and_spend_erc721_maker_payment() {
     taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
     let new_owner = erc712_owner(U256::from(1));
-    assert_eq!(new_owner, maker_global_nft.my_address);
+    assert_eq!(new_owner, maker_address);
 }
 
 #[test]
@@ -1006,14 +1007,17 @@ fn send_and_spend_erc1155_maker_payment() {
     };
     taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
-    let balance = erc1155_balance(taker_global_nft.my_address, U256::from(1));
+    let taker_address = block_on(taker_global_nft.my_addr());
+    let balance = erc1155_balance(taker_address, U256::from(1));
     assert_eq!(balance, U256::from(3));
 
     // send nft back to maker
+    let maker_address = block_on(maker_global_nft.my_addr());
     let send_back_tx = send_safe_transfer_from(
         &taker_global_nft,
         sepolia_erc1155(),
-        maker_global_nft.my_address,
+        taker_address,
+        maker_address,
         erc1155_nft,
     )
     .unwrap();
@@ -1026,8 +1030,7 @@ fn send_and_spend_erc1155_maker_payment() {
     };
     taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
-    let my_address = block_on(taker_global_nft.my_addr());
-    let balance = erc1155_balance(my_address, U256::from(1));
+    let balance = erc1155_balance(maker_address, U256::from(1));
     assert_eq!(balance, U256::from(3));
 }
 

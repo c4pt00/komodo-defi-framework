@@ -3356,7 +3356,7 @@ impl EthCoin {
 
 #[cfg_attr(test, mockable)]
 impl EthCoin {
-    pub(crate) fn sign_and_send_transaction(&self, value: U256, action: Action, data: Vec<u8>, gas: U256) -> EthTxFut {
+    pub fn sign_and_send_transaction(&self, value: U256, action: Action, data: Vec<u8>, gas: U256) -> EthTxFut {
         let coin = self.clone();
         let fut = async move {
             match coin.priv_key_policy {
