@@ -1795,17 +1795,23 @@ impl TakerSwap {
             panic!("Taker panicked unexpectedly at maker payment spend");
         }
 
-        let spend_fut = self.maker_coin.send_taker_spends_maker_payment(SpendPaymentArgs {
+        let other_maker_coin_htlc_pub = self.r().other_maker_coin_htlc_pub;
+        let secret = self.r().secret;
+        let taker_spends_payment_args = SpendPaymentArgs {
             other_payment_tx: &self.r().maker_payment.clone().unwrap().tx_hex,
             time_lock: self.maker_payment_lock.load(Ordering::Relaxed),
-            other_pubkey: &*self.r().other_maker_coin_htlc_pub,
-            secret: &self.r().secret.0,
-            secret_hash: &self.r().secret_hash.0,
-            swap_contract_address: &self.r().data.maker_coin_swap_contract_address,
+            other_pubkey: &*other_maker_coin_htlc_pub,
+            secret: &secret.0,
+            secret_hash: &self.r().secret_hash.clone().0,
+            swap_contract_address: &self.r().data.maker_coin_swap_contract_address.clone(),
             swap_unique_data: &self.unique_swap_data(),
             watcher_reward: self.r().watcher_reward,
-        });
-        let transaction = match spend_fut.compat().await {
+        };
+        let maybe_spend_tx = self
+            .maker_coin
+            .send_taker_spends_maker_payment(taker_spends_payment_args)
+            .await;
+        let transaction = match maybe_spend_tx {
             Ok(t) => t,
             Err(err) => {
                 if let Some(tx) = err.get_tx() {
@@ -2158,19 +2164,23 @@ impl TakerSwap {
             let other_maker_coin_htlc_pub = self.r().other_maker_coin_htlc_pub;
             let secret = self.r().secret.0;
             let maker_coin_swap_contract_address = self.r().data.maker_coin_swap_contract_address.clone();
+            let watcher_reward = self.r().watcher_reward;
 
-            let fut = self.maker_coin.send_taker_spends_maker_payment(SpendPaymentArgs {
-                other_payment_tx: &maker_payment,
-                time_lock: self.maker_payment_lock.load(Ordering::Relaxed),
-                other_pubkey: other_maker_coin_htlc_pub.as_slice(),
-                secret: &secret,
-                secret_hash: &secret_hash,
-                swap_contract_address: &maker_coin_swap_contract_address,
-                swap_unique_data: &unique_data,
-                watcher_reward: self.r().watcher_reward,
-            });
+            let maybe_spend_tx = self
+                .maker_coin
+                .send_taker_spends_maker_payment(SpendPaymentArgs {
+                    other_payment_tx: &maker_payment,
+                    time_lock: self.maker_payment_lock.load(Ordering::Relaxed),
+                    other_pubkey: other_maker_coin_htlc_pub.as_slice(),
+                    secret: &secret,
+                    secret_hash: &secret_hash,
+                    swap_contract_address: &maker_coin_swap_contract_address,
+                    swap_unique_data: &unique_data,
+                    watcher_reward,
+                })
+                .await;
 
-            let transaction = match fut.compat().await {
+            let transaction = match maybe_spend_tx {
                 Ok(t) => t,
                 Err(err) => {
                     if let Some(tx) = err.get_tx() {
@@ -2217,7 +2227,7 @@ impl TakerSwap {
                             .await
                     );
 
-                    let fut = self.maker_coin.send_taker_spends_maker_payment(SpendPaymentArgs {
+                    let taker_spends_payment_args = SpendPaymentArgs {
                         other_payment_tx: &maker_payment,
                         time_lock: self.maker_payment_lock.load(Ordering::Relaxed),
                         other_pubkey: other_maker_coin_htlc_pub.as_slice(),
@@ -2226,9 +2236,13 @@ impl TakerSwap {
                         swap_contract_address: &maker_coin_swap_contract_address,
                         swap_unique_data: &unique_data,
                         watcher_reward: self.r().watcher_reward,
-                    });
+                    };
+                    let maybe_spend_tx = self
+                        .maker_coin
+                        .send_taker_spends_maker_payment(taker_spends_payment_args)
+                        .await;
 
-                    let transaction = match fut.compat().await {
+                    let transaction = match maybe_spend_tx {
                         Ok(t) => t,
                         Err(err) => {
                             if let Some(tx) = err.get_tx() {
@@ -2717,7 +2731,7 @@ mod taker_swap_tests {
         static mut MAKER_PAYMENT_SPEND_CALLED: bool = false;
         TestCoin::send_taker_spends_maker_payment.mock_safe(|_, _| {
             unsafe { MAKER_PAYMENT_SPEND_CALLED = true };
-            MockResult::Return(Box::new(futures01::future::ok(eth_tx_for_test().into())))
+            MockResult::Return(Box::pin(futures::future::ready(Ok(eth_tx_for_test().into()))))
         });
         TestCoin::search_for_swap_tx_spend_other
             .mock_safe(|_, _| MockResult::Return(Box::pin(futures::future::ready(Ok(None)))));
@@ -2820,7 +2834,7 @@ mod taker_swap_tests {
         static mut MAKER_PAYMENT_SPEND_CALLED: bool = false;
         TestCoin::send_taker_spends_maker_payment.mock_safe(|_, _| {
             unsafe { MAKER_PAYMENT_SPEND_CALLED = true };
-            MockResult::Return(Box::new(futures01::future::ok(eth_tx_for_test().into())))
+            MockResult::Return(Box::pin(futures::future::ready(Ok(eth_tx_for_test().into()))))
         });
         let maker_coin = MmCoinEnum::Test(TestCoin::default());
         let taker_coin = MmCoinEnum::Test(TestCoin::default());
@@ -2941,7 +2955,7 @@ mod taker_swap_tests {
         static mut MAKER_PAYMENT_SPEND_CALLED: bool = false;
         TestCoin::send_taker_spends_maker_payment.mock_safe(|_, _| {
             unsafe { MAKER_PAYMENT_SPEND_CALLED = true };
-            MockResult::Return(Box::new(futures01::future::ok(eth_tx_for_test().into())))
+            MockResult::Return(Box::pin(futures::future::ready(Ok(eth_tx_for_test().into()))))
         });
         let maker_coin = MmCoinEnum::Test(TestCoin::default());
         let taker_coin = MmCoinEnum::Test(TestCoin::default());
