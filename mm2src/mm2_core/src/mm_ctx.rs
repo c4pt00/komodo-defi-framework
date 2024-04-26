@@ -411,6 +411,8 @@ impl MmCtx {
                 let mut store = HashMap::new();
                 store.insert(db_id, connection.clone());
                 drop(connections);
+
+                // TODO: run migration and fix directions
                 Some(connection)
             };
         };
@@ -437,7 +439,8 @@ impl MmCtx {
             ));
             let mut store = HashMap::new();
             store.insert(db_id, connection.clone());
-
+            drop(connections);
+            // TODO: run migration and fix directions
             connection
         };
     }
@@ -459,8 +462,8 @@ impl MmCtx {
             let connection = Arc::new(Mutex::new(try_s!(Connection::open(sqlite_file_path))));
             let mut store = HashMap::new();
             store.insert(db_id, connection.clone());
-
             drop(connections);
+            // TODO: run migration and fix directions
             Ok(connection)
         }
     }
