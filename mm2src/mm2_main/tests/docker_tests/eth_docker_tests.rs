@@ -23,7 +23,7 @@ use std::thread;
 use std::time::Duration;
 use web3::contract::{Contract, Options};
 use web3::ethabi::Token;
-use web3::types::{Address, TransactionRequest, H256};
+use web3::types::{Address, BlockNumber, TransactionRequest, H256};
 
 const SEPOLIA_MAKER_PRIV: &str = "6e2f3a6223b928a05a3a3622b0c3f3573d03663b704a61a6eb73326de0487928";
 const SEPOLIA_TAKER_PRIV: &str = "e0be82dca60ff7e4c6d6db339ac9e1ae249af081dba2110bddd281e711608f16";
@@ -817,19 +817,39 @@ fn send_and_spend_erc20_maker_payment() {
     assert_eq!(expected, search_tx);
 }
 
+/// Wait for all pending transactions for the given address to be confirmed
+fn wait_pending_transactions(wallet_address: Address) {
+    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
+    let web3 = SEPOLIA_WEB3.clone();
+
+    loop {
+        let latest_nonce = block_on(web3.eth().transaction_count(wallet_address, Some(BlockNumber::Latest))).unwrap();
+        let pending_nonce = block_on(web3.eth().transaction_count(wallet_address, Some(BlockNumber::Pending))).unwrap();
+
+        if latest_nonce == pending_nonce {
+            println!("All pending transactions have been confirmed.");
+            break;
+        } else {
+            println!(
+                "Waiting for pending transactions to confirm... Current nonce: {}, Pending nonce: {}",
+                latest_nonce, pending_nonce
+            );
+            thread::sleep(Duration::from_secs(5));
+        }
+    }
+}
+
 #[test]
 fn send_and_spend_erc721_maker_payment() {
-    // TODO: Evaluate implementation strategy — either employing separate contracts for maker and taker
-    // functionalities for both coins and NFTs, or utilizing the Diamond Standard (EIP-2535) for a unified contract approach.
-    // Decision will inform whether to maintain multiple "swap_contract_address" fields in `EthCoin` for distinct contract types
-    // or a singular field for a Diamond Standard-compatible contract address.
-
     // Sepolia Maker owns tokenId = 1
 
     let erc721_nft = TestNftType::Erc721 { token_id: 1 };
 
     let maker_global_nft = global_nft_from_privkey(sepolia_etomic_maker_nft(), SEPOLIA_MAKER_PRIV, Some(erc721_nft));
     let taker_global_nft = global_nft_from_privkey(sepolia_etomic_maker_nft(), SEPOLIA_TAKER_PRIV, None);
+
+    let maker_address = block_on(maker_global_nft.my_addr());
+    wait_pending_transactions(maker_address);
 
     let time_lock = now_sec() + 1000;
     let maker_pubkey = maker_global_nft.derive_htlc_pubkey(&[]);
@@ -906,7 +926,6 @@ fn send_and_spend_erc721_maker_payment() {
     assert_eq!(new_owner, taker_address);
 
     // send nft back to maker
-    let maker_address = block_on(maker_global_nft.my_addr());
     let send_back_tx = send_safe_transfer_from(
         &taker_global_nft,
         sepolia_erc721(),
