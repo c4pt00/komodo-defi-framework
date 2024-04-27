@@ -793,11 +793,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
     fn on_event(&mut self, event: &TakerSwapEvent) {
         match event {
-            TakerSwapEvent::Initialized {
-                taker_payment_fee,
-                maker_payment_spend_fee: _,
-                ..
-            } => {
+            TakerSwapEvent::Initialized { taker_payment_fee, .. } => {
                 let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
                 let taker_coin_ticker: String = self.taker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
@@ -923,11 +919,14 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
+        // FIXME: Add taker payment fee (note that the one defined below is actually funding tx fee)
+        //          + taker payment spend fee (preimage tx fee) (later)
         let total_payment_value =
             &(&state_machine.taker_volume + &state_machine.dex_fee.total_spend_amount()) + &state_machine.taker_premium;
         let preimage_value = TradePreimageValue::Exact(total_payment_value.to_decimal());
         let stage = FeeApproxStage::StartSwap;
 
+        // FIXME: This is not taker payment tx fee, this is the funding tx fee.
         let taker_payment_fee = match state_machine
             .taker_coin
             .get_sender_trade_fee(preimage_value, stage)
@@ -949,13 +948,17 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         };
 
         let prepared_params = TakerSwapPreparedParams {
+            // HELP: We set the dex fee to zero since it is already included in the total trading volume
             dex_fee: Default::default(),
+            // HELP: There is no fee to send the DEX fee we need to account for, this will happen in the preimage tx.
             fee_to_send_dex_fee: TradeFee {
                 coin: state_machine.taker_coin.ticker().into(),
                 amount: Default::default(),
                 paid_from_trading_vol: false,
             },
+            // HELP: Fee to send the "FUNDING" tx (called taker payment here).
             taker_payment_trade_fee: taker_payment_fee.clone(),
+            // HELP: Fee to claim the maker payment.
             maker_payment_spend_trade_fee: maker_payment_spend_fee.clone(),
         };
 
@@ -966,7 +969,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             total_payment_value,
             Some(&state_machine.uuid),
             Some(prepared_params),
-            FeeApproxStage::StartSwap,
+            stage,
         )
         .await
         {
@@ -981,6 +984,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             maker_coin_start_block,
             taker_coin_start_block,
             taker_payment_fee: taker_payment_fee.into(),
+            // FIXME: Looks like `maker_payment_spend_fee` is useless after this point
+            // (we already checked we have enough balance for the swap, even though it's volume-deducted anyways).
+            // Stop propagating it?
             maker_payment_spend_fee: maker_payment_spend_fee.into(),
         };
         Self::change_state(next_state, state_machine).await
@@ -1599,6 +1605,9 @@ impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
     TransitionFrom<MakerPaymentConfirmed<MakerCoin, TakerCoin>> for TakerPaymentSent<MakerCoin, TakerCoin>
 {
 }
+
+// FIXME: We should use consistent namings. FundingSpendPreimage is a partially signed TakerPayment.
+// We should either call FundingSpendPreimage -> TakerPaymentPreimage or we call TakerPayment -> FundingSpend.
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes>
     TransitionFrom<MakerPaymentAndFundingSpendPreimgReceived<MakerCoin, TakerCoin>>
     for TakerPaymentSent<MakerCoin, TakerCoin>

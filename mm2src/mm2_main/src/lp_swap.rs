@@ -766,6 +766,7 @@ pub fn lp_atomic_locktime_v2(
     if taker_coin.contains("-lightning") {
         // A good value for lightning taker locktime is about 24 hours to find a good 3 hop or less path for the payment
         get_payment_locktime() * 12
+        // FIXME: Shouldn't BTC get x10 time, like in V1?
     } else if maker_coin == "BTC"
         || taker_coin == "BTC"
         || coin_with_4x_locktime(maker_coin)

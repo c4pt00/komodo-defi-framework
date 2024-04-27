@@ -1102,6 +1102,7 @@ pub async fn validate_taker_funding_spend_preimage<T: UtxoCommonOps + SwapOps>(
 
     let fee_div = expected_fee as f64 / actual_fee as f64;
 
+    // FIXME: Should negotiate the fee beforehand, accept fee >= negotiated_fee
     if !(0.9..=1.1).contains(&fee_div) {
         return MmError::err(ValidateTakerFundingSpendPreimageError::UnexpectedPreimageFee(format!(
             "Too large difference between expected {} and actual {} fees",
@@ -3835,6 +3836,9 @@ pub fn get_trade_fee<T: UtxoCommonOps>(coin: T) -> Box<dyn Future<Item = TradeFe
     Box::new(fut.boxed().compat())
 }
 
+// DISCUSS: Why do we inforce such a constraint? And it's now always true if we change the utxo picking algo.
+// E.g. an algo that favors getting rid of small utxos (basically, consolidates whenever possible) might pick
+// more inputs for a smaller amount and one large input for a larger amount, thus fee for the larger amount is less.
 /// To ensure the `get_sender_trade_fee(x) <= get_sender_trade_fee(y)` condition is satisfied for any `x < y`,
 /// we should include a `change` output into the result fee. Imagine this case:
 /// Let `sum_inputs = 11000` and `total_tx_fee: { 200, if there is no the change output; 230, if there is the change output }`.
@@ -4466,6 +4470,7 @@ where
         value: amount,
         script_pubkey: Builder::build_p2sh(&redeem_script_hash.into()).into(),
     };
+    // DICUSS: Is this for when maker/taker goes offline and comes back to complete the swap? Inefficient?
     // record secret hash to blockchain too making it impossible to lose
     // lock time may be easily brute forced so it is not mandatory to record it
     let mut op_return_builder = Builder::default().push_opcode(Opcode::OP_RETURN);
@@ -4820,6 +4825,12 @@ where
     T: UtxoCommonOps + GetUtxoListOps + SwapOps,
 {
     let taker_htlc_key_pair = coin.derive_htlc_key_pair(args.swap_unique_data);
+    // Txs in success case:
+    //    Chain A: funding -> taker payment -> preimage (to the maker & dex)
+    //    Chain B:            maker payment -> claimation (to the taker)
+    // FIXME: Add taker payment fee + preimage fee
+    // Qs:
+    //    1- Who pays the maker payment fee? Take in considration that a nicer UX would be to hand the taker the full amount they requested. (so account for maker payment fee and taker claimation fee)
     let total_amount = &args.dex_fee.total_spend_amount().to_decimal() + &args.premium_amount + &args.trading_amount;
 
     let SwapPaymentOutputsResult {
