@@ -907,7 +907,7 @@ fn send_and_spend_erc721_maker_payment() {
         "Maker sent ERC721 NFT Payment tx hash {:02x}\n",
         maker_payment.tx_hash()
     );
-    log!("Maker ERC721 NFT Payment transaction\n", maker_payment);
+    log!("Maker ERC721 NFT Payment transaction\n{:?}", maker_payment);
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: maker_payment.tx_hex(),
