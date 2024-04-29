@@ -3398,7 +3398,7 @@ pub struct MmCoinStruct {
 }
 
 impl MmCoinStruct {
-    fn new(coin: MmCoinEnum) -> Self {
+    pub fn new(coin: MmCoinEnum) -> Self {
         Self {
             inner: coin,
             is_available: AtomicBool::new(true).into(),
@@ -3501,7 +3501,7 @@ impl DexFee {
 pub struct CoinsContext {
     /// A map from a currency ticker symbol to the corresponding coin.
     /// Similar to `LP_coins`.
-    coins: AsyncMutex<HashMap<String, MmCoinStruct>>,
+    pub coins: AsyncMutex<HashMap<String, MmCoinStruct>>,
     balance_update_handlers: AsyncMutex<Vec<Box<dyn BalanceTradeFeeUpdatedHandler + Send + Sync>>>,
     account_balance_task_manager: AccountBalanceTaskManagerShared,
     create_account_manager: CreateAccountTaskManagerShared,

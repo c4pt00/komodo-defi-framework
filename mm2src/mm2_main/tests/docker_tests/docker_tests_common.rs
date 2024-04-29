@@ -67,6 +67,7 @@ lazy_static! {
     // Supply more privkeys when 18 will be not enough.
     pub static ref SLP_TOKEN_OWNERS: Mutex<Vec<[u8; 32]>> = Mutex::new(Vec::with_capacity(18));
     pub static ref MM_CTX: MmArc = MmCtxBuilder::new().into_mm_arc();
+    pub static ref MM_CTX1: MmArc = MmCtxBuilder::new().into_mm_arc();
     pub static ref GETH_WEB3: Web3<Http> = Web3::new(Http::new(GETH_RPC_URL).unwrap());
     pub static ref SEPOLIA_WEB3: Web3<Http> = Web3::new(Http::new(SEPOLIA_RPC_URL).unwrap());
     // Mutex used to prevent nonce re-usage during funding addresses used in tests

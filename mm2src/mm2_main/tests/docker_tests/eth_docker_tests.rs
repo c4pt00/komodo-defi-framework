@@ -1,7 +1,7 @@
 use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC721_TEST_ABI, GETH_ACCOUNT,
                                  GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT,
                                  GETH_NFT_MAKER_SWAP_V2, GETH_NFT_SWAP_CONTRACT, GETH_NONCE_LOCK, GETH_RPC_URL,
-                                 GETH_SWAP_CONTRACT, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX,
+                                 GETH_SWAP_CONTRACT, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX, MM_CTX1,
                                  SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2,
                                  SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
@@ -9,14 +9,16 @@ use bitcrypto::{dhash160, sha256};
 use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, Action, EthCoin, SignedEthTx,
                  ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
-use coins::{CoinProtocol, CoinWithDerivationMethod, ConfirmPaymentInput, DerivationMethod, FoundSwapTxSpend,
-            MakerNftSwapOpsV2, MarketCoinOps, NftSwapInfo, ParseCoinAssocTypes, PrivKeyBuildPolicy, RefundPaymentArgs,
-            SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SpendNftMakerPaymentArgs,
-            SpendPaymentArgs, SwapOps, SwapTxTypeWithSecretHash, ToBytes, Transaction, ValidateNftMakerPaymentArgs};
+use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
+            FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
+            ParseCoinAssocTypes, PrivKeyBuildPolicy, RefundPaymentArgs, SearchForSwapTxSpendInput,
+            SendNftMakerPaymentArgs, SendPaymentArgs, SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps,
+            SwapTxTypeWithSecretHash, ToBytes, Transaction, ValidateNftMakerPaymentArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
 use ethereum_types::U256;
 use futures01::Future;
+use mm2_core::mm_ctx::MmArc;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, nft_dev_conf, nft_sepolia_conf};
 use std::thread;
@@ -27,6 +29,7 @@ use web3::types::{Address, BlockNumber, TransactionRequest, H256};
 
 const SEPOLIA_MAKER_PRIV: &str = "6e2f3a6223b928a05a3a3622b0c3f3573d03663b704a61a6eb73326de0487928";
 const SEPOLIA_TAKER_PRIV: &str = "e0be82dca60ff7e4c6d6db339ac9e1ae249af081dba2110bddd281e711608f16";
+const NFT_ETH: &str = "NFT_ETH";
 
 /// # Safety
 ///
@@ -381,6 +384,7 @@ pub fn global_nft_with_random_privkey(swap_contract_address: Address, nft_type: 
 }
 
 fn global_nft_from_privkey(
+    ctx: &MmArc,
     swap_contract_address: Address,
     secret: &'static str,
     nft_type: Option<TestNftType>,
@@ -395,8 +399,8 @@ fn global_nft_from_privkey(
 
     let priv_key = Secp256k1Secret::from(secret);
     let global_nft = block_on(eth_coin_from_conf_and_request(
-        &MM_CTX,
-        "NFT_ETH",
+        ctx,
+        NFT_ETH,
         &nft_conf,
         &req,
         CoinProtocol::NFT {
@@ -405,6 +409,13 @@ fn global_nft_from_privkey(
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key),
     ))
     .unwrap();
+
+    let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
+    let mut coins = block_on(coins_ctx.coins.lock());
+    coins.insert(
+        global_nft.ticker().into(),
+        MmCoinStruct::new(MmCoinEnum::EthCoin(global_nft.clone())),
+    );
 
     if let Some(nft_type) = nft_type {
         match nft_type {
@@ -839,14 +850,24 @@ fn wait_pending_transactions(wallet_address: Address) {
     }
 }
 
+fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestNftType>) -> EthCoin {
+    match block_on(lp_coinfind(ctx, NFT_ETH)).unwrap() {
+        None => global_nft_from_privkey(ctx, sepolia_etomic_maker_nft(), priv_key, nft_type),
+        Some(mm_coin) => match mm_coin {
+            MmCoinEnum::EthCoin(nft) => nft,
+            _ => panic!("Unexpected coin type found. Expected MmCoinEnum::EthCoin"),
+        },
+    }
+}
+
 #[test]
 fn send_and_spend_erc721_maker_payment() {
     // Sepolia Maker owns tokenId = 1
 
     let erc721_nft = TestNftType::Erc721 { token_id: 1 };
 
-    let maker_global_nft = global_nft_from_privkey(sepolia_etomic_maker_nft(), SEPOLIA_MAKER_PRIV, Some(erc721_nft));
-    let taker_global_nft = global_nft_from_privkey(sepolia_etomic_maker_nft(), SEPOLIA_TAKER_PRIV, None);
+    let maker_global_nft = get_or_create_nft(&MM_CTX, SEPOLIA_MAKER_PRIV, Some(erc721_nft));
+    let taker_global_nft = get_or_create_nft(&MM_CTX1, SEPOLIA_TAKER_PRIV, None);
 
     let maker_address = block_on(maker_global_nft.my_addr());
     wait_pending_transactions(maker_address);
@@ -953,8 +974,8 @@ fn send_and_spend_erc1155_maker_payment() {
 
     let erc1155_nft = TestNftType::Erc1155 { token_id: 1, amount: 3 };
 
-    let maker_global_nft = global_nft_from_privkey(sepolia_etomic_maker_nft(), SEPOLIA_MAKER_PRIV, Some(erc1155_nft));
-    let taker_global_nft = global_nft_from_privkey(sepolia_etomic_maker_nft(), SEPOLIA_TAKER_PRIV, None);
+    let maker_global_nft = get_or_create_nft(&MM_CTX, SEPOLIA_MAKER_PRIV, Some(erc1155_nft));
+    let taker_global_nft = get_or_create_nft(&MM_CTX1, SEPOLIA_TAKER_PRIV, None);
 
     let time_lock = now_sec() + 1000;
     let maker_pubkey = maker_global_nft.derive_htlc_pubkey(&[]);
