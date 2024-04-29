@@ -4948,7 +4948,7 @@ struct OrderForRpcWithCancellationReason<'a> {
 
 pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: OrderStatusReq = try_s!(json::from_value(req));
-    let db_ids = find_unique_account_ids_active(&ctx).await?;
+    let db_id: Option<String> = None; // TODO
     let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(&ctx));
 
     let maybe_order_mutex = ordermatch_ctx.maker_orders_ctx.lock().get_order(&req.uuid).cloned();
@@ -4974,23 +4974,21 @@ pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
             .map_err(|e| ERRL!("{}", e));
     }
 
-    for db_id in db_ids {
-        let storage = MyOrdersStorage::new(ctx.clone(), Some(db_id.clone()));
-        if let (Ok(order), Ok(cancellation_reason)) = (
-            storage.load_order_from_history(req.uuid).await,
-            &storage.select_order_status(req.uuid).await,
-        ) {
-            info!("Order with UUID=({}) found for db_id=({db_id})", req.uuid);
-            let res = json!(OrderForRpcWithCancellationReason {
-                order: OrderForRpc::from(&order),
-                cancellation_reason,
-            });
+    let storage = MyOrdersStorage::new(ctx.clone(), db_id.as_deref());
+    if let (Ok(order), Ok(cancellation_reason)) = (
+        storage.load_order_from_history(req.uuid).await,
+        &storage.select_order_status(req.uuid).await,
+    ) {
+        info!("Order with UUID=({})", req.uuid);
+        let res = json!(OrderForRpcWithCancellationReason {
+            order: OrderForRpc::from(&order),
+            cancellation_reason,
+        });
 
-            return Response::builder()
-                .body(json::to_vec(&res).expect("Serialization failed"))
-                .map_err(|e| ERRL!("{}", e));
-        };
-    }
+        return Response::builder()
+            .body(json::to_vec(&res).expect("Serialization failed"))
+            .map_err(|e| ERRL!("{}", e));
+    };
 
     Err("No orders found across databases".to_string())
 }
@@ -5421,7 +5419,7 @@ pub struct HistoricalOrder {
 pub async fn orders_kick_start(ctx: &MmArc) -> Result<HashSet<String>, String> {
     let mut coins = HashSet::new();
     let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(ctx));
-    let db_id: Option<&str> = None; // TODO
+    let db_id: Option<String> = None; // TODO
     let storage = MyOrdersStorage::new(ctx.clone(), db_id);
     let saved_maker_orders = try_s!(storage.load_active_maker_orders().await);
     let saved_taker_orders = try_s!(storage.load_active_taker_orders().await);
