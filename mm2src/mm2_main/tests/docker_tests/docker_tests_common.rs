@@ -1384,7 +1384,7 @@ pub fn init_geth_node() {
         }
 
         SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
-        SEPOLIA_ERC721_CONTRACT = EthAddress::from_str("0xde3a479f463c17a6f0a4cbe67e506467e97e2c52").unwrap();
+        SEPOLIA_ERC721_CONTRACT = EthAddress::from_str("0xbac1c9f2087f39caaa4e93412c6412809186870e").unwrap();
         SEPOLIA_ERC1155_CONTRACT = EthAddress::from_str("0xfb53b8764be6033d89ceacafa36631b09d60a1d2").unwrap();
 
         let alice_passphrase = get_passphrase!(".env.client", "ALICE_PASSPHRASE").unwrap();
