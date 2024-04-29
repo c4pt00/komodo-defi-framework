@@ -980,7 +980,6 @@ fn send_and_spend_erc721_maker_payment() {
 }
 
 #[test]
-#[ignore]
 fn send_and_spend_erc1155_maker_payment() {
     // Sepolia Maker owns tokenId = 1, amount = 3
 
