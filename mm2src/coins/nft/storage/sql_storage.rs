@@ -1,7 +1,7 @@
 use crate::nft::eth_addr_to_hex;
-use crate::nft::nft_structs::{Chain, ContractType, ConvertChain, Nft, NftCacheDbSql, NftCommon, NftList,
-                              NftListFilters, NftTokenAddrId, NftTransferCommon, NftTransferHistory,
-                              NftTransferHistoryFilters, NftsTransferHistoryList, TransferMeta, UriMeta};
+use crate::nft::nft_structs::{Chain, ContractType, ConvertChain, Nft, NftCommon, NftList, NftListFilters,
+                              NftTokenAddrId, NftTransferCommon, NftTransferHistory, NftTransferHistoryFilters,
+                              NftsTransferHistoryList, TransferMeta, UriMeta};
 use crate::nft::storage::{get_offset_limit, NftDetailsJson, NftListStorageOps, NftStorageError,
                           NftTransferHistoryStorageOps, RemoveNftResult, TransferDetailsJson};
 use async_trait::async_trait;
@@ -11,7 +11,9 @@ use db_common::sqlite::rusqlite::types::{FromSqlError, Type};
 use db_common::sqlite::rusqlite::{Connection, Error as SqlError, Result as SqlResult, Row, Statement};
 use db_common::sqlite::sql_builder::SqlBuilder;
 use db_common::sqlite::{query_single_row, string_from_row, SafeTableName, CHECK_TABLE_EXISTS_SQL};
+use db_common::AsyncConnectionCtx;
 use ethereum_types::Address;
+use futures_util::lock::MutexGuard;
 use mm2_err_handle::prelude::*;
 use mm2_number::{BigDecimal, BigUint};
 use serde_json::Value as Json;
@@ -546,12 +548,12 @@ fn is_table_empty(conn: &Connection, safe_table_name: SafeTableName) -> Result<b
 }
 
 #[async_trait]
-impl NftListStorageOps for NftCacheDbSql {
+impl NftListStorageOps for MutexGuard<'_, AsyncConnectionCtx> {
     type Error = AsyncConnError;
 
     async fn init(&self, chain: &Chain) -> MmResult<(), Self::Error> {
         let sql_nft_list = create_nft_list_table_sql(chain)?;
-        self.0
+        self.connection
             .call(move |conn| {
                 conn.execute(&sql_nft_list, []).map(|_| ())?;
                 conn.execute(&create_scanned_nft_blocks_sql()?, []).map(|_| ())?;
@@ -563,7 +565,7 @@ impl NftListStorageOps for NftCacheDbSql {
 
     async fn is_initialized(&self, chain: &Chain) -> MmResult<bool, Self::Error> {
         let table_name = chain.nft_list_table_name()?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let nft_list_initialized =
                     query_single_row(conn, CHECK_TABLE_EXISTS_SQL, [table_name.inner()], string_from_row)?;
@@ -587,7 +589,7 @@ impl NftListStorageOps for NftCacheDbSql {
         page_number: Option<NonZeroUsize>,
         filters: Option<NftListFilters>,
     ) -> MmResult<NftList, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_builder = get_nft_list_builder_preimage(chains, filters)?;
                 let total_count_builder_sql = sql_builder
@@ -622,7 +624,7 @@ impl NftListStorageOps for NftCacheDbSql {
         I: IntoIterator<Item = Nft> + Send + 'static,
         I::IntoIter: Send,
     {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
 
@@ -681,7 +683,7 @@ impl NftListStorageOps for NftCacheDbSql {
         token_id: BigUint,
     ) -> MmResult<Option<Nft>, Self::Error> {
         let table_name = chain.nft_list_table_name()?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql = format!(
                     "SELECT * FROM {} WHERE token_address=?1 AND token_id=?2",
@@ -706,7 +708,7 @@ impl NftListStorageOps for NftCacheDbSql {
         let sql = delete_nft_sql(table_name)?;
         let params = [token_address, token_id.to_string()];
         let scanned_block_params = [chain.to_ticker().to_string(), scanned_block.to_string()];
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let rows_num = sql_transaction.execute(&sql, params)?;
@@ -736,7 +738,7 @@ impl NftListStorageOps for NftCacheDbSql {
             table_name.inner()
         );
         let params = [token_address, token_id.to_string()];
-        self.0
+        self.connection
             .call(move |conn| {
                 let amount = query_single_row(conn, &sql, params, nft_amount_from_row)?;
                 Ok(amount)
@@ -747,7 +749,7 @@ impl NftListStorageOps for NftCacheDbSql {
 
     async fn refresh_nft_metadata(&self, chain: &Chain, nft: Nft) -> MmResult<(), Self::Error> {
         let sql = refresh_nft_metadata_sql(chain)?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [
@@ -785,7 +787,7 @@ impl NftListStorageOps for NftCacheDbSql {
     async fn get_last_block_number(&self, chain: &Chain) -> MmResult<Option<u64>, Self::Error> {
         let table_name = chain.nft_list_table_name()?;
         let sql = select_last_block_number_sql(table_name)?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let block_number = query_single_row(conn, &sql, [], block_number_from_row)?;
                 Ok(block_number)
@@ -799,7 +801,7 @@ impl NftListStorageOps for NftCacheDbSql {
     async fn get_last_scanned_block(&self, chain: &Chain) -> MmResult<Option<u64>, Self::Error> {
         let sql = select_last_scanned_block_sql()?;
         let params = [chain.to_ticker()];
-        self.0
+        self.connection
             .call(move |conn| {
                 let block_number = query_single_row(conn, &sql, params, block_number_from_row)?;
                 Ok(block_number)
@@ -817,7 +819,7 @@ impl NftListStorageOps for NftCacheDbSql {
             table_name.inner()
         );
         let scanned_block_params = [chain.to_ticker().to_string(), scanned_block.to_string()];
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [
@@ -841,7 +843,7 @@ impl NftListStorageOps for NftCacheDbSql {
             table_name.inner()
         );
         let scanned_block_params = [chain.to_ticker().to_string(), nft.block_number.to_string()];
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [
@@ -860,7 +862,7 @@ impl NftListStorageOps for NftCacheDbSql {
     }
 
     async fn get_nfts_by_token_address(&self, chain: Chain, token_address: String) -> MmResult<Vec<Nft>, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let table_name = chain.nft_list_table_name()?;
                 let mut stmt = get_nfts_by_token_address_statement(conn, table_name)?;
@@ -884,7 +886,7 @@ impl NftListStorageOps for NftCacheDbSql {
             "UPDATE {} SET possible_spam = ?1 WHERE token_address = ?2;",
             table_name.inner()
         );
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [Some(i32::from(possible_spam).to_string()), Some(token_address.clone())];
@@ -898,7 +900,7 @@ impl NftListStorageOps for NftCacheDbSql {
 
     async fn get_animation_external_domains(&self, chain: &Chain) -> MmResult<HashSet<String>, Self::Error> {
         let safe_table_name = chain.nft_list_table_name()?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let table_name = safe_table_name.inner();
                 let sql_query = format!(
@@ -928,7 +930,7 @@ impl NftListStorageOps for NftCacheDbSql {
             OR image_domain = ?2 OR animation_domain = ?2 OR external_domain = ?2;",
             table_name.inner()
         );
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [Some(i32::from(possible_phishing).to_string()), Some(domain)];
@@ -946,7 +948,7 @@ impl NftListStorageOps for NftCacheDbSql {
         let table_scanned_blocks = scanned_nft_blocks_table_name()?;
         let sql_scanned_block = format!("DELETE from {} where chain=?1", table_scanned_blocks.inner());
         let scanned_block_param = [chain.to_ticker()];
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 sql_transaction.execute(&sql_nft, [])?;
@@ -963,7 +965,7 @@ impl NftListStorageOps for NftCacheDbSql {
     }
 
     async fn clear_all_nft_data(&self) -> MmResult<(), Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 for chain in Chain::variant_list().into_iter() {
@@ -981,12 +983,12 @@ impl NftListStorageOps for NftCacheDbSql {
 }
 
 #[async_trait]
-impl NftTransferHistoryStorageOps for NftCacheDbSql {
+impl NftTransferHistoryStorageOps for MutexGuard<'_, AsyncConnectionCtx> {
     type Error = AsyncConnError;
 
     async fn init(&self, chain: &Chain) -> MmResult<(), Self::Error> {
         let sql_transfer_history = create_transfer_history_table_sql(chain)?;
-        self.0
+        self.connection
             .call(move |conn| {
                 conn.execute(&sql_transfer_history, []).map(|_| ())?;
                 Ok(())
@@ -997,7 +999,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
 
     async fn is_initialized(&self, chain: &Chain) -> MmResult<bool, Self::Error> {
         let table_name = chain.transfer_history_table_name()?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let nft_list_initialized =
                     query_single_row(conn, CHECK_TABLE_EXISTS_SQL, [table_name.inner()], string_from_row)?;
@@ -1015,7 +1017,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
         page_number: Option<NonZeroUsize>,
         filters: Option<NftTransferHistoryFilters>,
     ) -> MmResult<NftsTransferHistoryList, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_builder = get_nft_transfer_builder_preimage(chains, filters)?;
                 let total_count_builder_sql = sql_builder
@@ -1050,7 +1052,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
         I: IntoIterator<Item = NftTransferHistory> + Send + 'static,
         I::IntoIter: Send,
     {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 for transfer in transfers {
@@ -1099,7 +1101,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
     async fn get_last_block_number(&self, chain: &Chain) -> MmResult<Option<u64>, Self::Error> {
         let table_name = chain.transfer_history_table_name()?;
         let sql = select_last_block_number_sql(table_name)?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let block_number = query_single_row(conn, &sql, [], block_number_from_row)?;
                 Ok(block_number)
@@ -1115,7 +1117,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
         chain: Chain,
         from_block: u64,
     ) -> MmResult<Vec<NftTransferHistory>, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let mut stmt = get_transfers_from_block_statement(conn, &chain)?;
                 let transfers = stmt
@@ -1133,7 +1135,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
         token_address: String,
         token_id: BigUint,
     ) -> MmResult<Vec<NftTransferHistory>, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let mut stmt = get_transfers_by_token_addr_id_statement(conn, chain)?;
                 let transfers = stmt
@@ -1156,7 +1158,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
             "SELECT * FROM {} WHERE transaction_hash=?1 AND log_index = ?2",
             table_name.inner()
         );
-        self.0
+        self.connection
             .call(move |conn| {
                 let transfer = query_single_row(
                     conn,
@@ -1193,7 +1195,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
             Some(transfer_meta.token_address),
             Some(transfer_meta.token_id.to_string()),
         ];
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 sql_transaction.execute(&sql, params)?;
@@ -1208,7 +1210,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
     }
 
     async fn get_transfers_with_empty_meta(&self, chain: Chain) -> MmResult<Vec<NftTokenAddrId>, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_builder = get_transfers_with_empty_meta_builder(conn, &chain)?;
                 let token_addr_id_pair = sql_builder.query(token_address_id_from_row)?;
@@ -1223,7 +1225,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
         chain: Chain,
         token_address: String,
     ) -> MmResult<Vec<NftTransferHistory>, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let table_name = chain.transfer_history_table_name()?;
                 let mut stmt = get_nfts_by_token_address_statement(conn, table_name)?;
@@ -1247,7 +1249,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
             "UPDATE {} SET possible_spam = ?1 WHERE token_address = ?2;",
             table_name.inner()
         );
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [Some(i32::from(possible_spam).to_string()), Some(token_address.clone())];
@@ -1260,7 +1262,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
     }
 
     async fn get_token_addresses(&self, chain: Chain) -> MmResult<HashSet<Address>, Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let table_name = chain.transfer_history_table_name()?;
                 let mut stmt = get_token_addresses_statement(conn, table_name)?;
@@ -1275,7 +1277,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
 
     async fn get_domains(&self, chain: &Chain) -> MmResult<HashSet<String>, Self::Error> {
         let safe_table_name = chain.transfer_history_table_name()?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let table_name = safe_table_name.inner();
                 let sql_query = format!(
@@ -1304,7 +1306,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
             "UPDATE {} SET possible_phishing = ?1 WHERE token_domain = ?2 OR image_domain = ?2;",
             safe_table_name.inner()
         );
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 let params = [Some(i32::from(possible_phishing).to_string()), Some(domain)];
@@ -1318,7 +1320,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
 
     async fn clear_history_data(&self, chain: &Chain) -> MmResult<(), Self::Error> {
         let table_name = chain.transfer_history_table_name()?;
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 sql_transaction.execute(&format!("DROP TABLE IF EXISTS {};", table_name.inner()), [])?;
@@ -1330,7 +1332,7 @@ impl NftTransferHistoryStorageOps for NftCacheDbSql {
     }
 
     async fn clear_all_history_data(&self) -> MmResult<(), Self::Error> {
-        self.0
+        self.connection
             .call(move |conn| {
                 let sql_transaction = conn.transaction()?;
                 for chain in Chain::variant_list().into_iter() {

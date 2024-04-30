@@ -26,6 +26,7 @@ cfg_wasm32! {
 }
 
 cfg_native! {
+use db_common::AsyncConnectionCtx;
     use db_common::async_sql_conn::AsyncConnection;
     use db_common::sqlite::rusqlite::Connection;
     use futures::lock::Mutex as AsyncMutex;
@@ -42,8 +43,6 @@ const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 pub const SYNC_SQLITE_DB_ID: &str = "MM2.db";
 
-#[cfg(not(target_arch = "wasm32"))]
-pub type AsyncSqliteConnectionArc = Arc<AsyncMutex<AsyncConnection>>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type SyncSqliteConnectionArc = Arc<Mutex<Connection>>;
 
@@ -131,7 +130,7 @@ pub struct MmCtx {
     pub shared_sqlite_conn: Constructible<Arc<Mutex<Connection>>>,
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<HashMap<String, AsyncSqliteConnectionArc>>>>,
+    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnectionCtx>>>,
     pub mm_version: String,
     pub datetime: String,
     pub mm_init_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
@@ -387,9 +386,12 @@ impl MmCtx {
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
 
-        let mut store = HashMap::new();
-        store.insert(db_id, Arc::new(AsyncMutex::new(async_conn)));
-        try_s!(self.async_sqlite_connection.pin(Arc::new(AsyncMutex::new(store))));
+        try_s!(self
+            .async_sqlite_connection
+            .pin(Arc::new(AsyncMutex::new(AsyncConnectionCtx {
+                connection: async_conn,
+                db_id,
+            }))));
 
         Ok(())
     }

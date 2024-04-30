@@ -4974,7 +4974,7 @@ pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
             .map_err(|e| ERRL!("{}", e));
     }
 
-    let storage = MyOrdersStorage::new(ctx.clone(), db_id.as_deref());
+    let storage = MyOrdersStorage::new(ctx.clone(), db_id.clone());
     if let (Ok(order), Ok(cancellation_reason)) = (
         storage.load_order_from_history(req.uuid).await,
         &storage.select_order_status(req.uuid).await,

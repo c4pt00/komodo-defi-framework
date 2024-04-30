@@ -117,8 +117,10 @@ pub(crate) struct SqliteAccountStorage {
 impl SqliteAccountStorage {
     pub(crate) fn new(ctx: &MmArc) -> AccountStorageResult<SqliteAccountStorage> {
         // TODO db_id
-        let conn = ctx.sqlite_connection_res(None).map_to_mm(|_| {
-            AccountStorageError::Internal("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
+        let conn = ctx.sqlite_conn_opt(None).ok_or_else(|| {
+            MmError::new(AccountStorageError::Internal(
+                "'MmCtx::sqlite_connection' is not found or initialized".to_owned(),
+            ))
         })?;
 
         Ok(SqliteAccountStorage { conn })

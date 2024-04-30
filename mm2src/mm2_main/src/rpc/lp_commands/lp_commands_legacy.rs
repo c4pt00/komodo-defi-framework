@@ -249,12 +249,9 @@ pub async fn my_balance(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, Stri
 #[cfg(not(target_arch = "wasm32"))]
 async fn close_async_connection(ctx: &MmArc) {
     if let Some(connections) = ctx.async_sqlite_connection.as_option() {
-        let connections = connections.lock().await;
-        for connection in connections.values() {
-            let mut conn = connection.lock().await;
-            if let Err(e) = conn.close().await {
-                error!("Error stopping AsyncConnection: {}", e);
-            }
+        let mut conn = connections.lock().await;
+        if let Err(e) = conn.connection.close().await {
+            error!("Error stopping AsyncConnection: {}", e);
         }
     }
 }
