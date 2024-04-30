@@ -10,10 +10,8 @@ use std::error::Error as StdError;
 
 #[cfg(any(test, target_arch = "wasm32"))]
 mod account_storage_tests;
-#[cfg(not(target_arch = "wasm32"))]
-mod sqlite_storage;
-#[cfg(target_arch = "wasm32")]
-mod wasm_storage;
+#[cfg(not(target_arch = "wasm32"))] mod sqlite_storage;
+#[cfg(target_arch = "wasm32")] mod wasm_storage;
 
 const DEFAULT_ACCOUNT_IDX: u32 = 0;
 const DEFAULT_DEVICE_PUB: HwPubkey = HwPubkey::const_default();
@@ -89,7 +87,7 @@ impl AccountId {
                     account_type, account_idx, device_pubkey
                 );
                 MmError::err(AccountStorageError::ErrorDeserializing(error))
-            }
+            },
         }
     }
 }
@@ -116,7 +114,7 @@ impl EnabledAccountId {
             (_, _) => {
                 let error = format!("An invalid AccountId tuple: {:?}/{:?}", account_type, account_idx);
                 MmError::err(AccountStorageError::ErrorDeserializing(error))
-            }
+            },
         }
     }
 }
@@ -129,16 +127,12 @@ pub(crate) struct AccountStorageBuilder<'a> {
 }
 
 impl<'a> AccountStorageBuilder<'a> {
-    pub fn new(ctx: &'a MmArc, db_id: Option<&'a str>) -> Self {
-        AccountStorageBuilder {
-            ctx,
-            db_id,
-        }
-    }
+    pub fn new(ctx: &'a MmArc, db_id: Option<&'a str>) -> Self { AccountStorageBuilder { ctx, db_id } }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build(self) -> AccountStorageResult<AccountStorageBoxed> {
-        sqlite_storage::SqliteAccountStorage::new(self.ctx, self.db_id).map(|storage| -> AccountStorageBoxed { Box::new(storage) })
+        sqlite_storage::SqliteAccountStorage::new(self.ctx, self.db_id)
+            .map(|storage| -> AccountStorageBoxed { Box::new(storage) })
     }
 
     #[cfg(target_arch = "wasm32")]

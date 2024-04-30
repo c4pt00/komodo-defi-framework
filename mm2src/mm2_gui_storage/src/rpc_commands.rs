@@ -42,10 +42,10 @@ impl From<AccountStorageError> for AccountRpcError {
             AccountStorageError::AccountExistsAlready(account_id) => AccountRpcError::AccountExistsAlready(account_id),
             AccountStorageError::ErrorDeserializing(e) | AccountStorageError::ErrorLoading(e) => {
                 AccountRpcError::ErrorLoadingAccount(e)
-            }
+            },
             AccountStorageError::ErrorSaving(e) | AccountStorageError::ErrorSerializing(e) => {
                 AccountRpcError::ErrorSavingAccount(e)
-            }
+            },
             AccountStorageError::Internal(internal) => AccountRpcError::Internal(internal),
         }
     }
@@ -78,8 +78,8 @@ pub struct NewAccount<Id> {
 }
 
 impl<Id> From<NewAccount<Id>> for AccountInfo
-    where
-        AccountId: From<Id>,
+where
+    AccountId: From<Id>,
 {
     fn from(orig: NewAccount<Id>) -> Self {
         AccountInfo {
@@ -184,7 +184,7 @@ pub async fn enable_account(ctx: MmArc, req: EnableAccountRequest) -> MmResult<S
                 .upload_account(AccountInfo::from(new_account))
                 .await?;
             account_id
-        }
+        },
     };
     account_ctx.storage().await?.enable_account(account_id).await?;
     Ok(SuccessResponse::new())

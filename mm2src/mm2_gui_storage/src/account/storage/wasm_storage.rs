@@ -32,10 +32,10 @@ impl From<DbTransactionError> for AccountStorageError {
             DbTransactionError::ErrorSerializingItem(_) => AccountStorageError::ErrorSerializing(desc),
             DbTransactionError::ErrorGettingItems(_) | DbTransactionError::ErrorCountingItems(_) => {
                 AccountStorageError::ErrorLoading(desc)
-            }
+            },
             DbTransactionError::ErrorUploadingItem(_) | DbTransactionError::ErrorDeletingItems(_) => {
                 AccountStorageError::ErrorSaving(desc)
-            }
+            },
         }
     }
 }
@@ -166,8 +166,8 @@ impl WasmAccountStorage {
     /// Loads an account by `AccountId`, applies the given `f` function to it,
     /// and uploads changes to the storage.
     async fn update_account<F>(&self, account_id: AccountId, f: F) -> AccountStorageResult<()>
-        where
-            F: FnOnce(&mut AccountTable),
+    where
+        F: FnOnce(&mut AccountTable),
     {
         let locked_db = self.lock_db_mutex().await?;
         let transaction = locked_db.inner.transaction().await?;
@@ -331,7 +331,7 @@ impl AccountStorage for WasmAccountStorage {
                 account.activated_coins.remove(ticker);
             }
         })
-            .await
+        .await
     }
 }
 

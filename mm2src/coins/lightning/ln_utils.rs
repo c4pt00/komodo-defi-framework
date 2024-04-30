@@ -69,7 +69,7 @@ pub async fn init_persister(
 }
 
 pub async fn init_db(ctx: &MmArc, ticker: String) -> EnableLightningResult<SqliteLightningDB> {
-    let shared = ctx.sqlite_connection_res(None).map_to_mm(|_| {
+    let shared = ctx.sqlite_conn_opt(None).or_mm_err(|| {
         EnableLightningError::DbError("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
     })?;
 

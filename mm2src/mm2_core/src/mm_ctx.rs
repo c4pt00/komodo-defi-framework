@@ -448,29 +448,6 @@ impl MmCtx {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn sqlite_connection_res(&self, db_id: Option<&str>) -> Result<SyncSqliteConnectionArc, String> {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex());
-        let connections = self
-            .sqlite_connection
-            .ok_or("sqlite_connection is not initialized".to_string())?
-            .lock()
-            .unwrap();
-        if let Some(connection) = connections.get(&db_id) {
-            Ok(connection.clone())
-        } else {
-            let sqlite_file_path = self.dbdir(Some(&db_id)).join(SYNC_SQLITE_DB_ID);
-            log_sqlite_file_open_attempt(&sqlite_file_path);
-
-            let connection = Arc::new(Mutex::new(try_s!(Connection::open(sqlite_file_path))));
-            let mut store = HashMap::new();
-            store.insert(db_id, connection.clone());
-            drop(connections);
-            // TODO: run migration and fix directions
-            Ok(connection)
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn init_sqlite_connection_for_test(&self, db_id: Option<&str>) -> Result<SyncSqliteConnectionArc, String> {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex());
         let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));

@@ -34,8 +34,8 @@ impl BlockHeaderStorage {
         db_id: Option<&str>,
     ) -> Result<Self, BlockHeaderStorageError> {
         let sqlite_connection = ctx
-            .sqlite_connection_res(db_id)
-            .map_err(|_| BlockHeaderStorageError::Internal("sqlite_connection is not initialized".to_owned()))?;
+            .sqlite_conn_opt(db_id)
+            .ok_or_else(|| BlockHeaderStorageError::Internal("sqlite_connection is not initialized".to_owned()))?;
 
         Ok(BlockHeaderStorage {
             inner: Box::new(SqliteBlockHeadersStorage {
