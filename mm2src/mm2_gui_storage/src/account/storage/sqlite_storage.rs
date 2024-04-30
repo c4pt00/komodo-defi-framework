@@ -69,7 +69,7 @@ impl From<SqlError> for AccountStorageError {
             | SqlError::InvalidColumnType(_, _, _) => AccountStorageError::ErrorDeserializing(error),
             SqlError::Utf8Error(_) | SqlError::NulError(_) | SqlError::ToSqlConversionFailure(_) => {
                 AccountStorageError::ErrorSerializing(error)
-            },
+            }
             _ => AccountStorageError::Internal(error),
         }
     }
@@ -115,9 +115,8 @@ pub(crate) struct SqliteAccountStorage {
 }
 
 impl SqliteAccountStorage {
-    pub(crate) fn new(ctx: &MmArc) -> AccountStorageResult<SqliteAccountStorage> {
-        // TODO db_id
-        let conn = ctx.sqlite_conn_opt(None).ok_or_else(|| {
+    pub(crate) fn new(ctx: &MmArc, db_id: Option<&str>) -> AccountStorageResult<SqliteAccountStorage> {
+        let conn = ctx.sqlite_conn_opt(db_id).ok_or_else(|| {
             MmError::new(AccountStorageError::Internal(
                 "'MmCtx::sqlite_connection' is not found or initialized".to_owned(),
             ))
@@ -164,7 +163,7 @@ impl SqliteAccountStorage {
                     account_coins_table::DEVICE_PUBKEY,
                     SqlType::Varchar(DEVICE_PUBKEY_MAX_LENGTH),
                 )
-                .not_null(),
+                    .not_null(),
             )
             .column(SqlColumn::new(account_coins_table::COIN, SqlType::Varchar(MAX_TICKER_LENGTH)).not_null())
             .constraint(
@@ -173,8 +172,8 @@ impl SqliteAccountStorage {
                     account_coins_table::ACCOUNT_IDX => account_table::ACCOUNT_IDX,
                     account_coins_table::DEVICE_PUBKEY => account_table::DEVICE_PUBKEY
                 ])?
-                // Delete all coins from `account_coins_table` if the corresponding `account_table` record has been deleted.
-                .on_event(foreign_key::Event::OnDelete, foreign_key::Action::Cascade),
+                    // Delete all coins from `account_coins_table` if the corresponding `account_table` record has been deleted.
+                    .on_event(foreign_key::Event::OnDelete, foreign_key::Action::Cascade),
             )
             .constraint(Unique::new(account_coins_table::ACCOUNT_ID_COIN_CONSTRAINT, [
                 account_coins_table::ACCOUNT_TYPE,
@@ -197,7 +196,7 @@ impl SqliteAccountStorage {
                     enabled_account_table::DEVICE_PUBKEY,
                     SqlType::Varchar(DEVICE_PUBKEY_MAX_LENGTH),
                 )
-                .not_null(),
+                    .not_null(),
             )
             .constraint(
                 ForeignKey::new(foreign_key::ParentTable(account_table::TABLE_NAME), foreign_columns![
@@ -205,8 +204,8 @@ impl SqliteAccountStorage {
                     enabled_account_table::ACCOUNT_IDX => account_table::ACCOUNT_IDX,
                     enabled_account_table::DEVICE_PUBKEY => account_table::DEVICE_PUBKEY,
                 ])?
-                // Delete an enabled account from `enabled_account_table` if the corresponding `account_table` record has been deleted.
-                .on_event(foreign_key::Event::OnDelete, foreign_key::Action::Cascade),
+                    // Delete an enabled account from `enabled_account_table` if the corresponding `account_table` record has been deleted.
+                    .on_event(foreign_key::Event::OnDelete, foreign_key::Action::Cascade),
             );
         create_sql.create().map_to_mm(AccountStorageError::from)
     }
@@ -348,8 +347,8 @@ impl SqliteAccountStorage {
 
     /// Updates the given `account_id` account by applying the `update_cb` callback to an `SqlUpdate` SQL builder.
     fn update_account<F>(conn: &Connection, account_id: AccountId, update_cb: F) -> AccountStorageResult<()>
-    where
-        F: FnOnce(&mut SqlUpdate) -> SqlResult<()>,
+        where
+            F: FnOnce(&mut SqlUpdate) -> SqlResult<()>,
     {
         let mut sql_update = SqlUpdate::new(conn, account_table::TABLE_NAME)?;
         update_cb(&mut sql_update)?;
@@ -594,8 +593,8 @@ fn bigdecimal_from_row(row: &Row<'_>, idx: usize) -> Result<BigDecimal, SqlError
 }
 
 fn handle_constraint_error<T, F>(result: SqlResult<T>, on_constraint_error: F) -> AccountStorageResult<T>
-where
-    F: FnOnce() -> AccountStorageError,
+    where
+        F: FnOnce() -> AccountStorageError,
 {
     result.map_to_mm(|e| {
         if is_constraint_error(&e) {

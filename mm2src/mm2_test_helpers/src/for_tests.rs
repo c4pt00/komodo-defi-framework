@@ -28,7 +28,6 @@ use std::num::NonZeroUsize;
 use std::process::Child;
 use std::sync::Mutex;
 use uuid::Uuid;
-use db_common::AsyncConnectionCtx;
 
 cfg_native! {
     use common::block_on;
