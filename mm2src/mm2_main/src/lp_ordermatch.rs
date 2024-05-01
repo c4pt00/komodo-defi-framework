@@ -1682,7 +1682,7 @@ impl TakerOrder {
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
     async fn db_id(&self, ctx: &MmArc) -> MyOrdersResult<Option<String>> {
-        lp_coinfind_or_err(ctx, &self.request.base)
+        lp_coinfind_or_err(ctx, &self.taker_coin_ticker())
             .await
             .mm_err(|err| {
                 MyOrdersError::ErrorSaving(format!("Error finding/deriving wallet pubkey for db_id: {err:?}"))
