@@ -454,7 +454,7 @@ fn init_wasm_event_streaming(ctx: &MmArc) {
 }
 
 pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
-    init_ordermatch_context(&ctx, None)?;
+    init_ordermatch_context(&ctx)?;
     init_p2p(ctx.clone()).await?;
 
     if !CryptoCtx::is_init(&ctx)? {

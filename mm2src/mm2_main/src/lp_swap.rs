@@ -544,7 +544,7 @@ impl SwapsContext {
                     TAKER_SWAP_ENTRY_TIMEOUT_SEC,
                 ))),
                 locked_amounts: Mutex::new(HashMap::new()),
-                // Using None for db_id here won't matter much since calling `SwapsContext::swap_db(db_id)` will using the provided db_id.
+                // Using None for db_id here won't matter much since calling `SwapsContext::swap_db(db_id)` will use the provided db_id.
                 #[cfg(target_arch = "wasm32")]
                 swap_db: ConstructibleDb::new(ctx, None),
             })

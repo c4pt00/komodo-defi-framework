@@ -2751,13 +2751,13 @@ struct OrdermatchContext {
     /// Pending MakerReserved messages for a specific TakerOrder UUID
     /// Used to select a trade with the best price upon matching
     pending_maker_reserved: AsyncMutex<HashMap<Uuid, Vec<MakerReserved>>>,
+    // Using None for db_id here won't matter much since calling `OrdermatchContext::ordermatch_db(db_id)` will use the provided db_id.
     #[cfg(target_arch = "wasm32")]
     ordermatch_db: ConstructibleDb<OrdermatchDb>,
-    db_id: Option<String>,
 }
 
 #[allow(unused)]
-pub fn init_ordermatch_context(ctx: &MmArc, db_id: Option<&str>) -> OrdermatchInitResult<()> {
+pub fn init_ordermatch_context(ctx: &MmArc) -> OrdermatchInitResult<()> {
     // Helper
     #[derive(Deserialize)]
     struct CoinConf {
@@ -2790,8 +2790,7 @@ pub fn init_ordermatch_context(ctx: &MmArc, db_id: Option<&str>) -> OrdermatchIn
         orderbook_tickers,
         original_tickers,
         #[cfg(target_arch = "wasm32")]
-        ordermatch_db: ConstructibleDb::new(ctx, db_id),
-        db_id: db_id.map(|d| d.to_string()),
+        ordermatch_db: ConstructibleDb::new(ctx, None),
     };
 
     from_ctx(&ctx.ordermatch_ctx, move || Ok(ordermatch_context))
@@ -2820,9 +2819,9 @@ impl OrdermatchContext {
                 pending_maker_reserved: Default::default(),
                 orderbook_tickers: Default::default(),
                 original_tickers: Default::default(),
+                // Using None for db_id here won't matter much since calling `OrdermatchContext::ordermatch_db(db_id)` will use the provided db_id.
                 #[cfg(target_arch = "wasm32")]
-                ordermatch_db: ConstructibleDb::new(ctx, db_id),
-                db_id: None,
+                ordermatch_db: ConstructibleDb::new(ctx, None),
             })
         })))
     }
@@ -3393,7 +3392,8 @@ pub async fn clean_memory_loop(ctx_weak: MmWeak) {
 /// The function locks the [`OrdermatchContext::my_maker_orders`] and [`OrdermatchContext::my_taker_orders`] mutexes.
 async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchContext) {
     let mut my_taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
-    let storage = MyOrdersStorage::new(ctx.clone(), ordermatch_ctx.db_id.clone());
+    // TODO: db_id
+    let storage = MyOrdersStorage::new(ctx.clone(), None);
     let mut my_actual_taker_orders = HashMap::with_capacity(my_taker_orders.len());
 
     for (uuid, order) in my_taker_orders.drain() {
@@ -3483,7 +3483,8 @@ async fn check_balance_for_maker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchC
 /// The function locks the [`OrdermatchContext::my_maker_orders`] mutex.
 async fn handle_timed_out_maker_matches(ctx: MmArc, ordermatch_ctx: &OrdermatchContext) {
     let now = now_ms();
-    let storage = MyOrdersStorage::new(ctx.clone(), ordermatch_ctx.db_id.clone());
+    // TODO: db_id
+    let storage = MyOrdersStorage::new(ctx.clone(), None);
     let my_maker_orders = ordermatch_ctx.maker_orders_ctx.lock().orders.clone();
 
     for (_, order) in my_maker_orders.iter() {
@@ -3674,7 +3675,8 @@ async fn process_taker_request(ctx: MmArc, from_pubkey: H256Json, taker_request:
     }
 
     let ordermatch_ctx = OrdermatchContext::from_ctx(&ctx).unwrap();
-    let storage = MyOrdersStorage::new(ctx.clone(), ordermatch_ctx.db_id.clone());
+    // TODO: db_id
+    let storage = MyOrdersStorage::new(ctx.clone(), None);
     let mut my_orders = ordermatch_ctx.maker_orders_ctx.lock().orders.clone();
     let filtered = my_orders
         .iter_mut()
@@ -3823,7 +3825,8 @@ async fn process_taker_connect(ctx: MmArc, sender_pubkey: PublicKey, connect_msg
             updated_msg.with_new_max_volume(my_order.available_amount().into());
             maker_order_updated_p2p_notify(ctx.clone(), topic, updated_msg, my_order.p2p_keypair());
         }
-        MyOrdersStorage::new(ctx, ordermatch_ctx.db_id.clone())
+        // TODO: db_id
+        MyOrdersStorage::new(ctx, None)
             .update_active_maker_order(&my_order)
             .await
             .error_log_with_msg("!update_active_maker_order");
