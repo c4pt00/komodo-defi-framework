@@ -121,7 +121,7 @@ pub(super) async fn has_db_record_for(
     db_id: Option<&str>,
 ) -> MmResult<bool, SwapStateMachineError> {
     let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
-    let db = swaps_ctx.swap_db().await?;
+    let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
     let maybe_item = table.get_item_by_unique_index("uuid", id).await?;
@@ -165,7 +165,7 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr + DeserializeOwned + 
     db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError> {
     let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
-    let db = swaps_ctx.swap_db().await?;
+    let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
 
@@ -192,7 +192,7 @@ pub(super) async fn get_swap_repr<T: DeserializeOwned>(
     db_id: Option<&str>,
 ) -> MmResult<T, SwapStateMachineError> {
     let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).expect("SwapsContext::from_ctx should not fail");
-    let db = swaps_ctx.swap_db().await?;
+    let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
 
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -231,7 +231,7 @@ pub(super) async fn get_unfinished_swaps_uuids(
         .with_value(BoolAsInt::new(false))?
         .with_value(swap_type)?;
     let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
-    let db = swaps_ctx.swap_db().await?;
+    let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
     let table_items = table.get_items_by_multi_index(index).await?;
@@ -261,7 +261,7 @@ pub(super) async fn mark_swap_as_finished(
     db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError> {
     let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
-    let db = swaps_ctx.swap_db().await?;
+    let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
     let mut item = match table.get_item_by_unique_index("uuid", id).await? {

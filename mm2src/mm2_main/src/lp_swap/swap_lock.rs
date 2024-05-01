@@ -129,7 +129,7 @@ mod wasm_lock {
         async fn lock(ctx: &MmArc, uuid: Uuid, ttl_sec: f64) -> SwapLockResult<Option<Self>> {
             // TODO: db_id
             let swaps_ctx = SwapsContext::from_ctx(ctx, None).map_to_mm(SwapLockError::InternalError)?;
-            let db = swaps_ctx.swap_db().await?;
+            let db = swaps_ctx.swap_db(None).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SwapLockTable>().await?;
 
@@ -160,7 +160,7 @@ mod wasm_lock {
         async fn touch(&self) -> SwapLockResult<()> {
             // TODO: db_id
             let swaps_ctx = SwapsContext::from_ctx(&self.ctx, None).map_to_mm(SwapLockError::InternalError)?;
-            let db = swaps_ctx.swap_db().await?;
+            let db = swaps_ctx.swap_db(None).await?;
 
             let item = SwapLockTable {
                 uuid: self.swap_uuid,
@@ -184,7 +184,7 @@ mod wasm_lock {
         async fn release(ctx: MmArc, record_id: ItemId) -> SwapLockResult<()> {
             // TODO: db_id
             let swaps_ctx = SwapsContext::from_ctx(&ctx, None).map_to_mm(SwapLockError::InternalError)?;
-            let db = swaps_ctx.swap_db().await?;
+            let db = swaps_ctx.swap_db(None).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SwapLockTable>().await?;
             table.delete_item(record_id).await?;
@@ -209,9 +209,8 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     async fn get_all_items(ctx: &MmArc) -> Vec<(ItemId, SwapLockTable)> {
-        // TODO: db_id
         let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
-        let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
+        let db = swaps_ctx.swap_db(None).await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction.table::<SwapLockTable>().await.expect("Error opening table");
         table.get_all_items().await.expect("Error getting items")

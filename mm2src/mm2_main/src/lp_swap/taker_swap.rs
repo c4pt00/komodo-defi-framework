@@ -352,6 +352,15 @@ impl TakerSavedSwap {
 
         Ok(SwapPubkeys { maker, taker })
     }
+
+    pub fn db_id(&self) -> Option<String> {
+        if let Some(events) = self.events.first() {
+            if let TakerSwapEvent::Started(data) = &events.event {
+                return data.db_id.clone();
+            }
+        }
+        None
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -445,10 +454,8 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
     let uuid = swap.uuid.to_string();
     let to_broadcast = !(swap.maker_coin.is_privacy() || swap.taker_coin.is_privacy());
     let running_swap = Arc::new(swap);
-    let account_id = running_swap.taker_coin.account_db_id();
-    info!("USING COIN PUBKEY: {account_id:?}");
     let weak_ref = Arc::downgrade(&running_swap);
-    let swap_ctx = SwapsContext::from_ctx(&ctx, account_id.as_deref()).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx, running_swap.db_id().as_deref()).unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.maker);
     swap_ctx.running_swaps.lock().unwrap().push(weak_ref);
 
@@ -490,14 +497,14 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
                     },
                     None => {
                         if let Err(e) =
-                            mark_swap_as_finished(ctx.clone(), running_swap.uuid, account_id.as_deref()).await
+                            mark_swap_as_finished(ctx.clone(), running_swap.uuid, running_swap.db_id().as_deref()).await
                         {
                             error!("!mark_swap_finished({}): {}", uuid, e);
                         }
 
                         if to_broadcast {
                             if let Err(e) =
-                                broadcast_my_swap_status(&ctx, running_swap.uuid, account_id.as_deref()).await
+                                broadcast_my_swap_status(&ctx, running_swap.uuid, running_swap.db_id().as_deref()).await
                             {
                                 error!("!broadcast_my_swap_status({}): {}", uuid, e);
                             }
@@ -554,6 +561,8 @@ pub struct TakerSwapData {
     pub taker_coin_htlc_pubkey: Option<H264Json>,
     /// Temporary privkey used to sign P2P messages when applicable
     pub p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    // dynamic database id for taker from it's coin rmd160
+    pub db_id: Option<String>,
 }
 
 pub struct TakerSwapMut {
@@ -792,6 +801,9 @@ impl TakerSwap {
 
     #[inline]
     fn wait_refund_until(&self) -> u64 { self.r().data.taker_payment_lock + 3700 }
+
+    #[inline]
+    fn db_id(&self) -> Option<String> { self.taker_coin.account_db_id() }
 
     fn apply_event(&self, event: TakerSwapEvent) {
         match event {
@@ -1112,6 +1124,7 @@ impl TakerSwap {
             maker_coin_htlc_pubkey: Some(maker_coin_htlc_pubkey.as_slice().into()),
             taker_coin_htlc_pubkey: Some(taker_coin_htlc_pubkey.as_slice().into()),
             p2p_privkey: self.p2p_privkey.map(SerializableSecp256k1Keypair::from),
+            db_id: self.taker_coin.account_db_id(),
         };
 
         // This will be done during order match

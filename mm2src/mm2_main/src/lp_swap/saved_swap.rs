@@ -334,7 +334,7 @@ mod wasm_impl {
     pub async fn migrate_swaps_data(ctx: &MmArc, db_id: Option<&str>) -> MmResult<(), SavedSwapError> {
         info!("migrate_swaps_data: {db_id:?}");
         let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
-        let db = swaps_ctx.swap_db().await?;
+        let db = swaps_ctx.swap_db(db_id).await?;
         let transaction = db.transaction().await?;
         let migration_table = transaction.table::<SwapsMigrationTable>().await?;
 
@@ -424,8 +424,9 @@ mod wasm_impl {
             db_id: Option<&str>,
             uuid: Uuid,
         ) -> SavedSwapResult<Option<SavedSwap>> {
+            info!("load_my_swap_from_db: {db_id:?}");
             let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
-            let db = swaps_ctx.swap_db().await?;
+            let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SavedSwapTable>().await?;
 
@@ -438,8 +439,9 @@ mod wasm_impl {
         }
 
         async fn load_all_my_swaps_from_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<SavedSwap>> {
+            info!("load_all_my_swaps_from_db: {db_id:?}");
             let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
-            let db = swaps_ctx.swap_db().await?;
+            let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SavedSwapTable>().await?;
 
@@ -461,7 +463,7 @@ mod wasm_impl {
             };
 
             let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).map_to_mm(SavedSwapError::InternalError)?;
-            let db = swaps_ctx.swap_db().await?;
+            let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SavedSwapTable>().await?;
 
@@ -486,7 +488,7 @@ mod tests {
 
     async fn get_all_items(ctx: &MmArc) -> Vec<(ItemId, SavedSwapTable)> {
         let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
-        let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
+        let db = swaps_ctx.swap_db(None).await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction
             .table::<SavedSwapTable>()
@@ -551,7 +553,7 @@ mod tests {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
 
         let swaps_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
-        let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
+        let db = swaps_ctx.swap_db(None).await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction
             .table::<SwapsMigrationTable>()
@@ -577,7 +579,7 @@ mod tests {
 
         let swaps_ctx = SwapsContext::from_ctx(&ctx, account_id).unwrap();
         {
-            let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
+            let db = swaps_ctx.swap_db(None).await.expect("Error getting SwapDb");
             let transaction = db.transaction().await.expect("Error creating transaction");
             let table = transaction
                 .table::<MySwapsFiltersTable>()
@@ -597,7 +599,7 @@ mod tests {
 
         wasm_impl::migrate_swaps_data(&ctx, account_id).await.unwrap();
 
-        let db = swaps_ctx.swap_db().await.expect("Error getting SwapDb");
+        let db = swaps_ctx.swap_db(None).await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction
             .table::<MySwapsFiltersTable>()

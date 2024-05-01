@@ -176,6 +176,8 @@ pub struct MakerSwapData {
     pub taker_coin_htlc_pubkey: Option<H264Json>,
     /// Temporary privkey used to sign P2P messages when applicable
     pub p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    // dynamic database id for maker from it's coin rmd160
+    pub db_id: Option<String>,
 }
 
 pub struct MakerSwapMut {
@@ -278,6 +280,9 @@ impl MakerSwap {
             _ => None,
         }
     }
+
+    #[inline]
+    fn db_id(&self) -> Option<String> { self.maker_coin.account_db_id() }
 
     fn apply_event(&self, event: MakerSwapEvent) {
         match event {
@@ -572,6 +577,7 @@ impl MakerSwap {
             maker_coin_htlc_pubkey: Some(maker_coin_htlc_pubkey.as_slice().into()),
             taker_coin_htlc_pubkey: Some(taker_coin_htlc_pubkey.as_slice().into()),
             p2p_privkey: self.p2p_privkey.map(SerializableSecp256k1Keypair::from),
+            db_id: self.db_id(),
         };
 
         // This will be done during order match
@@ -1305,8 +1311,8 @@ impl MakerSwap {
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
     ) -> Result<(Self, Option<MakerSwapCommand>), String> {
-        let account_key = maker_coin.account_db_id();
-        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
+        let saved = match SavedSwap::load_my_swap_from_db(&ctx, maker_coin.account_db_id().as_deref(), *swap_uuid).await
+        {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
             Err(e) => return ERR!("{}", e),
@@ -1846,6 +1852,7 @@ impl MakerSavedSwap {
                     maker_coin_htlc_pubkey: None,
                     taker_coin_htlc_pubkey: None,
                     p2p_privkey: None,
+                    db_id: None,
                 }),
             },
             MakerSavedEvent {
@@ -1976,7 +1983,7 @@ impl MakerSavedSwap {
         }
     }
 
-    // TODO: Adjust for private coins when/if they are braodcasted
+    // TODO: Adjust for private coins when/if they are broadcasted
     // TODO: Adjust for HD wallet when completed
     pub fn swap_pubkeys(&self) -> Result<SwapPubkeys, String> {
         let maker = match &self.events.first() {
@@ -2001,6 +2008,15 @@ impl MakerSavedSwap {
         };
 
         Ok(SwapPubkeys { maker, taker })
+    }
+
+    pub fn db_id(&self) -> Option<String> {
+        if let Some(events) = self.events.first() {
+            if let MakerSwapEvent::Started(data) = &events.event {
+                return data.db_id.clone();
+            }
+        }
+        None
     }
 }
 
@@ -2100,9 +2116,8 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
         };
     }
     let running_swap = Arc::new(swap);
-    let account_id = running_swap.maker_coin.account_db_id();
     let weak_ref = Arc::downgrade(&running_swap);
-    let swap_ctx = SwapsContext::from_ctx(&ctx, account_id.as_deref()).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx, running_swap.db_id().as_deref()).unwrap();
     swap_ctx.init_msg_store(running_swap.uuid, running_swap.taker);
     swap_ctx.running_swaps.lock().unwrap().push(weak_ref);
 
@@ -2151,13 +2166,14 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                     },
                     None => {
                         if let Err(e) =
-                            mark_swap_as_finished(ctx.clone(), running_swap.uuid, account_id.as_deref()).await
+                            mark_swap_as_finished(ctx.clone(), running_swap.uuid, running_swap.db_id().as_deref()).await
                         {
                             error!("!mark_swap_finished({}): {}", uuid, e);
                         }
 
                         if to_broadcast {
-                            if let Err(e) = broadcast_my_swap_status(&ctx, uuid, account_id.as_deref()).await {
+                            if let Err(e) = broadcast_my_swap_status(&ctx, uuid, running_swap.db_id().as_deref()).await
+                            {
                                 error!("!broadcast_my_swap_status({}): {}", uuid, e);
                             }
                         }

@@ -219,7 +219,7 @@ impl StateMachineStorage for TakerSwapStorage {
     async fn store_repr(&mut self, uuid: Self::MachineId, repr: Self::DbRepr) -> Result<(), Self::Error> {
         let swaps_ctx =
             SwapsContext::from_ctx(&self.ctx, self.db_id.as_deref()).expect("SwapsContext::from_ctx should not fail");
-        let db = swaps_ctx.swap_db().await?;
+        let db = swaps_ctx.swap_db(self.db_id.as_deref()).await?;
         let transaction = db.transaction().await?;
 
         let filters_table = transaction.table::<MySwapsFiltersTable>().await?;
