@@ -337,7 +337,7 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
             return match json::from_slice::<SwapStatus>(msg) {
                 Ok(mut status) => {
                     status.data.fetch_and_set_usd_prices().await;
-                    let account_id = status.data.account_db_id(&ctx).await;
+                    let account_id = status.data.account_db_id().await;
                     if let Err(e) = save_stats_swap(&ctx, &status.data, account_id.as_deref()).await {
                         error!("Error saving the swap {} status: {}", status.data.uuid(), e);
                     }
@@ -361,8 +361,7 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
     };
 
     debug!("Processing swap msg {:?} for uuid {}", msg, uuid);
-    let db_dir = None;
-    let swap_ctx = SwapsContext::from_ctx(&ctx, db_dir).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
     let mut msgs = swap_ctx.swap_msgs.lock().unwrap();
     if let Some(msg_store) = msgs.get_mut(&uuid) {
         if msg_store.accept_only_from.bytes == msg.2.unprefixed() {
@@ -399,14 +398,13 @@ async fn recv_swap_msg<T>(
     mut getter: impl FnMut(&mut SwapMsgStore) -> Option<T>,
     uuid: &Uuid,
     timeout: u64,
-    db_id: Option<&str>,
 ) -> Result<T, String> {
     let started = now_sec();
     let timeout = BASIC_COMM_TIMEOUT + timeout;
     let wait_until = started + timeout;
     loop {
         Timer::sleep(1.).await;
-        let swap_ctx = SwapsContext::from_ctx(&ctx, db_id).unwrap();
+        let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
         let mut msgs = swap_ctx.swap_msgs.lock().unwrap();
         if let Some(msg_store) = msgs.get_mut(uuid) {
             if let Some(msg) = getter(msg_store) {
@@ -1598,7 +1596,7 @@ pub async fn import_swaps(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
     let mut imported = vec![];
     let mut skipped = HashMap::new();
     for swap in swaps {
-        let accound_id = swap.account_db_id(&ctx).await;
+        let accound_id = swap.account_db_id().await;
         match swap.save_to_db(&ctx, accound_id.as_deref()).await {
             Ok(_) => {
                 if let Some(info) = swap.get_my_info() {

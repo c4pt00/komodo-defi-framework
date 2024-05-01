@@ -154,22 +154,11 @@ impl SavedSwap {
         }
     }
 
-    pub async fn account_db_id(&self, ctx: &MmArc) -> Option<String> {
-        let coin_ticker = match self {
-            SavedSwap::Maker(swap) => &swap.maker_coin,
-            SavedSwap::Taker(swap) => &swap.taker_coin,
-        };
-
-        if let Some(ticker) = coin_ticker {
-            if let Ok(coin) = coins::lp_coinfind_any(ctx, ticker).await {
-                let coin = coin.map(|c| c.inner);
-                if let Some(coin) = coin {
-                    return coin.account_db_id();
-                }
-            };
+    pub async fn account_db_id(&self) -> Option<String> {
+        match self {
+            SavedSwap::Maker(swap) => swap.db_id(),
+            SavedSwap::Taker(swap) => swap.db_id(),
         }
-
-        None
     }
 }
 

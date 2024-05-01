@@ -600,13 +600,11 @@ impl MakerSwap {
             NEGOTIATION_TIMEOUT_SEC as f64 / 6.,
             self.p2p_privkey,
         );
-        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.negotiation_reply.take(),
             &self.uuid,
             NEGOTIATION_TIMEOUT_SEC,
-            db_id.as_deref(),
         );
         let taker_data = match recv_fut.await {
             Ok(d) => d,
@@ -706,13 +704,11 @@ impl MakerSwap {
             self.p2p_privkey,
         );
 
-        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.taker_fee.take(),
             &self.uuid,
             TAKER_FEE_RECV_TIMEOUT_SEC,
-            db_id.as_deref(),
         );
         let payload = match recv_fut.await {
             Ok(d) => d,
@@ -943,13 +939,11 @@ impl MakerSwap {
 
         // wait for 3/5, we need to leave some time space for transaction to be confirmed
         let wait_duration = (self.r().data.lock_duration * 3) / 5;
-        let db_id = self.maker_coin.account_db_id();
         let recv_fut = recv_swap_msg(
             self.ctx.clone(),
             |store| store.taker_payment.take(),
             &self.uuid,
             wait_duration,
-            db_id.as_deref(),
         );
         // Todo: taker_payment should be a message on lightning network not a swap message
         let payload = match recv_fut.await {
