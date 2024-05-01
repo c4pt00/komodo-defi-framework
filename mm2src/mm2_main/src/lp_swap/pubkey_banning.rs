@@ -22,7 +22,7 @@ pub enum BanReason {
 
 pub fn ban_pubkey_on_failed_swap(ctx: &MmArc, pubkey: H256, swap_uuid: &Uuid, event: SwapEvent) {
     // TODO: db_id
-    let ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let ctx = SwapsContext::from_ctx(ctx).unwrap();
     let mut banned = ctx.banned_pubkeys.lock().unwrap();
     banned.insert(pubkey.into(), BanReason::FailedSwap {
         caused_by_swap: *swap_uuid,
@@ -32,14 +32,14 @@ pub fn ban_pubkey_on_failed_swap(ctx: &MmArc, pubkey: H256, swap_uuid: &Uuid, ev
 
 pub fn is_pubkey_banned(ctx: &MmArc, pubkey: &H256Json) -> bool {
     // TODO: db_id
-    let ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let ctx = SwapsContext::from_ctx(ctx).unwrap();
     let banned = ctx.banned_pubkeys.lock().unwrap();
     banned.contains_key(pubkey)
 }
 
 pub async fn list_banned_pubkeys_rpc(ctx: MmArc) -> Result<Response<Vec<u8>>, String> {
     // TODO: db_id
-    let ctx = try_s!(SwapsContext::from_ctx(&ctx, None));
+    let ctx = try_s!(SwapsContext::from_ctx(&ctx));
     let res = try_s!(json::to_vec(&json!({
         "result": *try_s!(ctx.banned_pubkeys.lock()),
     })));
@@ -55,7 +55,7 @@ struct BanPubkeysReq {
 pub async fn ban_pubkey_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: BanPubkeysReq = try_s!(json::from_value(req));
     // TODO: db_id
-    let ctx = try_s!(SwapsContext::from_ctx(&ctx, None));
+    let ctx = try_s!(SwapsContext::from_ctx(&ctx));
     let mut banned_pubs = try_s!(ctx.banned_pubkeys.lock());
 
     match banned_pubs.entry(req.pubkey) {
@@ -80,7 +80,7 @@ enum UnbanPubkeysReq {
 pub async fn unban_pubkeys_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: UnbanPubkeysReq = try_s!(json::from_value(req["unban_by"].clone()));
     // TODO: db_id
-    let ctx = try_s!(SwapsContext::from_ctx(&ctx, None));
+    let ctx = try_s!(SwapsContext::from_ctx(&ctx));
     let mut banned_pubs = try_s!(ctx.banned_pubkeys.lock());
     let mut unbanned = HashMap::new();
     let mut were_not_banned = vec![];

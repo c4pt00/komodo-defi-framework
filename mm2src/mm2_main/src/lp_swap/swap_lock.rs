@@ -127,8 +127,8 @@ mod wasm_lock {
     #[async_trait]
     impl SwapLockOps for SwapLock {
         async fn lock(ctx: &MmArc, uuid: Uuid, ttl_sec: f64) -> SwapLockResult<Option<Self>> {
+            let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SwapLockError::InternalError)?;
             // TODO: db_id
-            let swaps_ctx = SwapsContext::from_ctx(ctx, None).map_to_mm(SwapLockError::InternalError)?;
             let db = swaps_ctx.swap_db(None).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SwapLockTable>().await?;
@@ -158,8 +158,8 @@ mod wasm_lock {
         }
 
         async fn touch(&self) -> SwapLockResult<()> {
+            let swaps_ctx = SwapsContext::from_ctx(&self.ctx).map_to_mm(SwapLockError::InternalError)?;
             // TODO: db_id
-            let swaps_ctx = SwapsContext::from_ctx(&self.ctx, None).map_to_mm(SwapLockError::InternalError)?;
             let db = swaps_ctx.swap_db(None).await?;
 
             let item = SwapLockTable {
@@ -182,8 +182,8 @@ mod wasm_lock {
 
     impl SwapLock {
         async fn release(ctx: MmArc, record_id: ItemId) -> SwapLockResult<()> {
+            let swaps_ctx = SwapsContext::from_ctx(&ctx).map_to_mm(SwapLockError::InternalError)?;
             // TODO: db_id
-            let swaps_ctx = SwapsContext::from_ctx(&ctx, None).map_to_mm(SwapLockError::InternalError)?;
             let db = swaps_ctx.swap_db(None).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SwapLockTable>().await?;
@@ -209,7 +209,7 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     async fn get_all_items(ctx: &MmArc) -> Vec<(ItemId, SwapLockTable)> {
-        let swaps_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+        let swaps_ctx = SwapsContext::from_ctx(ctx).unwrap();
         let db = swaps_ctx.swap_db(None).await.expect("Error getting SwapDb");
         let transaction = db.transaction().await.expect("Error creating transaction");
         let table = transaction.table::<SwapLockTable>().await.expect("Error opening table");

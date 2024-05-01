@@ -361,7 +361,7 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
     };
 
     debug!("Processing swap msg {:?} for uuid {}", msg, uuid);
-    let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
     let mut msgs = swap_ctx.swap_msgs.lock().unwrap();
     if let Some(msg_store) = msgs.get_mut(&uuid) {
         if msg_store.accept_only_from.bytes == msg.2.unprefixed() {
@@ -404,7 +404,7 @@ async fn recv_swap_msg<T>(
     let wait_until = started + timeout;
     loop {
         Timer::sleep(1.).await;
-        let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
+        let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
         let mut msgs = swap_ctx.swap_msgs.lock().unwrap();
         if let Some(msg_store) = msgs.get_mut(uuid) {
             if let Some(msg) = getter(msg_store) {
@@ -532,7 +532,7 @@ struct SwapsContext {
 impl SwapsContext {
     /// Obtains a reference to this crate context, creating it if necessary.
     #[allow(unused_variables)]
-    fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<SwapsContext>, String> {
+    fn from_ctx(ctx: &MmArc) -> Result<Arc<SwapsContext>, String> {
         Ok(try_s!(from_ctx(&ctx.swaps_ctx, move || {
             Ok(SwapsContext {
                 running_swaps: Mutex::new(vec![]),
@@ -544,8 +544,9 @@ impl SwapsContext {
                     TAKER_SWAP_ENTRY_TIMEOUT_SEC,
                 ))),
                 locked_amounts: Mutex::new(HashMap::new()),
+                // Using None for db_id here won't matter much since calling `SwapsContext::swap_db(db_id)` will using the provided db_id.
                 #[cfg(target_arch = "wasm32")]
-                swap_db: ConstructibleDb::new(ctx, db_id),
+                swap_db: ConstructibleDb::new(ctx, None),
             })
         })))
     }
@@ -619,8 +620,7 @@ pub async fn get_locked_amount_rpc(
 
 /// Get total amount of selected coin locked by all currently ongoing swaps
 pub fn get_locked_amount(ctx: &MmArc, coin: &str) -> MmNumber {
-    // TODO: db_id
-    let swap_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(ctx).unwrap();
     let swap_lock = swap_ctx.running_swaps.lock().unwrap();
 
     let mut locked = swap_lock
@@ -660,8 +660,7 @@ pub fn get_locked_amount(ctx: &MmArc, coin: &str) -> MmNumber {
 
 /// Get number of currently running swaps
 pub fn running_swaps_num(ctx: &MmArc) -> u64 {
-    // TODO: db_id
-    let swap_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(ctx).unwrap();
     let swaps = swap_ctx.running_swaps.lock().unwrap();
     swaps.iter().fold(0, |total, swap| match swap.upgrade() {
         Some(_) => total + 1,
@@ -671,8 +670,7 @@ pub fn running_swaps_num(ctx: &MmArc) -> u64 {
 
 /// Get total amount of selected coin locked by all currently ongoing swaps except the one with selected uuid
 fn get_locked_amount_by_other_swaps(ctx: &MmArc, except_uuid: &Uuid, coin: &str) -> MmNumber {
-    // TODO: db_id
-    let swap_ctx = SwapsContext::from_ctx(ctx, None).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(ctx).unwrap();
     let swap_lock = swap_ctx.running_swaps.lock().unwrap();
 
     swap_lock
@@ -694,8 +692,7 @@ fn get_locked_amount_by_other_swaps(ctx: &MmArc, except_uuid: &Uuid, coin: &str)
 }
 
 pub fn active_swaps_using_coins(ctx: &MmArc, coins: &HashSet<String>) -> Result<Vec<Uuid>, String> {
-    // TODO: db_id
-    let swap_ctx = try_s!(SwapsContext::from_ctx(ctx, None));
+    let swap_ctx = try_s!(SwapsContext::from_ctx(ctx));
     let swaps = try_s!(swap_ctx.running_swaps.lock());
     let mut uuids = vec![];
     for swap in swaps.iter() {
@@ -717,8 +714,7 @@ pub fn active_swaps_using_coins(ctx: &MmArc, coins: &HashSet<String>) -> Result<
 }
 
 pub fn active_swaps(ctx: &MmArc) -> Result<Vec<(Uuid, u8)>, String> {
-    // TODO: db_id
-    let swap_ctx = try_s!(SwapsContext::from_ctx(ctx, None));
+    let swap_ctx = try_s!(SwapsContext::from_ctx(ctx));
     let swaps = swap_ctx.running_swaps.lock().unwrap();
     let mut uuids = vec![];
     for swap in swaps.iter() {
@@ -1803,7 +1799,7 @@ pub fn process_swap_v2_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PProcessRes
 
     let uuid = Uuid::from_str(topic).map_to_mm(|e| P2PProcessError::DecodeError(e.to_string()))?;
 
-    let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
+    let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
     let mut msgs = swap_ctx.swap_v2_msgs.lock().unwrap();
     if let Some(msg_store) = msgs.get_mut(&uuid) {
         let signed_message = SignedMessage::decode(msg).map_to_mm(|e| P2PProcessError::DecodeError(e.to_string()))?;
@@ -1871,7 +1867,7 @@ async fn recv_swap_v2_msg<T>(
     loop {
         Timer::sleep(1.).await;
         // TODO: db_id
-        let swap_ctx = SwapsContext::from_ctx(&ctx, None).unwrap();
+        let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
         let mut msgs = swap_ctx.swap_v2_msgs.lock().unwrap();
         if let Some(msg_store) = msgs.get_mut(uuid) {
             if let Some(msg) = getter(msg_store) {

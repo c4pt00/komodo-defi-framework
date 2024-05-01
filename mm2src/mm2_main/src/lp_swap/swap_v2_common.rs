@@ -120,7 +120,7 @@ pub(super) async fn has_db_record_for(
     id: &Uuid,
     db_id: Option<&str>,
 ) -> MmResult<bool, SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -164,7 +164,7 @@ pub(super) async fn store_swap_event<T: StateMachineDbRepr + DeserializeOwned + 
     event: T::Event,
     db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<SavedSwapTable>().await?;
@@ -191,7 +191,7 @@ pub(super) async fn get_swap_repr<T: DeserializeOwned>(
     id: Uuid,
     db_id: Option<&str>,
 ) -> MmResult<T, SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(ctx, db_id).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(ctx).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
 
@@ -230,7 +230,7 @@ pub(super) async fn get_unfinished_swaps_uuids(
     let index = MultiIndex::new(IS_FINISHED_SWAP_TYPE_INDEX)
         .with_value(BoolAsInt::new(false))?
         .with_value(swap_type)?;
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -260,7 +260,7 @@ pub(super) async fn mark_swap_as_finished(
     id: Uuid,
     db_id: Option<&str>,
 ) -> MmResult<(), SwapStateMachineError> {
-    let swaps_ctx = SwapsContext::from_ctx(&ctx, db_id).expect("SwapsContext::from_ctx should not fail");
+    let swaps_ctx = SwapsContext::from_ctx(&ctx).expect("SwapsContext::from_ctx should not fail");
     let db = swaps_ctx.swap_db(db_id).await?;
     let transaction = db.transaction().await?;
     let table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -276,7 +276,7 @@ pub(super) async fn mark_swap_as_finished(
 pub(super) fn init_additional_context_impl(ctx: &MmArc, swap_info: ActiveSwapV2Info, other_p2p_pubkey: PublicKey) {
     subscribe_to_topic(ctx, swap_v2_topic(&swap_info.uuid));
     // TODO: db_id
-    let swap_ctx = SwapsContext::from_ctx(ctx, None).expect("SwapsContext::from_ctx should not fail");
+    let swap_ctx = SwapsContext::from_ctx(ctx).expect("SwapsContext::from_ctx should not fail");
     swap_ctx.init_msg_v2_store(swap_info.uuid, other_p2p_pubkey);
     swap_ctx
         .active_swaps_v2_infos
@@ -288,7 +288,7 @@ pub(super) fn init_additional_context_impl(ctx: &MmArc, swap_info: ActiveSwapV2I
 pub(super) fn clean_up_context_impl(ctx: &MmArc, uuid: &Uuid, maker_coin: &str, taker_coin: &str) {
     unsubscribe_from_topic(ctx, swap_v2_topic(uuid));
     // TODO: db_id
-    let swap_ctx = SwapsContext::from_ctx(ctx, None).expect("SwapsContext::from_ctx should not fail");
+    let swap_ctx = SwapsContext::from_ctx(ctx).expect("SwapsContext::from_ctx should not fail");
     swap_ctx.remove_msg_v2_store(uuid);
     swap_ctx.active_swaps_v2_infos.lock().unwrap().remove(uuid);
 

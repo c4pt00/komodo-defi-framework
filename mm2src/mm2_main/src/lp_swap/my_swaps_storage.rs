@@ -180,7 +180,7 @@ mod wasm_impl {
             swap_type: u8,
             db_id: Option<&str>,
         ) -> MySwapsResult<()> {
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx, db_id).map_to_mm(MySwapsError::InternalError)?;
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
@@ -203,7 +203,7 @@ mod wasm_impl {
             paging_options: Option<&PagingOptions>,
             db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            let swap_ctx = SwapsContext::from_ctx(&self.ctx, Some(db_id)).map_to_mm(MySwapsError::InternalError)?;
+            let swap_ctx = SwapsContext::from_ctx(&self.ctx).map_to_mm(MySwapsError::InternalError)?;
             let db = swap_ctx.swap_db(Some(db_id)).await?;
             let transaction = db.transaction().await?;
             let my_swaps_table = transaction.table::<MySwapsFiltersTable>().await?;
