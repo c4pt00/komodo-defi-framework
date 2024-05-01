@@ -1113,7 +1113,7 @@ pub async fn mm_ctx_with_custom_async_db() -> MmArc {
     let ctx = MmCtxBuilder::new().into_mm_arc();
 
     let connection = AsyncConnection::open_in_memory().await.unwrap();
-    let connection = AsyncConnectionCtx {
+    let connection = db_common::AsyncConnectionCtx {
         connection,
         db_id: ctx.rmd160_hex(),
     };
