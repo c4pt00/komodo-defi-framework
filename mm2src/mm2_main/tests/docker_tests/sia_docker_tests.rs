@@ -51,7 +51,7 @@ async fn test_sia_client_address_balance() {
     };
     let result = api_client.dispatcher(request).await;
 
-    assert!(matches!(result, Err(SiaApiClientError::ApiInteralError(_))));
+    assert!(matches!(result, Err(SiaApiClientError::ApiInternalError(_))));
     // TODO investigate why this gives an error on the API?
     // the address should have a balance at this point
 }
@@ -68,7 +68,7 @@ async fn test_sia_client_mine_blocks() {
             .unwrap(),
     };
     let result = api_client.dispatcher(request).await;
-    assert!(matches!(result, Err(SiaApiClientError::ApiInteralError(_))));
+    assert!(matches!(result, Err(SiaApiClientError::ApiInternalError(_))));
 }
 
 #[cfg(test)]
