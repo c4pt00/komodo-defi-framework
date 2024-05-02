@@ -4612,6 +4612,7 @@ dependencies = [
  "tokio",
  "trie-db",
  "trie-root 0.16.0",
+ "url",
  "uuid 1.2.2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
