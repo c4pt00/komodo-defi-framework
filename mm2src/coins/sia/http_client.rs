@@ -38,7 +38,8 @@ pub enum SiaApiClientError {
     ReqwestParseError(ReqwestErrorWithUrl),
     ReqwestTlsError(ReqwestErrorWithUrl),
     UrlParse(url::ParseError),
-    UnexpectedResponse(String),
+    UnexpectedHttpStatus(u16),
+    ApiInternalError(String),
 }
 
 impl From<SiaApiClientError> for String {
@@ -58,7 +59,7 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Resu
         200 => {},
         500 => {
             // FIXME handle unwrap gracefully
-            return Err(SiaApiClientError::ApiInteralError(fetched.text().await.unwrap()));
+            return Err(SiaApiClientError::ApiInternalError(fetched.text().await.unwrap()));
         },
         _ => {
             return Err(SiaApiClientError::UnexpectedHttpStatus(status));
@@ -117,6 +118,8 @@ impl SiaApiClient {
         self.dispatcher(AddressBalanceRequest { address }).await
     }
 }
+/*
+WIP: None of these belong in this file. They must be handled in the Docker test suite
 
 #[cfg(test)] use std::str::FromStr;
 #[cfg(test)]
@@ -150,7 +153,6 @@ async fn test_api_address_balance() {
     println!("balance_resp: {:?}", balance_resp);
 }
 
-/*
 #[cfg(test)] use std::str::FromStr;
 #[tokio::test]
 #[ignore]
