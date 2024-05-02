@@ -9,9 +9,14 @@ use std::default::Default;
 const LEAF_HASH_PREFIX: [u8; 1] = [0u8];
 const NODE_HASH_PREFIX: [u8; 1] = [1u8];
 
-pub const ED25519_IDENTIFIER: [u8; 16] = [
-    0x65, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-];
+#[derive(Debug, Clone, Copy)]
+pub struct Specifier;
+
+impl Specifier {
+    pub const ED25519: [u8; 16] = [
+        0x65, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    ];
+}
 
 // Precomputed hash values used for all standard v1 addresses
 // a standard address has 1 ed25519 public key, requires 1 signature and has a timelock of 0
@@ -88,7 +93,7 @@ pub fn sigs_required_leaf(sigs_required: u64) -> H256 {
 pub fn public_key_leaf(pubkey: &PublicKey) -> H256 {
     let mut combined = Vec::new();
     combined.extend_from_slice(&LEAF_HASH_PREFIX);
-    combined.extend_from_slice(&ED25519_IDENTIFIER);
+    combined.extend_from_slice(&Specifier::ED25519);
     combined.extend_from_slice(&32u64.to_le_bytes());
     combined.extend_from_slice(pubkey.as_bytes());
     hash_blake2b_single(&combined)

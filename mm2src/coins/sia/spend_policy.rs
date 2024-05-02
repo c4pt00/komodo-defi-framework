@@ -1,6 +1,6 @@
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
-                                   Accumulator, ED25519_IDENTIFIER};
+                                   Accumulator, Specifier};
 use crate::sia::encoding::{EncodeTo, Encoder};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
@@ -76,7 +76,7 @@ impl SpendPolicy {
                 encoder.write_u64(unlock_condition.timelock);
                 encoder.write_u64(unlock_condition.pubkeys.len() as u64);
                 for pubkey in &unlock_condition.pubkeys {
-                    encoder.write_slice(&ED25519_IDENTIFIER);
+                    encoder.write_slice(&Specifier::ED25519);
                     encoder.write_slice(&pubkey.to_bytes());
                 }
                 encoder.write_u64(unlock_condition.sigs_required);
