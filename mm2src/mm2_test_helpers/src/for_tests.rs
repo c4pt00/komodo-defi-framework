@@ -2437,7 +2437,7 @@ pub async fn check_recent_swaps(mm: &MarketMakerIt, expected_len: usize) {
     assert!(response.0.is_success(), "!status of my_recent_swaps {}", response.1);
     let swaps_response: Json = json::from_str(&response.1).unwrap();
     info!("RECENT SWAPS: {swaps_response:?}");
-    let swaps: &Vec<Json> = swaps_response["result"]["swaps"].as_array().unwrap();
+    let swaps: &Vec<Json> = swaps_response["result"][0]["swaps"].as_array().unwrap();
     assert_eq!(expected_len, swaps.len());
 }
 
