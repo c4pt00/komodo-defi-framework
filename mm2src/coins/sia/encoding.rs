@@ -8,6 +8,10 @@ pub struct Encoder {
     pub buffer: Vec<u8>,
 }
 
+pub trait EncodeTo {
+    fn encode(&self, encoder: &mut Encoder);
+}
+
 impl Encoder {
     pub fn reset(&mut self) { self.buffer.clear(); }
 
@@ -28,6 +32,14 @@ impl Encoder {
     pub fn write_bool(&mut self, b: bool) { self.buffer.push(b as u8) }
 
     pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
+
+    // Utility method to create, encode, and hash
+    pub fn encode_and_hash<T: EncodeTo>(item: &T) -> H256 {
+        let mut encoder = Encoder::default();
+        item.encode(&mut encoder);
+        encoder.hash()
+    }
+
 }
 
 #[test]
