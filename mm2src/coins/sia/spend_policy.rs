@@ -1,9 +1,10 @@
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator, ED25519_IDENTIFIER};
-use crate::sia::encoding::Encoder;
+use crate::sia::encoding::{Encoder, EncodeTo};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
+
 
 #[cfg(test)] use std::str::FromStr;
 
@@ -20,6 +21,13 @@ pub enum SpendPolicy {
     UnlockConditions(PolicyTypeUnlockConditions), // For v1 compatibility
 }
 
+impl EncodeTo for SpendPolicy {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u8(POLICY_VERSION);
+        self.encode_wo_prefix(encoder);
+    }
+}
+
 impl SpendPolicy {
     pub fn to_u8(&self) -> u8 {
         match self {
@@ -33,15 +41,7 @@ impl SpendPolicy {
         }
     }
 
-    pub fn encode(&self) -> Encoder {
-        let mut encoder = Encoder::default();
-        encoder.write_u8(POLICY_VERSION);
-        encoder.write_slice(&self.encode_wo_prefix().buffer);
-        encoder
-    }
-
-    pub fn encode_wo_prefix(&self) -> Encoder {
-        let mut encoder = Encoder::default();
+    pub fn encode_wo_prefix(&self, encoder: &mut Encoder) {
         let opcode = self.to_u8();
         match self {
             SpendPolicy::Above(height) => {
@@ -65,7 +65,7 @@ impl SpendPolicy {
                 encoder.write_u8(*n);
                 encoder.write_u8(of.len() as u8);
                 for policy in of {
-                    encoder.write_slice(&policy.encode_wo_prefix().buffer);
+                    policy.encode_wo_prefix(encoder);
                 }
             },
             SpendPolicy::Opaque(p) => {
@@ -83,7 +83,6 @@ impl SpendPolicy {
                 encoder.write_u64(unlock_condition.sigs_required);
             },
         }
-        encoder
     }
 
     fn address(&self) -> Address {
@@ -99,8 +98,8 @@ impl SpendPolicy {
             p.of = p.of.iter().map(SpendPolicy::opaque).collect();
         }
 
-        let encoded_policy = new_policy.encode();
-        encoder.write_slice(&encoded_policy.buffer);
+        new_policy.encode(&mut encoder);
+
         Address(encoder.hash())
     }
 
@@ -221,7 +220,7 @@ fn test_unlock_condition_unlock_hash_1of2_multisig() {
 fn test_spend_policy_encode_above() {
     let policy = SpendPolicy::above(1);
 
-    let hash = policy.encode().hash();
+    let hash = Encoder::encode_and_hash(&policy);
     let expected = H256::from("bebf6cbdfb440a92e3e5d832ac30fe5d226ff6b352ed3a9398b7d35f086a8ab6");
     assert_eq!(hash, expected);
 
@@ -234,8 +233,7 @@ fn test_spend_policy_encode_above() {
 #[test]
 fn test_spend_policy_encode_after() {
     let policy = SpendPolicy::after(1);
-
-    let hash = policy.encode().hash();
+    let hash = Encoder::encode_and_hash(&policy);
     let expected = H256::from("07b0f28eafd87a082ad11dc4724e1c491821260821a30bec68254444f97d9311");
     assert_eq!(hash, expected);
 
@@ -253,7 +251,7 @@ fn test_spend_policy_encode_pubkey() {
     .unwrap();
     let policy = SpendPolicy::PublicKey(pubkey);
 
-    let hash = policy.encode().hash();
+    let hash = Encoder::encode_and_hash(&policy);
     let expected = H256::from("4355c8f80f6e5a98b70c9c2f9a22f17747989b4744783c90439b2b034f698bfe");
     assert_eq!(hash, expected);
 
@@ -268,8 +266,7 @@ fn test_spend_policy_encode_hash() {
     let hash = H256::from("0102030000000000000000000000000000000000000000000000000000000000");
     let policy = SpendPolicy::Hash(hash);
 
-    let encoded = policy.encode();
-    let hash = encoded.hash();
+    let hash = Encoder::encode_and_hash(&policy);
     let expected = H256::from("9938967aefa6cbecc1f1620d2df5170d6811d4b2f47a879b621c1099a3b0628a");
     assert_eq!(hash, expected);
 
@@ -286,8 +283,7 @@ fn test_spend_policy_encode_threshold() {
         of: vec![SpendPolicy::above(1), SpendPolicy::after(1)],
     });
 
-    let encoded = policy.encode();
-    let hash = encoded.hash();
+    let hash = Encoder::encode_and_hash(&policy);
     let expected = H256::from("7d792df6cd0b5e0f795287b3bf4087bbcc4c1bd0c52880a552cdda3e5e33d802");
     assert_eq!(hash, expected);
 
