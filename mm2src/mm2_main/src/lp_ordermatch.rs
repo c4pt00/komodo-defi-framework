@@ -25,8 +25,8 @@ use best_orders::BestOrdersAction;
 use blake2::digest::{Update, VariableOutput};
 use blake2::Blake2bVar;
 use coins::utxo::{compressed_pub_key_from_priv_raw, ChecksumType, UtxoAddressFormat};
-use coins::{coin_conf, find_pair, find_unique_account_ids_active, lp_coinfind, lp_coinfind_or_err,
-            BalanceTradeFeeUpdatedHandler, CoinProtocol, CoinsContext, FeeApproxStage, MarketCoinOps, MmCoinEnum};
+use coins::{coin_conf, find_pair, find_unique_account_ids_active, lp_coinfind, BalanceTradeFeeUpdatedHandler,
+            CoinProtocol, CoinsContext, FeeApproxStage, MarketCoinOps, MmCoinEnum};
 use common::executor::{simple_map::AbortableSimpleMap, AbortSettings, AbortableSystem, AbortedError, SpawnAbortable,
                        SpawnFuture, Timer};
 use common::log::{error, info, warn, LogOnError};
@@ -100,8 +100,6 @@ cfg_wasm32! {
 
 pub use lp_bot::{start_simple_market_maker_bot, stop_simple_market_maker_bot, StartSimpleMakerBotRequest,
                  TradingBotEvent};
-
-use self::my_orders_storage::{MyOrdersError, MyOrdersResult};
 
 #[path = "lp_ordermatch/my_orders_storage.rs"]
 mod my_orders_storage;
@@ -1519,6 +1517,7 @@ impl<'a> TakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
+            db_id: self.base_coin.account_db_id(),
         })
     }
 
@@ -1559,6 +1558,7 @@ impl<'a> TakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
+            db_id: self.base_coin.account_db_id(),
         }
     }
 }
@@ -1580,6 +1580,7 @@ pub struct TakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    db_id: Option<String>,
 }
 
 /// Result of match_reserved function
@@ -1681,14 +1682,7 @@ impl TakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
-    async fn db_id(&self, ctx: &MmArc) -> MyOrdersResult<Option<String>> {
-        lp_coinfind_or_err(ctx, &self.taker_coin_ticker())
-            .await
-            .mm_err(|err| {
-                MyOrdersError::ErrorSaving(format!("Error finding/deriving wallet pubkey for db_id: {err:?}"))
-            })
-            .map(|coin| coin.account_db_id())
-    }
+    fn db_id(&self) -> Option<String> { self.db_id.clone() }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1720,6 +1714,7 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    db_id: Option<String>,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -1975,6 +1970,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
+            db_id: self.base_coin.account_db_id(),
         })
     }
 
@@ -1999,6 +1995,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
+            db_id: self.base_coin.account_db_id(),
         }
     }
 }
@@ -2107,14 +2104,7 @@ impl MakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
-    async fn db_id(&self, ctx: &MmArc) -> MyOrdersResult<Option<String>> {
-        lp_coinfind_or_err(ctx, &self.base)
-            .await
-            .mm_err(|err| {
-                MyOrdersError::ErrorSaving(format!("Error finding/deriving wallet pubkey for db_id: {err:?}"))
-            })
-            .map(|coin| coin.account_db_id())
-    }
+    fn db_id(&self) -> Option<String> { self.db_id.clone() }
 }
 
 impl From<TakerOrder> for MakerOrder {
@@ -2138,6 +2128,7 @@ impl From<TakerOrder> for MakerOrder {
                 base_orderbook_ticker: taker_order.base_orderbook_ticker,
                 rel_orderbook_ticker: taker_order.rel_orderbook_ticker,
                 p2p_privkey: taker_order.p2p_privkey,
+                db_id: None, // TODO,
             },
             // The "buy" taker order is recreated with reversed pair as Maker order is always considered as "sell"
             TakerAction::Buy => {
@@ -2160,6 +2151,7 @@ impl From<TakerOrder> for MakerOrder {
                     base_orderbook_ticker: taker_order.rel_orderbook_ticker,
                     rel_orderbook_ticker: taker_order.base_orderbook_ticker,
                     p2p_privkey: taker_order.p2p_privkey,
+                    db_id: None, // TODO,
                 }
             },
         }
