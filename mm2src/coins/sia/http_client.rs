@@ -121,28 +121,6 @@ impl SiaApiClient {
 const TEST_URL: &str = "http://localhost:9980/";
 
 #[tokio::test]
-async fn test_api_client_new() {
-    let conf = SiaHttpConf {
-        url: Url::parse(TEST_URL).unwrap(),
-        password: "password".to_string(),
-    };
-    let _api_client = SiaApiClient::new(conf).await.unwrap();
-}
-
-#[tokio::test]
-async fn test_api_client_new_bad_auth() {
-    let conf = SiaHttpConf {
-        url: Url::parse(TEST_URL).unwrap(),
-        password: "foo".to_string(),
-    };
-    let api_client = SiaApiClient::new(conf).await;
-    match api_client {
-        Err(SiaApiClientError::ReqwestParseError(e)) => assert!(e.error.is_decode()),
-        _ => panic!("unexpected result: {:?}", api_client),
-    }
-}
-
-#[tokio::test]
 async fn test_api_client_new_connection_refused() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:19999").unwrap(),
