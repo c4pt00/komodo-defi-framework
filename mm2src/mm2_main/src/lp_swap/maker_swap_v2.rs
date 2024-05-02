@@ -21,9 +21,10 @@ use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use mm2_libp2p::Secp256k1PubkeySerialize;
-use mm2_number::MmNumber;
+use mm2_number::{BigDecimal, MmNumber};
 use mm2_state_machine::prelude::*;
 use mm2_state_machine::storable_state_machine::*;
+use num_traits::ToPrimitive;
 use primitives::hash::H256;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use secp256k1::PublicKey;
@@ -55,6 +56,7 @@ pub struct StoredNegotiationData {
     maker_coin_swap_contract: Option<BytesJson>,
     taker_coin_swap_contract: Option<BytesJson>,
     taker_secret_hash: BytesJson,
+    taker_payment_spend_fee: BigDecimal,
 }
 
 /// Represents events produced by maker swap states.
@@ -822,6 +824,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
+        // FIXME: I am lost here, is this the fee for funding spend or taker payment spend?
+        // if it's the former, where is the fee for the the taker payment spend?
         let taker_payment_spend_trade_fee = match state_machine.taker_coin.get_receiver_trade_fee(stage).compat().await
         {
             Ok(fee) => fee,
@@ -968,6 +972,14 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             return Self::change_state(Aborted::new(reason), state_machine).await;
         }
 
+        let expected_taker_payment_spend_fee_u64 = self.taker_payment_spend_trade_fee.amount.to_u64().unwrap_or(1);
+        let ratio = taker_data.taker_payment_spend_fee as f64 / expected_taker_payment_spend_fee_u64 as f64;
+        if ratio < 0.9 {
+            let diff = expected_taker_payment_spend_fee_u64 - taker_data.taker_payment_spend_fee;
+            let reason = AbortReason::TakerPaymentSpentFeeTooLow(diff);
+            return Self::change_state(Aborted::new(reason), state_machine).await;
+        }
+
         let taker_coin_htlc_pub_from_taker =
             match state_machine.taker_coin.parse_pubkey(&taker_data.taker_coin_htlc_pub) {
                 Ok(p) => p,
@@ -997,6 +1009,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_coin_swap_contract: taker_data.maker_coin_swap_contract,
                 taker_coin_swap_contract: taker_data.taker_coin_swap_contract,
                 taker_secret_hash: taker_data.taker_secret_hash,
+                taker_payment_spend_fee: taker_data.taker_payment_spend_fee.into(),
             },
             maker_payment_trade_fee: self.maker_payment_trade_fee,
         };
@@ -1012,6 +1025,7 @@ struct NegotiationData<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssoc
     maker_coin_swap_contract: Option<Vec<u8>>,
     taker_coin_swap_contract: Option<Vec<u8>>,
     taker_secret_hash: Vec<u8>,
+    taker_payment_spend_fee: BigDecimal,
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> NegotiationData<MakerCoin, TakerCoin> {
@@ -1024,6 +1038,7 @@ impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> Negotiation
             maker_coin_swap_contract: self.maker_coin_swap_contract.clone().map(|b| b.into()),
             taker_coin_swap_contract: self.taker_coin_swap_contract.clone().map(|b| b.into()),
             taker_secret_hash: self.taker_secret_hash.clone().into(),
+            taker_payment_spend_fee: self.taker_payment_spend_fee.clone(),
         }
     }
 
@@ -1044,6 +1059,7 @@ impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> Negotiation
             maker_coin_swap_contract: None,
             taker_coin_swap_contract: None,
             taker_secret_hash: stored.taker_secret_hash.into(),
+            taker_payment_spend_fee: stored.taker_payment_spend_fee,
         })
     }
 }
@@ -1161,6 +1177,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_secret_hash: &self.negotiation_data.taker_secret_hash,
             other_pub: &self.negotiation_data.taker_coin_htlc_pub_from_taker,
             dex_fee: &state_machine.dex_fee,
+            taker_payment_spend_fee: self.negotiation_data.taker_payment_spend_fee.clone(),
             premium_amount: state_machine.taker_premium.to_decimal(),
             trading_amount: state_machine.taker_volume.to_decimal(),
             swap_unique_data: &unique_data,
@@ -1179,6 +1196,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_secret_hash: &self.negotiation_data.taker_secret_hash,
             taker_payment_time_lock: self.negotiation_data.taker_payment_locktime,
             maker_secret_hash: &state_machine.secret_hash(),
+            taker_payment_spend_fee: self.negotiation_data.taker_payment_spend_fee.clone(),
         };
         let funding_spend_preimage = match state_machine
             .taker_coin
@@ -1796,6 +1814,7 @@ pub enum AbortReason {
     TakerProvidedInvalidFundingLocktime(u64),
     TakerProvidedInvalidPaymentLocktime(u64),
     FailedToParsePubkey(String),
+    TakerPaymentSpentFeeTooLow(u64),
     MakerPaymentRefundFailed(String),
     FailedToGetMakerPaymentFee(String),
     FailedToGetTakerPaymentSpendFee(String),

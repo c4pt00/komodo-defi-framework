@@ -25,6 +25,7 @@ use mm2_libp2p::Secp256k1PubkeySerialize;
 use mm2_number::MmNumber;
 use mm2_state_machine::prelude::*;
 use mm2_state_machine::storable_state_machine::*;
+use num_traits::ToPrimitive;
 use primitives::hash::H256;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use secp256k1::PublicKey;
@@ -67,6 +68,7 @@ pub enum TakerSwapEvent {
         maker_coin_start_block: u64,
         taker_coin_start_block: u64,
         taker_payment_fee: SavedTradeFee,
+        taker_payment_spend_fee: SavedTradeFee,
         maker_payment_spend_fee: SavedTradeFee,
     },
     /// Negotiated swap data with maker.
@@ -75,6 +77,7 @@ pub enum TakerSwapEvent {
         taker_coin_start_block: u64,
         negotiation_data: StoredNegotiationData,
         taker_payment_fee: SavedTradeFee,
+        taker_payment_spend_fee: SavedTradeFee,
         maker_payment_spend_fee: SavedTradeFee,
     },
     /// Sent taker funding tx.
@@ -83,6 +86,7 @@ pub enum TakerSwapEvent {
         taker_coin_start_block: u64,
         negotiation_data: StoredNegotiationData,
         taker_funding: TransactionIdentifier,
+        taker_payment_spend_fee: SavedTradeFee,
     },
     /// Taker funding tx refund is required.
     TakerFundingRefundRequired {
@@ -97,6 +101,7 @@ pub enum TakerSwapEvent {
         maker_coin_start_block: u64,
         taker_coin_start_block: u64,
         negotiation_data: StoredNegotiationData,
+        taker_payment_spend_fee: SavedTradeFee,
         taker_funding: TransactionIdentifier,
         funding_spend_preimage: StoredTxPreimage,
         maker_payment: TransactionIdentifier,
@@ -494,6 +499,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_coin_start_block,
                 taker_coin_start_block,
                 taker_payment_fee,
+                taker_payment_spend_fee,
                 maker_payment_spend_fee,
             } => Box::new(Initialized {
                 maker_coin: Default::default(),
@@ -501,6 +507,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_coin_start_block,
                 taker_coin_start_block,
                 taker_payment_fee,
+                taker_payment_spend_fee,
                 maker_payment_spend_fee,
             }),
             TakerSwapEvent::Negotiated {
@@ -508,6 +515,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_coin_start_block,
                 negotiation_data,
                 taker_payment_fee,
+                taker_payment_spend_fee,
                 maker_payment_spend_fee,
             } => Box::new(Negotiated {
                 maker_coin_start_block,
@@ -518,6 +526,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                     &recreate_ctx.taker_coin,
                 )?,
                 taker_payment_fee,
+                taker_payment_spend_fee,
                 maker_payment_spend_fee,
             }),
             TakerSwapEvent::TakerFundingSent {
@@ -525,6 +534,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_coin_start_block,
                 negotiation_data,
                 taker_funding,
+                taker_payment_spend_fee,
             } => Box::new(TakerFundingSent {
                 maker_coin_start_block,
                 taker_coin_start_block,
@@ -537,6 +547,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                     &recreate_ctx.maker_coin,
                     &recreate_ctx.taker_coin,
                 )?,
+                taker_payment_spend_fee,
             }),
             TakerSwapEvent::TakerFundingRefundRequired {
                 maker_coin_start_block,
@@ -562,6 +573,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_coin_start_block,
                 taker_coin_start_block,
                 negotiation_data,
+                taker_payment_spend_fee,
                 taker_funding,
                 maker_payment,
                 funding_spend_preimage,
@@ -573,6 +585,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                     &recreate_ctx.maker_coin,
                     &recreate_ctx.taker_coin,
                 )?,
+                taker_payment_spend_fee,
                 taker_funding: recreate_ctx
                     .taker_coin
                     .parse_tx(&taker_funding.tx_hex.0)
@@ -793,14 +806,19 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
     fn on_event(&mut self, event: &TakerSwapEvent) {
         match event {
-            TakerSwapEvent::Initialized { taker_payment_fee, .. } => {
+            TakerSwapEvent::Initialized {
+                taker_payment_fee,
+                taker_payment_spend_fee,
+                ..
+            } => {
                 let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
                 let taker_coin_ticker: String = self.taker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
                     swap_uuid: self.uuid,
                     locked_amount: LockedAmount {
                         coin: taker_coin_ticker.clone(),
-                        amount: &(&self.taker_volume + &self.dex_fee.total_spend_amount()) + &self.taker_premium,
+                        amount: &(&self.taker_volume + &self.dex_fee.total_spend_amount())
+                            + &(&self.taker_premium + &taker_payment_spend_fee.amount.clone().into()),
                         trade_fee: Some(taker_payment_fee.clone().into()),
                     },
                 };
@@ -839,15 +857,24 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         event: <<Self::Storage as StateMachineStorage>::DbRepr as StateMachineDbRepr>::Event,
     ) {
         match event {
-            TakerSwapEvent::Initialized { taker_payment_fee, .. }
-            | TakerSwapEvent::Negotiated { taker_payment_fee, .. } => {
+            TakerSwapEvent::Initialized {
+                taker_payment_fee,
+                taker_payment_spend_fee,
+                ..
+            }
+            | TakerSwapEvent::Negotiated {
+                taker_payment_fee,
+                taker_payment_spend_fee,
+                ..
+            } => {
                 let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
                 let taker_coin_ticker: String = self.taker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
                     swap_uuid: self.uuid,
                     locked_amount: LockedAmount {
                         coin: taker_coin_ticker.clone(),
-                        amount: &(&self.taker_volume + &self.dex_fee.total_spend_amount()) + &self.taker_premium,
+                        amount: &(&self.taker_volume + &self.dex_fee.total_spend_amount())
+                            + &(&self.taker_premium + &taker_payment_spend_fee.amount.into()),
                         trade_fee: Some(taker_payment_fee.into()),
                     },
                 };
@@ -919,14 +946,23 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        // FIXME: Add taker payment fee (note that the one defined below is actually funding tx fee)
-        //          + taker payment spend fee (preimage tx fee) (later)
-        let total_payment_value =
-            &(&state_machine.taker_volume + &state_machine.dex_fee.total_spend_amount()) + &state_machine.taker_premium;
-        let preimage_value = TradePreimageValue::Exact(total_payment_value.to_decimal());
         let stage = FeeApproxStage::StartSwap;
+        // The fee for the taker payment spend, accounted for in the total payment value.
+        // This is so the maker doesn't have to pay it from the trading volume.
+        let taker_payment_spend_fee = match state_machine.taker_coin.get_receiver_trade_fee(stage).compat().await {
+            Ok(fee) => fee,
+            Err(e) => {
+                let reason = AbortReason::FailedToGetTakerPaymentSpendFee(e.to_string());
+                return Self::change_state(Aborted::new(reason), state_machine).await;
+            },
+        };
 
-        // FIXME: This is not taker payment tx fee, this is the funding tx fee.
+        // TODO: Add the price of maker payment fee (in taker coin) + preimage fee to the total payment value.
+        let total_payment_value = &(&state_machine.taker_volume + &state_machine.dex_fee.total_spend_amount())
+            + &(&state_machine.taker_premium + &taker_payment_spend_fee.amount);
+        let preimage_value = TradePreimageValue::Exact(total_payment_value.to_decimal());
+
+        // FIXME: This is not taker payment tx fee, this is the funding tx fee, use consistent naming.
         let taker_payment_fee = match state_machine
             .taker_coin
             .get_sender_trade_fee(preimage_value, stage)
@@ -984,6 +1020,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             maker_coin_start_block,
             taker_coin_start_block,
             taker_payment_fee: taker_payment_fee.into(),
+            taker_payment_spend_fee: taker_payment_spend_fee.into(),
             // FIXME: Looks like `maker_payment_spend_fee` is useless after this point
             // (we already checked we have enough balance for the swap, even though it's volume-deducted anyways).
             // Stop propagating it?
@@ -999,6 +1036,7 @@ struct Initialized<MakerCoin, TakerCoin> {
     maker_coin_start_block: u64,
     taker_coin_start_block: u64,
     taker_payment_fee: SavedTradeFee,
+    taker_payment_spend_fee: SavedTradeFee,
     maker_payment_spend_fee: SavedTradeFee,
 }
 
@@ -1014,6 +1052,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             maker_coin_start_block: self.maker_coin_start_block,
             taker_coin_start_block: self.taker_coin_start_block,
             taker_payment_fee: self.taker_payment_fee.clone(),
+            taker_payment_spend_fee: self.taker_payment_spend_fee.clone(),
             maker_payment_spend_fee: self.maker_payment_spend_fee.clone(),
         }
     }
@@ -1093,6 +1132,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
+        // Convert the fee to u64 to send it over the wire.
+        // FIXME: 1- `unwrap`ing isn't a good idea. 2- Is there a better datatype to send BigDecimals over buffers?
+        let taker_payment_spend_fee = self.taker_payment_spend_fee.amount.to_u64().unwrap_or(0);
         let unique_data = state_machine.unique_data();
         let taker_negotiation = TakerNegotiation {
             action: Some(taker_negotiation::Action::Continue(TakerNegotiationData {
@@ -1104,6 +1146,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_coin_htlc_pub: state_machine.taker_coin.derive_htlc_pubkey(&unique_data),
                 maker_coin_swap_contract: state_machine.maker_coin.swap_contract_address().map(|bytes| bytes.0),
                 taker_coin_swap_contract: state_machine.taker_coin.swap_contract_address().map(|bytes| bytes.0),
+                taker_payment_spend_fee,
             })),
         };
 
@@ -1154,6 +1197,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_coin_maker_address,
             },
             taker_payment_fee: self.taker_payment_fee,
+            taker_payment_spend_fee: self.taker_payment_spend_fee,
             maker_payment_spend_fee: self.maker_payment_spend_fee,
         };
         Self::change_state(next_state, state_machine).await
@@ -1211,6 +1255,7 @@ struct Negotiated<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes
     taker_coin_start_block: u64,
     negotiation_data: NegotiationData<MakerCoin, TakerCoin>,
     taker_payment_fee: SavedTradeFee,
+    taker_payment_spend_fee: SavedTradeFee,
     maker_payment_spend_fee: SavedTradeFee,
 }
 
@@ -1231,6 +1276,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_secret_hash: &state_machine.taker_secret_hash(),
             maker_pub: &self.negotiation_data.taker_coin_htlc_pub_from_maker.to_bytes(),
             dex_fee: &state_machine.dex_fee,
+            taker_payment_spend_fee: self.taker_payment_spend_fee.amount.clone(),
             premium_amount: state_machine.taker_premium.to_decimal(),
             trading_amount: state_machine.taker_volume.to_decimal(),
             swap_unique_data: &state_machine.unique_data(),
@@ -1256,6 +1302,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_coin_start_block: self.taker_coin_start_block,
             taker_funding,
             negotiation_data: self.negotiation_data,
+            taker_payment_spend_fee: self.taker_payment_spend_fee,
         };
         Self::change_state(next_state, state_machine).await
     }
@@ -1272,6 +1319,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_coin_start_block: self.taker_coin_start_block,
             negotiation_data: self.negotiation_data.to_stored_data(),
             taker_payment_fee: self.taker_payment_fee.clone(),
+            taker_payment_spend_fee: self.taker_payment_spend_fee.clone(),
             maker_payment_spend_fee: self.maker_payment_spend_fee.clone(),
         }
     }
@@ -1282,6 +1330,7 @@ struct TakerFundingSent<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAsso
     taker_coin_start_block: u64,
     taker_funding: TakerCoin::Tx,
     negotiation_data: NegotiationData<MakerCoin, TakerCoin>,
+    taker_payment_spend_fee: SavedTradeFee,
 }
 
 #[async_trait]
@@ -1304,6 +1353,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             state_machine.ctx.clone(),
             state_machine.p2p_topic.clone(),
             swap_msg,
+            // FIXME: This number is greater than `NEGOTIATION_TIMEOUT_SEC`, is this intentional to send the message only one time?
+            // We can use `NEGOTIATION_TIMEOUT_SEC + x` then to make it clear (and error-proof).
             600.,
             state_machine.p2p_keypair,
         );
@@ -1384,6 +1435,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             maker_coin_start_block: self.maker_coin_start_block,
             taker_coin_start_block: self.taker_coin_start_block,
             negotiation_data: self.negotiation_data,
+            taker_payment_spend_fee: self.taker_payment_spend_fee,
             taker_funding: self.taker_funding,
             funding_spend_preimage: TxPreimageWithSig {
                 preimage: preimage_tx,
@@ -1414,6 +1466,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 tx_hash: self.taker_funding.tx_hash(),
             },
             negotiation_data: self.negotiation_data.to_stored_data(),
+            taker_payment_spend_fee: self.taker_payment_spend_fee.clone(),
         }
     }
 }
@@ -1422,6 +1475,7 @@ struct MakerPaymentAndFundingSpendPreimgReceived<MakerCoin: ParseCoinAssocTypes,
     maker_coin_start_block: u64,
     taker_coin_start_block: u64,
     negotiation_data: NegotiationData<MakerCoin, TakerCoin>,
+    taker_payment_spend_fee: SavedTradeFee,
     taker_funding: TakerCoin::Tx,
     funding_spend_preimage: TxPreimageWithSig<TakerCoin>,
     maker_payment: MakerCoin::Tx,
@@ -1443,6 +1497,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             maker_coin_start_block: self.maker_coin_start_block,
             taker_coin_start_block: self.taker_coin_start_block,
             negotiation_data: self.negotiation_data.to_stored_data(),
+            taker_payment_spend_fee: self.taker_payment_spend_fee.clone(),
             taker_funding: TransactionIdentifier {
                 tx_hex: self.taker_funding.tx_hex().into(),
                 tx_hash: self.taker_funding.tx_hash(),
@@ -1497,6 +1552,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_secret_hash: &state_machine.taker_secret_hash(),
             taker_payment_time_lock: state_machine.taker_payment_locktime(),
             maker_secret_hash: &self.negotiation_data.maker_secret_hash,
+            taker_payment_spend_fee: self.taker_payment_spend_fee.amount,
         };
 
         if let Err(e) = state_machine
@@ -1542,7 +1598,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 funding_spend_preimage: self.funding_spend_preimage,
                 negotiation_data: self.negotiation_data,
             };
-            Self::change_state(next_state, state_machine).await
+            return Self::change_state(next_state, state_machine).await;
         } else {
             let unique_data = state_machine.unique_data();
 
@@ -1554,6 +1610,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_secret_hash: &state_machine.taker_secret_hash(),
                 taker_payment_time_lock: state_machine.taker_payment_locktime(),
                 maker_secret_hash: &self.negotiation_data.maker_secret_hash,
+                taker_payment_spend_fee: 0.into(),
             };
 
             let taker_payment = match state_machine
@@ -1588,7 +1645,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_payment: self.maker_payment,
                 negotiation_data: self.negotiation_data,
             };
-            Self::change_state(next_state, state_machine).await
+            return Self::change_state(next_state, state_machine).await;
         }
     }
 }
@@ -1982,6 +2039,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_secret_hash: &state_machine.taker_secret_hash(),
             taker_payment_time_lock: state_machine.taker_payment_locktime(),
             maker_secret_hash: &self.negotiation_data.maker_secret_hash,
+            taker_payment_spend_fee: 0.into(),
         };
 
         let taker_payment = match state_machine
@@ -2219,6 +2277,7 @@ pub enum AbortReason {
     TakerFundingRefundFailed(String),
     TakerPaymentRefundFailed(String),
     FailedToGetTakerPaymentFee(String),
+    FailedToGetTakerPaymentSpendFee(String),
     FailedToGetMakerPaymentSpendFee(String),
 }
 

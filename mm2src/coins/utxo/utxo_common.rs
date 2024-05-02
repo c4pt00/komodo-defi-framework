@@ -1003,8 +1003,17 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
 
     let fee = match fee {
         FundingSpendFeeSetting::GetFromCoin => {
-            coin.get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
-                .await?
+            let calculated_fee = coin
+                .get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
+                .await?;
+            let taker_instructed_fee =
+                sat_from_big_decimal(&args.taker_payment_spend_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
+            // If calculated fee is less than instructed fee, use instructed fee because it was never intended
+            // to be deposited to us (maker). If the calculated fee is larger, we will incur the fee difference
+            // just to make sure the transaction is confirmed quickly.
+            // FIXME: Possible abuse vector is that the taker can always send the fee to be just above 90% of the
+            // expected fee knowing that the maker will always accept incurring the difference.
+            calculated_fee.max(taker_instructed_fee)
         },
         FundingSpendFeeSetting::UseExact(f) => f,
     };
@@ -1094,19 +1103,14 @@ pub async fn validate_taker_funding_spend_preimage<T: UtxoCommonOps + SwapOps>(
         )));
     }
 
-    let expected_fee = coin
-        .get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
-        .await?;
-
     let actual_fee = funding_amount - payment_amount;
+    let instructed_fee =
+        sat_from_big_decimal(&gen_args.taker_payment_spend_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
 
-    let fee_div = expected_fee as f64 / actual_fee as f64;
-
-    // FIXME: Should negotiate the fee beforehand, accept fee >= negotiated_fee
-    if !(0.9..=1.1).contains(&fee_div) {
+    if actual_fee < instructed_fee {
         return MmError::err(ValidateTakerFundingSpendPreimageError::UnexpectedPreimageFee(format!(
-            "Too large difference between expected {} and actual {} fees",
-            expected_fee, actual_fee
+            "A fee of {} was used, less than the agreed upon fee of {}",
+            actual_fee, instructed_fee
         )));
     }
 
@@ -4831,7 +4835,10 @@ where
     // FIXME: Add taker payment fee + preimage fee
     // Qs:
     //    1- Who pays the maker payment fee? Take in considration that a nicer UX would be to hand the taker the full amount they requested. (so account for maker payment fee and taker claimation fee)
-    let total_amount = &args.dex_fee.total_spend_amount().to_decimal() + &args.premium_amount + &args.trading_amount;
+    let total_amount = &args.dex_fee.total_spend_amount().to_decimal()
+        + &args.premium_amount
+        + &args.trading_amount
+        + &args.taker_payment_spend_fee;
 
     let SwapPaymentOutputsResult {
         payment_address,
@@ -4923,8 +4930,10 @@ where
     T: UtxoCommonOps + SwapOps,
 {
     let maker_htlc_key_pair = coin.derive_htlc_key_pair(args.swap_unique_data);
-    let total_expected_amount =
-        &args.dex_fee.total_spend_amount().to_decimal() + &args.premium_amount + &args.trading_amount;
+    let total_expected_amount = &args.dex_fee.total_spend_amount().to_decimal()
+        + &args.premium_amount
+        + &args.trading_amount
+        + &args.taker_payment_spend_fee;
 
     let expected_amount_sat = sat_from_big_decimal(&total_expected_amount, coin.as_ref().decimals)?;
 
