@@ -53,15 +53,17 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Resu
             url: url.clone(),
         })
     })?;
-    match fetched.status().as_u16() {
-        200 => {}
+    let status = fetched.status().as_u16();
+    match status {
+        200 => {},
+        500 => {
+            // FIXME handle unwrap gracefully
+            return Err(SiaApiClientError::ApiInteralError(fetched.text().await.unwrap()));
+        },
         _ => {
-            return Err(SiaApiClientError::UnexpectedResponse(format!(
-                "Unexpected response code: {}",
-                fetched.status()
-            )))
-        }
-    } 
+            return Err(SiaApiClientError::UnexpectedHttpStatus(status));
+        },
+    }
     // COME BACK TO THIS - handle OK 200 but unexpected response
     // eg, internal error or user error
     fetched
