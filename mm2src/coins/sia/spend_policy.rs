@@ -1,10 +1,9 @@
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator, ED25519_IDENTIFIER};
-use crate::sia::encoding::{Encoder, EncodeTo};
+use crate::sia::encoding::{EncodeTo, Encoder};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
-
 
 #[cfg(test)] use std::str::FromStr;
 

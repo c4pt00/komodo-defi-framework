@@ -39,7 +39,6 @@ impl Encoder {
         item.encode(&mut encoder);
         encoder.hash()
     }
-
 }
 
 #[test]

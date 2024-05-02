@@ -176,7 +176,8 @@ impl<'a> SiaCoinBuilder<'a> {
         let sia_fields = SiaCoinFields {
             conf,
             http_client: SiaApiClient::new(self.params.http_conf.clone())
-                .map_err(SiaCoinBuildError::ClientError).await?,
+                .map_err(SiaCoinBuildError::ClientError)
+                .await?,
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
         };
         let sia_arc = SiaArc::new(sia_fields);

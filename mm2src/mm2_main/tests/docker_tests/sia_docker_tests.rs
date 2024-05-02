@@ -43,7 +43,10 @@ async fn test_sia_client_address_balance() {
     };
     let api_client = SiaApiClient::new(conf).await.unwrap();
 
-    mine_blocks(10, Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap());
+    mine_blocks(
+        10,
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap(),
+    );
 
     let request = AddressBalanceRequest {
         address: Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
