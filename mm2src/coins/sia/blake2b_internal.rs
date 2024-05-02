@@ -9,6 +9,8 @@ use std::default::Default;
 const LEAF_HASH_PREFIX: [u8; 1] = [0u8];
 const NODE_HASH_PREFIX: [u8; 1] = [1u8];
 
+// https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L40-L49
+// A Specifier is a fixed-size, 0-padded identifier.
 #[derive(Debug, Clone, Copy)]
 pub struct Specifier;
 
