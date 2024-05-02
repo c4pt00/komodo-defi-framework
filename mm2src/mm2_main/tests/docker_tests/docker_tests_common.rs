@@ -355,7 +355,9 @@ pub fn sia_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) -> 
     let image =
         GenericImage::new(SIA_DOCKER_IMAGE, "latest").with_env_var("WALLETD_API_PASSWORD", "password".to_string());
     let args = vec![];
-    let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
+    let image = RunnableImage::from((image, args))
+        .with_mapped_port((port, port))
+        .with_container_name("sia-docker");
     let container = docker.run(image);
     DockerNode {
         container,
