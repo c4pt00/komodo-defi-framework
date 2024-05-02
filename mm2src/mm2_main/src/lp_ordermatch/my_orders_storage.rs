@@ -736,6 +736,7 @@ mod tests {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
+            db_id: None,
         }
     }
 
@@ -764,6 +765,7 @@ mod tests {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
+            db_id: None,
         }
     }
 
