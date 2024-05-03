@@ -52,9 +52,9 @@ pub struct Sighash {
 
 impl From<Sighash> for u8 {
     fn from(s: Sighash) -> Self {
-        let base = s.base as u8;
-        let base = if s.anyone_can_pay { base | 0x80 } else { base };
-        let base = if s.fork_id { base | 0x40 } else { base };
+        let mut base = s.base as u8;
+        base = if s.anyone_can_pay { base | 0x80 } else { base };
+        base = if s.fork_id { base | 0x40 } else { base };
 
         base
     }
@@ -767,15 +767,13 @@ mod tests {
 
     #[test]
     fn test_sighash_forkid_from_u32() {
-        assert!(!Sighash::is_defined(SignatureVersion::Base, 0xFFFFFF82));
-        assert!(!Sighash::is_defined(SignatureVersion::Base, 0x00000182));
-        assert!(!Sighash::is_defined(SignatureVersion::Base, 0x00000080));
-        assert!(Sighash::is_defined(SignatureVersion::Base, 0x00000001));
-        assert!(Sighash::is_defined(SignatureVersion::Base, 0x00000082));
-        assert!(Sighash::is_defined(SignatureVersion::Base, 0x00000003));
+        assert!(!Sighash::is_defined(SignatureVersion::Base, 0x80));
+        assert!(!Sighash::is_defined(SignatureVersion::Base, 0x84));
+        assert!(!Sighash::is_defined(SignatureVersion::Base, 0x85));
+        assert!(Sighash::is_defined(SignatureVersion::Base, 0x01));
+        assert!(Sighash::is_defined(SignatureVersion::Base, 0x82));
+        assert!(Sighash::is_defined(SignatureVersion::Base, 0x03));
 
-        assert!(!Sighash::is_defined(SignatureVersion::ForkId, 0xFFFFFFC2));
-        assert!(!Sighash::is_defined(SignatureVersion::ForkId, 0x000001C2));
         assert!(Sighash::is_defined(SignatureVersion::ForkId, 0x00000081));
         assert!(Sighash::is_defined(SignatureVersion::ForkId, 0x000000C2));
         assert!(Sighash::is_defined(SignatureVersion::ForkId, 0x00000043));

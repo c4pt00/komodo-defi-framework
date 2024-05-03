@@ -7,7 +7,7 @@ use coins::{ConfirmPaymentInput, DexFee, FundingTxSpend, GenTakerFundingSpendArg
             TakerCoinSwapOpsV2, Transaction, ValidateMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec, DEX_FEE_ADDR_RAW_PUBKEY};
 use futures01::Future;
-use mm2_number::MmNumber;
+use mm2_number::{BigDecimal, MmNumber};
 use mm2_test_helpers::for_tests::{active_swaps, check_recent_swaps, coins_needed_for_kickstart, disable_coin,
                                   disable_coin_err, enable_native, get_locked_amount, mm_dump, my_swap_status,
                                   mycoin1_conf, mycoin_conf, start_swaps, wait_for_swap_finished,
@@ -26,12 +26,14 @@ fn send_and_refund_taker_funding_timelock() {
     let taker_secret_hash = &[0; 20];
     let maker_pub = coin.my_public_key().unwrap();
     let dex_fee = &DexFee::Standard("0.01".into());
+    let taker_payment_spend_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
         time_lock,
         taker_secret_hash,
         maker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
@@ -41,8 +43,8 @@ fn send_and_refund_taker_funding_timelock() {
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
-    // dex_fee_amount + premium_amount + trading_amount
-    let expected_amount = 111000000u64;
+    // dex_fee_amount + premium_amount + trading_amount + taker_payment_spend_fee
+    let expected_amount = 111200000u64;
     assert_eq!(expected_amount, taker_funding_utxo_tx.outputs[0].value);
 
     let expected_op_return = Builder::default()
@@ -57,6 +59,7 @@ fn send_and_refund_taker_funding_timelock() {
         taker_secret_hash,
         other_pub: maker_pub,
         dex_fee,
+        taker_payment_spend_fee,
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
@@ -106,12 +109,14 @@ fn send_and_refund_taker_funding_secret() {
     let taker_secret_hash = taker_secret_hash_owned.as_slice();
     let maker_pub = coin.my_public_key().unwrap();
     let dex_fee = &DexFee::Standard("0.01".into());
+    let taker_payment_spend_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
         time_lock,
         taker_secret_hash,
         maker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
@@ -121,8 +126,8 @@ fn send_and_refund_taker_funding_secret() {
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
-    // dex_fee_amount + premium_amount + trading_amount
-    let expected_amount = 111000000u64;
+    // dex_fee_amount + premium_amount + trading_amount + taker_payment_spend_fee
+    let expected_amount = 111200000u64;
     assert_eq!(expected_amount, taker_funding_utxo_tx.outputs[0].value);
 
     let expected_op_return = Builder::default()
@@ -137,6 +142,7 @@ fn send_and_refund_taker_funding_secret() {
         taker_secret_hash,
         other_pub: maker_pub,
         dex_fee,
+        taker_payment_spend_fee,
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
@@ -190,12 +196,14 @@ fn send_and_spend_taker_funding() {
     let maker_pub = maker_coin.my_public_key().unwrap();
 
     let dex_fee = &DexFee::Standard("0.01".into());
+    let taker_payment_spend_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
         time_lock: funding_time_lock,
         taker_secret_hash,
         maker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
@@ -205,8 +213,8 @@ fn send_and_spend_taker_funding() {
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
-    // dex_fee_amount + premium_amount + trading_amount
-    let expected_amount = 111000000u64;
+    // dex_fee_amount + premium_amount + trading_amount + taker_payment_spend_fee
+    let expected_amount = 111200000u64;
     assert_eq!(expected_amount, taker_funding_utxo_tx.outputs[0].value);
 
     let expected_op_return = Builder::default()
@@ -221,6 +229,7 @@ fn send_and_spend_taker_funding() {
         taker_secret_hash,
         other_pub: taker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
@@ -235,6 +244,7 @@ fn send_and_spend_taker_funding() {
         taker_secret_hash,
         taker_payment_time_lock: 0,
         maker_secret_hash: &[0; 20],
+        taker_payment_spend_fee,
     };
     let preimage = block_on(maker_coin.gen_taker_funding_spend_preimage(&preimage_args, &[])).unwrap();
 
@@ -277,12 +287,14 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
     let maker_pub = maker_coin.my_public_key().unwrap();
 
     let dex_fee = &DexFee::with_burn("0.75".into(), "0.25".into());
+    let taker_payment_spend_fee: BigDecimal = "0.2".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
         time_lock: funding_time_lock,
         taker_secret_hash,
         maker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: 0.into(),
         trading_amount: 777.into(),
         swap_unique_data: &[],
@@ -292,8 +304,8 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
-    // dex_fee_amount (with burn) + premium_amount (zero) + trading_amount
-    let expected_amount = 77800000000u64;
+    // dex_fee_amount (with burn) + premium_amount (zero) + trading_amount + taker_payment_spend_fee
+    let expected_amount = 77820000000u64;
     assert_eq!(expected_amount, taker_funding_utxo_tx.outputs[0].value);
 
     let expected_op_return = Builder::default()
@@ -308,6 +320,7 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
         taker_secret_hash,
         other_pub: taker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: 0.into(),
         trading_amount: 777.into(),
         swap_unique_data: &[],
@@ -322,6 +335,7 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
         taker_secret_hash,
         taker_payment_time_lock: 0,
         maker_secret_hash,
+        taker_payment_spend_fee,
     };
     let preimage = block_on(maker_coin.gen_taker_funding_spend_preimage(&preimage_args, &[])).unwrap();
 
@@ -347,7 +361,8 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
     assert_eq!(taker_payment_spend_preimage.preimage.outputs.len(), 3);
     assert_eq!(taker_payment_spend_preimage.preimage.outputs[0].value, 75000000);
     assert_eq!(taker_payment_spend_preimage.preimage.outputs[1].value, 25000000);
-    assert_eq!(taker_payment_spend_preimage.preimage.outputs[2].value, 77699998000);
+    // Should have been 777, but a preimage fee was deducted, we should account for that so the taker receives full amount.
+    assert_eq!(taker_payment_spend_preimage.preimage.outputs[2].value, 77699999000);
 
     block_on(
         maker_coin.validate_taker_payment_spend_preimage(&gen_taker_payment_spend_args, &taker_payment_spend_preimage),
@@ -380,12 +395,14 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
     let maker_pub = maker_coin.my_public_key().unwrap();
 
     let dex_fee = &DexFee::Standard(1.into());
+    let taker_payment_spend_fee: BigDecimal = "0.2".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
         time_lock: funding_time_lock,
         taker_secret_hash,
         maker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: 0.into(),
         trading_amount: 777.into(),
         swap_unique_data: &[],
@@ -396,7 +413,7 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
     // dex_fee_amount (with burn) + premium_amount (zero) + trading_amount
-    let expected_amount = 77800000000u64;
+    let expected_amount = 77820000000u64;
     assert_eq!(expected_amount, taker_funding_utxo_tx.outputs[0].value);
 
     let expected_op_return = Builder::default()
@@ -411,6 +428,7 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
         taker_secret_hash,
         other_pub: taker_pub,
         dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
         premium_amount: 0.into(),
         trading_amount: 777.into(),
         swap_unique_data: &[],
@@ -425,6 +443,7 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
         taker_secret_hash,
         taker_payment_time_lock: 0,
         maker_secret_hash,
+        taker_payment_spend_fee,
     };
     let preimage = block_on(maker_coin.gen_taker_funding_spend_preimage(&preimage_args, &[])).unwrap();
 
@@ -651,7 +670,7 @@ fn test_v2_swap_utxo_utxo() {
 
     let locked_alice = block_on(get_locked_amount(&mm_alice, MYCOIN1));
     assert_eq!(locked_alice.coin, MYCOIN1);
-    let expected: MmNumberMultiRepr = MmNumber::from("778.00001").into();
+    let expected: MmNumberMultiRepr = MmNumber::from("778.00002").into();
     assert_eq!(locked_alice.locked_amount, expected);
 
     // amount must unlocked after funding tx is sent
@@ -776,7 +795,7 @@ fn test_v2_swap_utxo_utxo_kickstart() {
     // coins must be virtually locked after kickstart until swap transactions are sent
     let locked_alice = block_on(get_locked_amount(&mm_alice, MYCOIN1));
     assert_eq!(locked_alice.coin, MYCOIN1);
-    let expected: MmNumberMultiRepr = MmNumber::from("778.00001").into();
+    let expected: MmNumberMultiRepr = MmNumber::from("778.00002").into();
     assert_eq!(locked_alice.locked_amount, expected);
 
     let locked_bob = block_on(get_locked_amount(&mm_bob, MYCOIN));
