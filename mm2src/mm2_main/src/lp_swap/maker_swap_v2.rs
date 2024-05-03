@@ -8,6 +8,7 @@ use crate::mm2::lp_swap::{broadcast_swap_v2_msg_every, check_balance_for_maker_s
                           SwapConfirmationsSettings, TransactionIdentifier, MAKER_SWAP_V2_TYPE, MAX_STARTED_AT_DIFF};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
+use coins::utxo::utxo_common::big_decimal_from_sat_unsigned;
 use coins::{CanRefundHtlc, ConfirmPaymentInput, DexFee, FeeApproxStage, FundingTxSpend, GenTakerFundingSpendArgs,
             GenTakerPaymentSpendArgs, MakerCoinSwapOpsV2, MmCoin, ParseCoinAssocTypes, RefundMakerPaymentArgs,
             RefundPaymentArgs, SearchForFundingSpendErr, SendMakerPaymentArgs, SwapTxTypeWithSecretHash,
@@ -24,7 +25,6 @@ use mm2_libp2p::Secp256k1PubkeySerialize;
 use mm2_number::{BigDecimal, MmNumber};
 use mm2_state_machine::prelude::*;
 use mm2_state_machine::storable_state_machine::*;
-use num_traits::ToPrimitive;
 use primitives::hash::H256;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use secp256k1::PublicKey;
@@ -972,10 +972,13 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             return Self::change_state(Aborted::new(reason), state_machine).await;
         }
 
-        let expected_taker_payment_spend_fee_u64 = self.taker_payment_spend_trade_fee.amount.to_u64().unwrap_or(1);
-        let ratio = taker_data.taker_payment_spend_fee as f64 / expected_taker_payment_spend_fee_u64 as f64;
-        if ratio < 0.9 {
-            let diff = expected_taker_payment_spend_fee_u64 - taker_data.taker_payment_spend_fee;
+        // Clamp the expected fee to 1 unit to avoid accidental division by zero.
+        let expected_taker_payment_spend_fee = self.taker_payment_spend_trade_fee.amount.max(1.into());
+        let taker_payment_spend_fee =
+            big_decimal_from_sat_unsigned(taker_data.taker_payment_spend_fee, state_machine.taker_coin.decimals());
+        let ratio = &taker_payment_spend_fee / &expected_taker_payment_spend_fee;
+        if ratio < 0.95.try_into().unwrap() {
+            let diff = &expected_taker_payment_spend_fee - &taker_payment_spend_fee;
             let reason = AbortReason::TakerPaymentSpentFeeTooLow(diff);
             return Self::change_state(Aborted::new(reason), state_machine).await;
         }
@@ -1009,7 +1012,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 maker_coin_swap_contract: taker_data.maker_coin_swap_contract,
                 taker_coin_swap_contract: taker_data.taker_coin_swap_contract,
                 taker_secret_hash: taker_data.taker_secret_hash,
-                taker_payment_spend_fee: taker_data.taker_payment_spend_fee.into(),
+                taker_payment_spend_fee,
             },
             maker_payment_trade_fee: self.maker_payment_trade_fee,
         };
@@ -1814,7 +1817,7 @@ pub enum AbortReason {
     TakerProvidedInvalidFundingLocktime(u64),
     TakerProvidedInvalidPaymentLocktime(u64),
     FailedToParsePubkey(String),
-    TakerPaymentSpentFeeTooLow(u64),
+    TakerPaymentSpentFeeTooLow(BigDecimal),
     MakerPaymentRefundFailed(String),
     FailedToGetMakerPaymentFee(String),
     FailedToGetTakerPaymentSpendFee(String),

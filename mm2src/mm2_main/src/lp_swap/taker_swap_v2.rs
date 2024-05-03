@@ -8,6 +8,7 @@ use crate::mm2::lp_swap::{broadcast_swap_v2_msg_every, check_balance_for_taker_s
                           TAKER_SWAP_V2_TYPE};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
+use coins::utxo::sat_from_big_decimal;
 use coins::{CanRefundHtlc, ConfirmPaymentInput, DexFee, FeeApproxStage, GenTakerFundingSpendArgs,
             GenTakerPaymentSpendArgs, MakerCoinSwapOpsV2, MmCoin, ParseCoinAssocTypes, RefundFundingSecretArgs,
             RefundPaymentArgs, SendTakerFundingArgs, SpendMakerPaymentArgs, SwapTxTypeWithSecretHash,
@@ -25,7 +26,6 @@ use mm2_libp2p::Secp256k1PubkeySerialize;
 use mm2_number::MmNumber;
 use mm2_state_machine::prelude::*;
 use mm2_state_machine::storable_state_machine::*;
-use num_traits::ToPrimitive;
 use primitives::hash::H256;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use secp256k1::PublicKey;
@@ -1133,8 +1133,12 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         };
 
         // Convert the fee to u64 to send it over the wire.
-        // FIXME: 1- `unwrap`ing isn't a good idea. 2- Is there a better datatype to send BigDecimals over buffers?
-        let taker_payment_spend_fee = self.taker_payment_spend_fee.amount.to_u64().unwrap_or(0);
+        // FIXME: Is there a better datatype to send BigDecimals over buffers?
+        let taker_payment_spend_fee = sat_from_big_decimal(
+            &self.taker_payment_spend_fee.amount,
+            state_machine.taker_coin.decimals(),
+        )
+        .unwrap_or(0);
         let unique_data = state_machine.unique_data();
         let taker_negotiation = TakerNegotiation {
             action: Some(taker_negotiation::Action::Continue(TakerNegotiationData {
