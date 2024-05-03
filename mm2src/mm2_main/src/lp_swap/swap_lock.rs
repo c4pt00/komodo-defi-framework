@@ -4,12 +4,10 @@ use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use uuid::Uuid;
 
-#[cfg(target_arch = "wasm32")]
-use common::now_sec;
+#[cfg(target_arch = "wasm32")] use common::now_sec;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native_lock::SwapLock;
-#[cfg(target_arch = "wasm32")]
-pub use wasm_lock::SwapLock;
+#[cfg(target_arch = "wasm32")] pub use wasm_lock::SwapLock;
 
 pub type SwapLockResult<T> = Result<T, MmError<SwapLockError>>;
 
@@ -43,11 +41,11 @@ mod native_lock {
             match e {
                 FileLockError::ErrorReadingTimestamp { path, error } => {
                     SwapLockError::ErrorReadingTimestamp(format!("Path: {:?}, Error: {}", path, error))
-                }
+                },
                 FileLockError::ErrorWritingTimestamp { path, error }
                 | FileLockError::ErrorCreatingLockFile { path, error } => {
                     SwapLockError::ErrorWritingTimestamp(format!("Path: {:?}, Error: {}", path, error))
-                }
+                },
             }
         }
     }
@@ -58,7 +56,12 @@ mod native_lock {
 
     #[async_trait]
     impl SwapLockOps for SwapLock {
-        async fn lock(ctx: &MmArc, swap_uuid: Uuid, ttl_sec: f64, db_id: Option<&str>) -> SwapLockResult<Option<SwapLock>> {
+        async fn lock(
+            ctx: &MmArc,
+            swap_uuid: Uuid,
+            ttl_sec: f64,
+            db_id: Option<&str>,
+        ) -> SwapLockResult<Option<SwapLock>> {
             let lock_path = my_swaps_dir(ctx, db_id).join(format!("{}.lock", swap_uuid));
             let file_lock = some_or_return_ok_none!(FileLock::lock(lock_path, ttl_sec)?);
 
@@ -96,7 +99,7 @@ mod wasm_lock {
                 | e @ DbTransactionError::ErrorCountingItems(_) => SwapLockError::ErrorReadingTimestamp(e.to_string()),
                 e @ DbTransactionError::ErrorDeletingItems(_) | e @ DbTransactionError::ErrorUploadingItem(_) => {
                     SwapLockError::ErrorWritingTimestamp(e.to_string())
-                }
+                },
             }
         }
     }
