@@ -1,3 +1,4 @@
+use crate::sia::specifier::Identifier;
 use blake2b_simd::Params;
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
@@ -8,17 +9,6 @@ use std::default::Default;
 
 const LEAF_HASH_PREFIX: [u8; 1] = [0u8];
 const NODE_HASH_PREFIX: [u8; 1] = [1u8];
-
-// https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L40-L49
-// A Specifier is a fixed-size, 0-padded identifier.
-#[derive(Debug, Clone, Copy)]
-pub struct Specifier;
-
-impl Specifier {
-    pub const ED25519: [u8; 16] = [
-        0x65, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    ];
-}
 
 // Precomputed hash values used for all standard v1 addresses
 // a standard address has 1 ed25519 public key, requires 1 signature and has a timelock of 0
@@ -95,7 +85,7 @@ pub fn sigs_required_leaf(sigs_required: u64) -> H256 {
 pub fn public_key_leaf(pubkey: &PublicKey) -> H256 {
     let mut combined = Vec::new();
     combined.extend_from_slice(&LEAF_HASH_PREFIX);
-    combined.extend_from_slice(&Specifier::ED25519);
+    combined.extend_from_slice(Identifier::Ed25519.as_bytes());
     combined.extend_from_slice(&32u64.to_le_bytes());
     combined.extend_from_slice(pubkey.as_bytes());
     hash_blake2b_single(&combined)
