@@ -972,11 +972,17 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             return Self::change_state(Aborted::new(reason), state_machine).await;
         }
 
-        // Clamp the expected fee to 1 unit to avoid accidental division by zero.
-        let expected_taker_payment_spend_fee = self.taker_payment_spend_trade_fee.amount.max(1.into());
+        let expected_taker_payment_spend_fee = self.taker_payment_spend_trade_fee.amount;
         let taker_payment_spend_fee =
             big_decimal_from_sat_unsigned(taker_data.taker_payment_spend_fee, state_machine.taker_coin.decimals());
-        let ratio = &taker_payment_spend_fee / &expected_taker_payment_spend_fee;
+
+        // To avoid accidental division by zero, let's set the ratio to 1 if the expected fee is 0.
+        let ratio = if expected_taker_payment_spend_fee == 0.into() {
+            1.into()
+        } else {
+            &taker_payment_spend_fee / &expected_taker_payment_spend_fee
+        };
+
         if ratio < 0.95.try_into().unwrap() {
             let diff = &expected_taker_payment_spend_fee - &taker_payment_spend_fee;
             let reason = AbortReason::TakerPaymentSpentFeeTooLow(diff);
