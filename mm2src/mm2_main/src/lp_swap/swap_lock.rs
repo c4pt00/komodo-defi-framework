@@ -4,10 +4,12 @@ use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use uuid::Uuid;
 
-#[cfg(target_arch = "wasm32")] use common::now_sec;
+#[cfg(target_arch = "wasm32")]
+use common::now_sec;
 #[cfg(not(target_arch = "wasm32"))]
 pub use native_lock::SwapLock;
-#[cfg(target_arch = "wasm32")] pub use wasm_lock::SwapLock;
+#[cfg(target_arch = "wasm32")]
+pub use wasm_lock::SwapLock;
 
 pub type SwapLockResult<T> = Result<T, MmError<SwapLockError>>;
 
@@ -24,7 +26,7 @@ pub enum SwapLockError {
 
 #[async_trait]
 pub trait SwapLockOps: Sized {
-    async fn lock(ctx: &MmArc, swap_uuid: Uuid, ttl_sec: f64) -> SwapLockResult<Option<Self>>;
+    async fn lock(ctx: &MmArc, swap_uuid: Uuid, ttl_sec: f64, db_id: Option<&str>) -> SwapLockResult<Option<Self>>;
 
     async fn touch(&self) -> SwapLockResult<()>;
 }
@@ -41,11 +43,11 @@ mod native_lock {
             match e {
                 FileLockError::ErrorReadingTimestamp { path, error } => {
                     SwapLockError::ErrorReadingTimestamp(format!("Path: {:?}, Error: {}", path, error))
-                },
+                }
                 FileLockError::ErrorWritingTimestamp { path, error }
                 | FileLockError::ErrorCreatingLockFile { path, error } => {
                     SwapLockError::ErrorWritingTimestamp(format!("Path: {:?}, Error: {}", path, error))
-                },
+                }
             }
         }
     }
@@ -56,8 +58,8 @@ mod native_lock {
 
     #[async_trait]
     impl SwapLockOps for SwapLock {
-        async fn lock(ctx: &MmArc, swap_uuid: Uuid, ttl_sec: f64) -> SwapLockResult<Option<SwapLock>> {
-            let lock_path = my_swaps_dir(ctx, None).join(format!("{}.lock", swap_uuid));
+        async fn lock(ctx: &MmArc, swap_uuid: Uuid, ttl_sec: f64, db_id: Option<&str>) -> SwapLockResult<Option<SwapLock>> {
+            let lock_path = my_swaps_dir(ctx, db_id).join(format!("{}.lock", swap_uuid));
             let file_lock = some_or_return_ok_none!(FileLock::lock(lock_path, ttl_sec)?);
 
             Ok(Some(SwapLock { file_lock }))
@@ -94,7 +96,7 @@ mod wasm_lock {
                 | e @ DbTransactionError::ErrorCountingItems(_) => SwapLockError::ErrorReadingTimestamp(e.to_string()),
                 e @ DbTransactionError::ErrorDeletingItems(_) | e @ DbTransactionError::ErrorUploadingItem(_) => {
                     SwapLockError::ErrorWritingTimestamp(e.to_string())
-                },
+                }
             }
         }
     }
@@ -108,14 +110,16 @@ mod wasm_lock {
         swap_uuid: Uuid,
         /// The identifier of the timestamp record in the `SwapLockTable`.
         pub(super) record_id: ItemId,
+        db_id: Option<String>,
     }
 
     impl Drop for SwapLock {
         fn drop(&mut self) {
             let ctx = self.ctx.clone();
             let record_id = self.record_id;
+            let db_id = self.db_id.to_owned();
             let fut = async move {
-                if let Err(e) = Self::release(ctx, record_id).await {
+                if let Err(e) = Self::release(ctx, record_id, db_id.as_deref()).await {
                     error!("Error realising the SwapLock: {}", e);
                 }
                 debug!("SwapLock::drop] Finish");
@@ -126,10 +130,9 @@ mod wasm_lock {
 
     #[async_trait]
     impl SwapLockOps for SwapLock {
-        async fn lock(ctx: &MmArc, uuid: Uuid, ttl_sec: f64) -> SwapLockResult<Option<Self>> {
+        async fn lock(ctx: &MmArc, uuid: Uuid, ttl_sec: f64, db_id: Option<&str>) -> SwapLockResult<Option<Self>> {
             let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SwapLockError::InternalError)?;
-            // TODO: db_id
-            let db = swaps_ctx.swap_db(None).await?;
+            let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SwapLockTable>().await?;
 
@@ -154,13 +157,13 @@ mod wasm_lock {
                 ctx: ctx.clone(),
                 swap_uuid: uuid,
                 record_id,
+                db_id: db_id.map(|s| s.to_string()),
             }))
         }
 
         async fn touch(&self) -> SwapLockResult<()> {
             let swaps_ctx = SwapsContext::from_ctx(&self.ctx).map_to_mm(SwapLockError::InternalError)?;
-            // TODO: db_id
-            let db = swaps_ctx.swap_db(None).await?;
+            let db = swaps_ctx.swap_db(self.db_id.as_deref()).await?;
 
             let item = SwapLockTable {
                 uuid: self.swap_uuid,
@@ -181,10 +184,9 @@ mod wasm_lock {
     }
 
     impl SwapLock {
-        async fn release(ctx: MmArc, record_id: ItemId) -> SwapLockResult<()> {
+        async fn release(ctx: MmArc, record_id: ItemId, db_id: Option<&str>) -> SwapLockResult<()> {
             let swaps_ctx = SwapsContext::from_ctx(&ctx).map_to_mm(SwapLockError::InternalError)?;
-            // TODO: db_id
-            let db = swaps_ctx.swap_db(None).await?;
+            let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
             let table = transaction.table::<SwapLockTable>().await?;
             table.delete_item(record_id).await?;
@@ -222,7 +224,7 @@ mod tests {
         let uuid = new_uuid();
 
         let started_at = now_sec();
-        let swap_lock = SwapLock::lock(&ctx, uuid, 10.)
+        let swap_lock = SwapLock::lock(&ctx, uuid, 10., None)
             .await
             .expect("!SwapLock::lock")
             .expect("SwapLock::lock must return a value");
@@ -249,11 +251,11 @@ mod tests {
     async fn test_file_lock_should_return_none_if_lock_acquired() {
         let ctx = MmCtxBuilder::new().with_test_db_namespace().into_mm_arc();
         let uuid = new_uuid();
-        let _lock = SwapLock::lock(&ctx, uuid, 10.)
+        let _lock = SwapLock::lock(&ctx, uuid, 10., None)
             .await
             .expect("!SwapLock::lock")
             .expect("SwapLock::lock must return a value");
-        let new_lock = SwapLock::lock(&ctx, uuid, 10.).await.expect("!SwapLock::lock");
+        let new_lock = SwapLock::lock(&ctx, uuid, 10., None).await.expect("!SwapLock::lock");
         assert!(
             new_lock.is_none(),
             "SwapLock::lock must return None if the lock has already been acquired"
@@ -266,7 +268,7 @@ mod tests {
         let uuid = new_uuid();
 
         let started_at = now_sec();
-        let first_lock = SwapLock::lock(&ctx, uuid, 1.)
+        let first_lock = SwapLock::lock(&ctx, uuid, 1., None)
             .await
             .expect("!SwapLock::lock")
             .expect("SwapLock::lock must return a value");
@@ -281,7 +283,7 @@ mod tests {
 
         Timer::sleep(2.).await;
 
-        let second_lock = SwapLock::lock(&ctx, uuid, 1.)
+        let second_lock = SwapLock::lock(&ctx, uuid, 1., None)
             .await
             .expect("!SwapLock::lock")
             .expect("SwapLock::lock must return a value after the last ttl is over");
