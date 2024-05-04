@@ -12,6 +12,10 @@ pub trait EncodeTo {
     fn encode(&self, encoder: &mut Encoder);
 }
 
+impl EncodeTo for H256 {
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.0); }
+}
+
 impl Encoder {
     pub fn reset(&mut self) { self.buffer.clear(); }
 
