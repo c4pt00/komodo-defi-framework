@@ -1,6 +1,6 @@
-use rpc::v1::types::H256;
 use crate::sia::encoding::{EncodeTo, Encoder};
 use crate::sia::spend_policy::UnlockCondition;
+use rpc::v1::types::H256;
 
 type SiacoinOutputID = H256;
 pub struct SiacoinInput {
