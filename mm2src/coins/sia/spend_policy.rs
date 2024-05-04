@@ -1,7 +1,8 @@
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
-                                   Accumulator, Specifier};
+                                   Accumulator};
 use crate::sia::encoding::{EncodeTo, Encoder};
+use crate::sia::specifier::{Identifier, Specifier};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
 
@@ -74,10 +75,9 @@ impl SpendPolicy {
             SpendPolicy::UnlockConditions(PolicyTypeUnlockConditions(unlock_condition)) => {
                 encoder.write_u8(opcode);
                 encoder.write_u64(unlock_condition.timelock);
-                encoder.write_u64(unlock_condition.pubkeys.len() as u64);
-                for pubkey in &unlock_condition.pubkeys {
-                    encoder.write_slice(&Specifier::ED25519);
-                    encoder.write_slice(&pubkey.to_bytes());
+                encoder.write_u64(unlock_condition.unlock_keys.len() as u64);
+                for uc in &unlock_condition.unlock_keys {
+                    uc.public_key.encode(encoder);
                 }
                 encoder.write_u64(unlock_condition.sigs_required);
             },
@@ -127,18 +127,56 @@ pub struct PolicyTypeThreshold {
 #[derive(Debug, Clone)]
 pub struct PolicyTypeUnlockConditions(UnlockCondition);
 
+// Sia v1 has theoretical support other key types via softforks
+// We only support ed25519 for now. No other type was ever implemented in Sia Go.
+#[derive(Debug, Clone)]
+pub struct UnlockKey {
+    algorithm: Specifier,
+    public_key: PublicKey,
+}
+
+impl EncodeTo for PublicKey {
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.to_bytes()); }
+}
+
+impl EncodeTo for UnlockKey {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.algorithm.encode(encoder);
+        self.public_key.encode(encoder);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UnlockCondition {
-    pubkeys: Vec<PublicKey>,
+    unlock_keys: Vec<UnlockKey>,
     timelock: u64,
     sigs_required: u64,
+}
+
+impl EncodeTo for UnlockCondition {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u64(self.timelock);
+        encoder.write_u64(self.unlock_keys.len() as u64);
+        for unlock_key in &self.unlock_keys {
+            unlock_key.encode(encoder);
+        }
+        encoder.write_u64(self.sigs_required);
+    }
 }
 
 impl UnlockCondition {
     pub fn new(pubkeys: Vec<PublicKey>, timelock: u64, sigs_required: u64) -> Self {
         // TODO check go implementation to see if there should be limitations or checks imposed here
+        let unlock_keys = pubkeys
+            .into_iter()
+            .map(|pk| UnlockKey {
+                algorithm: Specifier::new(Identifier::Ed25519),
+                public_key: pk,
+            })
+            .collect();
+
         UnlockCondition {
-            pubkeys,
+            unlock_keys,
             timelock,
             sigs_required,
         }
@@ -146,16 +184,16 @@ impl UnlockCondition {
 
     pub fn unlock_hash(&self) -> H256 {
         // almost all UnlockConditions are standard, so optimize for that case
-        if self.timelock == 0 && self.pubkeys.len() == 1 && self.sigs_required == 1 {
-            return standard_unlock_hash(&self.pubkeys[0]);
+        if self.timelock == 0 && self.unlock_keys.len() == 1 && self.sigs_required == 1 {
+            return standard_unlock_hash(&self.unlock_keys[0].public_key);
         }
 
         let mut accumulator = Accumulator::default();
 
         accumulator.add_leaf(timelock_leaf(self.timelock));
 
-        for pubkey in &self.pubkeys {
-            accumulator.add_leaf(public_key_leaf(pubkey));
+        for unlock_key in &self.unlock_keys {
+            accumulator.add_leaf(public_key_leaf(&unlock_key.public_key));
         }
 
         accumulator.add_leaf(sigs_required_leaf(self.sigs_required));
