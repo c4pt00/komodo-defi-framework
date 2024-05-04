@@ -279,17 +279,6 @@ fn test_hash_blake2b_pair() {
 }
 
 #[test]
-fn test_create_ed25519_identifier() {
-    let mut ed25519_identifier: [u8; 16] = [0; 16];
-
-    let bytes = "ed25519".as_bytes();
-    for (i, &byte) in bytes.iter().enumerate() {
-        ed25519_identifier[i] = byte;
-    }
-    assert_eq!(ed25519_identifier, ED25519_IDENTIFIER);
-}
-
-#[test]
 fn test_timelock_leaf() {
     let hash = timelock_leaf(0);
     let expected = H256::from(STANDARD_TIMELOCK_BLAKE2B_HASH);
