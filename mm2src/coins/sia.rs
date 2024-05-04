@@ -33,7 +33,9 @@ pub mod encoding;
 pub mod http_client;
 use http_client::{SiaApiClient, SiaApiClientError};
 pub mod http_endpoints;
+pub mod specifier;
 pub mod spend_policy;
+pub mod transaction;
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
