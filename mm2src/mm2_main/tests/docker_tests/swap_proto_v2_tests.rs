@@ -4,7 +4,8 @@ use coins::utxo::UtxoCommonOps;
 use coins::{ConfirmPaymentInput, DexFee, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
             MakerCoinSwapOpsV2, MarketCoinOps, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundMakerPaymentArgs,
             RefundPaymentArgs, SendMakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
-            TakerCoinSwapOpsV2, Transaction, ValidateMakerPaymentArgs, ValidateTakerFundingArgs};
+            TakerCoinSwapOpsV2, Transaction, ValidateMakerPaymentArgs, ValidateSwapV2TxError,
+            ValidateTakerFundingArgs, ValidateTakerFundingSpendPreimageError};
 use common::{block_on, now_sec, DEX_FEE_ADDR_RAW_PUBKEY};
 use futures01::Future;
 use mm2_number::{BigDecimal, MmNumber};
@@ -269,6 +270,123 @@ fn send_and_spend_taker_funding() {
         },
         unexpected => panic!("Got unexpected FundingTxSpend variant {:?}", unexpected),
     }
+}
+
+#[test]
+fn reject_funding_low_taker_payment_spend_fee() {
+    let (_mm_arc, taker_coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
+    let (_mm_arc, maker_coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
+
+    let funding_time_lock = now_sec() - 1000;
+    let taker_secret_hash = &[0; 20];
+
+    let taker_pub = taker_coin.my_public_key().unwrap();
+    let maker_pub = maker_coin.my_public_key().unwrap();
+
+    let dex_fee = &DexFee::Standard("0.01".into());
+    let taker_payment_spend_fee: BigDecimal = "0.002".parse().unwrap();
+
+    let send_args = SendTakerFundingArgs {
+        time_lock: funding_time_lock,
+        taker_secret_hash,
+        maker_pub,
+        dex_fee,
+        // The taker uses a lower taker payment spend fee in the taker funding tx
+        taker_payment_spend_fee: "0.001".parse().unwrap(),
+        premium_amount: "0.1".parse().unwrap(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+    };
+    let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+
+    let validate_args = ValidateTakerFundingArgs {
+        funding_tx: &taker_funding_utxo_tx,
+        time_lock: funding_time_lock,
+        taker_secret_hash,
+        other_pub: taker_pub,
+        dex_fee,
+        taker_payment_spend_fee,
+        premium_amount: "0.1".parse().unwrap(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+    };
+    // The maker should reject the taker funding tx because the taker didn't use the agreed upon taker payment spend fee
+    let err = block_on(maker_coin.validate_taker_funding(validate_args))
+        .unwrap_err()
+        .into_inner();
+    assert!(matches!(err, ValidateSwapV2TxError::InvalidDestinationOrAmount(..)))
+}
+
+#[test]
+fn reject_preimage_low_taker_payment_spend_fee() {
+    let (_mm_arc, taker_coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
+    let (_mm_arc, maker_coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
+
+    let funding_time_lock = now_sec() - 1000;
+    let taker_secret_hash = &[0; 20];
+
+    let maker_secret = &[1; 32];
+    let maker_secret_hash_owned = dhash160(maker_secret);
+    let maker_secret_hash = maker_secret_hash_owned.as_slice();
+
+    let taker_pub = taker_coin.my_public_key().unwrap();
+    let maker_pub = maker_coin.my_public_key().unwrap();
+
+    let dex_fee = &DexFee::Standard("0.01".into());
+    let taker_payment_spend_fee: BigDecimal = "0.002".parse().unwrap();
+
+    let send_args = SendTakerFundingArgs {
+        time_lock: funding_time_lock,
+        taker_secret_hash,
+        maker_pub,
+        dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
+        premium_amount: "0.1".parse().unwrap(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+    };
+    let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+
+    let validate_args = ValidateTakerFundingArgs {
+        funding_tx: &taker_funding_utxo_tx,
+        time_lock: funding_time_lock,
+        taker_secret_hash,
+        other_pub: taker_pub,
+        dex_fee,
+        taker_payment_spend_fee: taker_payment_spend_fee.clone(),
+        premium_amount: "0.1".parse().unwrap(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+    };
+    block_on(maker_coin.validate_taker_funding(validate_args)).unwrap();
+
+    let mut preimage_args = GenTakerFundingSpendArgs {
+        funding_tx: &taker_funding_utxo_tx,
+        maker_pub,
+        taker_pub,
+        funding_time_lock,
+        taker_secret_hash,
+        taker_payment_time_lock: 0,
+        maker_secret_hash,
+        // Use a lower taker payment spend fee in the preimage.
+        // Note that this is a lower bound, the generated preimage fee might be higher at the end.
+        taker_payment_spend_fee: "0.001".parse().unwrap(),
+    };
+    let preimage = block_on(maker_coin.gen_taker_funding_spend_preimage(&preimage_args, &[])).unwrap();
+
+    // Set back the taker payment spend fee to the previous value for checking.
+    preimage_args.taker_payment_spend_fee = taker_payment_spend_fee;
+    // The taker should reject the preimage because the taker payment spend fee is lower than agreed upon.
+    // Means that the maker stole the fee amount for themselves.
+    let err = block_on(taker_coin.validate_taker_funding_spend_preimage(&preimage_args, &preimage))
+        .unwrap_err()
+        .into_inner();
+    assert!(matches!(
+        err,
+        ValidateTakerFundingSpendPreimageError::UnexpectedPreimageFee(..)
+    ))
 }
 
 #[test]
