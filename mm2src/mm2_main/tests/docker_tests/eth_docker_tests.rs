@@ -854,10 +854,7 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
     match block_on(lp_coinfind(ctx, NFT_ETH)).unwrap() {
         None => global_nft_from_privkey(ctx, sepolia_etomic_maker_nft(), priv_key, nft_type),
         Some(mm_coin) => match mm_coin {
-            MmCoinEnum::EthCoin(nft) => {
-                println!("Found EthCoin {:?}", nft.ticker());
-                nft
-            },
+            MmCoinEnum::EthCoin(nft) => nft,
             _ => panic!("Unexpected coin type found. Expected MmCoinEnum::EthCoin"),
         },
     }
@@ -870,11 +867,7 @@ fn send_and_spend_erc721_maker_payment() {
     let erc721_nft = TestNftType::Erc721 { token_id: 1 };
 
     let maker_global_nft = get_or_create_nft(&MM_CTX, SEPOLIA_MAKER_PRIV, Some(erc721_nft));
-    let maker_addr = block_on(maker_global_nft.my_addr());
-    println!("maker_addr {:?}\n", maker_addr);
     let taker_global_nft = get_or_create_nft(&MM_CTX1, SEPOLIA_TAKER_PRIV, None);
-    let taker_addr = block_on(taker_global_nft.my_addr());
-    println!("taker_addr {:?}\n", taker_addr);
 
     let maker_address = block_on(maker_global_nft.my_addr());
     wait_pending_transactions(maker_address);

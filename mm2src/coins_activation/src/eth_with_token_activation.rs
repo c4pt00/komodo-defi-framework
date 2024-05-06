@@ -117,6 +117,7 @@ impl From<EthTokenActivationError> for InitTokensAsMmCoinsError {
             EthTokenActivationError::UnexpectedDerivationMethod(e) => {
                 InitTokensAsMmCoinsError::UnexpectedDerivationMethod(e)
             },
+            EthTokenActivationError::PrivKeyPolicyNotAllowed(e) => InitTokensAsMmCoinsError::Internal(e.to_string()),
         }
     }
 }

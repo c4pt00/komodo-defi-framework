@@ -466,7 +466,7 @@ impl From<PrivKeyBuildPolicy> for EthPrivKeyBuildPolicy {
 pub struct EthCoinImpl {
     ticker: String,
     pub coin_type: EthCoinType,
-    priv_key_policy: EthPrivKeyPolicy,
+    pub(crate) priv_key_policy: EthPrivKeyPolicy,
     /// Either an Iguana address or a 'EthHDWallet' instance.
     /// Arc is used to use the same hd wallet from platform coin if we need to.
     /// This allows the reuse of the same derived accounts/addresses of the

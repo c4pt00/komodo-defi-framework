@@ -42,6 +42,7 @@ impl From<EthTokenActivationError> for EnableTokenError {
             | EthTokenActivationError::ClientConnectionFailed(e) => EnableTokenError::Transport(e),
             EthTokenActivationError::InvalidPayload(e) => EnableTokenError::InvalidPayload(e),
             EthTokenActivationError::UnexpectedDerivationMethod(e) => EnableTokenError::UnexpectedDerivationMethod(e),
+            EthTokenActivationError::PrivKeyPolicyNotAllowed(e) => EnableTokenError::PrivKeyPolicyNotAllowed(e),
         }
     }
 }

@@ -89,6 +89,7 @@ impl From<EthTokenActivationError> for EthActivationV2Error {
             EthTokenActivationError::UnexpectedDerivationMethod(err) => {
                 EthActivationV2Error::UnexpectedDerivationMethod(err)
             },
+            EthTokenActivationError::PrivKeyPolicyNotAllowed(e) => EthActivationV2Error::PrivKeyPolicyNotAllowed(e),
         }
     }
 }
@@ -210,6 +211,7 @@ pub enum EthTokenActivationError {
     InvalidPayload(String),
     Transport(String),
     UnexpectedDerivationMethod(UnexpectedDerivationMethod),
+    PrivKeyPolicyNotAllowed(PrivKeyPolicyNotAllowed),
 }
 
 impl From<AbortedError> for EthTokenActivationError {
@@ -254,6 +256,10 @@ impl From<GetNftInfoError> for EthTokenActivationError {
 
 impl From<ParseChainTypeError> for EthTokenActivationError {
     fn from(e: ParseChainTypeError) -> Self { EthTokenActivationError::InternalError(e.to_string()) }
+}
+
+impl From<PrivKeyPolicyNotAllowed> for EthTokenActivationError {
+    fn from(e: PrivKeyPolicyNotAllowed) -> Self { EthTokenActivationError::PrivKeyPolicyNotAllowed(e) }
 }
 
 /// Represents the parameters required for activating either an ERC-20 token or an NFT on the Ethereum platform.
@@ -433,7 +439,10 @@ impl EthCoin {
     /// It fetches NFT details from a given URL to populate the `nfts_infos` field, which stores information about the user's NFTs.
     ///
     /// This setup allows the Global NFT to function like a coin, supporting swap operations and providing easy access to NFT details via `nfts_infos`.
-    pub async fn global_nft_from_platform_coin(&self, url: &Url) -> MmResult<EthCoin, EthTokenActivationError> {
+    pub async fn global_nft_from_platform_coin(
+        &self,
+        original_url: &Url,
+    ) -> MmResult<EthCoin, EthTokenActivationError> {
         let chain = Chain::from_ticker(self.ticker())?;
         let ticker = chain.to_nft_ticker().to_string();
 
@@ -443,7 +452,23 @@ impl EthCoin {
 
         // Todo: support HD wallet for NFTs, currently we get nfts for enabled address only and there might be some issues when activating NFTs while ETH is activated with HD wallet
         let my_address = self.derivation_method.single_addr_or_err().await?;
-        let nft_infos = get_nfts_for_activation(&chain, &my_address, url).await?;
+        let my_address_str = display_eth_address(&my_address);
+        let secret = self.priv_key_policy().activated_key_or_err()?.secret().clone();
+        let validation_generator = GuiAuthValidationGenerator {
+            coin_ticker: chain.to_nft_ticker().to_string(),
+            secret,
+            address: my_address_str,
+        };
+        let signed_message = match EthCoin::generate_gui_auth_signed_validation(validation_generator) {
+            Ok(t) => t,
+            Err(e) => {
+                return MmError::err(EthTokenActivationError::InternalError(format!(
+                    "GuiAuth signed message generation failed. Error: {:?}",
+                    e
+                )))
+            },
+        };
+        let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, &signed_message).await?;
 
         let global_nft = EthCoinImpl {
             ticker,
