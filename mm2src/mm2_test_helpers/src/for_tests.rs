@@ -28,6 +28,7 @@ use std::num::NonZeroUsize;
 use std::process::Child;
 use std::sync::Mutex;
 use uuid::Uuid;
+use mm2_core::sql_connection_pool::SqliteConnPool;
 
 cfg_native! {
     use common::block_on;
@@ -1084,22 +1085,13 @@ pub fn mm_ctx_with_custom_db() -> MmArc { mm_ctx_with_custom_db_with_conf(None) 
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn mm_ctx_with_custom_db_with_conf(conf: Option<Json>) -> MmArc {
-    use db_common::sqlite::rusqlite::Connection;
-    use std::sync::Arc;
-
     let mut ctx_builder = MmCtxBuilder::new();
     if let Some(conf) = conf {
         ctx_builder = ctx_builder.with_conf(conf);
     }
     let ctx = ctx_builder.into_mm_arc();
-
-    let mut connections = HashMap::new();
-    let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
-    connections.insert(ctx.rmd160_hex(), connection);
-    let _ = ctx.sqlite_connection.pin(Arc::new(Mutex::new(connections)));
-
-    let connection = Connection::open_in_memory().unwrap();
-    let _ = ctx.shared_sqlite_conn.pin(Arc::new(Mutex::new(connection)));
+    let _ = SqliteConnPool::init_test(&ctx).unwrap();
+    let _ = SqliteConnPool::init_shared_test(&ctx).unwrap();
 
     ctx
 }

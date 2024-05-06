@@ -5,6 +5,7 @@ use common::{block_on, executor::spawn};
 use crypto::privkey::key_pair_from_seed;
 use futures::{channel::mpsc, StreamExt};
 use mm2_core::mm_ctx::{MmArc, MmCtx};
+use mm2_core::sql_connection_pool::SqliteConnPool;
 use mm2_libp2p::AdexBehaviourCmd;
 use mm2_libp2p::{decode_message, PeerId};
 use mm2_net::p2p::P2PContext;
@@ -1066,7 +1067,7 @@ fn test_cancel_by_single_coin() {
     let ctx = mm_ctx_with_iguana(None);
     let rx = prepare_for_cancel_by(&ctx);
 
-    let _ = ctx.init_sqlite_connection_for_test(None);
+    SqliteConnPool::init_test(&ctx).unwrap();
 
     delete_my_maker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
     delete_my_taker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
@@ -1084,7 +1085,7 @@ fn test_cancel_by_pair() {
     let ctx = mm_ctx_with_iguana(None);
     let rx = prepare_for_cancel_by(&ctx);
 
-    let _ = ctx.init_sqlite_connection_for_test(None);
+    SqliteConnPool::init_test(&ctx).unwrap();
 
     delete_my_maker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
     delete_my_taker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
@@ -1106,7 +1107,7 @@ fn test_cancel_by_all() {
     let ctx = mm_ctx_with_iguana(None);
     let rx = prepare_for_cancel_by(&ctx);
 
-    let _ = ctx.init_sqlite_connection_for_test(None);
+    SqliteConnPool::init_test(&ctx).unwrap();
 
     delete_my_maker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));
     delete_my_taker_order.mock_safe(|_, _, _| MockResult::Return(Box::new(futures01::future::ok(()))));

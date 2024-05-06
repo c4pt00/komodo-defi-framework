@@ -25,7 +25,7 @@ cfg_native! {
     use db_common::async_sql_conn::AsyncConnection;
     use db_common::AsyncConnectionCtx;
     use futures::lock::Mutex as AsyncMutex;
-    use mm2_core::mm_ctx::{log_sqlite_file_open_attempt, ASYNC_SQLITE_DB_ID};
+    use mm2_core::mm_ctx::log_sqlite_file_open_attempt;
 }
 
 cfg_wasm32! {
@@ -777,7 +777,7 @@ impl NftCtx {
         }
 
         // else create and return new connection.
-        let sqlite_file_path = self.ctx.dbdir(Some(&db_id)).join(ASYNC_SQLITE_DB_ID);
+        let sqlite_file_path = self.ctx.dbdir(Some(&db_id)).join("KOMODEFI.db");
         log_sqlite_file_open_attempt(&sqlite_file_path);
         let async_conn = AsyncConnection::open(sqlite_file_path)
             .await

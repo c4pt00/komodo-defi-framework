@@ -26,6 +26,7 @@ use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, W
 use derive_more::Display;
 use enum_derives::EnumFromTrait;
 use mm2_core::mm_ctx::{MmArc, MmCtx};
+use mm2_core::sql_connection_pool::SqliteConnPool;
 use mm2_err_handle::common_errors::InternalError;
 use mm2_err_handle::prelude::*;
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
@@ -332,8 +333,8 @@ fn default_seednodes(netid: u16) -> Vec<RelayAddress> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>) -> MmInitResult<()> {
-    fix_shared_dbdir(ctx)?;
+pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>, shared_db_id: Option<&str>) -> MmInitResult<()> {
+    fix_shared_dbdir(ctx, shared_db_id)?;
 
     let dbdir = ctx.dbdir(db_id);
     fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
@@ -393,8 +394,8 @@ pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>) -> MmInitResult<()> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn fix_shared_dbdir(ctx: &MmCtx) -> MmInitResult<()> {
-    let shared_db = ctx.shared_dbdir();
+fn fix_shared_dbdir(ctx: &MmCtx, db_id: Option<&str>) -> MmInitResult<()> {
+    let shared_db = ctx.shared_dbdir(db_id);
     fs::create_dir_all(&shared_db).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
         path: shared_db.clone(),
         error: e.to_string(),
@@ -463,11 +464,9 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        fix_directories(&ctx, None)?;
-        ctx.init_sqlite_connection(None)
-            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        ctx.init_shared_sqlite_conn()
-            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        fix_directories(&ctx, None, None)?;
+        SqliteConnPool::init(&ctx, None).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        SqliteConnPool::init_shared(&ctx, None).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
         ctx.init_async_sqlite_connection(None)
             .await
             .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
@@ -484,7 +483,7 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     // launch kickstart threads before RPC is available, this will prevent the API user to place
     // an order and start new swap that might get started 2 times because of kick-start
-    kick_start(ctx.clone()).await?;
+    kick_start(ctx.clone(), None).await?;
 
     init_event_streaming(&ctx).await?;
 
@@ -543,8 +542,8 @@ pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitRes
     Ok(())
 }
 
-async fn kick_start(ctx: MmArc) -> MmInitResult<()> {
-    let mut coins_needed_for_kick_start = swap_kick_starts(ctx.clone())
+async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
+    let mut coins_needed_for_kick_start = swap_kick_starts(ctx.clone(), db_id)
         .await
         .map_to_mm(MmInitError::SwapsKickStartError)?;
     coins_needed_for_kick_start.extend(

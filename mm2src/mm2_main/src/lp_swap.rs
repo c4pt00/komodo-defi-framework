@@ -1399,100 +1399,94 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
 
 /// Find out the swaps that need to be kick-started, continue from the point where swap was interrupted
 /// Return the tickers of coins that must be enabled for swaps to continue
-pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
-    let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
+pub async fn swap_kick_starts(ctx: MmArc, db_id: Option<&str>) -> Result<HashSet<String>, String> {
     let mut coins = HashSet::new();
+    #[cfg(target_arch = "wasm32")]
+    try_s!(migrate_swaps_data(&ctx, db_id).await);
 
-    for db_id in db_ids {
-        let db_id = Some(db_id);
-        #[cfg(target_arch = "wasm32")]
-        try_s!(migrate_swaps_data(&ctx, db_id.as_deref()).await);
+    let legacy_unfinished_uuids = try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE, db_id).await);
+    for uuid in legacy_unfinished_uuids {
+        let swap = match SavedSwap::load_my_swap_from_db(&ctx, db_id, uuid).await {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                warn!("Swap {} is indexed, but doesn't exist in DB", uuid);
+                continue;
+            },
+            Err(e) => {
+                error!("Error {} on getting swap {} data from DB", e, uuid);
+                continue;
+            },
+        };
+        info!("Kick starting the swap {}", swap.uuid());
+        let maker_coin_ticker = match swap.maker_coin_ticker() {
+            Ok(t) => t,
+            Err(e) => {
+                error!("Error {} getting maker coin of swap: {}", e, swap.uuid());
+                continue;
+            },
+        };
+        let taker_coin_ticker = match swap.taker_coin_ticker() {
+            Ok(t) => t,
+            Err(e) => {
+                error!("Error {} getting taker coin of swap {}", e, swap.uuid());
+                continue;
+            },
+        };
+        coins.insert(maker_coin_ticker.clone());
+        coins.insert(taker_coin_ticker.clone());
 
-        let legacy_unfinished_uuids =
-            try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE, db_id.as_deref()).await);
-        for uuid in legacy_unfinished_uuids {
-            let swap = match SavedSwap::load_my_swap_from_db(&ctx, db_id.as_deref(), uuid).await {
-                Ok(Some(s)) => s,
-                Ok(None) => {
-                    warn!("Swap {} is indexed, but doesn't exist in DB", uuid);
-                    continue;
-                },
-                Err(e) => {
-                    error!("Error {} on getting swap {} data from DB", e, uuid);
-                    continue;
-                },
-            };
-            info!("Kick starting the swap {}", swap.uuid());
-            let maker_coin_ticker = match swap.maker_coin_ticker() {
-                Ok(t) => t,
-                Err(e) => {
-                    error!("Error {} getting maker coin of swap: {}", e, swap.uuid());
-                    continue;
-                },
-            };
-            let taker_coin_ticker = match swap.taker_coin_ticker() {
-                Ok(t) => t,
-                Err(e) => {
-                    error!("Error {} getting taker coin of swap {}", e, swap.uuid());
-                    continue;
-                },
-            };
-            coins.insert(maker_coin_ticker.clone());
-            coins.insert(taker_coin_ticker.clone());
+        let fut = kickstart_thread_handler(ctx.clone(), swap, maker_coin_ticker, taker_coin_ticker);
+        ctx.spawner().spawn(fut);
+    }
 
-            let fut = kickstart_thread_handler(ctx.clone(), swap, maker_coin_ticker, taker_coin_ticker);
-            ctx.spawner().spawn(fut);
-        }
+    let maker_swap_storage = MakerSwapStorage::new(ctx.clone(), db_id);
+    let unfinished_maker_uuids = try_s!(maker_swap_storage.get_unfinished().await);
+    for maker_uuid in unfinished_maker_uuids {
+        info!("Trying to kickstart maker swap {}", maker_uuid);
+        let maker_swap_repr = match maker_swap_storage.get_repr(maker_uuid).await {
+            Ok(repr) => repr,
+            Err(e) => {
+                error!("Error {} getting DB repr of maker swap {}", e, maker_uuid);
+                continue;
+            },
+        };
+        debug!("Got maker swap repr {:?}", maker_swap_repr);
 
-        let maker_swap_storage = MakerSwapStorage::new(ctx.clone(), db_id.as_deref());
-        let unfinished_maker_uuids = try_s!(maker_swap_storage.get_unfinished().await);
-        for maker_uuid in unfinished_maker_uuids {
-            info!("Trying to kickstart maker swap {}", maker_uuid);
-            let maker_swap_repr = match maker_swap_storage.get_repr(maker_uuid).await {
-                Ok(repr) => repr,
-                Err(e) => {
-                    error!("Error {} getting DB repr of maker swap {}", e, maker_uuid);
-                    continue;
-                },
-            };
-            debug!("Got maker swap repr {:?}", maker_swap_repr);
+        coins.insert(maker_swap_repr.maker_coin.clone());
+        coins.insert(maker_swap_repr.taker_coin.clone());
 
-            coins.insert(maker_swap_repr.maker_coin.clone());
-            coins.insert(maker_swap_repr.taker_coin.clone());
+        let fut = swap_kickstart_handler::<MakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>>(
+            ctx.clone(),
+            maker_swap_repr,
+            maker_swap_storage.clone(),
+            maker_uuid,
+        );
+        ctx.spawner().spawn(fut);
+    }
 
-            let fut = swap_kickstart_handler::<MakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>>(
-                ctx.clone(),
-                maker_swap_repr,
-                maker_swap_storage.clone(),
-                maker_uuid,
-            );
-            ctx.spawner().spawn(fut);
-        }
+    let taker_swap_storage = TakerSwapStorage::new(ctx.clone(), db_id);
+    let unfinished_taker_uuids = try_s!(taker_swap_storage.get_unfinished().await);
+    for taker_uuid in unfinished_taker_uuids {
+        info!("Trying to kickstart taker swap {}", taker_uuid);
+        let taker_swap_repr = match taker_swap_storage.get_repr(taker_uuid).await {
+            Ok(repr) => repr,
+            Err(e) => {
+                error!("Error {} getting DB repr of taker swap {}", e, taker_uuid);
+                continue;
+            },
+        };
+        debug!("Got taker swap repr {:?}", taker_swap_repr);
 
-        let taker_swap_storage = TakerSwapStorage::new(ctx.clone(), db_id.as_deref());
-        let unfinished_taker_uuids = try_s!(taker_swap_storage.get_unfinished().await);
-        for taker_uuid in unfinished_taker_uuids {
-            info!("Trying to kickstart taker swap {}", taker_uuid);
-            let taker_swap_repr = match taker_swap_storage.get_repr(taker_uuid).await {
-                Ok(repr) => repr,
-                Err(e) => {
-                    error!("Error {} getting DB repr of taker swap {}", e, taker_uuid);
-                    continue;
-                },
-            };
-            debug!("Got taker swap repr {:?}", taker_swap_repr);
+        coins.insert(taker_swap_repr.maker_coin.clone());
+        coins.insert(taker_swap_repr.taker_coin.clone());
 
-            coins.insert(taker_swap_repr.maker_coin.clone());
-            coins.insert(taker_swap_repr.taker_coin.clone());
-
-            let fut = swap_kickstart_handler::<TakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>>(
-                ctx.clone(),
-                taker_swap_repr,
-                taker_swap_storage.clone(),
-                taker_uuid,
-            );
-            ctx.spawner().spawn(fut);
-        }
+        let fut = swap_kickstart_handler::<TakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>>(
+            ctx.clone(),
+            taker_swap_repr,
+            taker_swap_storage.clone(),
+            taker_uuid,
+        );
+        ctx.spawner().spawn(fut);
     }
 
     Ok(coins)
@@ -1899,6 +1893,7 @@ mod lp_swap_tests {
     use coins::PrivKeyActivationPolicy;
     use common::{block_on, new_uuid};
     use mm2_core::mm_ctx::MmCtxBuilder;
+    use mm2_core::sql_connection_pool::SqliteConnPool;
     use mm2_test_helpers::for_tests::{morty_conf, rick_conf, MORTY_ELECTRUM_ADDRS, RICK_ELECTRUM_ADDRS};
 
     #[test]
@@ -2322,9 +2317,9 @@ mod lp_swap_tests {
             .unwrap()
             .mm2_internal_key_pair();
 
-        fix_directories(&maker_ctx, None).unwrap();
+        fix_directories(&maker_ctx, None, None).unwrap();
         block_on(init_p2p(maker_ctx.clone())).unwrap();
-        maker_ctx.init_sqlite_connection(None).unwrap();
+        SqliteConnPool::init_test(&maker_ctx).unwrap();
 
         let rick_activation_params = utxo_activation_params(RICK_ELECTRUM_ADDRS);
         let morty_activation_params = utxo_activation_params(MORTY_ELECTRUM_ADDRS);
@@ -2360,9 +2355,9 @@ mod lp_swap_tests {
             .unwrap()
             .mm2_internal_key_pair();
 
-        fix_directories(&taker_ctx, None).unwrap();
+        fix_directories(&taker_ctx, None, None).unwrap();
         block_on(init_p2p(taker_ctx.clone())).unwrap();
-        taker_ctx.init_sqlite_connection(None).unwrap();
+        SqliteConnPool::init_test(&taker_ctx).unwrap();
 
         let rick_taker = block_on(utxo_standard_coin_with_priv_key(
             &taker_ctx,
