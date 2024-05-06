@@ -97,11 +97,11 @@ pub(super) struct HDWalletSqliteStorage {
 
 #[async_trait]
 impl HDWalletStorageInternalOps for HDWalletSqliteStorage {
-    async fn init(ctx: &MmArc) -> HDWalletStorageResult<Self>
+    async fn init(ctx: &MmArc, db_id: Option<&str>) -> HDWalletStorageResult<Self>
     where
         Self: Sized,
     {
-        let shared = ctx.shared_sqlite_conn_opt(None).or_mm_err(|| {
+        let shared = ctx.shared_sqlite_conn_opt(db_id).or_mm_err(|| {
             HDWalletStorageError::Internal("'MmCtx::shared_sqlite_conn' is not initialized".to_owned())
         })?;
         let storage = HDWalletSqliteStorage {
@@ -279,8 +279,7 @@ pub(crate) async fn get_all_storage_items(ctx: &MmArc) -> Vec<HDAccountStorageIt
     const SELECT_ALL_ACCOUNTS: &str =
         "SELECT account_id, account_xpub, external_addresses_number, internal_addresses_number FROM hd_account";
 
-    let conn = ctx.sqlite_conn_pool();
-    let conn = conn.shared_sqlite_conn_opt(&ctx, None).unwrap();
+    let conn = ctx.shared_sqlite_conn_opt(None).unwrap();
     let conn = conn.lock().unwrap();
     let mut statement = conn.prepare(SELECT_ALL_ACCOUNTS).unwrap();
     statement

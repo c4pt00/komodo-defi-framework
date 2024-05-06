@@ -160,7 +160,7 @@ pub(super) struct HDWalletIndexedDbStorage {
 
 #[async_trait]
 impl HDWalletStorageInternalOps for HDWalletIndexedDbStorage {
-    async fn init(ctx: &MmArc) -> HDWalletStorageResult<Self>
+    async fn init(ctx: &MmArc, _db_id: Option<&str>) -> HDWalletStorageResult<Self>
     where
         Self: Sized,
     {
@@ -271,6 +271,7 @@ impl HDWalletIndexedDbStorage {
     }
 
     async fn lock_db_mutex(db: &SharedDb<HDWalletDb>) -> HDWalletStorageResult<HDWalletDbLocked<'_>> {
+        // TODO: db_id
         db.get_or_initialize(None).await.mm_err(HDWalletStorageError::from)
     }
 

@@ -14,6 +14,7 @@ use std::ops::Deref;
 #[cfg(target_arch = "wasm32")] mod wasm_storage;
 
 #[cfg(any(test, target_arch = "wasm32"))] mod mock_storage;
+
 #[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) use mock_storage::HDWalletMockStorage;
 
@@ -84,7 +85,7 @@ pub struct HDAccountStorageItem {
 #[async_trait]
 #[cfg_attr(test, mockable)]
 pub(crate) trait HDWalletStorageInternalOps {
-    async fn init(ctx: &MmArc) -> HDWalletStorageResult<Self>
+    async fn init(ctx: &MmArc, db_id: Option<&str>) -> HDWalletStorageResult<Self>
     where
         Self: Sized;
 
@@ -219,8 +220,8 @@ impl Default for HDWalletCoinStorage {
 }
 
 impl HDWalletCoinStorage {
-    pub async fn init(ctx: &MmArc, coin: String) -> HDWalletStorageResult<HDWalletCoinStorage> {
-        let inner = Box::new(HDWalletStorageInstance::init(ctx).await?);
+    pub async fn init(ctx: &MmArc, coin: String, db_id: Option<&str>) -> HDWalletStorageResult<HDWalletCoinStorage> {
+        let inner = Box::new(HDWalletStorageInstance::init(ctx, db_id).await?);
         let crypto_ctx = CryptoCtx::from_ctx(ctx)?;
         let hd_wallet_rmd160 = crypto_ctx
             .hw_wallet_rmd160()
@@ -236,8 +237,9 @@ impl HDWalletCoinStorage {
         ctx: &MmArc,
         coin: String,
         hd_wallet_rmd160: H160,
+        db_id: Option<&str>,
     ) -> HDWalletStorageResult<HDWalletCoinStorage> {
-        let inner = Box::new(HDWalletStorageInstance::init(ctx).await?);
+        let inner = Box::new(HDWalletStorageInstance::init(ctx, db_id).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,
@@ -341,13 +343,13 @@ mod tests {
         let device0_rmd160 = H160::from("0000000000000000000000000000000000000020");
         let device1_rmd160 = H160::from("0000000000000000000000000000000000000030");
 
-        let rick_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160)
+        let rick_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
-        let rick_device1_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device1_rmd160)
+        let rick_device1_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device1_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
-        let morty_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "MORTY".to_owned(), device0_rmd160)
+        let morty_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "MORTY".to_owned(), device0_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
 
@@ -379,7 +381,7 @@ mod tests {
             rick_device0_account0.clone(),
             rick_device0_account1.clone(),
             rick_device1_account0.clone(),
-            morty_device0_account0.clone()
+            morty_device0_account0.clone(),
         ]);
 
         let mut actual = rick_device0_db
@@ -433,13 +435,13 @@ mod tests {
         let device1_rmd160 = H160::from("0000000000000000000000000000000000000020");
         let device2_rmd160 = H160::from("0000000000000000000000000000000000000030");
 
-        let wallet0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160)
+        let wallet0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
-        let wallet1_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device1_rmd160)
+        let wallet1_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device1_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
-        let wallet2_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device2_rmd160)
+        let wallet2_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device2_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
 
@@ -492,7 +494,7 @@ mod tests {
         let ctx = mm_ctx_with_custom_db();
         let device_rmd160 = H160::from("0000000000000000000000000000000000000010");
 
-        let db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device_rmd160)
+        let db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device_rmd160, None)
             .await
             .expect("!HDWalletCoinStorage::new");
 

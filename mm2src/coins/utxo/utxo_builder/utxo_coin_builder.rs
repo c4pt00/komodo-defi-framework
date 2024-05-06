@@ -221,8 +221,9 @@ pub trait UtxoFieldsWithGlobalHDBuilder: UtxoCoinBuilderCommonOps {
 
         let address_format = self.address_format()?;
         let hd_wallet_rmd160 = *self.ctx().rmd160();
+        // TODO shared_db_id
         let hd_wallet_storage =
-            HDWalletCoinStorage::init_with_rmd160(self.ctx(), self.ticker().to_owned(), hd_wallet_rmd160).await?;
+            HDWalletCoinStorage::init_with_rmd160(self.ctx(), self.ticker().to_owned(), hd_wallet_rmd160, None).await?;
         let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, path_to_coin)
             .await
             .mm_err(UtxoCoinBuildError::from)?;
@@ -357,7 +358,8 @@ pub trait UtxoFieldsWithHardwareWalletBuilder: UtxoCoinBuilderCommonOps {
             .clone()
             .or_mm_err(|| UtxoConfError::DerivationPathIsNotSet)?;
 
-        let hd_wallet_storage = HDWalletCoinStorage::init(self.ctx(), ticker).await?;
+        // TODO shared_d_id
+        let hd_wallet_storage = HDWalletCoinStorage::init(self.ctx(), ticker, None).await?;
 
         let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, &path_to_coin)
             .await
