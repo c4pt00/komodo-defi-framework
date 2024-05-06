@@ -50,8 +50,9 @@ use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
 use common::jsonrpc_client::JsonRpcError;
 use common::log::{warn, LogOnError};
 use common::{calc_total_pages, now_sec, ten, HttpStatusCode};
-use crypto::{derive_secp256k1_secret, Bip32Error, CryptoCtx, CryptoCtxError, DerivationPath, GlobalHDAccountArc,
-             HwRpcError, KeyPairPolicy, Secp256k1Secret, StandardHDCoinAddress, StandardHDPathToCoin, WithHwRpcError};
+use crypto::{derive_secp256k1_secret, Bip32Error, Bip44Chain, CryptoCtx, CryptoCtxError, DerivationPath,
+             GlobalHDAccountArc, HDPathToCoin, HwRpcError, KeyPairPolicy, RpcDerivationPath,
+             Secp256k1ExtendedPublicKey, Secp256k1Secret, WithHwRpcError};
 use derive_more::Display;
 use enum_derives::{EnumFromStringify, EnumFromTrait};
 use ethereum_types::H256;
@@ -75,15 +76,15 @@ use serde_json::{self as json, Value as Json};
 use std::cmp::Ordering;
 use std::collections::hash_map::{HashMap, RawEntryMut};
 use std::collections::HashSet;
-use std::fmt;
 use std::future::Future as Future03;
 use std::num::{NonZeroUsize, TryFromIntError};
-use std::ops::{Add, Deref};
+use std::ops::{Add, AddAssign, Deref};
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, iter};
 use utxo_signer::with_key_pair::UtxoSignWithKeyPairError;
 use zcash_primitives::transaction::Transaction as ZTransaction;
 
@@ -100,7 +101,7 @@ cfg_native! {
 
 cfg_wasm32! {
     use ethereum_types::{H264 as EthH264, H520 as EthH520};
-    use hd_wallet_storage::HDWalletDb;
+    use hd_wallet::HDWalletDb;
     use mm2_db::indexed_db::{ConstructibleDb, DbLocked, SharedDb};
     use tx_history_storage::wasm::{clear_tx_history, load_tx_history, save_tx_history, TxHistoryDb};
     pub type TxHistoryDbLocked<'a> = DbLocked<'a, TxHistoryDb>;
@@ -205,12 +206,15 @@ macro_rules! ok_or_continue_after_sleep {
 }
 
 pub mod coin_balance;
+
+use coin_balance::{AddressBalanceStatus, HDAddressBalance, HDWalletBalanceOps};
+
 pub mod lp_price;
 pub mod watcher_common;
 
 pub mod coin_errors;
 
-use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut};
+use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentResult};
 
 #[doc(hidden)]
 #[cfg(test)]
@@ -223,14 +227,12 @@ use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetail
           GetEthAddressError, SignedEthTx};
 use ethereum_types::U256;
 
-pub mod hd_confirm_address;
-pub mod hd_pubkey;
-
 pub mod hd_wallet;
 
-use hd_wallet::{HDAccountAddressId, HDAddress};
+use hd_wallet::{AccountUpdatingError, AddressDerivingError, HDAccountOps, HDAddressId, HDAddressOps, HDCoinAddress,
+                HDCoinHDAccount, HDExtractPubkeyError, HDPathAccountToAddressId, HDWalletAddress, HDWalletCoinOps,
+                HDWalletOps, HDWithdrawError, HDXPubExtractor, WithdrawFrom, WithdrawSenderAddress};
 
-pub mod hd_wallet_storage;
 #[cfg(not(target_arch = "wasm32"))] pub mod lightning;
 #[cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 pub mod my_tx_history_v2;
@@ -249,8 +251,9 @@ use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskM
 
 pub mod tendermint;
 
-use tendermint::{CosmosTransaction, CustomTendermintMsgType, TendermintCoin, TendermintCoinRpcError,
-                 TendermintFeeDetails, TendermintProtocolInfo, TendermintToken, TendermintTokenProtocolInfo};
+use tendermint::htlc::CustomTendermintMsgType;
+use tendermint::{CosmosTransaction, TendermintCoin, TendermintCoinRpcError, TendermintFeeDetails,
+                 TendermintProtocolInfo, TendermintToken, TendermintTokenProtocolInfo};
 
 #[doc(hidden)]
 #[allow(unused_variables)]
@@ -293,10 +296,10 @@ use utxo::qtum::{self, qtum_coin_with_policy, Qrc20AddressError, QtumCoin, QtumD
 use utxo::rpc_clients::UtxoRpcError;
 use utxo::slp::SlpToken;
 use utxo::slp::{slp_addr_from_pubkey_str, SlpFeeDetails};
-use utxo::utxo_common::big_decimal_from_sat_unsigned;
+use utxo::utxo_common::{big_decimal_from_sat_unsigned, payment_script, WaitForOutputSpendErr};
 use utxo::utxo_standard::{utxo_standard_coin_with_policy, UtxoStandardCoin};
-use utxo::{AddrFromStrError, BlockchainNetwork, GenerateTxError, UtxoFeeDetails, UtxoTx};
-use utxo::{UnsupportedAddr, UtxoActivationParams};
+use utxo::{swap_proto_v2_scripts, AddrFromStrError, BlockchainNetwork, GenerateTxError, UnsupportedAddr,
+           UtxoActivationParams, UtxoFeeDetails, UtxoTx};
 
 pub mod nft;
 
@@ -305,10 +308,12 @@ use script::Script;
 
 pub mod z_coin;
 
-use crate::coin_errors::ValidatePaymentResult;
-use crate::utxo::swap_proto_v2_scripts;
-use crate::utxo::utxo_common::{payment_script, WaitForOutputSpendErr};
+use crate::coin_balance::{BalanceObjectOps, HDWalletBalanceObject};
 use z_coin::{ZCoin, ZcoinProtocolInfo};
+
+#[cfg(feature = "enable-sia")] pub mod sia;
+
+#[cfg(feature = "enable-sia")] use sia::SiaCoin;
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
 pub type TransactionResult = Result<TransactionEnum, TransactionErr>;
@@ -353,7 +358,7 @@ pub const INVALID_SWAP_ID_ERR_LOG: &str = "Invalid swap id";
 pub const INVALID_SCRIPT_ERR_LOG: &str = "Invalid script";
 pub const INVALID_REFUND_TX_ERR_LOG: &str = "Invalid refund transaction";
 
-#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType, EnumFromStringify)]
+#[derive(Debug, Deserialize, Display, EnumFromStringify, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum RawTransactionError {
     #[display(fmt = "No such coin {}", coin)]
@@ -510,7 +515,7 @@ pub struct SignRawTransactionRequest {
 pub struct MyAddressReq {
     coin: String,
     #[serde(default)]
-    path_to_address: StandardHDCoinAddress,
+    path_to_address: HDPathAccountToAddressId,
 }
 
 #[derive(Debug, Serialize)]
@@ -557,7 +562,7 @@ impl Serialize for PrivKeyPolicyNotAllowed {
     }
 }
 
-#[derive(Clone, Debug, Display, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Display, PartialEq, Serialize)]
 pub enum UnexpectedDerivationMethod {
     #[display(fmt = "Expected 'SingleAddress' derivation method")]
     ExpectedSingleAddress,
@@ -645,7 +650,7 @@ pub enum TransactionErr {
     /// Simply for plain error messages.
     #[from_stringify("keys::Error")]
     Plain(String),
-    NftProtocolNotSupported(String),
+    ProtocolNotSupported(String),
 }
 
 impl TransactionErr {
@@ -663,8 +668,7 @@ impl TransactionErr {
     pub fn get_plain_text_format(&self) -> String {
         match self {
             TransactionErr::TxRecoverable(_, err) => err.to_string(),
-            TransactionErr::Plain(err) => err.to_string(),
-            TransactionErr::NftProtocolNotSupported(err) => err.to_string(),
+            TransactionErr::Plain(err) | TransactionErr::ProtocolNotSupported(err) => err.to_string(),
         }
     }
 }
@@ -1055,9 +1059,15 @@ pub trait SwapOps {
 
     fn send_taker_payment(&self, taker_payment_args: SendPaymentArgs<'_>) -> TransactionFut;
 
-    fn send_maker_spends_taker_payment(&self, maker_spends_payment_args: SpendPaymentArgs<'_>) -> TransactionFut;
+    async fn send_maker_spends_taker_payment(
+        &self,
+        maker_spends_payment_args: SpendPaymentArgs<'_>,
+    ) -> TransactionResult;
 
-    fn send_taker_spends_maker_payment(&self, taker_spends_payment_args: SpendPaymentArgs<'_>) -> TransactionFut;
+    async fn send_taker_spends_maker_payment(
+        &self,
+        taker_spends_payment_args: SpendPaymentArgs<'_>,
+    ) -> TransactionResult;
 
     async fn send_taker_refunds_payment(&self, taker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult;
 
@@ -1248,7 +1258,7 @@ pub struct SendTakerFundingArgs<'a> {
 }
 
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::refund_taker_funding_secret]
-pub struct RefundFundingSecretArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+pub struct RefundFundingSecretArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     pub funding_tx: &'a Coin::Tx,
     pub time_lock: u64,
     pub maker_pubkey: &'a Coin::Pubkey,
@@ -1260,7 +1270,7 @@ pub struct RefundFundingSecretArgs<'a, Coin: CoinAssocTypes + ?Sized> {
 }
 
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::gen_taker_funding_spend_preimage]
-pub struct GenTakerFundingSpendArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+pub struct GenTakerFundingSpendArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Taker payment transaction serialized to raw bytes
     pub funding_tx: &'a Coin::Tx,
     /// Maker's pubkey
@@ -1278,7 +1288,7 @@ pub struct GenTakerFundingSpendArgs<'a, Coin: CoinAssocTypes + ?Sized> {
 }
 
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::validate_taker_funding]
-pub struct ValidateTakerFundingArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+pub struct ValidateTakerFundingArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Taker funding transaction
     pub funding_tx: &'a Coin::Tx,
     /// Taker will be able to refund the payment after this timestamp
@@ -1300,7 +1310,7 @@ pub struct ValidateTakerFundingArgs<'a, Coin: CoinAssocTypes + ?Sized> {
 /// Helper struct wrapping arguments for taker payment's spend generation, used in
 /// [TakerCoinSwapOpsV2::gen_taker_payment_spend_preimage], [TakerCoinSwapOpsV2::validate_taker_payment_spend_preimage] and
 /// [TakerCoinSwapOpsV2::sign_and_broadcast_taker_payment_spend]
-pub struct GenTakerPaymentSpendArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+pub struct GenTakerPaymentSpendArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Taker payment transaction serialized to raw bytes
     pub taker_tx: &'a Coin::Tx,
     /// Taker will be able to refund the payment after this timestamp
@@ -1324,7 +1334,7 @@ pub struct GenTakerPaymentSpendArgs<'a, Coin: CoinAssocTypes + ?Sized> {
 }
 
 /// Taker payment spend preimage with taker's signature
-pub struct TxPreimageWithSig<Coin: CoinAssocTypes + ?Sized> {
+pub struct TxPreimageWithSig<Coin: ParseCoinAssocTypes + ?Sized> {
     /// The preimage, might be () for certain coin types (only signature might be used)
     pub preimage: Coin::Preimage,
     /// Taker's signature
@@ -1426,7 +1436,8 @@ pub trait ToBytes {
 }
 
 /// Defines associated types specific to each coin (Pubkey, Address, etc.)
-pub trait CoinAssocTypes {
+#[async_trait]
+pub trait ParseCoinAssocTypes {
     type Address: Send + Sync + fmt::Display;
     type AddressParseError: fmt::Debug + Send + fmt::Display;
     type Pubkey: ToBytes + Send + Sync;
@@ -1438,7 +1449,7 @@ pub trait CoinAssocTypes {
     type Sig: ToBytes + Send + Sync;
     type SigParseError: fmt::Debug + Send + fmt::Display;
 
-    fn my_addr(&self) -> &Self::Address;
+    async fn my_addr(&self) -> Self::Address;
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError>;
 
@@ -1451,7 +1462,24 @@ pub trait CoinAssocTypes {
     fn parse_signature(&self, sig: &[u8]) -> Result<Self::Sig, Self::SigParseError>;
 }
 
-pub struct SendMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+/// Defines associated types specific to Non-Fungible Tokens (Token Address, Token Id, etc.)
+pub trait ParseNftAssocTypes {
+    type ContractAddress: Send + Sync + fmt::Display;
+    type TokenId: ToBytes + Send + Sync;
+    type ContractType: ToBytes + Send + Sync;
+    type NftAssocTypesError: fmt::Debug + Send + fmt::Display;
+
+    fn parse_contract_address(
+        &self,
+        contract_address: &[u8],
+    ) -> Result<Self::ContractAddress, Self::NftAssocTypesError>;
+
+    fn parse_token_id(&self, token_id: &[u8]) -> Result<Self::TokenId, Self::NftAssocTypesError>;
+
+    fn parse_contract_type(&self, contract_type: &[u8]) -> Result<Self::ContractType, Self::NftAssocTypesError>;
+}
+
+pub struct SendMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Maker will be able to refund the payment after this timestamp
     pub time_lock: u64,
     /// The hash of the secret generated by taker, this is used for immediate refund
@@ -1466,7 +1494,36 @@ pub struct SendMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
     pub swap_unique_data: &'a [u8],
 }
 
-pub struct ValidateMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+/// Structure representing necessary NFT info for Swap
+pub struct NftSwapInfo<'a, Coin: ParseNftAssocTypes + ?Sized> {
+    /// The address of the NFT token
+    pub token_address: &'a Coin::ContractAddress,
+    /// The ID of the NFT token.
+    pub token_id: &'a [u8],
+    /// The type of smart contract that governs this NFT
+    pub contract_type: &'a Coin::ContractType,
+    /// Etomic swap contract address
+    pub swap_contract_address: &'a Coin::ContractAddress,
+}
+
+pub struct SendNftMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ParseNftAssocTypes + ?Sized> {
+    /// Maker will be able to refund the payment after this timestamp
+    pub time_lock: u64,
+    /// The hash of the secret generated by taker, this is used for immediate refund
+    pub taker_secret_hash: &'a [u8],
+    /// The hash of the secret generated by maker, taker needs it to spend the payment
+    pub maker_secret_hash: &'a [u8],
+    /// Payment amount
+    pub amount: BigDecimal,
+    /// Taker's HTLC pubkey
+    pub taker_pub: &'a Coin::Pubkey,
+    /// Unique data of specific swap
+    pub swap_unique_data: &'a [u8],
+    /// Structure representing necessary NFT info for Swap
+    pub nft_swap_info: &'a NftSwapInfo<'a, Coin>,
+}
+
+pub struct ValidateMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Maker payment tx
     pub maker_payment_tx: &'a Coin::Tx,
     /// Maker will be able to refund the payment after this timestamp
@@ -1483,7 +1540,28 @@ pub struct ValidateMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
     pub swap_unique_data: &'a [u8],
 }
 
-pub struct RefundMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+pub struct ValidateNftMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ParseNftAssocTypes + ?Sized> {
+    /// Maker payment tx
+    pub maker_payment_tx: &'a Coin::Tx,
+    /// Maker will be able to refund the payment after this timestamp
+    pub time_lock: u64,
+    /// The hash of the secret generated by taker, this is used for immediate refund
+    pub taker_secret_hash: &'a [u8],
+    /// The hash of the secret generated by maker, taker needs it to spend the payment
+    pub maker_secret_hash: &'a [u8],
+    /// Payment amount
+    pub amount: BigDecimal,
+    /// Taker's HTLC pubkey
+    pub taker_pub: &'a Coin::Pubkey,
+    /// Maker's HTLC pubkey
+    pub maker_pub: &'a Coin::Pubkey,
+    /// Unique data of specific swap
+    pub swap_unique_data: &'a [u8],
+    /// Structure representing necessary NFT info for Swap
+    pub nft_swap_info: &'a NftSwapInfo<'a, Coin>,
+}
+
+pub struct RefundMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Maker payment tx
     pub maker_payment_tx: &'a Coin::Tx,
     /// Maker will be able to refund the payment after this timestamp
@@ -1500,7 +1578,7 @@ pub struct RefundMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
     pub swap_unique_data: &'a [u8],
 }
 
-pub struct SpendMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
+pub struct SpendMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Maker payment tx
     pub maker_payment_tx: &'a Coin::Tx,
     /// Maker will be able to refund the payment after this timestamp
@@ -1517,9 +1595,30 @@ pub struct SpendMakerPaymentArgs<'a, Coin: CoinAssocTypes + ?Sized> {
     pub swap_unique_data: &'a [u8],
 }
 
+pub struct SpendNftMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ParseNftAssocTypes + ?Sized> {
+    /// Maker payment tx
+    pub maker_payment_tx: &'a Coin::Tx,
+    /// Maker will be able to refund the payment after this timestamp
+    pub time_lock: u64,
+    /// The hash of the secret generated by taker, this is used for immediate refund
+    pub taker_secret_hash: &'a [u8],
+    /// The hash of the secret generated by maker, taker needs it to spend the payment
+    pub maker_secret_hash: &'a [u8],
+    /// The secret generated by maker, revealed when maker spends taker's payment
+    pub maker_secret: &'a [u8],
+    /// Maker's HTLC pubkey
+    pub maker_pub: &'a Coin::Pubkey,
+    /// Unique data of specific swap
+    pub swap_unique_data: &'a [u8],
+    /// The type of smart contract that governs this NFT
+    pub contract_type: &'a Coin::ContractType,
+    /// Etomic swap contract address
+    pub swap_contract_address: &'a Coin::ContractAddress,
+}
+
 /// Operations specific to maker coin in [Trading Protocol Upgrade implementation](https://github.com/KomodoPlatform/komodo-defi-framework/issues/1895)
 #[async_trait]
-pub trait MakerCoinSwapOpsV2: CoinAssocTypes + Send + Sync + 'static {
+pub trait MakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     /// Generate and broadcast maker payment transaction
     async fn send_maker_payment_v2(&self, args: SendMakerPaymentArgs<'_, Self>) -> Result<Self::Tx, TransactionErr>;
 
@@ -1537,6 +1636,38 @@ pub trait MakerCoinSwapOpsV2: CoinAssocTypes + Send + Sync + 'static {
 
     /// Spend maker payment transaction
     async fn spend_maker_payment_v2(&self, args: SpendMakerPaymentArgs<'_, Self>) -> Result<Self::Tx, TransactionErr>;
+}
+
+#[async_trait]
+pub trait MakerNftSwapOpsV2: ParseCoinAssocTypes + ParseNftAssocTypes + Send + Sync + 'static {
+    async fn send_nft_maker_payment_v2(
+        &self,
+        args: SendNftMakerPaymentArgs<'_, Self>,
+    ) -> Result<Self::Tx, TransactionErr>;
+
+    /// Validate NFT maker payment transaction
+    async fn validate_nft_maker_payment_v2(
+        &self,
+        args: ValidateNftMakerPaymentArgs<'_, Self>,
+    ) -> ValidatePaymentResult<()>;
+
+    /// Spend NFT maker payment transaction
+    async fn spend_nft_maker_payment_v2(
+        &self,
+        args: SpendNftMakerPaymentArgs<'_, Self>,
+    ) -> Result<Self::Tx, TransactionErr>;
+
+    /// Refund NFT maker payment transaction using timelock path
+    async fn refund_nft_maker_payment_v2_timelock(
+        &self,
+        args: RefundPaymentArgs<'_>,
+    ) -> Result<Self::Tx, TransactionErr>;
+
+    /// Refund NFT maker payment transaction using immediate refund path
+    async fn refund_nft_maker_payment_v2_secret(
+        &self,
+        args: RefundMakerPaymentArgs<'_, Self>,
+    ) -> Result<Self::Tx, TransactionErr>;
 }
 
 /// Enum representing errors that can occur while waiting for taker payment spend.
@@ -1574,8 +1705,8 @@ impl From<WaitForOutputSpendErr> for WaitForTakerPaymentSpendError {
 
 /// Enum representing different ways a funding transaction can be spent.
 ///
-/// This enum is generic over types that implement the `CoinAssocTypes` trait.
-pub enum FundingTxSpend<T: CoinAssocTypes + ?Sized> {
+/// This enum is generic over types that implement the `ParseCoinAssocTypes` trait.
+pub enum FundingTxSpend<T: ParseCoinAssocTypes + ?Sized> {
     /// Variant indicating that the funding transaction has been spent through a timelock path.
     RefundedTimelock(T::Tx),
     /// Variant indicating that the funding transaction has been spent by revealing a taker's secret (immediate refund path).
@@ -1590,7 +1721,7 @@ pub enum FundingTxSpend<T: CoinAssocTypes + ?Sized> {
     TransferredToTakerPayment(T::Tx),
 }
 
-impl<T: CoinAssocTypes + ?Sized> fmt::Debug for FundingTxSpend<T> {
+impl<T: ParseCoinAssocTypes + ?Sized> fmt::Debug for FundingTxSpend<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FundingTxSpend::RefundedTimelock(tx) => {
@@ -1621,7 +1752,7 @@ pub enum SearchForFundingSpendErr {
 
 /// Operations specific to taker coin in [Trading Protocol Upgrade implementation](https://github.com/KomodoPlatform/komodo-defi-framework/issues/1895)
 #[async_trait]
-pub trait TakerCoinSwapOpsV2: CoinAssocTypes + Send + Sync + 'static {
+pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     /// Generate and broadcast taker funding transaction that includes dex fee, maker premium and actual trading volume.
     /// Funding tx can be reclaimed immediately if maker back-outs (doesn't send maker payment)
     async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr>;
@@ -1715,7 +1846,7 @@ pub trait MarketCoinOps {
 
     fn my_address(&self) -> MmResult<String, MyAddressError>;
 
-    fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>>;
+    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>>;
 
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]>;
 
@@ -1770,6 +1901,8 @@ pub trait MarketCoinOps {
     fn min_trading_vol(&self) -> MmNumber;
 
     fn is_privacy(&self) -> bool { false }
+
+    fn is_trezor(&self) -> bool;
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -1797,22 +1930,6 @@ pub enum WithdrawFee {
     },
 }
 
-pub struct WithdrawSenderAddress<Address, Pubkey> {
-    address: Address,
-    pubkey: Pubkey,
-    derivation_path: Option<DerivationPath>,
-}
-
-impl<Address, Pubkey> From<HDAddress<Address, Pubkey>> for WithdrawSenderAddress<Address, Pubkey> {
-    fn from(addr: HDAddress<Address, Pubkey>) -> Self {
-        WithdrawSenderAddress {
-            address: addr.address,
-            pubkey: addr.pubkey,
-            derivation_path: Some(addr.derivation_path),
-        }
-    }
-}
-
 /// Rename to `GetWithdrawSenderAddresses` when withdraw supports multiple `from` addresses.
 #[async_trait]
 pub trait GetWithdrawSenderAddress {
@@ -1823,19 +1940,6 @@ pub trait GetWithdrawSenderAddress {
         &self,
         req: &WithdrawRequest,
     ) -> MmResult<WithdrawSenderAddress<Self::Address, Self::Pubkey>, WithdrawError>;
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum WithdrawFrom {
-    AddressId(HDAccountAddressId),
-    /// Don't use `Bip44DerivationPath` or `RpcDerivationPath` because if there is an error in the path,
-    /// `serde::Deserialize` returns "data did not match any variant of untagged enum WithdrawFrom".
-    /// It's better to show the user an informative error.
-    DerivationPath {
-        derivation_path: String,
-    },
-    HDWalletAddress(StandardHDCoinAddress),
 }
 
 #[derive(Clone, Deserialize)]
@@ -2109,10 +2213,36 @@ pub struct TradeFee {
     pub paid_from_trading_vol: bool,
 }
 
+/// A type alias for a HashMap where the key is a String representing the coin/token ticker,
+/// and the value is a `CoinBalance` struct representing the balance of that coin/token.
+/// This is used to represent the balance of a wallet or account for multiple coins/tokens.
+pub type CoinBalanceMap = HashMap<String, CoinBalance>;
+
+impl BalanceObjectOps for CoinBalanceMap {
+    fn new() -> Self { HashMap::new() }
+
+    fn add(&mut self, other: Self) {
+        for (ticker, balance) in other {
+            let total_balance = self.entry(ticker).or_insert_with(CoinBalance::default);
+            *total_balance += balance;
+        }
+    }
+
+    fn get_total_for_ticker(&self, ticker: &str) -> Option<BigDecimal> { self.get(ticker).map(|b| b.get_total()) }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd, Serialize)]
 pub struct CoinBalance {
     pub spendable: BigDecimal,
     pub unspendable: BigDecimal,
+}
+
+impl BalanceObjectOps for CoinBalance {
+    fn new() -> Self { CoinBalance::default() }
+
+    fn add(&mut self, other: Self) { *self += other; }
+
+    fn get_total_for_ticker(&self, _ticker: &str) -> Option<BigDecimal> { Some(self.get_total()) }
 }
 
 impl CoinBalance {
@@ -2139,6 +2269,13 @@ impl Add for CoinBalance {
     }
 }
 
+impl AddAssign for CoinBalance {
+    fn add_assign(&mut self, rhs: Self) {
+        self.spendable += rhs.spendable;
+        self.unspendable += rhs.unspendable;
+    }
+}
+
 /// The approximation is needed to cover the dynamic miner fee changing during a swap.
 #[derive(Clone, Copy, Debug)]
 pub enum FeeApproxStage {
@@ -2160,7 +2297,7 @@ pub enum TradePreimageValue {
     UpperBound(BigDecimal),
 }
 
-#[derive(Debug, Display, PartialEq, EnumFromStringify)]
+#[derive(Debug, Display, EnumFromStringify, PartialEq)]
 pub enum TradePreimageError {
     #[display(
         fmt = "Not enough {} to preimage the trade: available {}, required at least {}",
@@ -2256,7 +2393,7 @@ impl TradePreimageError {
 }
 
 /// The reason of unsuccessful conversion of two internal numbers, e.g. `u64` from `BigNumber`.
-#[derive(Debug, Display)]
+#[derive(Clone, Debug, Display)]
 pub struct NumConversError(String);
 
 impl From<ParseBigDecimalError> for NumConversError {
@@ -2269,7 +2406,7 @@ impl NumConversError {
     pub fn description(&self) -> &str { &self.0 }
 }
 
-#[derive(Clone, Debug, Display, PartialEq, Serialize, SerializeErrorType, EnumFromStringify)]
+#[derive(Clone, Debug, Display, EnumFromStringify, PartialEq, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum BalanceError {
     #[display(fmt = "Transport: {}", _0)]
@@ -2284,8 +2421,27 @@ pub enum BalanceError {
     // Currently, we use the `ethabi` crate to work with a smart contract ABI known at compile time.
     // It's an internal error if there are any issues during working with a smart contract ABI.
     #[display(fmt = "Internal: {}", _0)]
-    #[from_stringify("NumConversError", "Bip32Error", "ethabi::Error", "keys::Error")]
+    #[from_stringify(
+        "NumConversError",
+        "Bip32Error",
+        "ethabi::Error",
+        "keys::Error",
+        "AddressDerivingError"
+    )]
     Internal(String),
+}
+
+impl From<AccountUpdatingError> for BalanceError {
+    fn from(e: AccountUpdatingError) -> Self {
+        let error = e.to_string();
+        match e {
+            AccountUpdatingError::AddressLimitReached { .. } | AccountUpdatingError::InvalidBip44Chain(_) => {
+                // Account updating is expected to be called after `address_id` and `chain` validation.
+                BalanceError::Internal(format!("Unexpected internal error: {}", error))
+            },
+            AccountUpdatingError::WalletStorageError(_) => BalanceError::WalletStorageError(error),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Display, EnumFromStringify)]
@@ -2356,7 +2512,7 @@ impl From<CoinFindError> for StakingInfosError {
     }
 }
 
-#[derive(Debug, Deserialize, Display, Serialize, SerializeErrorType, EnumFromStringify)]
+#[derive(Debug, Deserialize, Display, EnumFromStringify, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum DelegationError {
     #[display(
@@ -2669,6 +2825,17 @@ impl HttpStatusCode for WithdrawError {
     }
 }
 
+impl From<AddressDerivingError> for WithdrawError {
+    fn from(e: AddressDerivingError) -> Self {
+        match e {
+            AddressDerivingError::InvalidBip44Chain { .. } | AddressDerivingError::Bip32Error(_) => {
+                WithdrawError::UnexpectedFromAddress(e.to_string())
+            },
+            AddressDerivingError::Internal(internal) => WithdrawError::InternalError(internal),
+        }
+    }
+}
+
 impl From<BalanceError> for WithdrawError {
     fn from(e: BalanceError) -> Self {
         match e {
@@ -2684,6 +2851,17 @@ impl From<CoinFindError> for WithdrawError {
     fn from(e: CoinFindError) -> Self {
         match e {
             CoinFindError::NoSuchCoin { coin } => WithdrawError::NoSuchCoin { coin },
+        }
+    }
+}
+
+impl From<HDWithdrawError> for WithdrawError {
+    fn from(e: HDWithdrawError) -> Self {
+        match e {
+            HDWithdrawError::UnexpectedFromAddress(e) => WithdrawError::UnexpectedFromAddress(e),
+            HDWithdrawError::UnknownAccount { account_id } => WithdrawError::UnknownAccount { account_id },
+            HDWithdrawError::AddressDerivingError(e) => e.into(),
+            HDWithdrawError::InternalError(e) => WithdrawError::InternalError(e),
         }
     }
 }
@@ -2724,7 +2902,7 @@ impl From<EthGasDetailsErr> for WithdrawError {
 impl From<Bip32Error> for WithdrawError {
     fn from(e: Bip32Error) -> Self {
         let error = format!("Error deriving key: {}", e);
-        WithdrawError::InternalError(error)
+        WithdrawError::UnexpectedFromAddress(error)
     }
 }
 
@@ -2797,7 +2975,7 @@ impl HttpStatusCode for SignatureError {
     }
 }
 
-#[derive(Debug, Display, Serialize, SerializeErrorType, EnumFromStringify)]
+#[derive(Debug, Display, EnumFromStringify, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum VerificationError {
     #[display(fmt = "Invalid request: {}", _0)]
@@ -3070,6 +3248,9 @@ pub enum MmCoinEnum {
     #[cfg(not(target_arch = "wasm32"))]
     #[from_stringify("LightningCoin")]
     LightningCoin(LightningCoin),
+    #[cfg(feature = "enable-sia")]
+    #[from_stringify("SiaCoin")]
+    SiaCoin(SiaCoin),
     #[from_stringify("TestCoin")]
     Test(TestCoin),
 }
@@ -3090,6 +3271,8 @@ impl Deref for MmCoinEnum {
             #[cfg(not(target_arch = "wasm32"))]
             MmCoinEnum::LightningCoin(ref c) => c,
             MmCoinEnum::ZCoin(ref c) => c,
+            #[cfg(feature = "enable-sia")]
+            MmCoinEnum::SiaCoin(ref c) => c,
             MmCoinEnum::Test(ref c) => c,
             #[cfg(all(
                 feature = "enable-solana",
@@ -3426,19 +3609,49 @@ impl Default for PrivKeyActivationPolicy {
     fn default() -> Self { PrivKeyActivationPolicy::ContextPrivKey }
 }
 
+impl PrivKeyActivationPolicy {
+    pub fn is_hw_policy(&self) -> bool { matches!(self, PrivKeyActivationPolicy::Trezor) }
+}
+
+/// Enum representing various private key management policies.
+///
+/// This enum defines the various ways in which private keys can be managed
+/// or sourced within the system, whether it's from a local software-based HD Wallet,
+/// a hardware device like Trezor, or even external sources like Metamask.
 #[derive(Clone, Debug)]
 pub enum PrivKeyPolicy<T> {
+    /// The legacy private key policy.
+    ///
+    /// This policy corresponds to a one-to-one mapping of private keys to addresses.
+    /// In this scheme, only a single key and corresponding address is activated per coin,
+    /// without any hierarchical deterministic derivation.
     Iguana(T),
+    /// The HD Wallet private key policy.
+    ///
+    /// This variant uses a BIP44 derivation path up to the coin level
+    /// and contains the necessary information to manage and derive
+    /// keys using an HD Wallet scheme.
     HDWallet {
-        /// Derivation path of the coin.
-        /// This derivation path consists of `purpose` and `coin_type` only
-        /// where the full `BIP44` address has the following structure:
+        /// Derivation path up to coin.
+        ///
+        /// Represents the first two segments of the BIP44 derivation path: `purpose` and `coin_type`.
+        /// A full BIP44 address is structured as:
         /// `m/purpose'/coin_type'/account'/change/address_index`.
-        derivation_path: StandardHDPathToCoin,
+        path_to_coin: HDPathToCoin,
+        /// The key that's currently activated and in use for this HD Wallet policy.
         activated_key: T,
+        /// Extended private key based on the secp256k1 elliptic curve cryptography scheme.
         bip39_secp_priv_key: ExtendedPrivateKey<secp256k1::SecretKey>,
     },
+    /// The Trezor hardware wallet private key policy.
+    ///
+    /// Details about how the keys are managed with the Trezor device
+    /// are abstracted away and are not directly managed by this policy.
     Trezor,
+    /// The Metamask private key policy, specific to the WASM target architecture.
+    ///
+    /// This variant encapsulates details about how keys are managed when interfacing
+    /// with the Metamask extension, especially within web-based contexts.
     #[cfg(target_arch = "wasm32")]
     Metamask(EthMetamaskPolicy),
 }
@@ -3498,17 +3711,22 @@ impl<T> PrivKeyPolicy<T> {
         })
     }
 
-    fn derivation_path(&self) -> Option<&StandardHDPathToCoin> {
+    fn path_to_coin(&self) -> Option<&HDPathToCoin> {
         match self {
-            PrivKeyPolicy::HDWallet { derivation_path, .. } => Some(derivation_path),
-            PrivKeyPolicy::Iguana(_) | PrivKeyPolicy::Trezor => None,
+            PrivKeyPolicy::HDWallet {
+                path_to_coin: derivation_path,
+                ..
+            } => Some(derivation_path),
+            PrivKeyPolicy::Trezor => None,
+            PrivKeyPolicy::Iguana(_) => None,
             #[cfg(target_arch = "wasm32")]
             PrivKeyPolicy::Metamask(_) => None,
         }
     }
 
-    fn derivation_path_or_err(&self) -> Result<&StandardHDPathToCoin, MmError<PrivKeyPolicyNotAllowed>> {
-        self.derivation_path().or_mm_err(|| {
+    // Todo: this can be removed after the HDWallet is fully implemented for all protocols
+    fn path_to_coin_or_err(&self) -> Result<&HDPathToCoin, MmError<PrivKeyPolicyNotAllowed>> {
+        self.path_to_coin().or_mm_err(|| {
             PrivKeyPolicyNotAllowed::UnsupportedMethod(
                 "`derivation_path_or_err` is supported only for `PrivKeyPolicy::HDWallet`".to_string(),
             )
@@ -3517,12 +3735,55 @@ impl<T> PrivKeyPolicy<T> {
 
     fn hd_wallet_derived_priv_key_or_err(
         &self,
-        path_to_address: &StandardHDCoinAddress,
+        derivation_path: &DerivationPath,
     ) -> Result<Secp256k1Secret, MmError<PrivKeyPolicyNotAllowed>> {
         let bip39_secp_priv_key = self.bip39_secp_priv_key_or_err()?;
-        let derivation_path = self.derivation_path_or_err()?;
-        derive_secp256k1_secret(bip39_secp_priv_key.clone(), derivation_path, path_to_address)
+        derive_secp256k1_secret(bip39_secp_priv_key.clone(), derivation_path)
             .mm_err(|e| PrivKeyPolicyNotAllowed::InternalError(e.to_string()))
+    }
+
+    fn is_trezor(&self) -> bool { matches!(self, PrivKeyPolicy::Trezor) }
+}
+
+/// 'CoinWithPrivKeyPolicy' trait is used to get the private key policy of a coin.
+pub trait CoinWithPrivKeyPolicy {
+    /// The type of the key pair used by the coin.
+    type KeyPair;
+
+    /// Returns the private key policy of the coin.
+    fn priv_key_policy(&self) -> &PrivKeyPolicy<Self::KeyPair>;
+}
+
+/// A common function to get the extended public key for a certain coin and derivation path.
+pub async fn extract_extended_pubkey_impl<Coin, XPubExtractor>(
+    coin: &Coin,
+    xpub_extractor: Option<XPubExtractor>,
+    derivation_path: DerivationPath,
+) -> MmResult<Secp256k1ExtendedPublicKey, HDExtractPubkeyError>
+where
+    XPubExtractor: HDXPubExtractor + Send,
+    Coin: HDWalletCoinOps + CoinWithPrivKeyPolicy,
+{
+    match xpub_extractor {
+        Some(xpub_extractor) => {
+            let trezor_coin = coin.trezor_coin()?;
+            let xpub = xpub_extractor.extract_xpub(trezor_coin, derivation_path).await?;
+            Secp256k1ExtendedPublicKey::from_str(&xpub).map_to_mm(|e| HDExtractPubkeyError::InvalidXpub(e.to_string()))
+        },
+        None => {
+            let mut priv_key = coin
+                .priv_key_policy()
+                .bip39_secp_priv_key_or_err()
+                .mm_err(|e| HDExtractPubkeyError::Internal(e.to_string()))?
+                .clone();
+            for child in derivation_path {
+                priv_key = priv_key
+                    .derive_child(child)
+                    .map_to_mm(|e| HDExtractPubkeyError::Internal(e.to_string()))?;
+            }
+            drop_mutability!(priv_key);
+            Ok(priv_key.public_key())
+        },
     }
 }
 
@@ -3548,22 +3809,55 @@ impl PrivKeyBuildPolicy {
     }
 }
 
+/// Serializable struct for compatibility with the discontinued DerivationMethod struct
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", content = "data")]
+pub enum DerivationMethodResponse {
+    /// Legacy iguana's privkey derivation, used by default
+    Iguana,
+    /// HD wallet derivation path, String is temporary here
+    HDWallet(String),
+}
+
+/// Enum representing methods for deriving cryptographic addresses.
+///
+/// This enum distinguishes between two primary strategies for address generation:
+/// 1. A static, single address approach.
+/// 2. A hierarchical deterministic (HD) wallet that can derive multiple addresses.
 #[derive(Debug)]
-pub enum DerivationMethod<Address, HDWallet> {
+pub enum DerivationMethod<Address, HDWallet>
+where
+    HDWallet: HDWalletOps,
+    HDWalletAddress<HDWallet>: Into<Address>,
+{
+    /// Represents the use of a single, static address for transactions and operations.
     SingleAddress(Address),
+    /// Represents the use of an HD wallet for deriving multiple addresses.
+    ///
+    /// The encapsulated HD wallet should be capable of operations like
+    /// getting the globally enabled address, and more, as defined by the
+    /// [`HDWalletOps`] trait.
     HDWallet(HDWallet),
 }
 
-impl<Address, HDWallet> DerivationMethod<Address, HDWallet> {
-    pub fn single_addr(&self) -> Option<&Address> {
+impl<Address, HDWallet> DerivationMethod<Address, HDWallet>
+where
+    Address: Clone,
+    HDWallet: HDWalletOps,
+    HDWalletAddress<HDWallet>: Into<Address>,
+{
+    pub async fn single_addr(&self) -> Option<Address> {
         match self {
-            DerivationMethod::SingleAddress(my_address) => Some(my_address),
-            DerivationMethod::HDWallet(_) => None,
+            DerivationMethod::SingleAddress(my_address) => Some(my_address.clone()),
+            DerivationMethod::HDWallet(hd_wallet) => {
+                hd_wallet.get_enabled_address().await.map(|addr| addr.address().into())
+            },
         }
     }
 
-    pub fn single_addr_or_err(&self) -> MmResult<&Address, UnexpectedDerivationMethod> {
+    pub async fn single_addr_or_err(&self) -> MmResult<Address, UnexpectedDerivationMethod> {
         self.single_addr()
+            .await
             .or_mm_err(|| UnexpectedDerivationMethod::ExpectedSingleAddress)
     }
 
@@ -3582,19 +3876,93 @@ impl<Address, HDWallet> DerivationMethod<Address, HDWallet> {
     /// # Panic
     ///
     /// Panic if the address mode is [`DerivationMethod::HDWallet`].
-    pub fn unwrap_single_addr(&self) -> &Address { self.single_addr_or_err().unwrap() }
+    pub async fn unwrap_single_addr(&self) -> Address { self.single_addr_or_err().await.unwrap() }
+
+    pub async fn to_response(&self) -> MmResult<DerivationMethodResponse, UnexpectedDerivationMethod> {
+        match self {
+            DerivationMethod::SingleAddress(_) => Ok(DerivationMethodResponse::Iguana),
+            DerivationMethod::HDWallet(hd_wallet) => {
+                let enabled_address = hd_wallet
+                    .get_enabled_address()
+                    .await
+                    .or_mm_err(|| UnexpectedDerivationMethod::ExpectedHDWallet)?;
+                Ok(DerivationMethodResponse::HDWallet(
+                    enabled_address.derivation_path().to_string(),
+                ))
+            },
+        }
+    }
 }
 
+/// A trait representing coins with specific address derivation methods.
+///
+/// This trait is designed for coins that have a defined mechanism for address derivation,
+/// be it a single address approach or a hierarchical deterministic (HD) wallet strategy.
+/// Coins implementing this trait should be clear about their chosen derivation method and
+/// offer utility functions to interact with that method.
+///
+/// Implementors of this trait will typically be coins or tokens that are either used within
+/// a traditional single address scheme or leverage the power and flexibility of HD wallets.
 #[async_trait]
-pub trait CoinWithDerivationMethod {
-    type Address;
-    type HDWallet;
+pub trait CoinWithDerivationMethod: HDWalletCoinOps {
+    /// Returns the address derivation method associated with the coin.
+    ///
+    /// Implementors should return the specific `DerivationMethod` that the coin utilizes,
+    /// either `SingleAddress` for a static address approach or `HDWallet` for an HD wallet strategy.
+    fn derivation_method(&self) -> &DerivationMethod<HDCoinAddress<Self>, Self::HDWallet>;
 
-    fn derivation_method(&self) -> &DerivationMethod<Self::Address, Self::HDWallet>;
-
+    /// Checks if the coin uses the HD wallet strategy for address derivation.
+    ///
+    /// This is a utility function that returns `true` if the coin's derivation method is `HDWallet` and
+    /// `false` otherwise.
+    ///
+    /// # Returns
+    ///
+    /// - `true` if the coin uses an HD wallet for address derivation.
+    /// - `false` if it uses any other method.
     fn has_hd_wallet_derivation_method(&self) -> bool {
         matches!(self.derivation_method(), DerivationMethod::HDWallet(_))
     }
+
+    /// Retrieves all addresses associated with the coin.
+    async fn all_addresses(&self) -> MmResult<HashSet<HDCoinAddress<Self>>, AddressDerivingError> {
+        const ADDRESSES_CAPACITY: usize = 60;
+
+        match self.derivation_method() {
+            DerivationMethod::SingleAddress(ref my_address) => Ok(iter::once(my_address.clone()).collect()),
+            DerivationMethod::HDWallet(ref hd_wallet) => {
+                let hd_accounts = hd_wallet.get_accounts().await;
+
+                // We pre-allocate a suitable capacity for the HashSet to try to avoid re-allocations.
+                // If the capacity is exceeded, the HashSet will automatically resize itself by re-allocating,
+                // but this will not happen in most use cases where addresses will be below the capacity.
+                let mut all_addresses = HashSet::with_capacity(ADDRESSES_CAPACITY);
+                for (_, hd_account) in hd_accounts {
+                    let external_addresses = self.derive_known_addresses(&hd_account, Bip44Chain::External).await?;
+                    let internal_addresses = self.derive_known_addresses(&hd_account, Bip44Chain::Internal).await?;
+
+                    let addresses_it = external_addresses
+                        .into_iter()
+                        .chain(internal_addresses)
+                        .map(|hd_address| hd_address.address());
+                    all_addresses.extend(addresses_it);
+                }
+
+                Ok(all_addresses)
+            },
+        }
+    }
+}
+
+/// The `IguanaBalanceOps` trait provides an interface for fetching the balance of a coin and its tokens.
+/// This trait should be implemented by coins that use the iguana derivation method.
+#[async_trait]
+pub trait IguanaBalanceOps {
+    /// The object that holds the balance/s of the coin.
+    type BalanceObject: BalanceObjectOps;
+
+    /// Fetches the balance of the coin and its tokens if the coin uses an iguana derivation method.
+    async fn iguana_balances(&self) -> BalanceResult<Self::BalanceObject>;
 }
 
 #[allow(clippy::upper_case_acronyms)]
@@ -3638,7 +4006,9 @@ pub enum CoinProtocol {
         decimals: u8,
     },
     ZHTLC(ZcoinProtocolInfo),
-    Nft {
+    #[cfg(feature = "enable-sia")]
+    SIA,
+    NFT {
         platform: String,
     },
 }
@@ -3893,7 +4263,7 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
         CoinProtocol::TENDERMINT { .. } => return ERR!("TENDERMINT protocol is not supported by lp_coininit"),
         CoinProtocol::TENDERMINTTOKEN(_) => return ERR!("TENDERMINTTOKEN protocol is not supported by lp_coininit"),
         CoinProtocol::ZHTLC { .. } => return ERR!("ZHTLC protocol is not supported by lp_coininit"),
-        CoinProtocol::Nft { .. } => return ERR!("NFT protocol is not supported by lp_coininit"),
+        CoinProtocol::NFT { .. } => return ERR!("NFT protocol is not supported by lp_coininit"),
         #[cfg(not(target_arch = "wasm32"))]
         CoinProtocol::LIGHTNING { .. } => return ERR!("Lightning protocol is not supported by lp_coininit"),
         #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
@@ -3903,6 +4273,10 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
         #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
         CoinProtocol::SPLTOKEN { .. } => {
             return ERR!("SplToken protocol is not supported by lp_coininit - use enable_spl instead");
+        },
+        #[cfg(feature = "enable-sia")]
+        CoinProtocol::SIA { .. } => {
+            return ERR!("SIA protocol is not supported by lp_coininit. Use task::enable_sia::init");
         },
     };
 
@@ -4437,7 +4811,7 @@ pub fn address_by_coin_conf_and_pubkey_str(
 ) -> Result<String, String> {
     let protocol: CoinProtocol = try_s!(json::from_value(conf["protocol"].clone()));
     match protocol {
-        CoinProtocol::ERC20 { .. } | CoinProtocol::ETH | CoinProtocol::Nft { .. } => eth::addr_from_pubkey_str(pubkey),
+        CoinProtocol::ERC20 { .. } | CoinProtocol::ETH | CoinProtocol::NFT { .. } => eth::addr_from_pubkey_str(pubkey),
         CoinProtocol::UTXO | CoinProtocol::QTUM | CoinProtocol::QRC20 { .. } | CoinProtocol::BCH { .. } => {
             utxo::address_by_conf_and_pubkey_str(coin, conf, pubkey, addr_format)
         },
@@ -4483,6 +4857,8 @@ pub fn address_by_coin_conf_and_pubkey_str(
             ERR!("Solana pubkey is the public address - you do not need to use this rpc call.")
         },
         CoinProtocol::ZHTLC { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for ZHTLC protocol!"),
+        #[cfg(feature = "enable-sia")]
+        CoinProtocol::SIA { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for SIA protocol!"), // TODO Alright
     }
 }
 
@@ -4763,6 +5139,83 @@ fn coins_conf_check(ctx: &MmArc, coins_en: &Json, ticker: &str, req: Option<&Jso
     Ok(())
 }
 
+/// Checks addresses that either had empty transaction history last time we checked or has not been checked before.
+/// The checking stops at the moment when we find `gap_limit` consecutive empty addresses.
+pub async fn scan_for_new_addresses_impl<T>(
+    coin: &T,
+    hd_wallet: &T::HDWallet,
+    hd_account: &mut HDCoinHDAccount<T>,
+    address_scanner: &T::HDAddressScanner,
+    chain: Bip44Chain,
+    gap_limit: u32,
+) -> BalanceResult<Vec<HDAddressBalance<HDWalletBalanceObject<T>>>>
+where
+    T: HDWalletBalanceOps + Sync,
+{
+    let mut balances = Vec::with_capacity(gap_limit as usize);
+
+    // Get the first unknown address id.
+    let mut checking_address_id = hd_account
+        .known_addresses_number(chain)
+        // A UTXO coin should support both [`Bip44Chain::External`] and [`Bip44Chain::Internal`].
+        .mm_err(|e| BalanceError::Internal(e.to_string()))?;
+
+    let mut unused_addresses_counter = 0;
+    let max_addresses_number = hd_account.address_limit();
+    while checking_address_id < max_addresses_number && unused_addresses_counter <= gap_limit {
+        let hd_address = coin.derive_address(hd_account, chain, checking_address_id).await?;
+        let checking_address = hd_address.address();
+        let checking_address_der_path = hd_address.derivation_path();
+
+        match coin.is_address_used(&checking_address, address_scanner).await? {
+            // We found a non-empty address, so we have to fill up the balance list
+            // with zeros starting from `last_non_empty_address_id = checking_address_id - unused_addresses_counter`.
+            AddressBalanceStatus::Used(non_empty_balance) => {
+                let last_non_empty_address_id = checking_address_id - unused_addresses_counter;
+
+                // First, derive all empty addresses and put it into `balances` with default balance.
+                let address_ids = (last_non_empty_address_id..checking_address_id)
+                    .into_iter()
+                    .map(|address_id| HDAddressId { chain, address_id });
+                let empty_addresses =
+                    coin.derive_addresses(hd_account, address_ids)
+                        .await?
+                        .into_iter()
+                        .map(|empty_address| HDAddressBalance {
+                            address: coin.address_formatter()(&empty_address.address()),
+                            derivation_path: RpcDerivationPath(empty_address.derivation_path().clone()),
+                            chain,
+                            balance: HDWalletBalanceObject::<T>::new(),
+                        });
+                balances.extend(empty_addresses);
+
+                // Then push this non-empty address.
+                balances.push(HDAddressBalance {
+                    address: coin.address_formatter()(&checking_address),
+                    derivation_path: RpcDerivationPath(checking_address_der_path.clone()),
+                    chain,
+                    balance: non_empty_balance,
+                });
+                // Reset the counter of unused addresses to zero since we found a non-empty address.
+                unused_addresses_counter = 0;
+            },
+            AddressBalanceStatus::NotUsed => unused_addresses_counter += 1,
+        }
+
+        checking_address_id += 1;
+    }
+
+    coin.set_known_addresses_number(
+        hd_wallet,
+        hd_account,
+        chain,
+        checking_address_id - unused_addresses_counter,
+    )
+    .await?;
+
+    Ok(balances)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4818,5 +5271,62 @@ mod tests {
         let _found = common::block_on(lp_coinfind_any(&ctx, RICK)).unwrap();
 
         assert!(matches!(Some(coin), _found));
+    }
+}
+
+#[cfg(all(feature = "for-tests", not(target_arch = "wasm32")))]
+pub mod for_tests {
+    use crate::rpc_command::init_withdraw::WithdrawStatusRequest;
+    use crate::rpc_command::init_withdraw::{init_withdraw, withdraw_status};
+    use crate::{TransactionDetails, WithdrawError, WithdrawFee, WithdrawFrom, WithdrawRequest};
+    use common::executor::Timer;
+    use common::{now_ms, wait_until_ms};
+    use mm2_core::mm_ctx::MmArc;
+    use mm2_err_handle::prelude::MmResult;
+    use mm2_number::BigDecimal;
+    use rpc_task::RpcTaskStatus;
+    use std::str::FromStr;
+
+    /// Helper to call init_withdraw and wait for completion
+    pub async fn test_withdraw_init_loop(
+        ctx: MmArc,
+        ticker: &str,
+        to: &str,
+        amount: &str,
+        from_derivation_path: Option<&str>,
+        fee: Option<WithdrawFee>,
+    ) -> MmResult<TransactionDetails, WithdrawError> {
+        let withdraw_req = WithdrawRequest {
+            amount: BigDecimal::from_str(amount).unwrap(),
+            from: from_derivation_path.map(|from_derivation_path| WithdrawFrom::DerivationPath {
+                derivation_path: from_derivation_path.to_owned(),
+            }),
+            to: to.to_owned(),
+            coin: ticker.to_owned(),
+            max: false,
+            fee,
+            memo: None,
+        };
+        let init = init_withdraw(ctx.clone(), withdraw_req).await.unwrap();
+        let timeout = wait_until_ms(150000);
+        loop {
+            if now_ms() > timeout {
+                panic!("{} init_withdraw timed out", ticker);
+            }
+            let status = withdraw_status(ctx.clone(), WithdrawStatusRequest {
+                task_id: init.task_id,
+                forget_if_finished: true,
+            })
+            .await;
+            if let Ok(status) = status {
+                match status {
+                    RpcTaskStatus::Ok(tx_details) => break Ok(tx_details),
+                    RpcTaskStatus::Error(e) => break Err(e),
+                    _ => Timer::sleep(1.).await,
+                }
+            } else {
+                panic!("{} could not get withdraw_status", ticker)
+            }
+        }
     }
 }

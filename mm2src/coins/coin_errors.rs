@@ -1,7 +1,9 @@
-use crate::{eth::Web3RpcError,
-            qrc20::Qrc20AbiError,
-            utxo::{rpc_clients::UtxoRpcError, slp::ParseSlpScriptError},
-            NumConversError, UnexpectedDerivationMethod};
+use crate::eth::nft_swap_v2::errors::{Erc721FunctionError, HtlcParamsError, PaymentStatusErr, PrepareTxDataError};
+use crate::eth::{EthAssocTypesError, EthNftAssocTypesError, Web3RpcError};
+use crate::qrc20::Qrc20AbiError;
+use crate::utxo::slp::ParseSlpScriptError;
+use crate::{utxo::rpc_clients::UtxoRpcError, NumConversError, UnexpectedDerivationMethod};
+
 use enum_derives::EnumFromStringify;
 use futures01::Future;
 use mm2_err_handle::prelude::MmError;
@@ -17,7 +19,15 @@ pub type ValidatePaymentResult<T> = Result<T, MmError<ValidatePaymentError>>;
 #[derive(Debug, Display, EnumFromStringify)]
 pub enum ValidatePaymentError {
     /// Should be used to indicate internal MM2 state problems (e.g., DB errors, etc.).
-    #[from_stringify("NumConversError", "UnexpectedDerivationMethod", "keys::Error")]
+    #[from_stringify(
+        "EthAssocTypesError",
+        "Erc721FunctionError",
+        "EthNftAssocTypesError",
+        "NumConversError",
+        "UnexpectedDerivationMethod",
+        "keys::Error",
+        "PrepareTxDataError"
+    )]
     InternalError(String),
     /// Problem with deserializing the transaction, or one of the transaction parts is invalid.
     #[from_stringify("rlp::DecoderError", "serialization::Error", "Qrc20AbiError", "ParseSlpScriptError")]
@@ -65,6 +75,26 @@ impl From<Web3RpcError> for ValidatePaymentError {
                 ValidatePaymentError::InternalError(internal)
             },
             Web3RpcError::NftProtocolNotSupported => ValidatePaymentError::NftProtocolNotSupported,
+        }
+    }
+}
+
+impl From<PaymentStatusErr> for ValidatePaymentError {
+    fn from(err: PaymentStatusErr) -> Self {
+        match err {
+            PaymentStatusErr::Transport(e) => Self::Transport(e),
+            PaymentStatusErr::AbiError(e)
+            | PaymentStatusErr::Internal(e)
+            | PaymentStatusErr::TxDeserializationError(e) => Self::InternalError(e),
+        }
+    }
+}
+
+impl From<HtlcParamsError> for ValidatePaymentError {
+    fn from(err: HtlcParamsError) -> Self {
+        match err {
+            HtlcParamsError::WrongPaymentTx(e) => ValidatePaymentError::WrongPaymentTx(e),
+            HtlcParamsError::TxDeserializationError(e) => ValidatePaymentError::TxDeserializationError(e),
         }
     }
 }

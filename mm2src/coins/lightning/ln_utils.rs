@@ -4,10 +4,12 @@ use crate::lightning::ln_platform::{get_best_header, ln_best_block_update_loop, 
 use crate::lightning::ln_sql::SqliteLightningDB;
 use crate::lightning::ln_storage::{LightningStorage, NodesAddressesMap};
 use crate::utxo::rpc_clients::BestBlock as RpcBestBlock;
+
 use bitcoin::hash_types::BlockHash;
 use bitcoin_hashes::{sha256d, Hash};
 use common::executor::SpawnFuture;
 use common::log::LogState;
+use derive_more::Display;
 use enum_derives::EnumFromStringify;
 use lightning::chain::keysinterface::{InMemorySigner, KeysManager};
 use lightning::chain::{chainmonitor, BestBlock, ChannelMonitorUpdateStatus, Watch};
@@ -149,7 +151,7 @@ pub async fn init_channel_manager(
             return MmError::err(EnableLightningError::UnsupportedMode(
                 "Lightning network".into(),
                 "electrum".into(),
-            ))
+            ));
         },
     };
     let best_header = get_best_header(&rpc_client).await?;
@@ -332,13 +334,16 @@ pub enum PaymentError {
     #[display(fmt = "Final cltv expiry delta {} is below the required minimum of {}", _0, _1)]
     CLTVExpiry(u32, u32),
     #[display(fmt = "Error paying invoice: {}", _0)]
-    #[from_stringify("InvoicePaymentError")]
     Invoice(String),
     #[display(fmt = "Keysend error: {}", _0)]
     Keysend(String),
     #[display(fmt = "DB error {}", _0)]
     #[from_stringify("SqlError")]
     DbError(String),
+}
+
+impl From<InvoicePaymentError> for PaymentError {
+    fn from(value: InvoicePaymentError) -> Self { Self::Invoice(format!("{value:?}")) }
 }
 
 // Todo: This is imported from rust-lightning and modified by me, will need to open a PR there with this modification and update the dependency to remove this code and the code it depends on.

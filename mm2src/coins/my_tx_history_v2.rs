@@ -1,11 +1,11 @@
-use crate::coin_errors::MyAddressError;
 use crate::hd_wallet::{AddressDerivingError, InvalidBip44ChainError};
 use crate::tendermint::{TENDERMINT_ASSET_PROTOCOL_TYPE, TENDERMINT_COIN_PROTOCOL_TYPE};
 use crate::tx_history_storage::{CreateTxHistoryStorageError, FilteringAddresses, GetTxHistoryFilters,
                                 TxHistoryStorageBuilder, WalletId};
 use crate::utxo::utxo_common::big_decimal_from_sat_unsigned;
-use crate::{coin_conf, lp_coinfind_or_err, BlockHeightAndTime, CoinFindError, HDAccountAddressId, HistorySyncState,
-            MmCoin, MmCoinEnum, Transaction, TransactionDetails, TransactionType, TxFeeDetails, UtxoRpcError};
+use crate::{coin_conf, lp_coinfind_or_err, BlockHeightAndTime, CoinFindError, HDPathAccountToAddressId,
+            HistorySyncState, MmCoin, MmCoinEnum, MyAddressError, Transaction, TransactionDetails, TransactionType,
+            TxFeeDetails, UtxoRpcError};
 use async_trait::async_trait;
 use bitcrypto::sha256;
 use common::{calc_total_pages, ten, HttpStatusCode, PagingOptionsEnum, StatusCode};
@@ -266,7 +266,7 @@ impl<'a, Addr: Clone + DisplayAddress + Eq + std::hash::Hash, Tx: Transaction> T
 pub enum MyTxHistoryTarget {
     Iguana,
     AccountId { account_id: u32 },
-    AddressId(HDAccountAddressId),
+    AddressId(HDPathAccountToAddressId),
     AddressDerivationPath(StandardHDPath),
 }
 
@@ -306,7 +306,7 @@ pub struct MyTxHistoryResponseV2<Tx, Id> {
     pub(crate) paging_options: PagingOptionsEnum<Id>,
 }
 
-#[derive(Debug, Display, Serialize, SerializeErrorType, EnumFromStringify)]
+#[derive(Debug, Display, EnumFromStringify, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum MyTxHistoryErrorV2 {
     CoinIsNotActive(String),

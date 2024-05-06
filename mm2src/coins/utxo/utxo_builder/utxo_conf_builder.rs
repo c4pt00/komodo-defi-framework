@@ -3,7 +3,7 @@ use crate::utxo::{parse_hex_encoded_u32, UtxoCoinConf, DEFAULT_DYNAMIC_FEE_VOLAT
                   MATURE_CONFIRMATIONS_DEFAULT};
 use crate::UtxoActivationParams;
 use bitcrypto::ChecksumType;
-use crypto::{Bip32Error, StandardHDPathToCoin};
+use crypto::{Bip32Error, HDPathToCoin};
 use derive_more::Display;
 use enum_derives::EnumFromStringify;
 use keys::NetworkAddressPrefixes;
@@ -305,7 +305,7 @@ impl<'a> UtxoConfBuilder<'a> {
             .map_to_mm(|e| UtxoConfError::ErrorDeserializingSPVConf(e.to_string()))
     }
 
-    fn derivation_path(&self) -> UtxoConfResult<Option<StandardHDPathToCoin>> {
+    fn derivation_path(&self) -> UtxoConfResult<Option<HDPathToCoin>> {
         json::from_value(self.conf["derivation_path"].clone())
             .map_to_mm(|e| UtxoConfError::ErrorDeserializingDerivationPath(e.to_string()))
     }
