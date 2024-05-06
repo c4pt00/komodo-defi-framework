@@ -1,11 +1,9 @@
-use crate::sql_connection_pool::{SqliteConnPool, ASYNC_SQLITE_DB_ID};
 #[cfg(feature = "track-ctx-pointer")]
 use common::executor::Timer;
 use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
                        graceful_shutdown, AbortSettings, AbortableSystem, SpawnAbortable, SpawnFuture};
 use common::log::{self, LogLevel, LogOnError, LogState};
 use common::{cfg_native, cfg_wasm32, small_rng};
-use db_common::sqlite::rusqlite::Connection;
 use gstuff::{try_s, Constructible, ERR, ERRL};
 use lazy_static::lazy_static;
 use mm2_event_stream::{controller::Controller, Event, EventStreamConfiguration};
@@ -28,8 +26,10 @@ cfg_wasm32! {
 }
 
 cfg_native! {
-use db_common::AsyncConnectionCtx;
+    use db_common::AsyncConnectionCtx;
     use db_common::async_sql_conn::AsyncConnection;
+    use db_common::sqlite::rusqlite::Connection;
+    use crate::sql_connection_pool::{SqliteConnPool, ASYNC_SQLITE_DB_ID};
     use futures::lock::Mutex as AsyncMutex;
     use rustls::ServerName;
     use mm2_metrics::prometheus;

@@ -28,7 +28,6 @@ use std::num::NonZeroUsize;
 use std::process::Child;
 use std::sync::Mutex;
 use uuid::Uuid;
-use mm2_core::sql_connection_pool::SqliteConnPool;
 
 cfg_native! {
     use common::block_on;
@@ -42,6 +41,7 @@ cfg_native! {
     use futures::task::SpawnExt;
     use http::Request;
     use regex::Regex;
+    use mm2_core::sql_connection_pool::SqliteConnPool;
     use std::fs;
     use std::io::Write;
     use std::net::Ipv4Addr;

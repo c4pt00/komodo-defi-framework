@@ -26,7 +26,6 @@ use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, W
 use derive_more::Display;
 use enum_derives::EnumFromTrait;
 use mm2_core::mm_ctx::{MmArc, MmCtx};
-use mm2_core::sql_connection_pool::SqliteConnPool;
 use mm2_err_handle::common_errors::InternalError;
 use mm2_err_handle::prelude::*;
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
@@ -62,6 +61,7 @@ cfg_native! {
     use mm2_io::fs::{ensure_dir_is_writable, ensure_file_is_writable};
     use mm2_net::ip_addr::myipaddr;
     use rustls_pemfile as pemfile;
+    use mm2_core::sql_connection_pool::SqliteConnPool;
 }
 
 #[path = "lp_init/init_context.rs"] mod init_context;
