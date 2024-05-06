@@ -80,55 +80,23 @@ impl SqliteConnPool {
 
     /// Retrieves a single-user connection from the pool.
     pub fn sqlite_conn(&self, ctx: &MmCtx, db_id: Option<&str>) -> Arc<Mutex<Connection>> {
-        Self::sqlite_conn_impl(ctx, db_id, DbIdConnKind::Single)
+        self.sqlite_conn_impl(ctx, db_id, DbIdConnKind::Single)
     }
 
     /// Retrieves a shared connection from the pool.
     pub fn sqlite_conn_shared(&self, ctx: &MmCtx, db_id: Option<&str>) -> Arc<Mutex<Connection>> {
-        Self::sqlite_conn_impl(ctx, db_id, DbIdConnKind::Shared)
-    }
-
-    /// Optionally retrieves a single-user connection from the pool if available.
-    pub fn sqlite_conn_opt(&self, ctx: &MmCtx, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
-        Self::sqlite_conn_opt_impl(ctx, db_id, DbIdConnKind::Single)
-    }
-
-    /// Optionally retrieves a shared connection from the pool if available.
-    pub fn shared_sqlite_conn_opt(&self, ctx: &MmCtx, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
-        Self::sqlite_conn_opt_impl(ctx, db_id, DbIdConnKind::Shared)
-    }
-
-    /// Internal implementation to retrieve or create a connection optionally.
-    fn sqlite_conn_opt_impl(
-        ctx: &MmCtx,
-        db_id: Option<&str>,
-        db_id_conn_kind: DbIdConnKind,
-    ) -> Option<Arc<Mutex<Connection>>> {
-        if let Some(connections) = ctx.sqlite_conn_pool.as_option() {
-            let db_id = Self::db_id(ctx, db_id, &db_id_conn_kind);
-            let mut connections = connections.0.lock().unwrap();
-            return if let Some(connection) = connections.get(&db_id) {
-                Some(connection.clone())
-            } else {
-                let conn = Self::open_connection(ctx, &db_id, &db_id_conn_kind);
-                connections.insert(db_id, conn.clone());
-                // TODO: run migration and fix directions
-                Some(conn)
-            };
-        };
-        None
+        self.sqlite_conn_impl(ctx, db_id, DbIdConnKind::Shared)
     }
 
     /// Internal implementation to retrieve or create a connection.
-    fn sqlite_conn_impl(ctx: &MmCtx, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind) -> Arc<Mutex<Connection>> {
-        let mut connections = ctx
-            .sqlite_conn_pool
-            .or(&|| panic!("sqlite_conn_pool is not initialized"))
-            .0
-            .lock()
-            .unwrap();
-
+    fn sqlite_conn_impl(
+        &self,
+        ctx: &MmCtx,
+        db_id: Option<&str>,
+        db_id_conn_kind: DbIdConnKind,
+    ) -> Arc<Mutex<Connection>> {
         let db_id = Self::db_id(ctx, db_id, &db_id_conn_kind);
+        let mut connections = self.0.lock().unwrap();
         return if let Some(connection) = connections.get(&db_id) {
             connection.clone()
         } else {

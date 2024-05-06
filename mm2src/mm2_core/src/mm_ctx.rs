@@ -351,7 +351,7 @@ impl MmCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn shared_sqlite_conn_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
         if let Some(pool) = self.sqlite_conn_pool.as_option().cloned() {
-            return pool.shared_sqlite_conn_opt(self, db_id);
+            return Some(pool.sqlite_conn_shared(self, db_id));
         };
 
         None
@@ -362,7 +362,7 @@ impl MmCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sqlite_conn_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
         if let Some(pool) = self.sqlite_conn_pool.as_option().cloned() {
-            return pool.sqlite_conn_opt(self, db_id);
+            return Some(pool.sqlite_conn(self, db_id));
         };
 
         None
