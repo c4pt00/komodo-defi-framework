@@ -2,6 +2,8 @@ use common::ten;
 use enum_derives::EnumVariantList;
 use ethereum_types::Address;
 use mm2_core::mm_ctx::{from_ctx, MmArc};
+#[cfg(not(target_arch = "wasm32"))]
+use mm2_core::sql_connection_pool::AsyncSqliteConnPool;
 use mm2_err_handle::prelude::*;
 use mm2_number::{BigDecimal, BigUint};
 use rpc::v1::types::Bytes as BytesJson;
@@ -20,13 +22,6 @@ use crate::nft::eth_addr_to_hex;
 use crate::nft::nft_errors::{LockDBError, ParseChainTypeError, ParseContractTypeError};
 use crate::nft::storage::{NftListStorageOps, NftTransferHistoryStorageOps};
 use crate::{TransactionType, TxFeeDetails, WithdrawFee};
-
-cfg_native! {
-    use db_common::async_sql_conn::AsyncConnection;
-    use db_common::AsyncConnectionCtx;
-    use futures::lock::Mutex as AsyncMutex;
-    use mm2_core::mm_ctx::log_sqlite_file_open_attempt;
-}
 
 cfg_wasm32! {
     use mm2_db::indexed_db::{ConstructibleDb, SharedDb};
@@ -731,7 +726,7 @@ pub(crate) struct NftCtx {
     #[cfg(target_arch = "wasm32")]
     pub(crate) nft_cache_db: SharedDb<NftCacheIDB>,
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) nft_cache_dbs: Arc<AsyncMutex<AsyncConnectionCtx>>,
+    pub(crate) nft_cache_dbs: AsyncSqliteConnPool,
     #[cfg(not(target_arch = "wasm32"))]
     ctx: MmArc,
 }
@@ -744,7 +739,7 @@ impl NftCtx {
     pub(crate) fn from_ctx(ctx: &MmArc) -> Result<Arc<NftCtx>, String> {
         Ok(try_s!(from_ctx(&ctx.nft_ctx, move || {
             let async_sqlite_connection = ctx
-                .async_sqlite_connection
+                .async_sqlite_conn_pool
                 .ok_or("async_sqlite_connection is not initialized".to_owned())?;
             Ok(NftCtx {
                 nft_cache_dbs: async_sqlite_connection.clone(),
@@ -768,24 +763,8 @@ impl NftCtx {
         &self,
         db_id: Option<&str>,
     ) -> MmResult<impl NftListStorageOps + NftTransferHistoryStorageOps + '_, LockDBError> {
-        let db_id = db_id.map(|d| d.to_string()).unwrap_or_else(|| self.ctx.rmd160_hex());
-        let mut connection = self.nft_cache_dbs.lock().await;
-
-        // check if existing connection db_id is same as requested db and return the connection.
-        if db_id == connection.db_id {
-            return Ok(connection);
-        }
-
-        // else create and return new connection.
-        let sqlite_file_path = self.ctx.dbdir(Some(&db_id)).join("KOMODEFI.db");
-        log_sqlite_file_open_attempt(&sqlite_file_path);
-        let async_conn = AsyncConnection::open(sqlite_file_path)
-            .await
-            .map_to_mm(|e| LockDBError::InternalError(e.to_string()))?;
-        connection.connection = async_conn;
-        connection.db_id = db_id;
-
-        Ok(connection)
+        let locked = self.nft_cache_dbs.async_sqlite_conn(&self.ctx, db_id).await;
+        Ok(locked.lock_owned().await)
     }
 
     #[cfg(target_arch = "wasm32")]

@@ -22,19 +22,3 @@ pub mod sql_build {
     pub use crate::sql_update::SqlUpdate;
     pub use crate::sql_value::{FromQuoted, SqlValue, SqlValueOptional};
 }
-
-#[cfg(not(target_arch = "wasm32"))]
-use async_sql_conn::AsyncConnection;
-#[cfg(not(target_arch = "wasm32"))] use rusqlite::Connection;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub struct AsyncConnectionCtx {
-    pub db_id: String,
-    pub connection: AsyncConnection,
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub struct SyncConnectionCtx {
-    pub db_id: String,
-    pub connection: Connection,
-}

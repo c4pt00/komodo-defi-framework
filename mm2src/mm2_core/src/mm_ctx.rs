@@ -26,11 +26,8 @@ cfg_wasm32! {
 }
 
 cfg_native! {
-    use db_common::AsyncConnectionCtx;
-    use db_common::async_sql_conn::AsyncConnection;
     use db_common::sqlite::rusqlite::Connection;
-    use crate::sql_connection_pool::{SqliteConnPool, ASYNC_SQLITE_DB_ID};
-    use futures::lock::Mutex as AsyncMutex;
+    use crate::sql_connection_pool::{AsyncSqliteConnPool, SqliteConnPool};
     use rustls::ServerName;
     use mm2_metrics::prometheus;
     use mm2_metrics::MmMetricsError;
@@ -123,7 +120,7 @@ pub struct MmCtx {
     pub sqlite_conn_pool: Constructible<SqliteConnPool>,
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnectionCtx>>>,
+    pub async_sqlite_conn_pool: Constructible<AsyncSqliteConnPool>,
     pub mm_version: String,
     pub datetime: String,
     pub mm_init_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
@@ -176,7 +173,7 @@ impl MmCtx {
             #[cfg(not(target_arch = "wasm32"))]
             sqlite_conn_pool: Constructible::default(),
             #[cfg(not(target_arch = "wasm32"))]
-            async_sqlite_connection: Constructible::default(),
+            async_sqlite_conn_pool: Constructible::default(),
             mm_version: "".into(),
             datetime: "".into(),
             mm_init_ctx: Mutex::new(None),
@@ -348,23 +345,6 @@ impl MmCtx {
     pub fn gui(&self) -> Option<&str> { self.conf["gui"].as_str() }
 
     pub fn mm_version(&self) -> &str { &self.mm_version }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn init_async_sqlite_connection(&self, db_id: Option<&str>) -> Result<(), String> {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| self.rmd160_hex());
-        let sqlite_file_path = self.dbdir(Some(&db_id)).join(ASYNC_SQLITE_DB_ID);
-        log_sqlite_file_open_attempt(&sqlite_file_path);
-        let async_conn = try_s!(AsyncConnection::open(sqlite_file_path).await);
-
-        try_s!(self
-            .async_sqlite_connection
-            .pin(Arc::new(AsyncMutex::new(AsyncConnectionCtx {
-                connection: async_conn,
-                db_id,
-            }))));
-
-        Ok(())
-    }
 
     /// Retrieves an optional shared connection from the pool for the specified database ID.
     /// Returns `None` if the connection pool is not initialized.

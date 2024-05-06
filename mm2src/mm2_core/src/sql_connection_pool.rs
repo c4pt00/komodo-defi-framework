@@ -1,5 +1,8 @@
 use crate::mm_ctx::{log_sqlite_file_open_attempt, MmCtx};
+use common::log::error;
+use db_common::async_sql_conn::AsyncConnection;
 use db_common::sqlite::rusqlite::Connection;
+use futures::lock::Mutex as AsyncMutex;
 use gstuff::try_s;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -156,6 +159,118 @@ impl SqliteConnPool {
         log_sqlite_file_open_attempt(&sqlite_file_path);
         Arc::new(Mutex::new(
             Connection::open(sqlite_file_path).expect("failed to open db"),
+        ))
+    }
+}
+
+/// A pool for managing async SQLite connections, where each connection is keyed by a unique string identifier.
+#[derive(Clone)]
+pub struct AsyncSqliteConnPool(Arc<AsyncMutex<HashMap<String, Arc<AsyncMutex<AsyncConnection>>>>>);
+
+impl AsyncSqliteConnPool {
+    /// Initialize a database connection.
+    pub async fn init(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex());
+
+        match ctx.async_sqlite_conn_pool.as_option() {
+            // if connection pool is not already initialized, create new connection pool.
+            None => {
+                let conn = Self::open_connection(ctx, &db_id).await;
+                let store = Arc::new(AsyncMutex::new(HashMap::from([(db_id, conn)])));
+                try_s!(ctx.async_sqlite_conn_pool.pin(Self(store)));
+            },
+            // if connection pool is already initialized, insert new connection.
+            Some(pool) => {
+                let conn = Self::open_connection(ctx, &db_id).await;
+                let mut pool = pool.0.lock().await;
+                pool.insert(db_id, conn);
+            },
+        };
+
+        Ok(())
+    }
+
+    /// Initialize a database connection.
+    pub async fn init_test(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex());
+
+        match ctx.async_sqlite_conn_pool.as_option() {
+            // if connection pool is not already initialized, create new connection pool.
+            None => {
+                let conn = Arc::new(AsyncMutex::new(AsyncConnection::open_in_memory().await.unwrap()));
+                let store = Arc::new(AsyncMutex::new(HashMap::from([(db_id, conn)])));
+                try_s!(ctx.async_sqlite_conn_pool.pin(Self(store)));
+            },
+            // if connection pool is already initialized, insert new connection.
+            Some(pool) => {
+                let mut pool = pool.0.lock().await;
+                let conn = Arc::new(AsyncMutex::new(AsyncConnection::open_in_memory().await.unwrap()));
+                pool.insert(db_id, conn);
+            },
+        };
+
+        Ok(())
+    }
+
+    /// Retrieve or create a connection optionally.
+    pub async fn async_sqlite_conn_opt(
+        &self,
+        ctx: &MmCtx,
+        db_id: Option<&str>,
+    ) -> Option<Arc<AsyncMutex<AsyncConnection>>> {
+        if let Some(connections) = ctx.async_sqlite_conn_pool.as_option() {
+            let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex());
+            let mut connections = connections.0.lock().await;
+            return if let Some(connection) = connections.get(&db_id) {
+                Some(connection.clone())
+            } else {
+                let conn = Self::open_connection(ctx, &db_id).await;
+                connections.insert(db_id, conn.clone());
+                // TODO: run migration and fix directions
+                Some(conn)
+            };
+        };
+        None
+    }
+
+    /// Retrieve or create a connection.
+    pub async fn async_sqlite_conn(&self, ctx: &MmCtx, db_id: Option<&str>) -> Arc<AsyncMutex<AsyncConnection>> {
+        let mut connections = ctx
+            .async_sqlite_conn_pool
+            .or(&|| panic!("async_sqlite_conn_pool is not initialized"))
+            .0
+            .lock()
+            .await;
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex());
+
+        if let Some(connection) = connections.get(&db_id) {
+            connection.clone()
+        } else {
+            let conn = Self::open_connection(ctx, &db_id).await;
+            connections.insert(db_id, conn.clone());
+            // TODO: run migration and fix directions
+            conn
+        }
+    }
+
+    pub async fn close_connections(&self) {
+        let mut connections = self.0.lock().await;
+        for (id, connection) in connections.iter_mut() {
+            let mut connection = connection.lock().await;
+            if let Err(e) = connection.close().await {
+                error!("Error stopping AsyncConnection: {}, connection_id=({id})", e);
+            }
+        }
+    }
+
+    async fn open_connection(ctx: &MmCtx, db_id: &str) -> Arc<AsyncMutex<AsyncConnection>> {
+        let sqlite_file_path = ctx.dbdir(Some(db_id)).join(ASYNC_SQLITE_DB_ID);
+        log_sqlite_file_open_attempt(&sqlite_file_path);
+
+        Arc::new(AsyncMutex::new(
+            AsyncConnection::open(sqlite_file_path)
+                .await
+                .expect("failed to open db"),
         ))
     }
 }

@@ -33,6 +33,7 @@ use mm2_rpc::data::legacy::{BalanceResponse, CoinInitResponse, Mm2RpcResult, MmV
 use serde_json::{self as json, Value as Json};
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::fmt::Debug;
 use std::iter::Extend;
 use uuid::Uuid;
 
@@ -248,11 +249,8 @@ pub async fn my_balance(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, Stri
 
 #[cfg(not(target_arch = "wasm32"))]
 async fn close_async_connection(ctx: &MmArc) {
-    if let Some(connections) = ctx.async_sqlite_connection.as_option() {
-        let mut conn = connections.lock().await;
-        if let Err(e) = conn.connection.close().await {
-            error!("Error stopping AsyncConnection: {}", e);
-        }
+    if let Some(connections) = ctx.async_sqlite_conn_pool.as_option() {
+        connections.close_connections().await;
     }
 }
 

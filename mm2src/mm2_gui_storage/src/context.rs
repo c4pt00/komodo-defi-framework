@@ -14,7 +14,9 @@ impl AccountContext {
     pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<AccountContext>, String> {
         from_ctx(&ctx.account_ctx, move || {
             Ok(AccountContext {
-                storage: AccountStorageBuilder::new(ctx, db_id).build().map_err(|e| e.to_string())?,
+                storage: AccountStorageBuilder::new(ctx, db_id)
+                    .build()
+                    .map_err(|e| e.to_string())?,
                 db_id: db_id.map(|e| e.to_string()),
             })
         })
