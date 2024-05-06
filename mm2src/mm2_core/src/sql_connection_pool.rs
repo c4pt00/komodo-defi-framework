@@ -7,23 +7,28 @@ use std::sync::{Arc, Mutex};
 pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 const SYNC_SQLITE_DB_ID: &str = "MM2.db";
 
+/// Represents the kind of database connection ID: either shared or single-user.
 enum DbIdConnKind {
     Shared,
     Single,
 }
 
+/// A pool for managing SQLite connections, where each connection is keyed by a unique string identifier.
 #[derive(Clone)]
 pub struct SqliteConnPool(Arc<Mutex<HashMap<String, Arc<Mutex<Connection>>>>>);
 
 impl SqliteConnPool {
+    /// Initializes a single-user database connection.
     pub fn init(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
         Self::init_impl(ctx, db_id, DbIdConnKind::Single)
     }
 
+    /// Initializes a shared database connection.
     pub fn init_shared(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
         Self::init_impl(ctx, db_id, DbIdConnKind::Shared)
     }
 
+    /// Internal implementation to initialize a database connection.
     fn init_impl(ctx: &MmCtx, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind) -> Result<(), String> {
         let db_id = Self::db_id(ctx, db_id, &db_id_conn_kind);
 
@@ -45,10 +50,13 @@ impl SqliteConnPool {
         Ok(())
     }
 
+    /// Test method for initializing a single-user database connection in-memory.
     pub fn init_test(ctx: &MmCtx) -> Result<(), String> { Self::init_impl_test(ctx, None, DbIdConnKind::Single) }
 
+    /// Test method for initializing a shared database connection in-memory.
     pub fn init_shared_test(ctx: &MmCtx) -> Result<(), String> { Self::init_impl_test(ctx, None, DbIdConnKind::Shared) }
 
+    /// Internal test implementation to initialize a database connection in-memory.
     fn init_impl_test(ctx: &MmCtx, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind) -> Result<(), String> {
         let db_id = Self::db_id(ctx, db_id, &db_id_conn_kind);
 
@@ -67,22 +75,27 @@ impl SqliteConnPool {
         Ok(())
     }
 
+    /// Retrieves a single-user connection from the pool.
     pub fn sqlite_conn(&self, ctx: &MmCtx, db_id: Option<&str>) -> Arc<Mutex<Connection>> {
         Self::sqlite_conn_impl(ctx, db_id, DbIdConnKind::Single)
     }
 
+    /// Retrieves a shared connection from the pool.
     pub fn sqlite_conn_shared(&self, ctx: &MmCtx, db_id: Option<&str>) -> Arc<Mutex<Connection>> {
         Self::sqlite_conn_impl(ctx, db_id, DbIdConnKind::Shared)
     }
 
+    /// Optionally retrieves a single-user connection from the pool if available.
     pub fn sqlite_conn_opt(&self, ctx: &MmCtx, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
         Self::sqlite_conn_opt_impl(ctx, db_id, DbIdConnKind::Single)
     }
 
+    /// Optionally retrieves a shared connection from the pool if available.
     pub fn shared_sqlite_conn_opt(&self, ctx: &MmCtx, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
         Self::sqlite_conn_opt_impl(ctx, db_id, DbIdConnKind::Shared)
     }
 
+    /// Internal implementation to retrieve or create a connection optionally.
     fn sqlite_conn_opt_impl(
         ctx: &MmCtx,
         db_id: Option<&str>,
@@ -100,10 +113,10 @@ impl SqliteConnPool {
                 Some(conn)
             };
         };
-
         None
     }
 
+    /// Internal implementation to retrieve or create a connection.
     fn sqlite_conn_impl(ctx: &MmCtx, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind) -> Arc<Mutex<Connection>> {
         let mut connections = ctx
             .sqlite_conn_pool
@@ -123,6 +136,7 @@ impl SqliteConnPool {
         };
     }
 
+    /// Generates a database ID based on the connection kind and optional database ID.
     fn db_id(ctx: &MmCtx, db_id: Option<&str>, db_id_conn_kind: &DbIdConnKind) -> String {
         let db_id_default = match db_id_conn_kind {
             DbIdConnKind::Shared => hex::encode(ctx.shared_db_id().as_slice()),
@@ -132,6 +146,7 @@ impl SqliteConnPool {
         db_id.map(|e| e.to_owned()).unwrap_or_else(|| db_id_default)
     }
 
+    /// Opens a database connection based on the database ID and connection kind.
     fn open_connection(ctx: &MmCtx, db_id: &str, db_id_conn_kind: &DbIdConnKind) -> Arc<Mutex<Connection>> {
         let sqlite_file_path = match db_id_conn_kind {
             DbIdConnKind::Shared => ctx.shared_dbdir(Some(db_id)).join("MM2-shared.db"),
