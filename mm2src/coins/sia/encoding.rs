@@ -8,11 +8,11 @@ pub struct Encoder {
     pub buffer: Vec<u8>,
 }
 
-pub trait EncodeTo {
+pub trait Encodable {
     fn encode(&self, encoder: &mut Encoder);
 }
 
-impl EncodeTo for H256 {
+impl Encodable for H256 {
     fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.0); }
 }
 

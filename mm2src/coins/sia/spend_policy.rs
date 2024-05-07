@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator};
-use crate::sia::encoding::{EncodeTo, Encoder};
+use crate::sia::encoding::{Encodable, Encoder};
 use crate::sia::specifier::{Identifier, Specifier};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
@@ -21,7 +21,7 @@ pub enum SpendPolicy {
     UnlockConditions(PolicyTypeUnlockConditions), // For v1 compatibility
 }
 
-impl EncodeTo for SpendPolicy {
+impl Encodable for SpendPolicy {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u8(POLICY_VERSION);
         self.encode_wo_prefix(encoder);
@@ -135,11 +135,11 @@ pub struct UnlockKey {
     public_key: PublicKey,
 }
 
-impl EncodeTo for PublicKey {
+impl Encodable for PublicKey {
     fn encode(&self, encoder: &mut Encoder) { encoder.write_len_prefixed_bytes(&self.to_bytes()); }
 }
 
-impl EncodeTo for UnlockKey {
+impl Encodable for UnlockKey {
     fn encode(&self, encoder: &mut Encoder) {
         self.algorithm.encode(encoder);
         self.public_key.encode(encoder);
@@ -153,7 +153,7 @@ pub struct UnlockCondition {
     sigs_required: u64,
 }
 
-impl EncodeTo for UnlockCondition {
+impl Encodable for UnlockCondition {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u64(self.timelock);
         encoder.write_u64(self.unlock_keys.len() as u64);

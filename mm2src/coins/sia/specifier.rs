@@ -1,4 +1,4 @@
-use crate::sia::encoding::{EncodeTo, Encoder};
+use crate::sia::encoding::{Encodable, Encoder};
 
 // this macro allows us to define the byte arrays as constants at compile time
 macro_rules! define_byte_array_const {
@@ -35,7 +35,7 @@ impl Specifier {
     pub fn new(identifier: Identifier) -> Self { Specifier { identifier } }
 }
 
-impl EncodeTo for Specifier {
+impl Encodable for Specifier {
     fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(self.identifier.as_bytes()); }
 }
 
