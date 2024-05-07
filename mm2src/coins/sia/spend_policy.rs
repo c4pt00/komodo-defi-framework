@@ -353,3 +353,28 @@ fn test_spend_policy_encode_unlock_condition() {
         Address::from_str("addr:1498a58c843ce66740e52421632d67a0f6991ea96db1fc97c29e46f89ae56e3534078876331d").unwrap();
     assert_eq!(address, expected);
 }
+
+#[test]
+fn test_unlock_condition_encode() {
+    let pubkey = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let unlock_condition = UnlockCondition::new(vec![pubkey], 0, 1);
+
+    let hash = Encoder::encode_and_hash(&unlock_condition);
+    let expected = H256::from("5d49bae37b97c86573a1525246270c180464acf33d63cc2ac0269ef9a8cb9d98");
+    assert_eq!(hash, expected);
+}
+
+#[test]
+fn test_public_key_encode() {
+    let public_key = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+
+    let hash = Encoder::encode_and_hash(&public_key);
+    let expected = H256::from("d487326614f066416308bf6aa4e5041d1949928e4b26ede98e3cebb36a3b1726");
+    assert_eq!(hash, expected);
+}
