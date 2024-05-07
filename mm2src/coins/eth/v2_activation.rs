@@ -649,10 +649,9 @@ pub(crate) async fn build_address_and_priv_key_policy(
             let bip39_secp_priv_key = global_hd_ctx.root_priv_key().clone();
 
             let hd_wallet_rmd160 = *ctx.rmd160();
-            let hd_wallet_storage =
-                HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160, None)
-                    .await
-                    .mm_err(EthActivationV2Error::from)?;
+            let hd_wallet_storage = HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160)
+                .await
+                .mm_err(EthActivationV2Error::from)?;
             let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, &path_to_coin).await?;
             let gap_limit = gap_limit.unwrap_or(DEFAULT_GAP_LIMIT);
             let hd_wallet = EthHDWallet {
@@ -686,10 +685,9 @@ pub(crate) async fn build_address_and_priv_key_policy(
                 .hw_ctx()
                 .or_mm_err(|| EthActivationV2Error::HwContextNotInitialized)?;
             let hd_wallet_rmd160 = hw_ctx.rmd160();
-            let hd_wallet_storage =
-                HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160, None)
-                    .await
-                    .mm_err(EthActivationV2Error::from)?;
+            let hd_wallet_storage = HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160)
+                .await
+                .mm_err(EthActivationV2Error::from)?;
             let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, &path_to_coin).await?;
             let gap_limit = gap_limit.unwrap_or(DEFAULT_GAP_LIMIT);
             let hd_wallet = EthHDWallet {

@@ -223,7 +223,7 @@ pub trait UtxoFieldsWithGlobalHDBuilder: UtxoCoinBuilderCommonOps {
         let hd_wallet_rmd160 = *self.ctx().rmd160();
         // TODO shared_db_id
         let hd_wallet_storage =
-            HDWalletCoinStorage::init_with_rmd160(self.ctx(), self.ticker().to_owned(), hd_wallet_rmd160, None).await?;
+            HDWalletCoinStorage::init_with_rmd160(self.ctx(), self.ticker().to_owned(), hd_wallet_rmd160).await?;
         let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, path_to_coin)
             .await
             .mm_err(UtxoCoinBuildError::from)?;
@@ -346,7 +346,6 @@ pub trait UtxoFieldsWithHardwareWalletBuilder: UtxoCoinBuilderCommonOps {
             return MmError::err(UtxoCoinBuildError::CoinDoesntSupportTrezor);
         }
         let hd_wallet_rmd160 = self.trezor_wallet_rmd160()?;
-
         // For now, use a default script pubkey.
         // TODO change the type of `recently_spent_outpoints` to `AsyncMutex<HashMap<Bytes, RecentlySpentOutPoints>>`
         let my_script_pubkey = Bytes::new();
@@ -358,8 +357,7 @@ pub trait UtxoFieldsWithHardwareWalletBuilder: UtxoCoinBuilderCommonOps {
             .clone()
             .or_mm_err(|| UtxoConfError::DerivationPathIsNotSet)?;
 
-        // TODO shared_d_id
-        let hd_wallet_storage = HDWalletCoinStorage::init(self.ctx(), ticker, None).await?;
+        let hd_wallet_storage = HDWalletCoinStorage::init(self.ctx(), ticker).await?;
 
         let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, &path_to_coin)
             .await
