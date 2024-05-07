@@ -136,7 +136,7 @@ pub struct UnlockKey {
 }
 
 impl EncodeTo for PublicKey {
-    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.to_bytes()); }
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_len_prefixed_bytes(&self.to_bytes()); }
 }
 
 impl EncodeTo for UnlockKey {
