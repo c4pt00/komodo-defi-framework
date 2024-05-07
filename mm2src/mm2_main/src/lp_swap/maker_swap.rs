@@ -2167,15 +2167,12 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                         command = c;
                     },
                     None => {
-                        if let Err(e) =
-                            mark_swap_as_finished(ctx.clone(), running_swap.uuid, running_swap.db_id().as_deref()).await
-                        {
+                        if let Err(e) = mark_swap_as_finished(ctx.clone(), running_swap.uuid, db_id.as_deref()).await {
                             error!("!mark_swap_finished({}): {}", uuid, e);
                         }
 
                         if to_broadcast {
-                            if let Err(e) = broadcast_my_swap_status(&ctx, uuid, running_swap.db_id().as_deref()).await
-                            {
+                            if let Err(e) = broadcast_my_swap_status(&ctx, uuid, db_id.as_deref()).await {
                                 error!("!broadcast_my_swap_status({}): {}", uuid, e);
                             }
                         }
