@@ -875,6 +875,73 @@ enum FundingSpendFeeSetting {
     UseExact(u64),
 }
 
+/// Returns the taker payment spend transaction size in vbytes.
+async fn get_taker_payment_spend_transaction_size(coin: &impl UtxoCommonOps) -> usize {
+    let preimage = TransactionInputSigner {
+        lock_time: 0,
+        version: coin.as_ref().conf.tx_version,
+        n_time: None,
+        overwintered: coin.as_ref().conf.overwintered,
+        inputs: vec![UnsignedTransactionInput {
+            sequence: SEQUENCE_FINAL,
+            previous_output: OutPoint {
+                hash: H256::default(),
+                index: DEFAULT_SWAP_VOUT as u32,
+            },
+            amount: 0,
+            witness: Vec::new(),
+        }],
+        outputs: vec![TransactionOutput {
+            value: 0,
+            script_pubkey: Builder::build_p2sh(&AddressHashEnum::default_address_hash()).to_bytes(),
+        }],
+        expiry_height: 0,
+        join_splits: vec![],
+        shielded_spends: vec![],
+        shielded_outputs: vec![],
+        value_balance: 0,
+        version_group_id: coin.as_ref().conf.version_group_id,
+        consensus_branch_id: coin.as_ref().conf.consensus_branch_id,
+        zcash: coin.as_ref().conf.zcash,
+        posv: coin.as_ref().conf.is_posv,
+        str_d_zeel: None,
+        hash_algo: coin.as_ref().tx_hash_algo.into(),
+    };
+
+    let redeem_script =
+        swap_proto_v2_scripts::taker_funding_script(0, &H160::default(), &Public::default(), &Public::default());
+
+    let mut signature = calc_and_sign_sighash(
+        &preimage,
+        DEFAULT_SWAP_VOUT,
+        &redeem_script,
+        &KeyPair::random_compressed(),
+        coin.as_ref().conf.signature_version,
+        SIGHASH_ALL,
+        coin.as_ref().conf.fork_id,
+    )
+    // This won't fail since the keypair is a valid keypair and we have
+    // an output in the preimage that corresponds to `DEFAULT_SWAP_VOUT`.
+    .unwrap()
+    .to_vec();
+    signature.push(SIGHASH_ALL | coin.as_ref().conf.fork_id);
+
+    let maker_signature = &signature;
+    let taker_signature = &signature;
+
+    let mut final_tx: UtxoTx = preimage.into();
+    final_tx.inputs[0].script_sig = Builder::default()
+        .push_data(&maker_signature)
+        .push_data(&taker_signature)
+        .push_opcode(Opcode::OP_1)
+        .push_opcode(Opcode::OP_0)
+        .push_data(&redeem_script)
+        .into_bytes();
+
+    // We aren't spending from the segwit address, we are spending from a P2SH address.
+    tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &final_tx)
+}
+
 async fn p2sh_spending_tx_preimage<T: UtxoCommonOps>(
     coin: &T,
     prev_tx: &UtxoTx,
