@@ -263,6 +263,7 @@ use hd_wallet::{AccountUpdatingError, AddressDerivingError, HDAccountOps, HDAddr
                 HDCoinHDAccount, HDExtractPubkeyError, HDPathAccountToAddressId, HDWalletAddress, HDWalletCoinOps,
                 HDWalletOps, HDWithdrawError, HDXPubExtractor, WithdrawFrom, WithdrawSenderAddress};
 use nft::nft_errors::GetNftInfoError;
+use primitives::hash::H160;
 use qrc20::{qrc20_coin_with_policy, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
 use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskManagerShared},
                   init_account_balance::{AccountBalanceTaskManager, AccountBalanceTaskManagerShared},
@@ -3071,6 +3072,8 @@ pub trait MmCoin:
 
     fn account_db_id(&self) -> Option<String> { None }
 
+    fn account_shared_db_id(&self) -> Option<H160> { None }
+
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
     fn tx_history_path(&self, ctx: &MmArc) -> PathBuf {
@@ -4427,22 +4430,24 @@ pub async fn lp_coinfind_any(ctx: &MmArc, ticker: &str) -> Result<Option<MmCoinS
     Ok(coins.get(ticker).cloned())
 }
 
+/// Finds unique account IDs with any status (active or inactive).
 pub async fn find_unique_account_ids_any(ctx: &MmArc) -> Result<HashSet<String>, String> {
     find_unique_account_ids(ctx, false).await
 }
 
+/// Finds unique account IDs for active accounts.
 pub async fn find_unique_account_ids_active(ctx: &MmArc) -> Result<HashSet<String>, String> {
     find_unique_account_ids(ctx, true).await
 }
 
+/// Finds unique account IDs based on the given context and active status.
 async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
     // Using a HashSet to ensure uniqueness efficiently
-    let mut account_ids = HashSet::new();
-    // Add default wallet pubkey as coin.account_db_id() will return None by default
-    account_ids.insert(ctx.rmd160_hex());
+    // Initialize with default wallet pubkey as coin.account_db_id() will return None by default.
+    let mut account_ids = HashSet::from([ctx.rmd160_hex()]);
 
-    let cctx = try_s!(CoinsContext::from_ctx(ctx));
-    let coins = cctx.coins.lock().await;
+    let coin_ctx = try_s!(CoinsContext::from_ctx(ctx));
+    let coins = coin_ctx.coins.lock().await;
     let coins = coins.values().collect::<Vec<_>>();
 
     for coin in coins.iter() {
