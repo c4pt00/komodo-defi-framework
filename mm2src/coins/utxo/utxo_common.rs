@@ -4880,12 +4880,9 @@ where
     T: UtxoCommonOps + GetUtxoListOps + SwapOps,
 {
     let taker_htlc_key_pair = coin.derive_htlc_key_pair(args.swap_unique_data);
-    // Txs in success case:
-    //    Chain A: funding -> taker payment -> preimage (to the maker & dex)
-    //    Chain B:            maker payment -> claimation (to the taker)
-    // FIXME: Add taker payment fee + preimage fee
-    // Qs:
-    //    1- Who pays the maker payment fee? Take in considration that a nicer UX would be to hand the taker the full amount they requested. (so account for maker payment fee and taker claimation fee)
+    // FIXME:
+    //    1- Let the preimage tx fee be handled by the taker as well.
+    //    2- Who pays the maker payment fee? Take in considration that a nicer UX would be to hand the taker the full amount they requested. (so account for maker payment fee and taker claimation fee)
     let total_amount = &args.dex_fee.total_spend_amount().to_decimal()
         + &args.premium_amount
         + &args.trading_amount
