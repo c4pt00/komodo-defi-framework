@@ -911,28 +911,12 @@ async fn get_taker_payment_spend_transaction_size(coin: &impl UtxoCommonOps) -> 
     let redeem_script =
         swap_proto_v2_scripts::taker_funding_script(0, &H160::default(), &Public::default(), &Public::default());
 
-    let mut signature = calc_and_sign_sighash(
-        &preimage,
-        DEFAULT_SWAP_VOUT,
-        &redeem_script,
-        &KeyPair::random_compressed(),
-        coin.as_ref().conf.signature_version,
-        SIGHASH_ALL,
-        coin.as_ref().conf.fork_id,
-    )
-    // This won't fail since the keypair is a valid keypair and we have
-    // an output in the preimage that corresponds to `DEFAULT_SWAP_VOUT`.
-    .unwrap()
-    .to_vec();
-    signature.push(SIGHASH_ALL | coin.as_ref().conf.fork_id);
-
-    let maker_signature = &signature;
-    let taker_signature = &signature;
-
     let mut final_tx: UtxoTx = preimage.into();
     final_tx.inputs[0].script_sig = Builder::default()
-        .push_data(&maker_signature)
-        .push_data(&taker_signature)
+        // Maximum of 72 byte maker signature.
+        .push_data(&[0; 72])
+        // Maximum of 72 byte taker signature.
+        .push_data(&[0; 72])
         .push_opcode(Opcode::OP_1)
         .push_opcode(Opcode::OP_0)
         .push_data(&redeem_script)
