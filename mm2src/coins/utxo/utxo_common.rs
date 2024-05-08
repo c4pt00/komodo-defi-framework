@@ -875,8 +875,8 @@ enum FundingSpendFeeSetting {
     UseExact(u64),
 }
 
-/// Returns the taker payment spend transaction size in vbytes.
-async fn get_taker_payment_spend_transaction_size(coin: &impl UtxoCommonOps) -> usize {
+/// Returns the taker payment transaction size in vbytes.
+async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
     let preimage = TransactionInputSigner {
         lock_time: 0,
         version: coin.as_ref().conf.tx_version,
