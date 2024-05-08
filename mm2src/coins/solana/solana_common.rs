@@ -3,6 +3,7 @@ use crate::{BalanceError, MarketCoinOps, NumConversError, SignatureError, Signat
             UnexpectedDerivationMethod, VerificationError, VerificationResult, WithdrawError};
 use base58::FromBase58;
 use derive_more::Display;
+use enum_derives::EnumFromStringify;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::*;
 use mm2_number::bigdecimal::{BigDecimal, ToPrimitive};
@@ -49,6 +50,7 @@ impl From<BalanceError> for SufficientBalanceError {
         }
     }
 }
+
 impl From<SufficientBalanceError> for WithdrawError {
     fn from(e: SufficientBalanceError) -> Self {
         match e {
