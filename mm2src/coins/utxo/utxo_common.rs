@@ -913,10 +913,10 @@ async fn get_taker_payment_spend_transaction_size(coin: &impl UtxoCommonOps) -> 
 
     let mut final_tx: UtxoTx = preimage.into();
     final_tx.inputs[0].script_sig = Builder::default()
-        // Maximum of 72 byte maker signature.
-        .push_data(&[0; 72])
-        // Maximum of 72 byte taker signature.
-        .push_data(&[0; 72])
+        // Maximum of 72 byte maker signature + a sighash byte.
+        .push_data(&[0; 72 + 1])
+        // Maximum of 72 byte taker signature + a sighash byte.
+        .push_data(&[0; 72 + 1])
         .push_opcode(Opcode::OP_1)
         .push_opcode(Opcode::OP_0)
         .push_data(&redeem_script)
