@@ -1304,9 +1304,9 @@ impl MakerSwap {
         maker_coin: MmCoinEnum,
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
+        db_id: Option<&str>,
     ) -> Result<(Self, Option<MakerSwapCommand>), String> {
-        let saved = match SavedSwap::load_my_swap_from_db(&ctx, maker_coin.account_db_id().as_deref(), *swap_uuid).await
-        {
+        let saved = match SavedSwap::load_my_swap_from_db(&ctx, db_id, *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
             Err(e) => return ERR!("{}", e),
@@ -2076,7 +2076,7 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
             maker_coin,
             taker_coin,
             swap_uuid,
-        } => match MakerSwap::load_from_db_by_uuid(ctx, maker_coin, taker_coin, &swap_uuid).await {
+        } => match MakerSwap::load_from_db_by_uuid(ctx, maker_coin, taker_coin, &swap_uuid, db_id.as_deref()).await {
             Ok((swap, command)) => match command {
                 Some(c) => {
                     info!("Swap {} kick started.", uuid);

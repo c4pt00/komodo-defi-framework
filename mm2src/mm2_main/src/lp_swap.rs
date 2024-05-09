@@ -1359,21 +1359,30 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
                         swaps.push(swap_json)
                     },
                     Ok(None) => warn!("No such swap with the uuid '{}'", uuid),
-                    Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
+                    Err(e) => error!(
+                        "Error loading a swap with the uuid '{}': {} for db_id=({db_id})",
+                        uuid, e
+                    ),
                 },
                 MAKER_SWAP_V2_TYPE => match get_maker_swap_data_for_rpc(&ctx, uuid, Some(&db_result.pubkey)).await {
                     Ok(data) => {
                         let swap_json = try_s!(json::to_value(data));
                         swaps.push(swap_json);
                     },
-                    Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
+                    Err(e) => error!(
+                        "Error loading a swap with the uuid '{}': {} for db_id=({db_id})",
+                        uuid, e
+                    ),
                 },
                 TAKER_SWAP_V2_TYPE => match get_taker_swap_data_for_rpc(&ctx, uuid, Some(&db_result.pubkey)).await {
                     Ok(data) => {
                         let swap_json = try_s!(json::to_value(data));
                         swaps.push(swap_json);
                     },
-                    Err(e) => error!("Error loading a swap with the uuid '{}': {}", uuid, e),
+                    Err(e) => error!(
+                        "Error loading a swap with the uuid '{}': {} for db_id=({db_id})",
+                        uuid, e
+                    ),
                 },
                 unknown_type => error!("Swap with the uuid '{}' has unknown type {}", uuid, unknown_type),
             }

@@ -425,7 +425,7 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
             maker_coin,
             taker_coin,
             swap_uuid,
-        } => match TakerSwap::load_from_db_by_uuid(ctx, maker_coin, taker_coin, &swap_uuid).await {
+        } => match TakerSwap::load_from_db_by_uuid(ctx, maker_coin, taker_coin, &swap_uuid, db_id.as_deref()).await {
             Ok((swap, command)) => match command {
                 Some(c) => {
                     info!("Swap {} kick started.", uuid);
@@ -1979,9 +1979,9 @@ impl TakerSwap {
         maker_coin: MmCoinEnum,
         taker_coin: MmCoinEnum,
         swap_uuid: &Uuid,
+        db_id: Option<&str>,
     ) -> Result<(Self, Option<TakerSwapCommand>), String> {
-        let account_key = taker_coin.account_db_id();
-        let saved = match SavedSwap::load_my_swap_from_db(&ctx, account_key.as_deref(), *swap_uuid).await {
+        let saved = match SavedSwap::load_my_swap_from_db(&ctx, db_id, *swap_uuid).await {
             Ok(Some(saved)) => saved,
             Ok(None) => return ERR!("Couldn't find a swap with the uuid '{}'", swap_uuid),
             Err(e) => return ERR!("{}", e),

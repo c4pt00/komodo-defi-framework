@@ -187,6 +187,37 @@ cross_test!(test_last_nft_block, {
     assert_eq!(last_block, 28056726);
 });
 
+cross_test!(test_last_nft_block_multikey_db, {
+    let chain = Chain::Bsc;
+    let nft_ctx = get_nft_ctx(&chain).await;
+    let storage_1 = nft_ctx.lock_db(None).await.unwrap();
+    let storage_2 = nft_ctx.lock_db(Some("TEST_DB_ID")).await.unwrap();
+    NftListStorageOps::init(&storage_1, &chain).await.unwrap();
+    NftListStorageOps::init(&storage_2, &chain).await.unwrap();
+
+    // insert nft into storage_1 and query for last block(should return 28056726 and assert_eq should pass!)
+    let nft_list = nft_list();
+    storage_1.add_nfts_to_list(chain, nft_list, 28056726).await.unwrap();
+    let last_block = NftListStorageOps::get_last_block_number(&storage_1, &chain)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(last_block, 28056726);
+
+    // Since we didn't insert nft into storage_2 instance yet, last_block should return None and assert_eq should pass!
+    let last_block = NftListStorageOps::get_last_block_number(&storage_2, &chain)
+        .await
+        .unwrap();
+    assert_eq!(last_block, None);
+
+    // storage_1 last block should pass again
+    let last_block = NftListStorageOps::get_last_block_number(&storage_1, &chain)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(last_block, 28056726);
+});
+
 cross_test!(test_nft_list, {
     let chain = Chain::Bsc;
     let nft_ctx = get_nft_ctx(&chain).await;
