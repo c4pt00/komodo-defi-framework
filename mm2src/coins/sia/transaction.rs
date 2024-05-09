@@ -117,10 +117,7 @@ impl Encodable for SiacoinInputV1 {
 }
 
 impl Encodable for SiacoinInputV2 {
-    fn encode(&self, encoder: &mut Encoder) {
-        self.parent.encode(encoder);
-
-    }
+    fn encode(&self, encoder: &mut Encoder) { self.parent.encode(encoder); }
 }
 
 impl Encodable for SiacoinInput {

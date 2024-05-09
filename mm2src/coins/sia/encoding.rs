@@ -38,7 +38,7 @@ impl Encoder {
     pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
 
     // Utility method to create, encode, and hash
-    pub fn encode_and_hash<T: EncodeTo>(item: &T) -> H256 {
+    pub fn encode_and_hash<T: Encodable>(item: &T) -> H256 {
         let mut encoder = Encoder::default();
         item.encode(&mut encoder);
         encoder.hash()
