@@ -1656,6 +1656,12 @@ pub trait MakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
 
     /// Spend maker payment transaction
     async fn spend_maker_payment_v2(&self, args: SpendMakerPaymentArgs<'_, Self>) -> Result<Self::Tx, TransactionErr>;
+
+    /// Get the fee to be paid for the processing of the maker payment transaction.
+    async fn get_maker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+
+    /// Get the fee to be paid for the processing of the maker payment spend transaction aka the claimation transaction.
+    async fn get_maker_payment_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
 }
 
 #[async_trait]
@@ -1856,6 +1862,25 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
 
     /// Derives an HTLC key-pair and returns a public key corresponding to that key.
     fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey;
+
+    /// Get the fee to be paid for the processing of the funding transaction.
+    /// Txs in success case (no refund) go as follows:
+    ///    Chain A: funding -> taker payment -> taker payment spend (aka preimage) (to the maker & dex)
+    ///    Chain B:            maker payment -> maker payment spend (aka claimation) (to the taker)
+    async fn get_funding_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+
+    /// Get the fee to be paid for the processing of the funding-spend transaction aka taker payment transaction.
+    ///
+    /// Don't use this method, use [TakerCoinSwapOpsV2::get_taker_payment_fee] instead.
+    async fn get_funding_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> {
+        self.get_taker_payment_fee(stage).await
+    }
+
+    /// Get the fee to be paid for the processing of the taker payment transaction.
+    async fn get_taker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+
+    /// Get the fee to be paid for the processing of the taker payment spend transaction aka the preimage transaction.
+    async fn get_taker_payment_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
 }
 
 /// Operations that coins have independently from the MarketMaker.
@@ -3153,29 +3178,6 @@ pub trait MmCoin:
 
     /// Get fee to be paid by receiver per whole swap and check if the wallet has sufficient balance to pay the fee.
     fn get_receiver_trade_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee>;
-
-    /// Get the fee to be paid for the processing of the funding transaction.
-    /// Txs in success case (no refund) go as follows:
-    ///    Chain A: funding -> taker payment -> taker payment spend (aka preimage) (to the maker & dex)
-    ///    Chain B:            maker payment -> maker payment spend (aka claimation) (to the taker)
-    fn get_funding_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee>;
-
-    /// Get the fee to be paid for the processing of the funding-spend transaction aka taker payment transaction.
-    fn get_funding_spend_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee> {
-        self.get_taker_payment_fee(stage)
-    }
-
-    /// Get the fee to be paid for the processing of the taker payment transaction.
-    fn get_taker_payment_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee>;
-
-    /// Get the fee to be paid for the processing of the maker payment transaction.
-    fn get_maker_payment_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee>;
-
-    /// Get the fee to be paid for the processing of the taker payment spend transaction aka the preimage transaction.
-    fn get_taker_payment_spend_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee>;
-
-    /// Get the fee to be paid for the processing of the maker payment spend transaction aka the claimation transaction.
-    fn get_maker_payment_spend_fee(&self, stage: FeeApproxStage) -> TradePreimageFut<TradeFee>;
 
     /// Get transaction fee the Taker has to pay to send a `TakerFee` transaction and check if the wallet has sufficient balance to pay the fee.
     async fn get_fee_to_send_taker_fee(

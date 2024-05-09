@@ -824,9 +824,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        // FIXME: I am lost here, is this the fee for funding spend or taker payment spend?
-        // if it's the former, where is the fee for the the taker payment spend?
-        let taker_payment_spend_trade_fee = match state_machine.taker_coin.get_receiver_trade_fee(stage).compat().await
+        // FIXME: Fix the naming of this variable, and the state machine variables.
+        let taker_payment_spend_trade_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await
         {
             Ok(fee) => fee,
             Err(e) => {

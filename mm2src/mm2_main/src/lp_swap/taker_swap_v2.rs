@@ -949,7 +949,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         let stage = FeeApproxStage::StartSwap;
         // The fee for the taker payment spend, accounted for in the total payment value.
         // This is so the maker doesn't have to pay it from the trading volume.
-        let taker_payment_spend_fee = match state_machine.taker_coin.get_receiver_trade_fee(stage).compat().await {
+        let taker_payment_spend_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetTakerPaymentSpendFee(e.to_string());

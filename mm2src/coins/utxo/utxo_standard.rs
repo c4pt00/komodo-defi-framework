@@ -650,6 +650,10 @@ impl MakerCoinSwapOpsV2 for UtxoStandardCoin {
     async fn spend_maker_payment_v2(&self, args: SpendMakerPaymentArgs<'_, Self>) -> Result<Self::Tx, TransactionErr> {
         utxo_common::spend_maker_payment_v2(self, args).await
     }
+
+    async fn get_maker_payment_fee(&self, _stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
+
+    async fn get_maker_payment_spend_fee(&self, _stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
 }
 
 #[async_trait]
@@ -827,6 +831,21 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
     fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey {
         *self.derive_htlc_key_pair(swap_unique_data).public()
     }
+
+    async fn get_funding_fee(&self, _stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
+
+    async fn get_taker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> {
+        let taker_payment_tx_size = utxo_common::get_taker_payment_tx_size(self).await;
+        let fee_sat = self.get_htlc_spend_fee(taker_payment_tx_size as u64, stage).await?;
+        let amount = big_decimal_from_sat_unsigned(fee_sat, self.as_ref().decimals).into();
+        Ok(TradeFee {
+            coin: self.as_ref().conf.ticker.clone(),
+            amount,
+            paid_from_trading_vol: true,
+        })
+    }
+
+    async fn get_taker_payment_spend_fee(&self, _stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
 }
 
 #[async_trait]

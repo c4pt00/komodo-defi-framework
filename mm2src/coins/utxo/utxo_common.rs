@@ -876,7 +876,7 @@ enum FundingSpendFeeSetting {
 }
 
 /// Returns the taker payment transaction size in vbytes.
-async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
+pub async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
     let preimage = TransactionInputSigner {
         lock_time: 0,
         version: coin.as_ref().conf.tx_version,
@@ -909,7 +909,7 @@ async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
     };
 
     let redeem_script =
-        swap_proto_v2_scripts::taker_funding_script(0, &H160::default(), &Public::default(), &Public::default());
+        swap_proto_v2_scripts::taker_funding_script(0, H160::default().as_slice(), &Public::default(), &Public::default());
 
     let mut final_tx: UtxoTx = preimage.into();
     final_tx.inputs[0].script_sig = Builder::default()
