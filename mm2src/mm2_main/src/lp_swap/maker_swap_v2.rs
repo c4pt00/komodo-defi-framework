@@ -825,8 +825,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         };
 
         // FIXME: Fix the naming of this variable, and the state machine variables.
-        let taker_payment_spend_trade_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await
-        {
+        let taker_payment_spend_trade_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetTakerPaymentSpendFee(e.to_string());

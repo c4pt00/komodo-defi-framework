@@ -908,8 +908,12 @@ pub async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
         hash_algo: coin.as_ref().tx_hash_algo.into(),
     };
 
-    let redeem_script =
-        swap_proto_v2_scripts::taker_funding_script(0, H160::default().as_slice(), &Public::default(), &Public::default());
+    let redeem_script = swap_proto_v2_scripts::taker_funding_script(
+        0,
+        H160::default().as_slice(),
+        &Public::default(),
+        &Public::default(),
+    );
 
     let mut final_tx: UtxoTx = preimage.into();
     final_tx.inputs[0].script_sig = Builder::default()
