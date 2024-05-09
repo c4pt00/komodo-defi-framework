@@ -169,3 +169,17 @@ fn test_address_str_without_prefix() {
         "591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f"
     );
 }
+
+#[test]
+fn test_address_encode() {
+    let pubkey = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let address = v1_standard_address_from_pubkey(&pubkey);
+
+    let hash = Encoder::encode_and_hash(&address);
+    let expected = H256::from("d64b9a56043a909494f07520915e10dae62d75dba24b17c8414f8f3f30c53425");
+
+    assert_eq!(hash, expected);
+}
