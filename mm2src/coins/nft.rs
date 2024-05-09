@@ -1610,7 +1610,7 @@ fn http_get_payload_str(uri: Url, signed_message: GuiAuthValidation) -> MmResult
     Ok(serde_json::to_string(&HttpGetPayload { uri, signed_message })?)
 }
 
-/// A wrapper struct for holding the chain identifier, original URL from RPC, anti-spam URL and signed message.
+/// A wrapper struct for holding the chain identifier, original URL field from RPC, anti-spam URL and signed message.
 struct UrlSignWrapper<'a> {
     chain: &'a Chain,
     orig_url: &'a Url,

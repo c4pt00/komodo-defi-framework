@@ -897,16 +897,15 @@ fn send_and_spend_erc721_maker_payment() {
     };
     let maker_payment = block_on(maker_global_nft.send_nft_maker_payment_v2(send_payment_args)).unwrap();
     log!(
-        "Maker sent ERC721 NFT Payment tx hash {:02x}\n",
+        "Maker sent ERC721 NFT payment, tx hash: {:02x}",
         maker_payment.tx_hash()
     );
-    log!("Maker ERC721 NFT Payment transaction\n{:?}", maker_payment);
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: maker_payment.tx_hex(),
         confirmations: 1,
         requires_nota: false,
-        wait_until: now_sec() + 70,
+        wait_until: now_sec() + 150,
         check_every: 1,
     };
     maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
@@ -936,12 +935,16 @@ fn send_and_spend_erc721_maker_payment() {
         swap_contract_address: &sepolia_etomic_maker_nft(),
     };
     let spend_tx = block_on(taker_global_nft.spend_nft_maker_payment_v2(spend_payment_args)).unwrap();
+    log!(
+        "Taker spent ERC721 NFT Maker payment, tx hash: {:02x}",
+        spend_tx.tx_hash()
+    );
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: spend_tx.tx_hex(),
         confirmations: 1,
         requires_nota: false,
-        wait_until: now_sec() + 70,
+        wait_until: now_sec() + 150,
         check_every: 1,
     };
     taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
@@ -959,11 +962,15 @@ fn send_and_spend_erc721_maker_payment() {
         erc721_nft,
     )
     .unwrap();
+    log!(
+        "Taker sent ERC721 NFT back to Maker, tx hash: {:02x}",
+        send_back_tx.tx_hash()
+    );
     let confirm_input = ConfirmPaymentInput {
         payment_tx: send_back_tx.tx_hex(),
         confirmations: 1,
         requires_nota: false,
-        wait_until: now_sec() + 70,
+        wait_until: now_sec() + 150,
         check_every: 1,
     };
     taker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
@@ -1005,7 +1012,10 @@ fn send_and_spend_erc1155_maker_payment() {
         nft_swap_info: &nft_swap_info,
     };
     let maker_payment = block_on(maker_global_nft.send_nft_maker_payment_v2(send_payment_args)).unwrap();
-    log!("Maker sent ERC1155 NFT Payment tx hash {:02x}", maker_payment.tx_hash());
+    log!(
+        "Maker sent ERC1155 NFT payment, tx hash: {:02x}",
+        maker_payment.tx_hash()
+    );
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: maker_payment.tx_hex(),
@@ -1041,6 +1051,10 @@ fn send_and_spend_erc1155_maker_payment() {
         swap_contract_address: &sepolia_etomic_maker_nft(),
     };
     let spend_tx = block_on(taker_global_nft.spend_nft_maker_payment_v2(spend_payment_args)).unwrap();
+    log!(
+        "Taker spent ERC1155 NFT Maker payment, tx hash: {:02x}",
+        spend_tx.tx_hash()
+    );
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: spend_tx.tx_hex(),
@@ -1065,6 +1079,10 @@ fn send_and_spend_erc1155_maker_payment() {
         erc1155_nft,
     )
     .unwrap();
+    log!(
+        "Taker sent ERC1155 NFT back to Maker, tx hash: {:02x}",
+        send_back_tx.tx_hash()
+    );
     let confirm_input = ConfirmPaymentInput {
         payment_tx: send_back_tx.tx_hex(),
         confirmations: 1,
