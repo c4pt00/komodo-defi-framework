@@ -255,6 +255,12 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             },
         };
 
+        let wrapper = UrlSignWrapper {
+            orig_url: &req.url,
+            url_antispam: &req.url_antispam,
+            signed_message: &signed_message,
+        };
+
         let nft_transfers =
             get_moralis_nft_transfers(&ctx, chain, from_block, &req.url, eth_coin, &signed_message).await?;
         storage.add_transfers_to_history(*chain, nft_transfers).await?;
@@ -263,11 +269,9 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             Ok(Some(block)) => block,
             Ok(None) => {
                 // if there are no rows in NFT LIST table we can try to get nft list from moralis.
-                let nft_list =
-                    cache_nfts_from_moralis(&ctx, &storage, chain, &req.url, &req.url_antispam, &signed_message)
-                        .await?;
+                let nft_list = cache_nfts_from_moralis(&ctx, &storage, chain, &wrapper).await?;
                 update_meta_in_transfers(&storage, chain, nft_list).await?;
-                update_transfers_with_empty_meta(&storage, chain, &req.url, &req.url_antispam, &signed_message).await?;
+                update_transfers_with_empty_meta(&storage, chain, &wrapper).await?;
                 update_spam(&storage, *chain, &req.url_antispam).await?;
                 update_phishing(&storage, chain, &req.url_antispam).await?;
                 continue;
@@ -275,11 +279,9 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             Err(_) => {
                 // if there is an error, then NFT LIST table doesnt exist, so we need to cache nft list from moralis.
                 NftListStorageOps::init(&storage, chain).await?;
-                let nft_list =
-                    cache_nfts_from_moralis(&ctx, &storage, chain, &req.url, &req.url_antispam, &signed_message)
-                        .await?;
+                let nft_list = cache_nfts_from_moralis(&ctx, &storage, chain, &wrapper).await?;
                 update_meta_in_transfers(&storage, chain, nft_list).await?;
-                update_transfers_with_empty_meta(&storage, chain, &req.url, &req.url_antispam, &signed_message).await?;
+                update_transfers_with_empty_meta(&storage, chain, &wrapper).await?;
                 update_spam(&storage, *chain, &req.url_antispam).await?;
                 update_phishing(&storage, chain, &req.url_antispam).await?;
                 continue;
@@ -300,18 +302,9 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
                 last_nft_block: nft_block.to_string(),
             });
         }
-        update_nft_list(
-            ctx.clone(),
-            &storage,
-            chain,
-            scanned_block + 1,
-            &req.url,
-            &req.url_antispam,
-            &signed_message,
-        )
-        .await?;
+        update_nft_list(ctx.clone(), &storage, chain, scanned_block + 1, &wrapper).await?;
         update_nft_global_in_coins_ctx(&ctx, &storage, *chain).await?;
-        update_transfers_with_empty_meta(&storage, chain, &req.url, &req.url_antispam, &signed_message).await?;
+        update_transfers_with_empty_meta(&storage, chain, &wrapper).await?;
         update_spam(&storage, *chain, &req.url_antispam).await?;
         update_phishing(&storage, chain, &req.url_antispam).await?;
     }
@@ -513,28 +506,26 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
         },
     };
 
-    let token_address_str = eth_addr_to_hex(&req.token_address);
-    let mut moralis_meta = match get_moralis_metadata(
-        token_address_str.clone(),
-        req.token_id.clone(),
-        &req.chain,
-        &req.url,
-        &req.url_antispam,
-        &signed_message,
-    )
-    .await
-    {
-        Ok(moralis_meta) => moralis_meta,
-        Err(_) => {
-            storage
-                .update_nft_spam_by_token_address(&req.chain, token_address_str.clone(), true)
-                .await?;
-            storage
-                .update_transfer_spam_by_token_address(&req.chain, token_address_str.clone(), true)
-                .await?;
-            return Ok(());
-        },
+    let wrapper = UrlSignWrapper {
+        orig_url: &req.url,
+        url_antispam: &req.url_antispam,
+        signed_message: &signed_message,
     };
+
+    let token_address_str = eth_addr_to_hex(&req.token_address);
+    let mut moralis_meta =
+        match get_moralis_metadata(token_address_str.clone(), req.token_id.clone(), &req.chain, &wrapper).await {
+            Ok(moralis_meta) => moralis_meta,
+            Err(_) => {
+                storage
+                    .update_nft_spam_by_token_address(&req.chain, token_address_str.clone(), true)
+                    .await?;
+                storage
+                    .update_transfer_spam_by_token_address(&req.chain, token_address_str.clone(), true)
+                    .await?;
+                return Ok(());
+            },
+        };
     let mut nft_db = storage
         .get_nft(&req.chain, token_address_str.clone(), req.token_id.clone())
         .await?
@@ -665,15 +656,13 @@ where
 async fn get_moralis_nft_list(
     ctx: &MmArc,
     chain: &Chain,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
 ) -> MmResult<Vec<Nft>, GetNftInfoError> {
     let mut res_list = Vec::new();
     let ticker = chain.to_ticker();
     let conf = coin_conf(ctx, ticker);
     let my_address = get_eth_address(ctx, &conf, ticker, &HDPathAccountToAddressId::default()).await?;
-    let uri_without_cursor = construct_moralis_uri_for_nft(original_url, &my_address.wallet_address, chain)?;
+    let uri_without_cursor = construct_moralis_uri_for_nft(wrapper.orig_url, &my_address.wallet_address, chain)?;
 
     // The cursor returned in the previous response (used for getting the next page).
     let mut cursor = String::new();
@@ -683,8 +672,8 @@ async fn get_moralis_nft_list(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = http_get_payload_str(uri, signed_message.clone())?;
-        let response = send_request_to_uri(original_url.as_str(), Some(payload)).await?;
+        let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
+        let response = send_request_to_uri(wrapper.orig_url.as_str(), Some(payload)).await?;
         if let Some(nfts_list) = response["result"].as_array() {
             for nft_json in nfts_list {
                 let nft_moralis = NftFromMoralis::deserialize(nft_json)?;
@@ -692,7 +681,7 @@ async fn get_moralis_nft_list(
                     Some(contract_type) => contract_type,
                     None => continue,
                 };
-                let mut nft = build_nft_from_moralis(*chain, nft_moralis, contract_type, url_antispam).await;
+                let mut nft = build_nft_from_moralis(*chain, nft_moralis, contract_type, wrapper.url_antispam).await;
                 protect_from_nft_spam_links(&mut nft, false)?;
                 // collect NFTs from the page
                 res_list.push(nft);
@@ -932,11 +921,9 @@ async fn get_moralis_metadata(
     token_address: String,
     token_id: BigUint,
     chain: &Chain,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
 ) -> MmResult<Nft, GetNftInfoError> {
-    let mut uri = original_url.clone();
+    let mut uri = wrapper.orig_url.clone();
     uri.set_path(MORALIS_API_ENDPOINT);
     uri.path_segments_mut()
         .map_to_mm(|_| GetNftInfoError::Internal("Invalid URI".to_string()))?
@@ -948,14 +935,14 @@ async fn get_moralis_metadata(
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     drop_mutability!(uri);
 
-    let payload = http_get_payload_str(uri, signed_message.clone())?;
-    let response = send_request_to_uri(original_url.as_str(), Some(payload)).await?;
+    let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
+    let response = send_request_to_uri(wrapper.orig_url.as_str(), Some(payload)).await?;
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response.to_string())?;
     let contract_type = match nft_moralis.contract_type {
         Some(contract_type) => contract_type,
         None => return MmError::err(GetNftInfoError::ContractTypeIsNull),
     };
-    let mut nft_metadata = build_nft_from_moralis(*chain, nft_moralis, contract_type, url_antispam).await;
+    let mut nft_metadata = build_nft_from_moralis(*chain, nft_moralis, contract_type, wrapper.url_antispam).await;
     protect_from_nft_spam_links(&mut nft_metadata, false)?;
     Ok(nft_metadata)
 }
@@ -1056,9 +1043,7 @@ async fn update_nft_list<T: NftListStorageOps + NftTransferHistoryStorageOps>(
     storage: &T,
     chain: &Chain,
     scan_from_block: u64,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
 ) -> MmResult<(), UpdateNftError> {
     let transfers = storage.get_transfers_from_block(*chain, scan_from_block).await?;
     let req = MyAddressReq {
@@ -1067,16 +1052,7 @@ async fn update_nft_list<T: NftListStorageOps + NftTransferHistoryStorageOps>(
     };
     let my_address = get_my_address(ctx.clone(), req).await?.wallet_address.to_lowercase();
     for transfer in transfers.into_iter() {
-        handle_nft_transfer(
-            storage,
-            chain,
-            original_url,
-            url_antispam,
-            signed_message,
-            transfer,
-            &my_address,
-        )
-        .await?;
+        handle_nft_transfer(storage, chain, wrapper, transfer, &my_address).await?;
     }
     Ok(())
 }
@@ -1084,38 +1060,18 @@ async fn update_nft_list<T: NftListStorageOps + NftTransferHistoryStorageOps>(
 async fn handle_nft_transfer<T: NftListStorageOps + NftTransferHistoryStorageOps>(
     storage: &T,
     chain: &Chain,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
     transfer: NftTransferHistory,
     my_address: &str,
 ) -> MmResult<(), UpdateNftError> {
     match (transfer.status, transfer.contract_type) {
         (TransferStatus::Send, ContractType::Erc721) => handle_send_erc721(storage, chain, transfer).await,
         (TransferStatus::Receive, ContractType::Erc721) => {
-            handle_receive_erc721(
-                storage,
-                chain,
-                transfer,
-                original_url,
-                url_antispam,
-                signed_message,
-                my_address,
-            )
-            .await
+            handle_receive_erc721(storage, chain, transfer, wrapper, my_address).await
         },
         (TransferStatus::Send, ContractType::Erc1155) => handle_send_erc1155(storage, chain, transfer).await,
         (TransferStatus::Receive, ContractType::Erc1155) => {
-            handle_receive_erc1155(
-                storage,
-                chain,
-                transfer,
-                original_url,
-                url_antispam,
-                signed_message,
-                my_address,
-            )
-            .await
+            handle_receive_erc1155(storage, chain, transfer, wrapper, my_address).await
         },
     }
 }
@@ -1151,9 +1107,7 @@ async fn handle_receive_erc721<T: NftListStorageOps + NftTransferHistoryStorageO
     storage: &T,
     chain: &Chain,
     transfer: NftTransferHistory,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
     my_address: &str,
 ) -> MmResult<(), UpdateNftError> {
     let token_address_str = eth_addr_to_hex(&transfer.common.token_address);
@@ -1180,9 +1134,7 @@ async fn handle_receive_erc721<T: NftListStorageOps + NftTransferHistoryStorageO
                 token_address_str.clone(),
                 transfer.token_id.clone(),
                 chain,
-                original_url,
-                url_antispam,
-                signed_message,
+                wrapper,
             )
             .await
             {
@@ -1246,9 +1198,7 @@ async fn handle_receive_erc1155<T: NftListStorageOps + NftTransferHistoryStorage
     storage: &T,
     chain: &Chain,
     transfer: NftTransferHistory,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
     my_address: &str,
 ) -> MmResult<(), UpdateNftError> {
     let token_address_str = eth_addr_to_hex(&transfer.common.token_address);
@@ -1271,18 +1221,12 @@ async fn handle_receive_erc1155<T: NftListStorageOps + NftTransferHistoryStorage
         },
         // If token isn't in NFT LIST table then add nft to the table.
         None => {
-            let nft = match get_moralis_metadata(
-                token_address_str.clone(),
-                transfer.token_id.clone(),
-                chain,
-                original_url,
-                url_antispam,
-                signed_message,
-            )
-            .await
+            let nft = match get_moralis_metadata(token_address_str.clone(), transfer.token_id.clone(), chain, wrapper)
+                .await
             {
                 Ok(moralis_meta) => {
-                    create_nft_from_moralis_metadata(moralis_meta, &transfer, my_address, chain, url_antispam).await?
+                    create_nft_from_moralis_metadata(moralis_meta, &transfer, my_address, chain, wrapper.url_antispam)
+                        .await?
                 },
                 Err(_) => {
                     mark_as_spam_and_build_empty_meta(storage, chain, token_address_str, &transfer, my_address).await?
@@ -1383,11 +1327,9 @@ async fn cache_nfts_from_moralis<T: NftListStorageOps + NftTransferHistoryStorag
     ctx: &MmArc,
     storage: &T,
     chain: &Chain,
-    url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
 ) -> MmResult<Vec<Nft>, UpdateNftError> {
-    let nft_list = get_moralis_nft_list(ctx, chain, url, url_antispam, signed_message).await?;
+    let nft_list = get_moralis_nft_list(ctx, chain, wrapper).await?;
     let last_scanned_block = NftTransferHistoryStorageOps::get_last_block_number(storage, chain)
         .await?
         .unwrap_or(0);
@@ -1412,9 +1354,7 @@ where
 async fn update_transfers_with_empty_meta<T>(
     storage: &T,
     chain: &Chain,
-    original_url: &Url,
-    url_antispam: &Url,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
 ) -> MmResult<(), UpdateNftError>
 where
     T: NftListStorageOps + NftTransferHistoryStorageOps,
@@ -1425,9 +1365,7 @@ where
             addr_id_pair.token_address.clone(),
             addr_id_pair.token_id,
             chain,
-            original_url,
-            url_antispam,
-            signed_message,
+            wrapper,
         )
         .await
         {
@@ -1680,7 +1618,7 @@ struct HttpGetPayload {
 }
 
 #[derive(Debug, Display, EnumFromStringify)]
-pub(crate) enum HttpGetPayloadErr {
+enum HttpGetPayloadErr {
     #[from_stringify("serde_json::Error")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
@@ -1689,4 +1627,10 @@ pub(crate) enum HttpGetPayloadErr {
 #[inline(always)]
 fn http_get_payload_str(uri: Url, signed_message: GuiAuthValidation) -> MmResult<String, HttpGetPayloadErr> {
     Ok(serde_json::to_string(&HttpGetPayload { uri, signed_message })?)
+}
+
+struct UrlSignWrapper<'a> {
+    orig_url: &'a Url,
+    url_antispam: &'a Url,
+    signed_message: &'a GuiAuthValidation,
 }
