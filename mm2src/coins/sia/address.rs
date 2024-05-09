@@ -1,4 +1,5 @@
 use crate::sia::blake2b_internal::standard_unlock_hash;
+use crate::sia::encoding::{Encodable, Encoder};
 use blake2b_simd::Params;
 use ed25519_dalek::PublicKey;
 use hex::FromHexError;
@@ -19,6 +20,10 @@ impl Address {
         let checksum = blake2b_checksum(bytes);
         format!("{}{}", hex::encode(bytes), hex::encode(checksum))
     }
+}
+
+impl Encodable for Address {
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.0 .0.as_ref()); }
 }
 
 impl fmt::Display for Address {
