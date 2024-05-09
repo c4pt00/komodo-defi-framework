@@ -41,13 +41,13 @@ impl SqliteConnPool {
                 let conn = Self::open_connection(ctx, &db_id, &db_id_conn_kind);
                 let store = Arc::new(Mutex::new(HashMap::from([(db_id, conn)])));
                 try_s!(ctx.sqlite_conn_pool.pin(Self(store)));
-            }
+            },
             // if connection pool is already initialized, insert new connection.
             Some(pool) => {
                 let conn = Self::open_connection(ctx, &db_id, &db_id_conn_kind);
                 let mut pool = pool.0.lock().unwrap();
                 pool.insert(db_id, conn);
-            }
+            },
         };
 
         Ok(())
@@ -68,12 +68,12 @@ impl SqliteConnPool {
                 let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
                 let store = Arc::new(Mutex::new(HashMap::from([(db_id, connection)])));
                 try_s!(ctx.sqlite_conn_pool.pin(Self(store)));
-            }
+            },
             Some(pool) => {
                 let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
                 let mut pool = pool.0.lock().unwrap();
                 pool.insert(db_id, connection);
-            }
+            },
         }
         Ok(())
     }
@@ -146,13 +146,13 @@ impl AsyncSqliteConnPool {
                 let conn = Self::open_connection(ctx, &db_id).await;
                 let store = Arc::new(AsyncMutex::new(HashMap::from([(db_id, conn)])));
                 try_s!(ctx.async_sqlite_conn_pool.pin(Self(store)));
-            }
+            },
             // if connection pool is already initialized, insert new connection.
             Some(pool) => {
                 let conn = Self::open_connection(ctx, &db_id).await;
                 let mut pool = pool.0.lock().await;
                 pool.insert(db_id, conn);
-            }
+            },
         };
 
         Ok(())
@@ -171,13 +171,13 @@ impl AsyncSqliteConnPool {
                 let connections = HashMap::from([(db_id, conn), ("TEST_DB_ID".to_owned(), conn2)]);
                 let store = Arc::new(AsyncMutex::new(connections));
                 try_s!(ctx.async_sqlite_conn_pool.pin(Self(store)));
-            }
+            },
             // if connection pool is already initialized, insert new connection.
             Some(pool) => {
                 let mut pool = pool.0.lock().await;
                 let conn = Arc::new(AsyncMutex::new(AsyncConnection::open_in_memory().await.unwrap()));
                 pool.insert(db_id, conn);
-            }
+            },
         };
 
         Ok(())
