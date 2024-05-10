@@ -489,7 +489,7 @@ impl TakerCoinSwapOpsV2 for TestCoin {
         todo!()
     }
 
-    async fn gen_taker_funding_spend_preimage(
+    async fn gen_taker_payment_preimage(
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
         swap_unique_data: &[u8],
@@ -497,7 +497,7 @@ impl TakerCoinSwapOpsV2 for TestCoin {
         todo!()
     }
 
-    async fn validate_taker_funding_spend_preimage(
+    async fn validate_taker_payment_preimage(
         &self,
         gen_args: &GenTakerFundingSpendArgs<'_, Self>,
         preimage: &TxPreimageWithSig<Self>,
@@ -505,7 +505,7 @@ impl TakerCoinSwapOpsV2 for TestCoin {
         todo!()
     }
 
-    async fn sign_and_send_taker_funding_spend(
+    async fn sign_and_send_taker_payment(
         &self,
         preimage: &TxPreimageWithSig<Self>,
         args: &GenTakerFundingSpendArgs<'_, Self>,

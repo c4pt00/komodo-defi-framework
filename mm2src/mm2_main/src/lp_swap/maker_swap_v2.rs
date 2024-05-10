@@ -972,7 +972,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
         let expected_taker_payment_spend_fee = self.taker_payment_spend_trade_fee.amount;
         let taker_payment_spend_fee =
-            big_decimal_from_sat_unsigned(taker_data.taker_payment_spend_fee, state_machine.taker_coin.decimals());
+            big_decimal_from_sat_unsigned(taker_data.taker_payment_fee, state_machine.taker_coin.decimals());
 
         // To avoid accidental division by zero, let's set the ratio to 1 if the expected fee is 0.
         let ratio = if expected_taker_payment_spend_fee == 0.into() {
@@ -1207,7 +1207,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         };
         let funding_spend_preimage = match state_machine
             .taker_coin
-            .gen_taker_funding_spend_preimage(&args, &unique_data)
+            .gen_taker_payment_preimage(&args, &unique_data)
             .await
         {
             Ok(p) => p,

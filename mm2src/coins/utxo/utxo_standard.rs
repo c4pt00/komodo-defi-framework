@@ -751,31 +751,31 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
         }
     }
 
-    async fn gen_taker_funding_spend_preimage(
+    async fn gen_taker_payment_preimage(
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
         let htlc_keypair = self.derive_htlc_key_pair(swap_unique_data);
-        utxo_common::gen_and_sign_taker_funding_spend_preimage(self, args, &htlc_keypair).await
+        utxo_common::gen_and_sign_taker_payment_preimage(self, args, &htlc_keypair).await
     }
 
-    async fn validate_taker_funding_spend_preimage(
+    async fn validate_taker_payment_preimage(
         &self,
         gen_args: &GenTakerFundingSpendArgs<'_, Self>,
         preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerFundingSpendPreimageResult {
-        utxo_common::validate_taker_funding_spend_preimage(self, gen_args, preimage).await
+        utxo_common::validate_taker_payment_preimage(self, gen_args, preimage).await
     }
 
-    async fn sign_and_send_taker_funding_spend(
+    async fn sign_and_send_taker_payment(
         &self,
         preimage: &TxPreimageWithSig<Self>,
         args: &GenTakerFundingSpendArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> Result<Self::Tx, TransactionErr> {
         let htlc_keypair = self.derive_htlc_key_pair(swap_unique_data);
-        utxo_common::sign_and_send_taker_funding_spend(self, preimage, args, &htlc_keypair).await
+        utxo_common::sign_and_send_taker_payment(self, preimage, args, &htlc_keypair).await
     }
 
     async fn refund_combined_taker_payment(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {

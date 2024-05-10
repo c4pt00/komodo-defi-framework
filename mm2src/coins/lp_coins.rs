@@ -1804,21 +1804,21 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr>;
 
     /// Generates and signs a preimage spending funding tx to the combined taker payment
-    async fn gen_taker_funding_spend_preimage(
+    async fn gen_taker_payment_preimage(
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self>;
 
     /// Validates taker funding spend preimage generated and signed by maker
-    async fn validate_taker_funding_spend_preimage(
+    async fn validate_taker_payment_preimage(
         &self,
         gen_args: &GenTakerFundingSpendArgs<'_, Self>,
         preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerFundingSpendPreimageResult;
 
     /// Generates and signs a preimage spending funding tx to the combined taker payment
-    async fn sign_and_send_taker_funding_spend(
+    async fn sign_and_send_taker_payment(
         &self,
         preimage: &TxPreimageWithSig<Self>,
         args: &GenTakerFundingSpendArgs<'_, Self>,

@@ -1098,7 +1098,7 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
     .map_to_mm(TxGenError::Legacy)
 }
 
-pub async fn gen_and_sign_taker_funding_spend_preimage<T: UtxoCommonOps>(
+pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
     coin: &T,
     args: &GenTakerFundingSpendArgs<'_, T>,
     htlc_keypair: &KeyPair,
@@ -1134,7 +1134,7 @@ pub async fn gen_and_sign_taker_funding_spend_preimage<T: UtxoCommonOps>(
 
 /// Common implementation of taker funding spend preimage validation for UTXO coins.
 /// Checks maker's signature and compares received preimage with the expected tx.
-pub async fn validate_taker_funding_spend_preimage<T: UtxoCommonOps + SwapOps>(
+pub async fn validate_taker_payment_preimage<T: UtxoCommonOps + SwapOps>(
     coin: &T,
     gen_args: &GenTakerFundingSpendArgs<'_, T>,
     preimage: &TxPreimageWithSig<T>,
@@ -1213,7 +1213,7 @@ pub async fn validate_taker_funding_spend_preimage<T: UtxoCommonOps + SwapOps>(
 }
 
 /// Common implementation of taker funding spend finalization and broadcast for UTXO coins.
-pub async fn sign_and_send_taker_funding_spend<T: UtxoCommonOps>(
+pub async fn sign_and_send_taker_payment<T: UtxoCommonOps>(
     coin: &T,
     preimage: &TxPreimageWithSig<T>,
     gen_args: &GenTakerFundingSpendArgs<'_, T>,

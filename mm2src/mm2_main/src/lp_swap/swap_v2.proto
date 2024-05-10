@@ -32,7 +32,7 @@ message TakerNegotiationData {
   bytes taker_coin_htlc_pub = 6;
   optional bytes maker_coin_swap_contract = 7;
   optional bytes taker_coin_swap_contract = 8;
-  uint64 taker_payment_spend_fee = 9;
+  uint64 taker_payment_fee = 9;
 }
 
 message TakerNegotiation {

@@ -1031,7 +1031,7 @@ impl TakerSwap {
         let params = TakerSwapPreparedParams {
             dex_fee: dex_fee.total_spend_amount(),
             fee_to_send_dex_fee: fee_to_send_dex_fee.clone(),
-            taker_payment_trade_fee: taker_payment_trade_fee.clone(),
+            funding_fee: taker_payment_trade_fee.clone(),
             maker_payment_spend_trade_fee: maker_payment_spend_trade_fee.clone(),
         };
         let check_balance_f = check_balance_for_taker_swap(
@@ -2359,7 +2359,7 @@ impl AtomicSwap for TakerSwap {
 pub struct TakerSwapPreparedParams {
     pub(super) dex_fee: MmNumber,
     pub(super) fee_to_send_dex_fee: TradeFee,
-    pub(super) taker_payment_trade_fee: TradeFee,
+    pub(super) funding_fee: TradeFee,
     pub(super) maker_payment_spend_trade_fee: TradeFee,
 }
 
@@ -2393,7 +2393,7 @@ pub async fn check_balance_for_taker_swap(
             TakerSwapPreparedParams {
                 dex_fee: dex_fee.total_spend_amount(),
                 fee_to_send_dex_fee,
-                taker_payment_trade_fee,
+                funding_fee: taker_payment_trade_fee,
                 maker_payment_spend_trade_fee,
             }
         },
@@ -2409,7 +2409,7 @@ pub async fn check_balance_for_taker_swap(
         my_coin,
         swap_uuid,
         volume,
-        params.taker_payment_trade_fee,
+        params.funding_fee,
         Some(taker_fee),
     )
     .await?;
@@ -2489,7 +2489,7 @@ pub async fn taker_swap_trade_preimage(
     let prepared_params = TakerSwapPreparedParams {
         dex_fee: dex_amount.total_spend_amount(),
         fee_to_send_dex_fee: fee_to_send_taker_fee.clone(),
-        taker_payment_trade_fee: my_coin_trade_fee.clone(),
+        funding_fee: my_coin_trade_fee.clone(),
         maker_payment_spend_trade_fee: other_coin_trade_fee.clone(),
     };
     check_balance_for_taker_swap(
