@@ -13,7 +13,6 @@
 
 use async_trait::async_trait;
 use futures::channel::oneshot::Canceled;
-use http::header::ACCEPT;
 use http::{header, HeaderValue, Request};
 use hyper::client::connect::Connect;
 use hyper::client::ResponseFuture;
@@ -238,15 +237,12 @@ impl From<http::Error> for SlurpError {
 ///
 /// Returns an error if the HTTP status code of the response is not in the 2xx range.
 pub async fn send_request_to_uri(uri: &str, body: Option<String>) -> MmResult<Json, GetInfoFromUriError> {
-    let request_body = match body {
-        Some(b) => hyper::Body::from(b),
-        None => Body::empty(),
-    };
+    let request_body = body.map_or_else(Body::empty, Body::from);
 
     let request = http::Request::builder()
         .method("GET")
         .uri(uri)
-        .header(ACCEPT, HeaderValue::from_static(APPLICATION_JSON))
+        .header(header::ACCEPT, HeaderValue::from_static(APPLICATION_JSON))
         .body(request_body)?;
 
     let (status, _header, body) = slurp_req_body(request).await?;

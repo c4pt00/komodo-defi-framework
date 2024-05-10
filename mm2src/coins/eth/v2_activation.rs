@@ -459,15 +459,9 @@ impl EthCoin {
             secret,
             address: my_address_str,
         };
-        let signed_message = match EthCoin::generate_gui_auth_signed_validation(validation_generator) {
-            Ok(t) => t,
-            Err(e) => {
-                return MmError::err(EthTokenActivationError::InternalError(format!(
-                    "GuiAuth signed message generation failed. Error: {:?}",
-                    e
-                )))
-            },
-        };
+        let signed_message = EthCoin::generate_gui_auth_signed_validation(validation_generator).map_err(|e| {
+            EthTokenActivationError::InternalError(format!("GuiAuth signed message generation failed. Error: {:?}", e))
+        })?;
         let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, &signed_message).await?;
 
         let global_nft = EthCoinImpl {

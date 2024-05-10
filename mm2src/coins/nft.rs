@@ -245,15 +245,9 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             secret,
             address: my_address,
         };
-        let signed_message = match EthCoin::generate_gui_auth_signed_validation(validation_generator) {
-            Ok(t) => t,
-            Err(e) => {
-                return MmError::err(UpdateNftError::Internal(format!(
-                    "GuiAuth signed message generation failed. Error: {:?}",
-                    e
-                )))
-            },
-        };
+        let signed_message = EthCoin::generate_gui_auth_signed_validation(validation_generator).map_err(|e| {
+            UpdateNftError::Internal(format!("GuiAuth signed message generation failed. Error: {:?}", e))
+        })?;
 
         let wrapper = UrlSignWrapper {
             chain,
@@ -262,8 +256,7 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             signed_message: &signed_message,
         };
 
-        let nft_transfers =
-            get_moralis_nft_transfers(&ctx, chain, from_block, &req.url, eth_coin, &signed_message).await?;
+        let nft_transfers = get_moralis_nft_transfers(&ctx, from_block, eth_coin, &wrapper).await?;
         storage.add_transfers_to_history(*chain, nft_transfers).await?;
 
         let nft_block = match NftListStorageOps::get_last_block_number(&storage, chain).await {
@@ -497,15 +490,8 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
         secret,
         address: my_address,
     };
-    let signed_message = match EthCoin::generate_gui_auth_signed_validation(validation_generator) {
-        Ok(t) => t,
-        Err(e) => {
-            return MmError::err(UpdateNftError::Internal(format!(
-                "GuiAuth signed message generation failed. Error: {:?}",
-                e
-            )))
-        },
-    };
+    let signed_message = EthCoin::generate_gui_auth_signed_validation(validation_generator)
+        .map_err(|e| UpdateNftError::Internal(format!("GuiAuth signed message generation failed. Error: {:?}", e)))?;
 
     let wrapper = UrlSignWrapper {
         chain: &req.chain,
@@ -762,18 +748,17 @@ fn process_nft_list_for_activation(
 
 async fn get_moralis_nft_transfers(
     ctx: &MmArc,
-    chain: &Chain,
     from_block: Option<u64>,
-    original_url: &Url,
     eth_coin: EthCoin,
-    signed_message: &GuiAuthValidation,
+    wrapper: &UrlSignWrapper<'_>,
 ) -> MmResult<Vec<NftTransferHistory>, GetNftInfoError> {
+    let chain = wrapper.chain;
     let mut res_list = Vec::new();
     let ticker = chain.to_ticker();
     let conf = coin_conf(ctx, ticker);
     let my_address = get_eth_address(ctx, &conf, ticker, &HDPathAccountToAddressId::default()).await?;
 
-    let mut uri_without_cursor = original_url.clone();
+    let mut uri_without_cursor = wrapper.orig_url.clone();
     uri_without_cursor.set_path(MORALIS_API_ENDPOINT);
     uri_without_cursor
         .path_segments_mut()
@@ -801,8 +786,8 @@ async fn get_moralis_nft_transfers(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = http_get_payload_str(uri, signed_message.clone())?;
-        let response = send_request_to_uri(original_url.as_str(), Some(payload)).await?;
+        let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
+        let response = send_request_to_uri(wrapper.orig_url.as_str(), Some(payload)).await?;
         if let Some(transfer_list) = response["result"].as_array() {
             process_transfer_list(transfer_list, chain, wallet_address.as_str(), &eth_coin, &mut res_list).await?;
             // if the cursor is not null, there are other NFTs transfers on next page,

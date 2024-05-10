@@ -105,7 +105,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
 fn wait_for_geth_node_ready() {
     let mut attempts = 0;
     loop {
-        if attempts >= 5 {
+        if attempts >= 10 {
             println!("Failed to connect to Geth node after several attempts.");
             break;
         }
@@ -117,7 +117,7 @@ fn wait_for_geth_node_ready() {
             Err(e) => {
                 println!("Failed to connect to Geth node: {:?}, retrying...", e);
                 attempts += 1;
-                thread::sleep(Duration::from_secs(5));
+                thread::sleep(Duration::from_secs(1));
             },
         }
     }

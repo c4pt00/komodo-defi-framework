@@ -333,7 +333,7 @@ pub fn erc20_coin_with_random_privkey(swap_contract_address: Address) -> EthCoin
     erc20_coin
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum TestNftType {
     Erc1155 { token_id: u32, amount: u32 },
     Erc721 { token_id: u32 },
@@ -845,7 +845,7 @@ fn wait_pending_transactions(wallet_address: Address) {
                 "Waiting for pending transactions to confirm... Current nonce: {}, Pending nonce: {}",
                 latest_nonce, pending_nonce
             );
-            thread::sleep(Duration::from_secs(5));
+            thread::sleep(Duration::from_secs(1));
         }
     }
 }

@@ -67,6 +67,11 @@ lazy_static! {
     // Supply more privkeys when 18 will be not enough.
     pub static ref SLP_TOKEN_OWNERS: Mutex<Vec<[u8; 32]>> = Mutex::new(Vec::with_capacity(18));
     pub static ref MM_CTX: MmArc = MmCtxBuilder::new().into_mm_arc();
+    /// We need a second `MmCtx` instance when we use the same private keys for Maker and Taker across various tests.
+    /// When enabling coins for both Maker and Taker, two distinct coin instances are created.
+    /// This means that different instances of the same coin should have separate global nonce locks.
+    /// Utilizing different `MmCtx` instances allows us to assign Maker and Taker coins to separate `CoinsCtx`.
+    /// This approach addresses the `replacement transaction` issue, which occurs when different transactions share the same nonce.
     pub static ref MM_CTX1: MmArc = MmCtxBuilder::new().into_mm_arc();
     pub static ref GETH_WEB3: Web3<Http> = Web3::new(Http::new(GETH_RPC_URL).unwrap());
     pub static ref SEPOLIA_WEB3: Web3<Http> = Web3::new(Http::new(SEPOLIA_RPC_URL).unwrap());
@@ -354,13 +359,7 @@ pub fn utxo_asset_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u
 
 pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) -> DockerNode<'a> {
     let image = GenericImage::new(GETH_DOCKER_IMAGE, "stable");
-    let args = vec![
-        "--dev".into(),
-        "--http".into(),
-        "--http.addr=0.0.0.0".into(),
-        "--dev.period=0".into(),
-        "--verbosity=4".into(),
-    ];
+    let args = vec!["--dev".into(), "--http".into(), "--http.addr=0.0.0.0".into()];
     let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
     let container = docker.run(image);
     DockerNode {

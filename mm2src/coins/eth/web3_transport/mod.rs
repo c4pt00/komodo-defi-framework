@@ -135,24 +135,12 @@ pub(super) fn handle_gui_auth_payload(
     gui_auth_validation_generator: &Option<GuiAuthValidationGenerator>,
     request: &Call,
 ) -> Result<String, Web3RpcError> {
-    let generator = match gui_auth_validation_generator.clone() {
-        Some(gen) => gen,
-        None => {
-            return Err(Web3RpcError::Internal(
-                "GuiAuthValidationGenerator is not provided for".to_string(),
-            ));
-        },
-    };
+    let generator = gui_auth_validation_generator
+        .clone()
+        .ok_or_else(|| Web3RpcError::Internal("GuiAuthValidationGenerator is not provided for".to_string()))?;
 
-    let signed_message = match EthCoin::generate_gui_auth_signed_validation(generator) {
-        Ok(t) => t,
-        Err(e) => {
-            return Err(Web3RpcError::Internal(format!(
-                "GuiAuth signed message generation failed. Error: {:?}",
-                e
-            )));
-        },
-    };
+    let signed_message = EthCoin::generate_gui_auth_signed_validation(generator)
+        .map_err(|e| Web3RpcError::Internal(format!("GuiAuth signed message generation failed. Error: {:?}", e)))?;
 
     let auth_request = AuthPayload {
         request,
