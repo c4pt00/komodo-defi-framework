@@ -4890,7 +4890,7 @@ where
     let total_amount = &args.dex_fee.total_spend_amount().to_decimal()
         + &args.premium_amount
         + &args.trading_amount
-        + &args.taker_payment_spend_fee;
+        + &args.taker_payment_fee;
 
     let SwapPaymentOutputsResult {
         payment_address,
