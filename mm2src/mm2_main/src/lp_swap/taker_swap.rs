@@ -2404,15 +2404,7 @@ pub async fn check_balance_for_taker_swap(
         fee_to_send_dex_fee: params.fee_to_send_dex_fee,
     };
 
-    check_my_coin_balance_for_swap(
-        ctx,
-        my_coin,
-        swap_uuid,
-        volume,
-        params.funding_fee,
-        Some(taker_fee),
-    )
-    .await?;
+    check_my_coin_balance_for_swap(ctx, my_coin, swap_uuid, volume, params.funding_fee, Some(taker_fee)).await?;
     if !params.maker_payment_spend_fee.paid_from_trading_vol {
         check_other_coin_balance_for_swap(ctx, other_coin, swap_uuid, params.maker_payment_spend_fee).await?;
     }

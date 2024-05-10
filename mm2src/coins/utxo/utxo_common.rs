@@ -13,9 +13,9 @@ use crate::utxo::utxo_hd_wallet::UtxoHDAddress;
 use crate::utxo::utxo_withdraw::{InitUtxoWithdraw, StandardUtxoWithdraw, UtxoWithdraw};
 use crate::watcher_common::validate_watcher_reward;
 use crate::{scan_for_new_addresses_impl, CanRefundHtlc, CoinBalance, CoinWithDerivationMethod, ConfirmPaymentInput,
-            DexFee, GenPreimageResult, GenTakerPaymentPreimageArgs, GenTakerPaymentSpendArgs, GetWithdrawSenderAddress,
-            RawTransactionError, RawTransactionRequest, RawTransactionRes, RawTransactionResult,
-            RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RewardTarget,
+            DexFee, GenPreimageResult, GenTakerPaymentPreimageArgs, GenTakerPaymentSpendArgs,
+            GetWithdrawSenderAddress, RawTransactionError, RawTransactionRequest, RawTransactionRes,
+            RawTransactionResult, RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RewardTarget,
             SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
             SendTakerFundingArgs, SignRawTransactionEnum, SignRawTransactionRequest, SignUtxoTransactionParams,
             SignatureError, SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs, SwapOps,

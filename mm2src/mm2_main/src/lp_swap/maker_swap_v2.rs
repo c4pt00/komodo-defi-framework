@@ -679,10 +679,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
     fn on_event(&mut self, event: &MakerSwapEvent) {
         match event {
-            MakerSwapEvent::Initialized {
-                maker_payment_fee,
-                ..
-            } => {
+            MakerSwapEvent::Initialized { maker_payment_fee, .. } => {
                 let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
                 let maker_coin_ticker: String = self.maker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
@@ -724,18 +721,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         event: <<Self::Storage as StateMachineStorage>::DbRepr as StateMachineDbRepr>::Event,
     ) {
         match event {
-            MakerSwapEvent::Initialized {
-                maker_payment_fee,
-                ..
-            }
-            | MakerSwapEvent::WaitingForTakerFunding {
-                maker_payment_fee,
-                ..
-            }
-            | MakerSwapEvent::TakerFundingReceived {
-                maker_payment_fee,
-                ..
-            } => {
+            MakerSwapEvent::Initialized { maker_payment_fee, .. }
+            | MakerSwapEvent::WaitingForTakerFunding { maker_payment_fee, .. }
+            | MakerSwapEvent::TakerFundingReceived { maker_payment_fee, .. } => {
                 let swaps_ctx = SwapsContext::from_ctx(&self.ctx).expect("from_ctx should not fail at this point");
                 let maker_coin_ticker: String = self.maker_coin.ticker().into();
                 let new_locked = LockedAmountInfo {
