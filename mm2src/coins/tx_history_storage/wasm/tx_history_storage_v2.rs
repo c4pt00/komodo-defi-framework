@@ -356,7 +356,7 @@ impl IndexedDbTxHistoryStorage {
         })
     }
 
-    async fn lock_db(&self) -> WasmTxHistoryResult<TxHistoryDbLocked<'_>> {
+    async fn lock_db(&self) -> WasmTxHistoryResult<TxHistoryDbLocked> {
         self.db.get_or_initialize(None).await.mm_err(WasmTxHistoryError::from)
     }
 }

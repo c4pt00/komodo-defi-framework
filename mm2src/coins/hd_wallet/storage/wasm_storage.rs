@@ -21,7 +21,7 @@ const WALLET_ID_INDEX: &str = "wallet_id";
 /// * account_id - HD account id
 const WALLET_ACCOUNT_ID_INDEX: &str = "wallet_account_id";
 
-type HDWalletDbLocked<'a> = DbLocked<'a, HDWalletDb>;
+type HDWalletDbLocked = DbLocked<HDWalletDb>;
 
 impl From<DbTransactionError> for HDWalletStorageError {
     fn from(e: DbTransactionError) -> Self {
@@ -270,7 +270,7 @@ impl HDWalletIndexedDbStorage {
             .or_mm_err(|| HDWalletStorageError::Internal("'HDWalletIndexedDbStorage::db' doesn't exist".to_owned()))
     }
 
-    async fn lock_db_mutex(db: &SharedDb<HDWalletDb>) -> HDWalletStorageResult<HDWalletDbLocked<'_>> {
+    async fn lock_db_mutex(db: &SharedDb<HDWalletDb>) -> HDWalletStorageResult<HDWalletDbLocked> {
         // TODO: db_id
         db.get_or_initialize(None).await.mm_err(HDWalletStorageError::from)
     }

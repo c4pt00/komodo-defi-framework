@@ -167,7 +167,7 @@ cfg_wasm32! {
     use saved_swap::migrate_swaps_data;
     use swap_wasm_db::{InitDbResult, InitDbError, SwapDb};
 
-    pub type SwapDbLocked<'a> = DbLocked<'a, SwapDb>;
+    pub type SwapDbLocked = DbLocked<SwapDb>;
 }
 
 #[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
@@ -566,7 +566,7 @@ impl SwapsContext {
     pub fn remove_msg_v2_store(&self, uuid: &Uuid) { self.swap_v2_msgs.lock().unwrap().remove(uuid); }
 
     #[cfg(target_arch = "wasm32")]
-    pub async fn swap_db(&self, db_id: Option<&str>) -> InitDbResult<SwapDbLocked<'_>> {
+    pub async fn swap_db(&self, db_id: Option<&str>) -> InitDbResult<SwapDbLocked> {
         self.swap_db.get_or_initialize(db_id).await
     }
 }

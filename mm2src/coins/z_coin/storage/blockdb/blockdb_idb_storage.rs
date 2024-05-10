@@ -18,7 +18,7 @@ use zcash_primitives::consensus::BlockHeight;
 const DB_NAME: &str = "z_compactblocks_cache";
 const DB_VERSION: u32 = 1;
 
-pub type BlockDbInnerLocked<'a> = DbLocked<'a, BlockDbInner>;
+pub type BlockDbInnerLocked = DbLocked<BlockDbInner>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BlockDbTable {
@@ -75,7 +75,7 @@ impl BlockDbImpl {
         })
     }
 
-    async fn lock_db(&self) -> ZcoinStorageRes<BlockDbInnerLocked<'_>> {
+    async fn lock_db(&self) -> ZcoinStorageRes<BlockDbInnerLocked> {
         self.db
             .get_or_initialize(self.db_id.as_deref())
             .await

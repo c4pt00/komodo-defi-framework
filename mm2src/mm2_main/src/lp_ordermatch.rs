@@ -92,7 +92,7 @@ cfg_wasm32! {
     use mm2_db::indexed_db::{ConstructibleDb, DbLocked};
     use ordermatch_wasm_db::{InitDbResult, OrdermatchDb};
 
-    pub type OrdermatchDbLocked<'a> = DbLocked<'a, OrdermatchDb>;
+    pub type OrdermatchDbLocked = DbLocked<OrdermatchDb>;
 }
 
 #[path = "lp_ordermatch/best_orders.rs"] mod best_orders;
@@ -2828,7 +2828,7 @@ impl OrdermatchContext {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub async fn ordermatch_db(&self, db_id: Option<&str>) -> InitDbResult<OrdermatchDbLocked<'_>> {
+    pub async fn ordermatch_db(&self, db_id: Option<&str>) -> InitDbResult<OrdermatchDbLocked> {
         self.ordermatch_db.get_or_initialize(db_id).await
     }
 }

@@ -103,7 +103,7 @@ cfg_wasm32! {
     use hd_wallet::HDWalletDb;
     use mm2_db::indexed_db::{ConstructibleDb, DbLocked, SharedDb};
     use tx_history_storage::wasm::{clear_tx_history, load_tx_history, save_tx_history, TxHistoryDb};
-    pub type TxHistoryDbLocked<'a> = DbLocked<'a, TxHistoryDb>;
+    pub type TxHistoryDbLocked = DbLocked<TxHistoryDb>;
 }
 
 // using custom copy of try_fus as futures crate was renamed to futures01
@@ -3658,7 +3658,7 @@ impl CoinsContext {
     }
 
     #[cfg(target_arch = "wasm32")]
-    async fn tx_history_db(&self, db_id: Option<&str>) -> TxHistoryResult<TxHistoryDbLocked<'_>> {
+    async fn tx_history_db(&self, db_id: Option<&str>) -> TxHistoryResult<TxHistoryDbLocked> {
         Ok(self.tx_history_db.get_or_initialize(db_id).await?)
     }
 }

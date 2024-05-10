@@ -38,7 +38,7 @@ use zcash_primitives::zip32::{ExtendedFullViewingKey, ExtendedSpendingKey};
 const DB_NAME: &str = "wallet_db_cache";
 const DB_VERSION: u32 = 1;
 
-pub type WalletDbInnerLocked<'a> = DbLocked<'a, WalletDbInner>;
+pub type WalletDbInnerLocked = DbLocked<WalletDbInner>;
 
 macro_rules! num_to_bigint {
     ($value: ident) => {
@@ -150,7 +150,7 @@ impl<'a> WalletIndexedDb {
         Ok(db)
     }
 
-    pub(crate) async fn lock_db(&self) -> ZcoinStorageRes<WalletDbInnerLocked<'_>> {
+    pub(crate) async fn lock_db(&self) -> ZcoinStorageRes<WalletDbInnerLocked> {
         self.db
             .get_or_initialize(self.db_id.as_deref())
             .await

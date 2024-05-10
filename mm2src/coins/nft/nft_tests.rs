@@ -187,7 +187,9 @@ cross_test!(test_last_nft_block, {
     assert_eq!(last_block, 28056726);
 });
 
-cross_test!(test_last_nft_block_multikey_db, {
+cross_test!(test_last_nft_block_with_multikey_db_lock, {
+    #[cfg(target_arch = "wasm32")]
+    common::log::wasm_log::register_wasm_log();
     let chain = Chain::Bsc;
     let nft_ctx = get_nft_ctx(&chain).await;
     let storage_1 = nft_ctx.lock_db(None).await.unwrap();

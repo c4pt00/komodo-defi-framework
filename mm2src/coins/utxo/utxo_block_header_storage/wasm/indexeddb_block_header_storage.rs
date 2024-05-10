@@ -16,7 +16,7 @@ use std::collections::HashMap;
 const DB_VERSION: u32 = 1;
 
 pub type IDBBlockHeadersStorageRes<T> = MmResult<T, BlockHeaderStorageError>;
-pub type IDBBlockHeadersInnerLocked<'a> = DbLocked<'a, IDBBlockHeadersInner>;
+pub type IDBBlockHeadersInnerLocked = DbLocked<IDBBlockHeadersInner>;
 
 pub struct IDBBlockHeadersInner {
     pub inner: IndexedDb,
@@ -56,7 +56,7 @@ impl IDBBlockHeadersStorage {
         }
     }
 
-    async fn lock_db(&self) -> IDBBlockHeadersStorageRes<IDBBlockHeadersInnerLocked<'_>> {
+    async fn lock_db(&self) -> IDBBlockHeadersStorageRes<IDBBlockHeadersInnerLocked> {
         self.db
             .get_or_initialize(None)
             .await

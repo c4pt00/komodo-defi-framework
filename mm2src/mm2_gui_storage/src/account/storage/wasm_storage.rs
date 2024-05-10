@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const DB_VERSION: u32 = 1;
 
-type AccountDbLocked<'a> = DbLocked<'a, AccountDb>;
+type AccountDbLocked = DbLocked<AccountDb>;
 
 impl From<DbTransactionError> for AccountStorageError {
     fn from(e: DbTransactionError) -> Self {
@@ -67,7 +67,7 @@ impl WasmAccountStorage {
         }
     }
 
-    async fn lock_db_mutex(&self) -> AccountStorageResult<AccountDbLocked<'_>> {
+    async fn lock_db_mutex(&self) -> AccountStorageResult<AccountDbLocked> {
         self.account_db
             .get_or_initialize(None)
             .await
