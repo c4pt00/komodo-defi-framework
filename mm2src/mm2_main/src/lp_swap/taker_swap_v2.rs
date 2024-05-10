@@ -1677,26 +1677,21 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
     async fn on_changed(self: Box<Self>, state_machine: &mut Self::StateMachine) -> StateResult<Self::StateMachine> {
-        // FIXME: This variable were used before to wait before signing and sending the taker payment.
-        // Why is it used again to wait before sending the taker payment spend. Waiting should be the
-        // correct action and not based on that variable (as per the protocol).
-        if !state_machine.require_maker_payment_confirm_before_taker_payment {
-            let input = ConfirmPaymentInput {
-                payment_tx: self.maker_payment.tx_hex(),
-                confirmations: state_machine.conf_settings.maker_coin_confs,
-                requires_nota: state_machine.conf_settings.maker_coin_nota,
-                wait_until: state_machine.maker_payment_conf_timeout(),
-                check_every: 10,
-            };
+        let input = ConfirmPaymentInput {
+            payment_tx: self.maker_payment.tx_hex(),
+            confirmations: state_machine.conf_settings.maker_coin_confs,
+            requires_nota: state_machine.conf_settings.maker_coin_nota,
+            wait_until: state_machine.maker_payment_conf_timeout(),
+            check_every: 10,
+        };
 
-            if let Err(e) = state_machine.maker_coin.wait_for_confirmations(input).compat().await {
-                let next_state = TakerPaymentRefundRequired {
-                    taker_payment: self.taker_payment,
-                    negotiation_data: self.negotiation_data,
-                    reason: TakerPaymentRefundReason::MakerPaymentNotConfirmedInTime(e),
-                };
-                return Self::change_state(next_state, state_machine).await;
-            }
+        if let Err(e) = state_machine.maker_coin.wait_for_confirmations(input).compat().await {
+            let next_state = TakerPaymentRefundRequired {
+                taker_payment: self.taker_payment,
+                negotiation_data: self.negotiation_data,
+                reason: TakerPaymentRefundReason::MakerPaymentNotConfirmedInTime(e),
+            };
+            return Self::change_state(next_state, state_machine).await;
         }
 
         let unique_data = state_machine.unique_data();
