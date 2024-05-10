@@ -69,7 +69,6 @@ pub enum TakerSwapEvent {
         taker_coin_start_block: u64,
         funding_fee: SavedTradeFee,
         taker_payment_fee: SavedTradeFee,
-        maker_payment_spend_fee: SavedTradeFee,
     },
     /// Negotiated swap data with maker.
     Negotiated {
@@ -78,7 +77,6 @@ pub enum TakerSwapEvent {
         negotiation_data: StoredNegotiationData,
         funding_fee: SavedTradeFee,
         taker_payment_fee: SavedTradeFee,
-        maker_payment_spend_fee: SavedTradeFee,
     },
     /// Sent taker funding tx.
     TakerFundingSent {
@@ -500,7 +498,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_coin_start_block,
                 funding_fee,
                 taker_payment_fee,
-                maker_payment_spend_fee,
             } => Box::new(Initialized {
                 maker_coin: Default::default(),
                 taker_coin: Default::default(),
@@ -508,7 +505,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 taker_coin_start_block,
                 funding_fee,
                 taker_payment_fee,
-                maker_payment_spend_fee,
             }),
             TakerSwapEvent::Negotiated {
                 maker_coin_start_block,
@@ -516,7 +512,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 negotiation_data,
                 funding_fee,
                 taker_payment_fee,
-                maker_payment_spend_fee,
             } => Box::new(Negotiated {
                 maker_coin_start_block,
                 taker_coin_start_block,
@@ -527,7 +522,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 )?,
                 funding_fee,
                 taker_payment_fee,
-                maker_payment_spend_fee,
             }),
             TakerSwapEvent::TakerFundingSent {
                 maker_coin_start_block,
@@ -1021,10 +1015,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_coin_start_block,
             funding_fee: funding_fee.into(),
             taker_payment_fee: taker_payment_fee.into(),
-            // FIXME: Looks like `maker_payment_spend_fee` is useless after this point
-            // (we already checked we have enough balance for the swap, even though it's volume-deducted anyways).
-            // Stop propagating it?
-            maker_payment_spend_fee: maker_payment_spend_fee.into(),
         };
         Self::change_state(next_state, state_machine).await
     }
@@ -1037,7 +1027,6 @@ struct Initialized<MakerCoin, TakerCoin> {
     taker_coin_start_block: u64,
     funding_fee: SavedTradeFee,
     taker_payment_fee: SavedTradeFee,
-    maker_payment_spend_fee: SavedTradeFee,
 }
 
 impl<MakerCoin, TakerCoin> TransitionFrom<Initialize<MakerCoin, TakerCoin>> for Initialized<MakerCoin, TakerCoin> {}
@@ -1053,7 +1042,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_coin_start_block: self.taker_coin_start_block,
             funding_fee: self.funding_fee.clone(),
             taker_payment_fee: self.taker_payment_fee.clone(),
-            maker_payment_spend_fee: self.maker_payment_spend_fee.clone(),
         }
     }
 }
@@ -1199,7 +1187,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
             funding_fee: self.funding_fee,
             taker_payment_fee: self.taker_payment_fee,
-            maker_payment_spend_fee: self.maker_payment_spend_fee,
         };
         Self::change_state(next_state, state_machine).await
     }
@@ -1257,7 +1244,6 @@ struct Negotiated<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes
     negotiation_data: NegotiationData<MakerCoin, TakerCoin>,
     funding_fee: SavedTradeFee,
     taker_payment_fee: SavedTradeFee,
-    maker_payment_spend_fee: SavedTradeFee,
 }
 
 impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: TakerCoinSwapOpsV2> TransitionFrom<Initialized<MakerCoin, TakerCoin>>
@@ -1321,7 +1307,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             negotiation_data: self.negotiation_data.to_stored_data(),
             funding_fee: self.funding_fee.clone(),
             taker_payment_fee: self.taker_payment_fee.clone(),
-            maker_payment_spend_fee: self.maker_payment_spend_fee.clone(),
         }
     }
 }
