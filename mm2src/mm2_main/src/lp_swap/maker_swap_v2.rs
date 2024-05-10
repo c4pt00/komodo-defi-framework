@@ -1294,8 +1294,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         let maker_payment_info = MakerPaymentInfo {
             tx_bytes: self.maker_payment.tx_hex(),
             next_step_instructions: None,
-            funding_preimage_sig: self.taker_payment_preimage.signature.to_bytes(),
-            funding_preimage_tx: self.taker_payment_preimage.preimage.to_bytes(),
+            taker_payment_preimage_sig: self.taker_payment_preimage.signature.to_bytes(),
+            taker_payment_preimage_tx: self.taker_payment_preimage.preimage.to_bytes(),
         };
         let swap_msg = SwapMessage {
             inner: Some(swap_message::Inner::MakerPaymentInfo(maker_payment_info)),

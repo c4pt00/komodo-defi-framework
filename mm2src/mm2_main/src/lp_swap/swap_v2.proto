@@ -61,8 +61,8 @@ message TakerPaymentInfo {
 message MakerPaymentInfo {
   bytes tx_bytes = 1;
   optional bytes next_step_instructions = 2;
-  bytes funding_preimage_sig = 3;
-  bytes funding_preimage_tx = 4;
+  bytes taker_payment_preimage_sig = 3;
+  bytes taker_payment_preimage_tx = 4;
 }
 
 message TakerPaymentSpendPreimage {

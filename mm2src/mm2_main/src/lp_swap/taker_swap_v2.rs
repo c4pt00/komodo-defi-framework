@@ -1385,7 +1385,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
         let preimage_tx = match state_machine
             .taker_coin
-            .parse_preimage(&maker_payment_info.funding_preimage_tx)
+            .parse_preimage(&maker_payment_info.taker_payment_preimage_tx)
         {
             Ok(p) => p,
             Err(e) => {
@@ -1394,7 +1394,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                     taker_coin_start_block: self.taker_coin_start_block,
                     taker_funding: self.taker_funding,
                     negotiation_data: self.negotiation_data,
-                    reason: TakerFundingRefundReason::FailedToParseTakerPaymentPreimage(e.to_string()),
+                    reason: TakerFundingRefundReason::FailedToParseTakerPaymentPreimageTx(e.to_string()),
                 };
                 return Self::change_state(next_state, state_machine).await;
             },
@@ -1402,7 +1402,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
         let preimage_sig = match state_machine
             .taker_coin
-            .parse_signature(&maker_payment_info.funding_preimage_sig)
+            .parse_signature(&maker_payment_info.taker_payment_preimage_sig)
         {
             Ok(p) => p,
             Err(e) => {
@@ -1791,7 +1791,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TakerFundingRefundReason {
     DidNotReceiveMakerPayment(String),
-    FailedToParseTakerPaymentPreimage(String),
+    FailedToParseTakerPaymentPreimageTx(String),
     FailedToParseTakerPaymentPreimageSig(String),
     FailedToSendTakerPayment(String),
     MakerPaymentValidationFailed(String),
