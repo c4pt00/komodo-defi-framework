@@ -1032,7 +1032,7 @@ impl TakerSwap {
             dex_fee: dex_fee.total_spend_amount(),
             fee_to_send_dex_fee: fee_to_send_dex_fee.clone(),
             funding_fee: taker_payment_trade_fee.clone(),
-            maker_payment_spend_trade_fee: maker_payment_spend_trade_fee.clone(),
+            maker_payment_spend_fee: maker_payment_spend_trade_fee.clone(),
         };
         let check_balance_f = check_balance_for_taker_swap(
             &self.ctx,
@@ -2360,7 +2360,7 @@ pub struct TakerSwapPreparedParams {
     pub(super) dex_fee: MmNumber,
     pub(super) fee_to_send_dex_fee: TradeFee,
     pub(super) funding_fee: TradeFee,
-    pub(super) maker_payment_spend_trade_fee: TradeFee,
+    pub(super) maker_payment_spend_fee: TradeFee,
 }
 
 pub async fn check_balance_for_taker_swap(
@@ -2381,11 +2381,11 @@ pub async fn check_balance_for_taker_swap(
                 .await
                 .mm_err(|e| CheckBalanceError::from_trade_preimage_error(e, my_coin.ticker()))?;
             let preimage_value = TradePreimageValue::Exact(volume.to_decimal());
-            let taker_payment_trade_fee = my_coin
+            let funding_fee = my_coin
                 .get_sender_trade_fee(preimage_value, stage)
                 .await
                 .mm_err(|e| CheckBalanceError::from_trade_preimage_error(e, my_coin.ticker()))?;
-            let maker_payment_spend_trade_fee = other_coin
+            let maker_payment_spend_fee = other_coin
                 .get_receiver_trade_fee(stage)
                 .compat()
                 .await
@@ -2393,8 +2393,8 @@ pub async fn check_balance_for_taker_swap(
             TakerSwapPreparedParams {
                 dex_fee: dex_fee.total_spend_amount(),
                 fee_to_send_dex_fee,
-                funding_fee: taker_payment_trade_fee,
-                maker_payment_spend_trade_fee,
+                funding_fee,
+                maker_payment_spend_fee,
             }
         },
     };
@@ -2413,8 +2413,8 @@ pub async fn check_balance_for_taker_swap(
         Some(taker_fee),
     )
     .await?;
-    if !params.maker_payment_spend_trade_fee.paid_from_trading_vol {
-        check_other_coin_balance_for_swap(ctx, other_coin, swap_uuid, params.maker_payment_spend_trade_fee).await?;
+    if !params.maker_payment_spend_fee.paid_from_trading_vol {
+        check_other_coin_balance_for_swap(ctx, other_coin, swap_uuid, params.maker_payment_spend_fee).await?;
     }
     Ok(())
 }
@@ -2490,7 +2490,7 @@ pub async fn taker_swap_trade_preimage(
         dex_fee: dex_amount.total_spend_amount(),
         fee_to_send_dex_fee: fee_to_send_taker_fee.clone(),
         funding_fee: my_coin_trade_fee.clone(),
-        maker_payment_spend_trade_fee: other_coin_trade_fee.clone(),
+        maker_payment_spend_fee: other_coin_trade_fee.clone(),
     };
     check_balance_for_taker_swap(
         ctx,

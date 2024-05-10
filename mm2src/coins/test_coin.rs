@@ -5,7 +5,7 @@ use super::{CoinBalance, FundingTxSpend, HistorySyncState, MarketCoinOps, MmCoin
             WaitForTakerPaymentSpendError};
 use crate::coin_errors::ValidatePaymentResult;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
-            ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, GenPreimageResult, GenTakerFundingSpendArgs,
+            ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, GenPreimageResult, GenTakerPaymentPreimageArgs,
             GenTakerPaymentSpendArgs, MakerSwapTakerCoin, MmCoinEnum, NegotiateSwapContractAddrErr,
             ParseCoinAssocTypes, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
             RawTransactionResult, RefundFundingSecretArgs, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
@@ -491,7 +491,7 @@ impl TakerCoinSwapOpsV2 for TestCoin {
 
     async fn gen_taker_payment_preimage(
         &self,
-        args: &GenTakerFundingSpendArgs<'_, Self>,
+        args: &GenTakerPaymentPreimageArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
         todo!()
@@ -499,7 +499,7 @@ impl TakerCoinSwapOpsV2 for TestCoin {
 
     async fn validate_taker_payment_preimage(
         &self,
-        gen_args: &GenTakerFundingSpendArgs<'_, Self>,
+        gen_args: &GenTakerPaymentPreimageArgs<'_, Self>,
         preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerFundingSpendPreimageResult {
         todo!()
@@ -508,7 +508,7 @@ impl TakerCoinSwapOpsV2 for TestCoin {
     async fn sign_and_send_taker_payment(
         &self,
         preimage: &TxPreimageWithSig<Self>,
-        args: &GenTakerFundingSpendArgs<'_, Self>,
+        args: &GenTakerPaymentPreimageArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> Result<Self::Tx, TransactionErr> {
         todo!()

@@ -13,7 +13,7 @@ use crate::utxo::utxo_hd_wallet::UtxoHDAddress;
 use crate::utxo::utxo_withdraw::{InitUtxoWithdraw, StandardUtxoWithdraw, UtxoWithdraw};
 use crate::watcher_common::validate_watcher_reward;
 use crate::{scan_for_new_addresses_impl, CanRefundHtlc, CoinBalance, CoinWithDerivationMethod, ConfirmPaymentInput,
-            DexFee, GenPreimageResult, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, GetWithdrawSenderAddress,
+            DexFee, GenPreimageResult, GenTakerPaymentPreimageArgs, GenTakerPaymentSpendArgs, GetWithdrawSenderAddress,
             RawTransactionError, RawTransactionRequest, RawTransactionRes, RawTransactionResult,
             RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RewardTarget,
             SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
@@ -1034,7 +1034,7 @@ type GenPreimageResInner = MmResult<TransactionInputSigner, TxGenError>;
 
 async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
     coin: &T,
-    args: &GenTakerFundingSpendArgs<'_, T>,
+    args: &GenTakerPaymentPreimageArgs<'_, T>,
     n_time: NTimeSetting,
     fee: FundingSpendFeeSetting,
 ) -> GenPreimageResInner {
@@ -1062,7 +1062,7 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
                 .get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
                 .await?;
             let taker_instructed_fee =
-                sat_from_big_decimal(&args.taker_payment_spend_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
+                sat_from_big_decimal(&args.taker_payment_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
             // If calculated fee is less than instructed fee, use instructed fee because it was never intended
             // to be deposited to us (maker). If the calculated fee is larger, we will incur the fee difference
             // just to make sure the transaction is confirmed quickly.
@@ -1100,7 +1100,7 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
 
 pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
     coin: &T,
-    args: &GenTakerFundingSpendArgs<'_, T>,
+    args: &GenTakerPaymentPreimageArgs<'_, T>,
     htlc_keypair: &KeyPair,
 ) -> GenPreimageResult<T> {
     let funding_time_lock = args
@@ -1136,7 +1136,7 @@ pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
 /// Checks maker's signature and compares received preimage with the expected tx.
 pub async fn validate_taker_payment_preimage<T: UtxoCommonOps + SwapOps>(
     coin: &T,
-    gen_args: &GenTakerFundingSpendArgs<'_, T>,
+    gen_args: &GenTakerPaymentPreimageArgs<'_, T>,
     preimage: &TxPreimageWithSig<T>,
 ) -> ValidateTakerFundingSpendPreimageResult {
     let funding_amount = gen_args
@@ -1160,7 +1160,7 @@ pub async fn validate_taker_payment_preimage<T: UtxoCommonOps + SwapOps>(
 
     let actual_fee = funding_amount - payment_amount;
     let instructed_fee =
-        sat_from_big_decimal(&gen_args.taker_payment_spend_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
+        sat_from_big_decimal(&gen_args.taker_payment_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
 
     if actual_fee < instructed_fee {
         return MmError::err(ValidateTakerFundingSpendPreimageError::UnexpectedPreimageFee(format!(
@@ -1216,7 +1216,7 @@ pub async fn validate_taker_payment_preimage<T: UtxoCommonOps + SwapOps>(
 pub async fn sign_and_send_taker_payment<T: UtxoCommonOps>(
     coin: &T,
     preimage: &TxPreimageWithSig<T>,
-    gen_args: &GenTakerFundingSpendArgs<'_, T>,
+    gen_args: &GenTakerPaymentPreimageArgs<'_, T>,
     htlc_keypair: &KeyPair,
 ) -> Result<UtxoTx, TransactionErr> {
     let redeem_script = swap_proto_v2_scripts::taker_funding_script(
@@ -4985,7 +4985,7 @@ where
     let total_expected_amount = &args.dex_fee.total_spend_amount().to_decimal()
         + &args.premium_amount
         + &args.trading_amount
-        + &args.taker_payment_spend_fee;
+        + &args.taker_payment_fee;
 
     let expected_amount_sat = sat_from_big_decimal(&total_expected_amount, coin.as_ref().decimals)?;
 

@@ -22,7 +22,7 @@ use crate::utxo::utxo_builder::{UtxoArcBuilder, UtxoCoinBuilder};
 use crate::utxo::utxo_tx_history_v2::{UtxoMyAddressesHistoryError, UtxoTxDetailsError, UtxoTxDetailsParams,
                                       UtxoTxHistoryOps};
 use crate::{CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinBalance, CoinWithDerivationMethod, CoinWithPrivKeyPolicy,
-            ConfirmPaymentInput, DexFee, FundingTxSpend, GenPreimageResult, GenTakerFundingSpendArgs,
+            ConfirmPaymentInput, DexFee, FundingTxSpend, GenPreimageResult, GenTakerPaymentPreimageArgs,
             GenTakerPaymentSpendArgs, GetWithdrawSenderAddress, IguanaBalanceOps, IguanaPrivKey, MakerCoinSwapOpsV2,
             MakerSwapTakerCoin, MmCoinEnum, NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions,
             PaymentInstructionsErr, PrivKeyBuildPolicy, RawTransactionRequest, RawTransactionResult, RefundError,
@@ -753,7 +753,7 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
 
     async fn gen_taker_payment_preimage(
         &self,
-        args: &GenTakerFundingSpendArgs<'_, Self>,
+        args: &GenTakerPaymentPreimageArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
         let htlc_keypair = self.derive_htlc_key_pair(swap_unique_data);
@@ -762,7 +762,7 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
 
     async fn validate_taker_payment_preimage(
         &self,
-        gen_args: &GenTakerFundingSpendArgs<'_, Self>,
+        gen_args: &GenTakerPaymentPreimageArgs<'_, Self>,
         preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerFundingSpendPreimageResult {
         utxo_common::validate_taker_payment_preimage(self, gen_args, preimage).await
@@ -771,7 +771,7 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
     async fn sign_and_send_taker_payment(
         &self,
         preimage: &TxPreimageWithSig<Self>,
-        args: &GenTakerFundingSpendArgs<'_, Self>,
+        args: &GenTakerPaymentPreimageArgs<'_, Self>,
         swap_unique_data: &[u8],
     ) -> Result<Self::Tx, TransactionErr> {
         let htlc_keypair = self.derive_htlc_key_pair(swap_unique_data);
