@@ -10,6 +10,7 @@ pub type DbLocked<Db> = OwnedMappedMutexGuard<Option<Db>, Db>;
 pub type SharedDb<Db> = Arc<ConstructibleDb<Db>>;
 pub type WeakDb<Db> = Weak<ConstructibleDb<Db>>;
 
+#[allow(clippy::type_complexity)]
 pub struct ConstructibleDb<Db> {
     /// It's better to use something like [`Constructible`], but it doesn't provide a method to get the inner value by the mutable reference.
     mutexes: Arc<AsyncMutex<HashMap<String, Arc<AsyncMutex<Option<Db>>>>>>,
@@ -40,7 +41,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_shared_db(ctx: &MmArc) -> Self {
         let db_id = hex::encode(ctx.shared_db_id().as_slice());
-        let conns = HashMap::from([(db_id.to_owned(), Arc::new(AsyncMutex::new(None)))]);
+        let conns = HashMap::from([(db_id, Arc::new(AsyncMutex::new(None)))]);
         ConstructibleDb {
             mutexes: Arc::new(AsyncMutex::new(conns)),
             db_namespace: ctx.db_namespace,
