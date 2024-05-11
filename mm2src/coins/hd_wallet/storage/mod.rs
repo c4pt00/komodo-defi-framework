@@ -220,13 +220,13 @@ impl Default for HDWalletCoinStorage {
 }
 
 impl HDWalletCoinStorage {
+    // TODO: Since hd_wallet_rmd160 is unique for a device, do we use it as db_id too? or we can just use mm2 shared_db_id and use hd_wallet_rmd160 for primary key as it's currently done
     pub async fn init(ctx: &MmArc, coin: String) -> HDWalletStorageResult<HDWalletCoinStorage> {
         let crypto_ctx = CryptoCtx::from_ctx(ctx)?;
         let hd_wallet_rmd160 = crypto_ctx
             .hw_wallet_rmd160()
             .or_mm_err(|| HDWalletStorageError::HDWalletUnavailable)?;
-        let db_id = hex::encode(hd_wallet_rmd160.as_slice());
-        let inner = Box::new(HDWalletStorageInstance::init(ctx, Some(&db_id)).await?);
+        let inner = Box::new(HDWalletStorageInstance::init(ctx, None).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,
@@ -234,13 +234,13 @@ impl HDWalletCoinStorage {
         })
     }
 
+    // TODO: Since hd_wallet_rmd160 is unique for a device, do we use it as db_id too? or we can just use mm2 shared_db_id and use hd_wallet_rmd160 for primary key as it's currently done
     pub async fn init_with_rmd160(
         ctx: &MmArc,
         coin: String,
         hd_wallet_rmd160: H160,
     ) -> HDWalletStorageResult<HDWalletCoinStorage> {
-        let db_id = hex::encode(hd_wallet_rmd160.as_slice());
-        let inner = Box::new(HDWalletStorageInstance::init(ctx, Some(&db_id)).await?);
+        let inner = Box::new(HDWalletStorageInstance::init(ctx, None).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,
@@ -347,12 +347,18 @@ mod tests {
         let rick_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
+
         let rick_device1_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device1_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
+
         let morty_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "MORTY".to_owned(), device0_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
+        println!(
+            "morty_device0_db {}",
+            hex::encode(morty_device0_db.hd_wallet_rmd160.as_slice())
+        );
 
         rick_device0_db
             .upload_new_account(rick_device0_account0.clone())

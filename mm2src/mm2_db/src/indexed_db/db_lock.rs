@@ -58,17 +58,30 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         }
     }
 
+    // handle to get or initialize db
+    pub async fn get_or_initialize(&self, db_id: Option<&str>) -> InitDbResult<DbLocked<Db>> {
+        self.get_or_initialize_impl(db_id, false).await
+    }
+
+    // handle to get or initialize shared db
+    pub async fn get_or_initialize_shared(&self, db_id: Option<&str>) -> InitDbResult<DbLocked<Db>> {
+        self.get_or_initialize_impl(db_id, true).await
+    }
+
     /// Locks the given mutex and checks if the inner database is initialized already or not,
     /// initializes it if it's required, and returns the locked instance.
-    pub async fn get_or_initialize(&self, db_id: Option<&str>) -> InitDbResult<DbLocked<Db>> {
-        // TODO: caller might be calling for shared_db instead so handle default case, shouldn't be elf.ctx.rmd160_hex() but ctx.shared_db_id() instead
-        let db_id = db_id.map(|id| id.to_owned()).unwrap_or_else(|| self.ctx.rmd160_hex());
+    async fn get_or_initialize_impl(&self, db_id: Option<&str>, is_shared: bool) -> InitDbResult<DbLocked<Db>> {
+        let default_db_id = match is_shared {
+            true => hex::encode(self.ctx.shared_db_id().as_slice()),
+            false => self.ctx.rmd160_hex(),
+        };
+        let db_id = db_id.map(|id| id.to_owned()).unwrap_or_else(|| default_db_id);
 
         let mut connections = self.mutexes.lock().await;
         if let Some(connection) = connections.get_mut(&db_id) {
             let mut locked_db = connection.clone().lock_owned().await;
             // check and return found connection if already initialized.
-            if &*locked_db.is_some() {
+            if locked_db.is_some() {
                 return Ok(unwrap_db_instance(locked_db));
             };
 

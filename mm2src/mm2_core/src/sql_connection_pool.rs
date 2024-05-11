@@ -118,6 +118,7 @@ impl SqliteConnPool {
     }
 
     /// Opens a database connection based on the database ID and connection kind.
+    #[cfg(all(test))]
     fn open_connection(ctx: &MmCtx, db_id: &str, db_id_conn_kind: &DbIdConnKind) -> Arc<Mutex<Connection>> {
         let sqlite_file_path = match db_id_conn_kind {
             DbIdConnKind::Shared => ctx.shared_dbdir(Some(db_id)).join("MM2-shared.db"),
@@ -128,6 +129,18 @@ impl SqliteConnPool {
         Arc::new(Mutex::new(
             Connection::open(sqlite_file_path).expect("failed to open db"),
         ))
+    }
+
+    /// Opens a database connection based on the database ID and connection kind.
+    #[cfg(not(test))]
+    fn open_connection(ctx: &MmCtx, db_id: &str, db_id_conn_kind: &DbIdConnKind) -> Arc<Mutex<Connection>> {
+        let sqlite_file_path = match db_id_conn_kind {
+            DbIdConnKind::Shared => ctx.shared_dbdir(Some(db_id)).join("MM2-shared.db"),
+            DbIdConnKind::Single => ctx.dbdir(Some(db_id)).join(SYNC_SQLITE_DB_ID),
+        };
+
+        log_sqlite_file_open_attempt(&sqlite_file_path);
+        Arc::new(Mutex::new(Connection::open_in_memory().expect("failed to open db")))
     }
 }
 
