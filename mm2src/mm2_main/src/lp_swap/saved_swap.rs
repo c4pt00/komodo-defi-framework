@@ -421,7 +421,7 @@ mod wasm_impl {
 
             let saved_swap_json = match table.get_item_by_unique_index("uuid", uuid).await? {
                 Some((_item_id, SavedSwapTable { saved_swap, .. })) => saved_swap,
-                None => return { Ok(None) },
+                None => return Ok(None),
             };
 
             json::from_value(saved_swap_json).map_to_mm(|e| SavedSwapError::ErrorDeserializing(e.to_string()))
