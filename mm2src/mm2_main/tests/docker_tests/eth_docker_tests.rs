@@ -872,7 +872,7 @@ fn send_and_spend_erc721_maker_payment() {
     let maker_address = block_on(maker_global_nft.my_addr());
     wait_pending_transactions(maker_address);
 
-    let time_lock = now_sec() + 1000;
+    let time_lock = now_sec() + 1001;
     let maker_pubkey = maker_global_nft.derive_htlc_pubkey(&[]);
     let taker_pubkey = taker_global_nft.derive_htlc_pubkey(&[]);
 
