@@ -15,8 +15,8 @@ use crate::utxo::rpc_clients::{ElectrumRpcRequest, UnspentInfo, UtxoRpcClientEnu
 use crate::utxo::utxo_builder::UtxoCoinBuildError;
 use crate::utxo::utxo_builder::{UtxoCoinBuilder, UtxoCoinBuilderCommonOps, UtxoFieldsWithGlobalHDBuilder,
                                 UtxoFieldsWithHardwareWalletBuilder, UtxoFieldsWithIguanaSecretBuilder};
-use crate::utxo::utxo_common::{addresses_from_script, big_decimal_from_sat, big_decimal_from_sat_unsigned,
-                               payment_script, PreImageTradeFeeResult};
+use crate::utxo::utxo_common::{big_decimal_from_sat, big_decimal_from_sat_unsigned, payment_script,
+                               PreImageTradeFeeResult};
 use crate::utxo::{sat_from_big_decimal, utxo_common, AdditionalTxData, AddrFromStrError, Address, BroadcastTxErr,
                   FeePolicy, GetUtxoListOps, HistoryUtxoTx, HistoryUtxoTxMap, HtlcSpendFeeResult, MatureUnspentList,
                   RecentlySpentOutPointsGuard, UtxoActivationParams, UtxoAddressFormat, UtxoArc, UtxoCoinFields,
@@ -463,16 +463,13 @@ impl ZCoin {
                 .await?
                 .tx_result?;
 
-        let mut tx_bytes = Vec::with_capacity(1024);
-        tx.write(&mut tx_bytes).expect("Write should not fail");
-
         let additional_data = AdditionalTxData {
             received_by_me,
             spent_by_me: sat_from_big_decimal(&total_input_amount, self.decimals())?,
             fee_amount: sat_from_big_decimal(&tx_fee, self.decimals())?,
             unused_change: 0,
             kmd_rewards: None,
-            tx_size: tx_bytes.len() as u64,
+            tx_size: tx.tx_hex().len() as u64,
         };
 
         Ok((tx, additional_data, sync_guard))
@@ -535,7 +532,9 @@ impl ZCoin {
 
             if let Some(spent_output) = prev_tx.vout.get(input.prevout.n() as usize) {
                 transparent_input_amount += spent_output.value;
-                if let Ok(addresses) = addresses_from_script(self, &spent_output.script_pubkey.0.clone().into()) {
+                if let Ok(addresses) =
+                    utxo_common::addresses_from_script(self, &spent_output.script_pubkey.0.clone().into())
+                {
                     from.extend(addresses.into_iter().map(|a| a.to_string()));
                 }
             }
@@ -548,7 +547,7 @@ impl ZCoin {
 
         let mut to = HashSet::new();
         for out in z_tx.vout.iter() {
-            if let Ok(addresses) = addresses_from_script(self, &out.script_pubkey.0.clone().into()) {
+            if let Ok(addresses) = utxo_common::addresses_from_script(self, &out.script_pubkey.0.clone().into()) {
                 to.extend(addresses.into_iter().map(|a| a.to_string()));
             }
         }
@@ -1834,7 +1833,7 @@ impl UtxoCommonOps for ZCoin {
     }
 
     fn addresses_from_script(&self, script: &Script) -> Result<Vec<Address>, String> {
-        addresses_from_script(self, script)
+        utxo_common::addresses_from_script(self, script)
     }
 
     fn denominate_satoshis(&self, satoshi: i64) -> f64 { utxo_common::denominate_satoshis(&self.utxo_arc, satoshi) }

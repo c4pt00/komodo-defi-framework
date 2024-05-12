@@ -1408,10 +1408,10 @@ impl MmCoin for Qrc20Coin {
                 .await?
         };
 
-        let total_fee = erc20_payment_fee.fee + sender_refund_fee.fee;
+        let qrc20_payment_fee = erc20_payment_fee.fee + sender_refund_fee.fee;
         Ok(TradeFee {
             coin: self.platform.clone(),
-            amount: total_fee.into(),
+            amount: qrc20_payment_fee.into(),
             paid_from_trading_vol: false,
             tx_size: sender_refund_fee.tx_size,
         })
