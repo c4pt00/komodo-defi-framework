@@ -2799,8 +2799,11 @@ fn test_generate_tx_doge_fee() {
     let builder = block_on(UtxoTxBuilder::new(&doge))
         .add_available_inputs(unspents)
         .add_outputs(outputs);
-    let (_, data) = block_on(builder.build()).unwrap();
-    let expected_fee = 2000000;
+    let (input_signer, data) = block_on(builder.build()).unwrap();
+    let transaction = UtxoTx::from(input_signer);
+    let v_size = tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &transaction) as u64;
+    assert!(v_size > KILO_BYTE as u64);
+    let expected_fee = calculate_fee!(TXFEE_PER_KB, v_size) as u64;
     assert_eq!(expected_fee, data.fee_amount);
 
     let unspents = vec![UnspentInfo {
@@ -2819,7 +2822,8 @@ fn test_generate_tx_doge_fee() {
     let builder = block_on(UtxoTxBuilder::new(&doge))
         .add_available_inputs(unspents)
         .add_outputs(outputs);
-    let (_, data) = block_on(builder.build()).unwrap();
+    let (input_signer, data) = block_on(builder.build()).unwrap();
+    let transaction = UtxoTx::from(input_signer);
     let v_size = tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &transaction) as u64;
     assert!(v_size > KILO_BYTE as u64);
     let expected_fee = calculate_fee!(TXFEE_PER_KB, v_size) as u64;
