@@ -112,11 +112,11 @@ impl SavedSwap {
             SavedSwap::Maker(saved) => {
                 let (maker_swap, _) = try_s!(MakerSwap::load_from_saved(ctx, maker_coin, taker_coin, saved));
                 Ok(try_s!(maker_swap.recover_funds().await))
-            },
+            }
             SavedSwap::Taker(saved) => {
                 let (taker_swap, _) = try_s!(TakerSwap::load_from_saved(ctx, maker_coin, taker_coin, saved).await);
                 Ok(try_s!(taker_swap.recover_funds().await))
-            },
+            }
         }
     }
 
@@ -136,14 +136,14 @@ impl SavedSwap {
                         data.p2p_privkey = None;
                     }
                 }
-            },
+            }
             SavedSwap::Taker(swap) => {
                 if let Some(ref mut event) = swap.events.first_mut() {
                     if let TakerSwapEvent::Started(ref mut data) = event.event {
                         data.p2p_privkey = None;
                     }
                 }
-            },
+            }
         };
     }
 
@@ -214,7 +214,7 @@ mod native_impl {
                 FsJsonError::Serializing(serializing) => SavedSwapError::ErrorSerializing(serializing.to_string()),
                 FsJsonError::Deserializing(deserializing) => {
                     SavedSwapError::ErrorDeserializing(deserializing.to_string())
-                },
+                }
             }
         }
     }
@@ -281,11 +281,11 @@ mod native_impl {
                 SavedSwap::Maker(maker) => {
                     let path = stats_maker_swap_file_path(ctx, db_id, &maker.uuid);
                     write_json(self, &path, USE_TMP_FILE).await?;
-                },
+                }
                 SavedSwap::Taker(taker) => {
                     let path = stats_taker_swap_file_path(ctx, db_id, &taker.uuid);
                     write_json(self, &path, USE_TMP_FILE).await?;
-                },
+                }
             }
             Ok(())
         }
@@ -350,20 +350,20 @@ mod wasm_impl {
                                 None => {
                                     warn!("No MySwapsFiltersTable for {}", swap.uuid());
                                     continue;
-                                },
+                                }
                             };
                         filter_record.swap_type = LEGACY_SWAP_TYPE;
                         filter_record.is_finished = swap.is_finished().into();
                         filters_table.replace_item(filter_id, &filter_record).await?;
                     }
-                },
+                }
                 1 => break,
                 unsupported => {
                     return MmError::err(SavedSwapError::InternalError(format!(
                         "Unsupported migration {}",
                         unsupported
-                    )))
-                },
+                    )));
+                }
             }
             migration += 1;
             migration_table.add_item(&SwapsMigrationTable { migration }).await?;
@@ -394,10 +394,10 @@ mod wasm_impl {
                 DbTransactionError::ErrorSerializingItem(_) => SavedSwapError::ErrorSerializing(desc),
                 DbTransactionError::ErrorGettingItems(_) | DbTransactionError::ErrorCountingItems(_) => {
                     SavedSwapError::ErrorLoading(desc)
-                },
+                }
                 DbTransactionError::ErrorUploadingItem(_) | DbTransactionError::ErrorDeletingItems(_) => {
                     SavedSwapError::ErrorSaving(desc)
-                },
+                }
             }
         }
     }
@@ -420,8 +420,12 @@ mod wasm_impl {
             let table = transaction.table::<SavedSwapTable>().await?;
 
             let saved_swap_json = match table.get_item_by_unique_index("uuid", uuid).await? {
-                Some((_item_id, SavedSwapTable { saved_swap, .. })) => saved_swap,
-                None => return Ok(None),
+                Some((_item_id, SavedSwapTable { saved_swap, .. })) => {
+                    saved_swap
+                }
+                None => return {
+                    Ok(None)
+                },
             };
 
             json::from_value(saved_swap_json).map_to_mm(|e| SavedSwapError::ErrorDeserializing(e.to_string()))

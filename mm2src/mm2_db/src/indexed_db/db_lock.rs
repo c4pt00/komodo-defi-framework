@@ -15,7 +15,10 @@ pub struct ConstructibleDb<Db> {
     /// It's better to use something like [`Constructible`], but it doesn't provide a method to get the inner value by the mutable reference.
     mutexes: Arc<AsyncMutex<HashMap<String, Arc<AsyncMutex<Option<Db>>>>>>,
     db_namespace: DbNamespaceId,
-    ctx: MmArc,
+    // Default mm2 d_id derive from passphrase rmd160
+    db_id: String,
+    // Default mm2 shared_db_id derive from passphrase
+    shared_db_id: String,
 }
 
 impl<Db: DbInstance> ConstructibleDb<Db> {
@@ -24,15 +27,17 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// Creates a new uninitialized `Db` instance from other Iguana and/or HD accounts.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new(ctx: &MmArc, db_id: Option<&str>) -> Self {
-        let rmd = hex::encode(ctx.rmd160().as_slice());
-        let db_id = db_id.unwrap_or(&rmd);
+        let db_id_ = hex::encode(ctx.rmd160().as_slice());
+        let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
 
+        let db_id = db_id.unwrap_or(&db_id_);
         let conns = HashMap::from([(db_id.to_owned(), Arc::new(AsyncMutex::new(None)))]);
 
         ConstructibleDb {
             mutexes: Arc::new(AsyncMutex::new(conns)),
             db_namespace: ctx.db_namespace,
-            ctx: ctx.clone(),
+            db_id: db_id.to_string(),
+            shared_db_id,
         }
     }
 
@@ -40,22 +45,27 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// derived from the same passphrase.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_shared_db(ctx: &MmArc) -> Self {
-        let db_id = hex::encode(ctx.shared_db_id().as_slice());
-        let conns = HashMap::from([(db_id, Arc::new(AsyncMutex::new(None)))]);
+        let db_id = hex::encode(ctx.rmd160().as_slice());
+        let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
+        let conns = HashMap::from([(shared_db_id.clone(), Arc::new(AsyncMutex::new(None)))]);
         ConstructibleDb {
             mutexes: Arc::new(AsyncMutex::new(conns)),
             db_namespace: ctx.db_namespace,
-            ctx: ctx.clone(),
+            db_id,
+            shared_db_id,
         }
     }
 
     /// Creates a new uninitialized `Db` instance shared between all wallets/seed.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_global_db(ctx: &MmArc) -> Self {
+        let db_id = hex::encode(ctx.rmd160().as_slice());
+        let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
         ConstructibleDb {
             mutexes: Arc::new(AsyncMutex::new(HashMap::default())),
             db_namespace: ctx.db_namespace,
-            ctx: ctx.clone(),
+            db_id,
+            shared_db_id,
         }
     }
 
@@ -72,11 +82,10 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// Locks the given mutex and checks if the inner database is initialized already or not,
     /// initializes it if it's required, and returns the locked instance.
     async fn get_or_initialize_impl(&self, db_id: Option<&str>, is_shared: bool) -> InitDbResult<DbLocked<Db>> {
-        let default_db_id = match is_shared {
-            true => hex::encode(self.ctx.shared_db_id().as_slice()),
-            false => self.ctx.rmd160_hex(),
+        let db_id = match is_shared {
+            true => db_id.map(|id| id.to_owned()).unwrap_or_else(|| self.shared_db_id.to_owned()),
+            false => db_id.map(|id| id.to_owned()).unwrap_or_else(|| self.db_id.to_owned()),
         };
-        let db_id = db_id.map(|id| id.to_owned()).unwrap_or_else(|| default_db_id);
 
         let mut connections = self.mutexes.lock().await;
         if let Some(connection) = connections.get_mut(&db_id) {
