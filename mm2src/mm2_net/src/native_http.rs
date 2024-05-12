@@ -236,14 +236,12 @@ impl From<http::Error> for SlurpError {
 /// # Errors
 ///
 /// Returns an error if the HTTP status code of the response is not in the 2xx range.
-pub async fn send_request_to_uri(uri: &str, body: Option<String>) -> MmResult<Json, GetInfoFromUriError> {
-    let request_body = body.map_or_else(Body::empty, Body::from);
-
+pub async fn send_request_to_uri(uri: &str) -> MmResult<Json, GetInfoFromUriError> {
     let request = http::Request::builder()
         .method("GET")
         .uri(uri)
         .header(header::ACCEPT, HeaderValue::from_static(APPLICATION_JSON))
-        .body(request_body)?;
+        .body(Body::empty())?;
 
     let (status, _header, body) = slurp_req_body(request).await?;
     if !status.is_success() {

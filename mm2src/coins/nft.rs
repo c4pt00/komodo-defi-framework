@@ -657,7 +657,8 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
             uri.set_query(Some(&cursor));
         }
         let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
-        let response = send_request_to_uri(wrapper.orig_url.as_str(), Some(payload)).await?;
+        let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
+        let response: Json = serde_json::from_slice(&response)?;
         if let Some(nfts_list) = response["result"].as_array() {
             for nft_json in nfts_list {
                 let nft_moralis = NftFromMoralis::deserialize(nft_json)?;
@@ -703,7 +704,8 @@ pub(crate) async fn get_nfts_for_activation(
             uri.set_query(Some(&cursor));
         }
         let payload = http_get_payload_str(uri, signed_message.clone())?;
-        let response = send_request_to_uri(original_url.as_str(), Some(payload)).await?;
+        let response = send_post_request_to_uri(original_url.as_str(), payload).await?;
+        let response: Json = serde_json::from_slice(&response)?;
         if let Some(nfts_list) = response["result"].as_array() {
             process_nft_list_for_activation(nfts_list, chain, &mut nfts_map)?;
             // if cursor is not null, there are other NFTs on next page,
@@ -787,7 +789,8 @@ async fn get_moralis_nft_transfers(
             uri.set_query(Some(&cursor));
         }
         let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
-        let response = send_request_to_uri(wrapper.orig_url.as_str(), Some(payload)).await?;
+        let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
+        let response: Json = serde_json::from_slice(&response)?;
         if let Some(transfer_list) = response["result"].as_array() {
             process_transfer_list(transfer_list, chain, wallet_address.as_str(), &eth_coin, &mut res_list).await?;
             // if the cursor is not null, there are other NFTs transfers on next page,
@@ -919,7 +922,8 @@ async fn get_moralis_metadata(
     drop_mutability!(uri);
 
     let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
-    let response = send_request_to_uri(wrapper.orig_url.as_str(), Some(payload)).await?;
+    let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
+    let response: Json = serde_json::from_slice(&response)?;
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response.to_string())?;
     let contract_type = match nft_moralis.contract_type {
         Some(contract_type) => contract_type,
@@ -997,7 +1001,7 @@ fn construct_camo_url_with_token(token_uri: &str, url_antispam: &Url) -> Option<
 }
 
 async fn fetch_meta_from_url(url: Url) -> MmResult<UriMeta, MetaFromUrlError> {
-    let response_meta = send_request_to_uri(url.as_str(), None).await?;
+    let response_meta = send_request_to_uri(url.as_str()).await?;
     serde_json::from_value(response_meta).map_err(|e| e.into())
 }
 

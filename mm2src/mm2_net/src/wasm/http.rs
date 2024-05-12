@@ -384,7 +384,7 @@ impl RequestBody {
 /// # Errors
 ///
 /// Returns an error if the HTTP status code of the response is not in the 2xx range.
-pub async fn send_request_to_uri(uri: &str, body: Option<String>) -> MmResult<Json, GetInfoFromUriError> {
+pub async fn send_request_to_uri(uri: &str) -> MmResult<Json, GetInfoFromUriError> {
     macro_rules! try_or {
         ($exp:expr, $errtype:ident) => {
             match $exp {
@@ -394,11 +394,10 @@ pub async fn send_request_to_uri(uri: &str, body: Option<String>) -> MmResult<Js
         };
     }
 
-    let mut request_builder = FetchRequest::get(uri).header(ACCEPT.as_str(), APPLICATION_JSON);
-    if let Some(body_content) = body {
-        request_builder = request_builder.body_utf8(body_content);
-    }
-    let result = request_builder.request_str().await;
+    let result = FetchRequest::get(uri)
+        .header(ACCEPT.as_str(), APPLICATION_JSON)
+        .request_str()
+        .await;
     let (status_code, response_str) = try_or!(result, Transport);
     if !status_code.is_success() {
         return Err(MmError::new(GetInfoFromUriError::Transport(ERRL!(

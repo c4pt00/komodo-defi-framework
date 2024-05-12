@@ -94,7 +94,7 @@ cross_test!(test_moralis_requests, {
         "{}/{}/nft?chain=POLYGON&format=decimal",
         MORALIS_API_ENDPOINT_TEST, TEST_WALLET_ADDR_EVM
     );
-    let response_nft_list = send_request_to_uri(uri_nft_list.as_str(), None).await.unwrap();
+    let response_nft_list = send_request_to_uri(uri_nft_list.as_str()).await.unwrap();
     let nfts_list = response_nft_list["result"].as_array().unwrap();
     for nft_json in nfts_list {
         let nft_moralis: NftFromMoralis = serde_json::from_str(&nft_json.to_string()).unwrap();
@@ -105,7 +105,7 @@ cross_test!(test_moralis_requests, {
         "{}/{}/nft/transfers?chain=POLYGON&format=decimal",
         MORALIS_API_ENDPOINT_TEST, TEST_WALLET_ADDR_EVM
     );
-    let response_transfer_history = send_request_to_uri(uri_history.as_str(), None).await.unwrap();
+    let response_transfer_history = send_request_to_uri(uri_history.as_str()).await.unwrap();
     let mut transfer_list = response_transfer_history["result"].as_array().unwrap().clone();
     assert!(!transfer_list.is_empty());
     let first_transfer = transfer_list.remove(transfer_list.len() - 1);
@@ -119,7 +119,7 @@ cross_test!(test_moralis_requests, {
         "{}/nft/0xed55e4477b795eaa9bb4bca24df42214e1a05c18/1111777?chain=POLYGON&format=decimal",
         MORALIS_API_ENDPOINT_TEST
     );
-    let response_meta = send_request_to_uri(uri_meta.as_str(), None).await.unwrap();
+    let response_meta = send_request_to_uri(uri_meta.as_str()).await.unwrap();
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response_meta.to_string()).unwrap();
     assert_eq!(42563567, nft_moralis.block_number.0);
 });
@@ -155,7 +155,7 @@ cross_test!(test_antispam_scan_endpoints, {
 cross_test!(test_camo, {
     let hex_token_uri = hex::encode("https://tikimetadata.s3.amazonaws.com/tiki_box.json");
     let uri_decode = format!("{}/url/decode/{}", BLOCKLIST_API_ENDPOINT, hex_token_uri);
-    let decode_res = send_request_to_uri(&uri_decode, None).await.unwrap();
+    let decode_res = send_request_to_uri(&uri_decode).await.unwrap();
     let uri_meta: UriMeta = serde_json::from_value(decode_res).unwrap();
     assert_eq!(
         uri_meta.raw_image_url.unwrap(),
