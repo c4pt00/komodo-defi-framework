@@ -83,7 +83,9 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// initializes it if it's required, and returns the locked instance.
     async fn get_or_initialize_impl(&self, db_id: Option<&str>, is_shared: bool) -> InitDbResult<DbLocked<Db>> {
         let db_id = match is_shared {
-            true => db_id.map(|id| id.to_owned()).unwrap_or_else(|| self.shared_db_id.to_owned()),
+            true => db_id
+                .map(|id| id.to_owned())
+                .unwrap_or_else(|| self.shared_db_id.to_owned()),
             false => db_id.map(|id| id.to_owned()).unwrap_or_else(|| self.db_id.to_owned()),
         };
 
