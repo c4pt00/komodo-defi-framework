@@ -136,12 +136,13 @@ pub struct UnlockKey {
 }
 
 impl Encodable for PublicKey {
-    fn encode(&self, encoder: &mut Encoder) { encoder.write_len_prefixed_bytes(&self.to_bytes()); }
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.to_bytes()); }
 }
 
 impl Encodable for UnlockKey {
     fn encode(&self, encoder: &mut Encoder) {
         self.algorithm.encode(encoder);
+        encoder.write_u64(self.public_key.as_ref().len() as u64);
         self.public_key.encode(encoder);
     }
 }

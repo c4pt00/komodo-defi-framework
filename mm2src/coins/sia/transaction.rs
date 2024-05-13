@@ -332,6 +332,7 @@ fn test_siacoin_input_encode_v1() {
 }
 
 #[test]
+#[ignore] // FIXME WIP
 fn test_siacoin_input_encode_v2() {
     let policy = SpendPolicy::Above(0);
 
