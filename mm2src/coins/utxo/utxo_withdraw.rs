@@ -7,7 +7,7 @@ use crate::{CoinWithDerivationMethod, GetWithdrawSenderAddress, MarketCoinOps, T
 use async_trait::async_trait;
 use chain::TransactionOutput;
 use common::log::info;
-use common::now_sec;
+use common::{now_sec, Future01CompatExt};
 use crypto::hw_rpc_task::HwRpcTaskAwaitingStatus;
 use crypto::trezor::trezor_rpc_task::{TrezorRequestStatuses, TrezorRpcTaskProcessor};
 use crypto::trezor::{TrezorError, TrezorProcessingError};
@@ -25,17 +25,17 @@ use utxo_signer::sign_params::{OutputDestination, SendingOutputInfo, SpendingInp
 use utxo_signer::{with_key_pair, UtxoSignTxError};
 use utxo_signer::{SignPolicy, UtxoSignerOps};
 
-/// Fee (in satoshis) applied to withdrawal transactions
+/// Num of blocks applied to withdrawal transactions
 /// that have a high priority, indicating a need for faster confirmation.
-pub const HIGH_TX_FEE: u16 = 4500;
+pub const HIGH_TX_FEE: u8 = 1;
 
-/// Fee (in satoshis) applied to withdrawal transactions
+/// Num of blocks applied to withdrawal transactions
 /// that have a normal priority, indicating a moderate confirmation time.
-pub const NORMAL_TX_FEE: u16 = 2000;
+pub const NORMAL_TX_FEE: u8 = 2;
 
-/// Fee (in satoshis) applied to withdrawal transactions
+/// Num of blocks applied to withdrawal transactions
 /// that have a low priority, indicating a longer confirmation time.
-pub const LOW_TX_FEE: u16 = 1000;
+pub const LOW_TX_FEE: u8 = 4;
 
 impl From<UtxoSignTxError> for WithdrawError {
     fn from(sign_err: UtxoSignTxError) -> Self {
@@ -191,12 +191,24 @@ where
             },
             Some(WithdrawFee::UtxoPriority { ref priority, .. }) => {
                 // handle the withdrawal fee calculation based on the priority of the transaction.
-                let fee = match priority {
+                let n_blocks = match priority {
                     UtxoFeePriority::Low => LOW_TX_FEE,
                     UtxoFeePriority::Normal => NORMAL_TX_FEE,
                     UtxoFeePriority::High => HIGH_TX_FEE,
                 };
-                tx_builder = tx_builder.with_fee(TxFeeType::PerKb(fee.into()));
+                // Note: If the coin doesn't support smart_fee with n_blocks, we skip using n_blocks. So, smart_fee returns a fee without using n_blocks.
+                let fee_estimate = coin
+                    .as_ref()
+                    .rpc_client
+                    .estimate_fee_sat(
+                        decimals,
+                        &crate::utxo::rpc_clients::EstimateFeeMethod::Standard,
+                        &None,
+                        n_blocks.into(),
+                    )
+                    .compat()
+                    .await?;
+                tx_builder = tx_builder.with_fee(TxFeeType::PerKb(fee_estimate));
             },
             Some(ref fee_policy) => {
                 let error = format!(
