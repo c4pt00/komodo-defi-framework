@@ -3,6 +3,7 @@ use crate::lightning::ln_db::LightningDB;
 use crate::lightning::ln_platform::{get_best_header, ln_best_block_update_loop, update_best_block};
 use crate::lightning::ln_sql::SqliteLightningDB;
 use crate::lightning::ln_storage::{LightningStorage, NodesAddressesMap};
+use crate::lp_coinfind_any;
 use crate::utxo::rpc_clients::BestBlock as RpcBestBlock;
 use bitcoin::hash_types::BlockHash;
 use bitcoin_hashes::{sha256d, Hash};
@@ -69,7 +70,8 @@ pub async fn init_persister(
 }
 
 pub async fn init_db(ctx: &MmArc, ticker: String) -> EnableLightningResult<SqliteLightningDB> {
-    // TODO db_id
+    let ticker_to_mm_coin = lp_coinfind_any(ctx, &ticker)
+        .map_to_mm(|err| EnableLightningError::InvalidRequest(format!("{ticker} is not activated yet!")))?;
     let shared = ctx.sqlite_conn_opt(None).or_mm_err(|| {
         EnableLightningError::DbError("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
     })?;

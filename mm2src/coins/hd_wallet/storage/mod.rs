@@ -355,10 +355,6 @@ mod tests {
         let morty_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "MORTY".to_owned(), device0_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
-        println!(
-            "morty_device0_db {}",
-            hex::encode(morty_device0_db.hd_wallet_rmd160.as_slice())
-        );
 
         rick_device0_db
             .upload_new_account(rick_device0_account0.clone())
