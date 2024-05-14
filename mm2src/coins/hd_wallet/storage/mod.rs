@@ -347,11 +347,9 @@ mod tests {
         let rick_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
-
         let rick_device1_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device1_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
-
         let morty_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "MORTY".to_owned(), device0_rmd160)
             .await
             .expect("!HDWalletCoinStorage::new");
@@ -384,7 +382,7 @@ mod tests {
             rick_device0_account0.clone(),
             rick_device0_account1.clone(),
             rick_device1_account0.clone(),
-            morty_device0_account0.clone(),
+            morty_device0_account0.clone()
         ]);
 
         let mut actual = rick_device0_db
