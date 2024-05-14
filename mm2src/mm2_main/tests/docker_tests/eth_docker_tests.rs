@@ -411,7 +411,7 @@ fn global_nft_from_privkey(
     .unwrap();
 
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
-    let mut coins = block_on(coins_ctx.coins.lock());
+    let mut coins = block_on(coins_ctx.lock_coins());
     coins.insert(
         global_nft.ticker().into(),
         MmCoinStruct::new(MmCoinEnum::EthCoin(global_nft.clone())),

@@ -314,7 +314,7 @@ where
     T: NftListStorageOps + NftTransferHistoryStorageOps,
 {
     let coins_ctx = CoinsContext::from_ctx(ctx).map_to_mm(UpdateNftError::Internal)?;
-    let mut coins = coins_ctx.coins.lock().await;
+    let mut coins = coins_ctx.lock_coins().await;
     let ticker = chain.to_nft_ticker();
 
     if let Some(MmCoinStruct {

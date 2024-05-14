@@ -56,7 +56,7 @@ use derive_more::Display;
 use enum_derives::{EnumFromStringify, EnumFromTrait};
 use ethereum_types::H256;
 use futures::compat::Future01CompatExt;
-use futures::lock::Mutex as AsyncMutex;
+use futures::lock::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
 use hex::FromHexError;
@@ -3550,7 +3550,7 @@ impl DexFee {
 pub struct CoinsContext {
     /// A map from a currency ticker symbol to the corresponding coin.
     /// Similar to `LP_coins`.
-    pub coins: AsyncMutex<HashMap<String, MmCoinStruct>>,
+    coins: AsyncMutex<HashMap<String, MmCoinStruct>>,
     balance_update_handlers: AsyncMutex<Vec<Box<dyn BalanceTradeFeeUpdatedHandler + Send + Sync>>>,
     account_balance_task_manager: AccountBalanceTaskManagerShared,
     create_account_manager: CreateAccountTaskManagerShared,
@@ -3720,6 +3720,9 @@ impl CoinsContext {
     async fn tx_history_db(&self) -> TxHistoryResult<TxHistoryDbLocked<'_>> {
         Ok(self.tx_history_db.get_or_initialize().await?)
     }
+
+    #[inline(always)]
+    pub async fn lock_coins(&self) -> AsyncMutexGuard<HashMap<String, MmCoinStruct>> { self.coins.lock().await }
 }
 
 /// This enum is used in coin activation requests.
