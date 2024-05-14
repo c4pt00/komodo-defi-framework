@@ -71,10 +71,16 @@ pub async fn init_persister(
 
 pub async fn init_db(ctx: &MmArc, ticker: String) -> EnableLightningResult<SqliteLightningDB> {
     let ticker_to_mm_coin = lp_coinfind_any(ctx, &ticker)
-        .map_to_mm(|err| EnableLightningError::InvalidRequest(format!("{ticker} is not activated yet!")))?;
-    let shared = ctx.sqlite_conn_opt(None).or_mm_err(|| {
-        EnableLightningError::DbError("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
-    })?;
+        .await
+        .map_to_mm(|err| {
+            EnableLightningError::InvalidRequest(format!("{ticker} not found or is not activated yet! err=({err})"))
+        })?
+        .ok_or_else(|| EnableLightningError::InvalidRequest(format!("{ticker} not found or is not activated yet!")))?;
+    let shared = ctx
+        .sqlite_conn_opt(ticker_to_mm_coin.inner.account_db_id().as_deref())
+        .or_mm_err(|| {
+            EnableLightningError::DbError("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
+        })?;
 
     let db = SqliteLightningDB::new(ticker, shared);
 
