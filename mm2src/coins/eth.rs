@@ -908,7 +908,7 @@ impl Deref for EthCoin {
 
 #[async_trait]
 impl SwapOps for EthCoin {
-    fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, _uuid: &[u8]) -> TransactionFut {
+    fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, _uuid: &[u8], _expire_at: u64) -> TransactionFut {
         let address = try_tx_fus!(addr_from_raw_pubkey(fee_addr));
 
         Box::new(
@@ -2355,11 +2355,10 @@ async fn sign_and_send_transaction_with_keypair(
     data: Vec<u8>,
     gas: U256,
 ) -> Result<SignedEthTx, TransactionErr> {
-    let my_address = try_tx_s!(coin.derivation_method.single_addr_or_err().await);
-    let address_lock = coin.get_address_lock(my_address.to_string()).await;
+    let address_lock = coin.get_address_lock(address.to_string()).await;
     let _nonce_lock = address_lock.lock().await;
     let (signed, web3_instances_with_latest_nonce) =
-        sign_transaction_with_keypair(coin, key_pair, value, action, data, gas, my_address).await?;
+        sign_transaction_with_keypair(coin, key_pair, value, action, data, gas, address).await?;
     let bytes = Bytes(rlp::encode(&signed).to_vec());
     info!(target: "sign-and-send", "send_raw_transaction…");
 
@@ -2930,8 +2929,10 @@ impl EthCoin {
                     coin: self.ticker.clone(),
                     fee_details: fee_details.map(|d| d.into()),
                     block_height: trace.block_number,
-                    tx_hash: format!("{:02x}", BytesJson(raw.hash.as_bytes().to_vec())),
-                    tx_hex: BytesJson(rlp::encode(&raw).to_vec()),
+                    tx: TransactionData::new_signed(
+                        BytesJson(rlp::encode(&raw).to_vec()),
+                        format!("{:02x}", BytesJson(raw.hash.as_bytes().to_vec())),
+                    ),
                     internal_id,
                     timestamp: block.timestamp.into_or_max(),
                     kmd_rewards: None,
@@ -3301,8 +3302,10 @@ impl EthCoin {
                     coin: self.ticker.clone(),
                     fee_details: fee_details.map(|d| d.into()),
                     block_height: block_number.as_u64(),
-                    tx_hash: format!("{:02x}", BytesJson(raw.hash.as_bytes().to_vec())),
-                    tx_hex: BytesJson(rlp::encode(&raw).to_vec()),
+                    tx: TransactionData::new_signed(
+                        BytesJson(rlp::encode(&raw).to_vec()),
+                        format!("{:02x}", BytesJson(raw.hash.as_bytes().to_vec())),
+                    ),
                     internal_id: BytesJson(internal_id.to_vec()),
                     timestamp: block.timestamp.into_or_max(),
                     kmd_rewards: None,
