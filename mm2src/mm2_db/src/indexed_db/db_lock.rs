@@ -82,16 +82,14 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// Locks the given mutex and checks if the inner database is initialized already or not,
     /// initializes it if it's required, and returns the locked instance.
     async fn get_or_initialize_impl(&self, db_id: Option<&str>, is_shared: bool) -> InitDbResult<DbLocked<Db>> {
-        let db_id = match is_shared {
-            true => db_id
-                .map(|id| id.to_owned())
-                .unwrap_or_else(|| self.shared_db_id.to_owned()),
-            false => db_id.map(|id| id.to_owned()).unwrap_or_else(|| self.db_id.to_owned()),
-        };
+        let default_id = if is_shared { &self.shared_db_id } else { &self.db_id };
+        let db_id = db_id.unwrap_or(default_id).to_owned();
 
         let mut connections = self.mutexes.lock().await;
         if let Some(connection) = connections.get_mut(&db_id) {
             let mut locked_db = connection.clone().lock_owned().await;
+            // Drop connections lock as soon as possible.
+            drop(connections);
             // check and return found connection if already initialized.
             if locked_db.is_some() {
                 return Ok(unwrap_db_instance(locked_db));
@@ -107,6 +105,8 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         let db = Db::init(DbIdentifier::new::<Db>(self.db_namespace, Some(db_id.clone()))).await?;
         let db = Arc::new(AsyncMutex::new(Some(db)));
         connections.insert(db_id, db.clone());
+        // Drop connections lock as soon as possible.
+        drop(connections);
 
         let locked_db = db.lock_owned().await;
         Ok(unwrap_db_instance(locked_db))
