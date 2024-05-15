@@ -2,18 +2,18 @@ use super::{DbIdentifier, DbInstance, InitDbResult};
 use mm2_core::{mm_ctx::MmArc, DbNamespaceId};
 use std::collections::HashMap;
 use std::sync::{Arc, Weak};
-use tokio::sync::{Mutex as AsyncMutex, OwnedMappedMutexGuard, OwnedMutexGuard};
+use tokio::sync::{OwnedRwLockMappedWriteGuard, OwnedRwLockWriteGuard, RwLock};
 
 /// The mapped mutex guard.
 /// This implements `Deref<Db>`.
-pub type DbLocked<Db> = OwnedMappedMutexGuard<Option<Db>, Db>;
+pub type DbLocked<Db> = OwnedRwLockMappedWriteGuard<Option<Db>, Db>;
 pub type SharedDb<Db> = Arc<ConstructibleDb<Db>>;
 pub type WeakDb<Db> = Weak<ConstructibleDb<Db>>;
 
 #[allow(clippy::type_complexity)]
 pub struct ConstructibleDb<Db> {
     /// It's better to use something like [`Constructible`], but it doesn't provide a method to get the inner value by the mutable reference.
-    mutexes: Arc<AsyncMutex<HashMap<String, Arc<AsyncMutex<Option<Db>>>>>>,
+    locks: Arc<RwLock<HashMap<String, Arc<RwLock<Option<Db>>>>>>,
     db_namespace: DbNamespaceId,
     // Default mm2 d_id derive from passphrase rmd160
     db_id: String,
@@ -31,10 +31,10 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
 
         let db_id = db_id.unwrap_or(&db_id_);
-        let conns = HashMap::from([(db_id.to_owned(), Arc::new(AsyncMutex::new(None)))]);
+        let conns = HashMap::from([(db_id.to_owned(), Arc::new(RwLock::new(None)))]);
 
         ConstructibleDb {
-            mutexes: Arc::new(AsyncMutex::new(conns)),
+            locks: Arc::new(RwLock::new(conns)),
             db_namespace: ctx.db_namespace,
             db_id: db_id.to_string(),
             shared_db_id,
@@ -47,9 +47,9 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     pub fn new_shared_db(ctx: &MmArc) -> Self {
         let db_id = hex::encode(ctx.rmd160().as_slice());
         let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
-        let conns = HashMap::from([(shared_db_id.clone(), Arc::new(AsyncMutex::new(None)))]);
+        let conns = HashMap::from([(shared_db_id.clone(), Arc::new(RwLock::new(None)))]);
         ConstructibleDb {
-            mutexes: Arc::new(AsyncMutex::new(conns)),
+            locks: Arc::new(RwLock::new(conns)),
             db_namespace: ctx.db_namespace,
             db_id,
             shared_db_id,
@@ -62,7 +62,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         let db_id = hex::encode(ctx.rmd160().as_slice());
         let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
         ConstructibleDb {
-            mutexes: Arc::new(AsyncMutex::new(HashMap::default())),
+            locks: Arc::new(RwLock::new(HashMap::default())),
             db_namespace: ctx.db_namespace,
             db_id,
             shared_db_id,
@@ -85,9 +85,9 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         let default_id = if is_shared { &self.shared_db_id } else { &self.db_id };
         let db_id = db_id.unwrap_or(default_id).to_owned();
 
-        let mut connections = self.mutexes.lock().await;
+        let mut connections = self.locks.write().await;
         if let Some(connection) = connections.get_mut(&db_id) {
-            let mut locked_db = connection.clone().lock_owned().await;
+            let mut locked_db = connection.clone().write_owned().await;
             // Drop connections lock as soon as possible.
             drop(connections);
             // check and return found connection if already initialized.
@@ -103,12 +103,12 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
 
         // No connection found so we create a new connection with immediate initialization
         let db = Db::init(DbIdentifier::new::<Db>(self.db_namespace, Some(db_id.clone()))).await?;
-        let db = Arc::new(AsyncMutex::new(Some(db)));
+        let db = Arc::new(RwLock::new(Some(db)));
         connections.insert(db_id, db.clone());
         // Drop connections lock as soon as possible.
         drop(connections);
 
-        let locked_db = db.lock_owned().await;
+        let locked_db = db.write_owned().await;
         Ok(unwrap_db_instance(locked_db))
     }
 }
@@ -116,8 +116,8 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
 /// # Panics
 ///
 /// This function will `panic!()` if the inner value of the `guard` is `None`.
-fn unwrap_db_instance<Db>(guard: OwnedMutexGuard<Option<Db>>) -> DbLocked<Db> {
-    OwnedMutexGuard::map(guard, |wrapped_db| {
+fn unwrap_db_instance<Db>(guard: OwnedRwLockWriteGuard<Option<Db>>) -> DbLocked<Db> {
+    OwnedRwLockWriteGuard::map(guard, |wrapped_db| {
         wrapped_db
             .as_mut()
             .expect("The locked 'Option<Db>' must contain a value")
