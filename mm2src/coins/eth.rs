@@ -76,7 +76,7 @@ use instant::Instant;
 use keys::Public as HtlcPubKey;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
-use mm2_net::transport::{slurp_url, GuiAuthValidation, GuiAuthValidationGenerator, SlurpError};
+use mm2_net::transport::{slurp_url, KomodefiProxyAuthValidation, ProxyAuthValidationGenerator, SlurpError};
 use mm2_number::bigdecimal_custom::CheckedDivision;
 use mm2_number::{BigDecimal, BigUint, MmNumber};
 use mm2_rpc::data::legacy::GasStationPricePolicy;
@@ -199,8 +199,8 @@ const GAS_PRICE_APPROXIMATION_PERCENT_ON_TRADE_PREIMAGE: u64 = 7;
 
 pub const ETH_GAS: u64 = 150_000;
 
-/// Lifetime of generated signed message for gui-auth requests
-const GUI_AUTH_SIGNED_MESSAGE_LIFETIME_SEC: i64 = 90;
+/// Lifetime of generated signed message for proxy-auth requests
+const PROXY_AUTH_SIGNED_MESSAGE_LIFETIME_SEC: i64 = 90;
 
 lazy_static! {
     pub static ref SWAP_CONTRACT: Contract = Contract::load(SWAP_CONTRACT_ABI.as_bytes()).unwrap();
@@ -5428,14 +5428,15 @@ impl<T: TryToAddress> TryToAddress for Option<T> {
     }
 }
 
-pub trait GuiAuthMessages {
-    fn gui_auth_sign_message_hash(message: String) -> Option<[u8; 32]>;
-    fn generate_gui_auth_signed_validation(generator: GuiAuthValidationGenerator)
-        -> SignatureResult<GuiAuthValidation>;
+pub trait KomodoDefiAuthMessages {
+    fn proxy_auth_sign_message_hash(message: String) -> Option<[u8; 32]>;
+    fn generate_proxy_auth_signed_validation(
+        generator: ProxyAuthValidationGenerator,
+    ) -> SignatureResult<KomodefiProxyAuthValidation>;
 }
 
-impl GuiAuthMessages for EthCoin {
-    fn gui_auth_sign_message_hash(message: String) -> Option<[u8; 32]> {
+impl KomodoDefiAuthMessages for EthCoin {
+    fn proxy_auth_sign_message_hash(message: String) -> Option<[u8; 32]> {
         let message_prefix = "atomicDEX Auth Ethereum Signed Message:\n";
         let prefix_len = CompactInteger::from(message_prefix.len());
 
@@ -5448,16 +5449,16 @@ impl GuiAuthMessages for EthCoin {
         Some(keccak256(&stream.out()).take())
     }
 
-    fn generate_gui_auth_signed_validation(
-        generator: GuiAuthValidationGenerator,
-    ) -> SignatureResult<GuiAuthValidation> {
-        let timestamp_message = get_utc_timestamp() + GUI_AUTH_SIGNED_MESSAGE_LIFETIME_SEC;
+    fn generate_proxy_auth_signed_validation(
+        generator: ProxyAuthValidationGenerator,
+    ) -> SignatureResult<KomodefiProxyAuthValidation> {
+        let timestamp_message = get_utc_timestamp() + PROXY_AUTH_SIGNED_MESSAGE_LIFETIME_SEC;
 
-        let message_hash =
-            EthCoin::gui_auth_sign_message_hash(timestamp_message.to_string()).ok_or(SignatureError::PrefixNotFound)?;
+        let message_hash = EthCoin::proxy_auth_sign_message_hash(timestamp_message.to_string())
+            .ok_or(SignatureError::PrefixNotFound)?;
         let signature = sign(&generator.secret, &H256::from(message_hash))?;
 
-        Ok(GuiAuthValidation {
+        Ok(KomodefiProxyAuthValidation {
             coin_ticker: generator.coin_ticker,
             address: generator.address,
             timestamp_message,

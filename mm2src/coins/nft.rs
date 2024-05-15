@@ -16,7 +16,7 @@ use nft_structs::{Chain, ContractType, ConvertChain, Nft, NftFromMoralis, NftLis
                   TransactionNftDetails, UpdateNftReq, WithdrawNftReq};
 
 use crate::eth::{eth_addr_to_hex, get_eth_address, withdraw_erc1155, withdraw_erc721, EthCoin, EthCoinType,
-                 EthTxFeeDetails, GuiAuthMessages};
+                 EthTxFeeDetails, KomodoDefiAuthMessages};
 use crate::hd_wallet::HDPathAccountToAddressId;
 use crate::nft::nft_errors::{ClearNftDbError, MetaFromUrlError, ProtectFromSpamError, TransferConfirmationsError,
                              UpdateSpamPhishingError};
@@ -31,7 +31,7 @@ use ethereum_types::{Address, H256};
 use futures::compat::Future01CompatExt;
 use futures::future::try_join_all;
 use mm2_err_handle::map_to_mm::MapToMmResult;
-use mm2_net::transport::{send_post_request_to_uri, GuiAuthValidation, GuiAuthValidationGenerator};
+use mm2_net::transport::{send_post_request_to_uri, KomodefiProxyAuthValidation, ProxyAuthValidationGenerator};
 use mm2_number::BigUint;
 use regex::Regex;
 use serde::Deserialize;
@@ -240,13 +240,16 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
         let my_address = eth_coin.my_address()?;
         let secret = eth_coin.priv_key_policy.activated_key_or_err()?.secret().clone();
 
-        let validation_generator = GuiAuthValidationGenerator {
+        let validation_generator = ProxyAuthValidationGenerator {
             coin_ticker: chain.to_nft_ticker().to_string(),
             secret,
             address: my_address,
         };
-        let signed_message = EthCoin::generate_gui_auth_signed_validation(validation_generator).map_err(|e| {
-            UpdateNftError::Internal(format!("GuiAuth signed message generation failed. Error: {:?}", e))
+        let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
+            UpdateNftError::Internal(format!(
+                "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
+                e
+            ))
         })?;
 
         let wrapper = UrlSignWrapper {
@@ -485,13 +488,17 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
     let my_address = eth_coin.my_address()?;
     let secret = eth_coin.priv_key_policy.activated_key_or_err()?.secret().clone();
 
-    let validation_generator = GuiAuthValidationGenerator {
+    let validation_generator = ProxyAuthValidationGenerator {
         coin_ticker: req.chain.to_nft_ticker().to_string(),
         secret,
         address: my_address,
     };
-    let signed_message = EthCoin::generate_gui_auth_signed_validation(validation_generator)
-        .map_err(|e| UpdateNftError::Internal(format!("GuiAuth signed message generation failed. Error: {:?}", e)))?;
+    let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
+        UpdateNftError::Internal(format!(
+            "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
+            e
+        ))
+    })?;
 
     let wrapper = UrlSignWrapper {
         chain: &req.chain,
@@ -656,7 +663,7 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
+        let payload = moralis_payload_str(uri, wrapper.signed_message.clone())?;
         let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
         let response: Json = serde_json::from_slice(&response)?;
         if let Some(nfts_list) = response["result"].as_array() {
@@ -690,7 +697,7 @@ pub(crate) async fn get_nfts_for_activation(
     chain: &Chain,
     my_address: &Address,
     original_url: &Url,
-    signed_message: &GuiAuthValidation,
+    signed_message: &KomodefiProxyAuthValidation,
 ) -> MmResult<HashMap<String, NftInfo>, GetNftInfoError> {
     let mut nfts_map = HashMap::new();
     let uri_without_cursor = construct_moralis_uri_for_nft(original_url, &eth_addr_to_hex(my_address), chain)?;
@@ -703,7 +710,7 @@ pub(crate) async fn get_nfts_for_activation(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = http_get_payload_str(uri, signed_message.clone())?;
+        let payload = moralis_payload_str(uri, signed_message.clone())?;
         let response = send_post_request_to_uri(original_url.as_str(), payload).await?;
         let response: Json = serde_json::from_slice(&response)?;
         if let Some(nfts_list) = response["result"].as_array() {
@@ -788,7 +795,7 @@ async fn get_moralis_nft_transfers(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
+        let payload = moralis_payload_str(uri, wrapper.signed_message.clone())?;
         let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
         let response: Json = serde_json::from_slice(&response)?;
         if let Some(transfer_list) = response["result"].as_array() {
@@ -921,7 +928,7 @@ async fn get_moralis_metadata(
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     drop_mutability!(uri);
 
-    let payload = http_get_payload_str(uri, wrapper.signed_message.clone())?;
+    let payload = moralis_payload_str(uri, wrapper.signed_message.clone())?;
     let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
     let response: Json = serde_json::from_slice(&response)?;
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response.to_string())?;
@@ -1582,21 +1589,21 @@ fn construct_moralis_uri_for_nft(base_url: &Url, address: &str, chain: &Chain) -
 }
 
 #[derive(Clone, Serialize)]
-struct HttpGetPayload {
+struct MoralisPayload {
     uri: Url,
-    signed_message: GuiAuthValidation,
+    signed_message: KomodefiProxyAuthValidation,
 }
 
 #[derive(Debug, Display, EnumFromStringify)]
-enum HttpGetPayloadErr {
+enum MoralisPayloadErr {
     #[from_stringify("serde_json::Error")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
 }
 
 #[inline(always)]
-fn http_get_payload_str(uri: Url, signed_message: GuiAuthValidation) -> MmResult<String, HttpGetPayloadErr> {
-    Ok(serde_json::to_string(&HttpGetPayload { uri, signed_message })?)
+fn moralis_payload_str(uri: Url, signed_message: KomodefiProxyAuthValidation) -> MmResult<String, MoralisPayloadErr> {
+    Ok(serde_json::to_string(&MoralisPayload { uri, signed_message })?)
 }
 
 /// A wrapper struct for holding the chain identifier, original URL field from RPC, anti-spam URL and signed message.
@@ -1604,5 +1611,5 @@ struct UrlSignWrapper<'a> {
     chain: &'a Chain,
     orig_url: &'a Url,
     url_antispam: &'a Url,
-    signed_message: &'a GuiAuthValidation,
+    signed_message: &'a KomodefiProxyAuthValidation,
 }

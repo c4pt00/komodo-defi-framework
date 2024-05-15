@@ -376,7 +376,7 @@ impl EthCoin {
             .iter()
             .map(|node| {
                 let mut transport = node.web3.transport().clone();
-                if let Some(auth) = transport.gui_auth_validation_generator_as_mut() {
+                if let Some(auth) = transport.proxy_auth_validation_generator_as_mut() {
                     auth.coin_ticker = ticker.clone();
                 }
                 let web3 = Web3::new(transport);
@@ -454,13 +454,16 @@ impl EthCoin {
         let my_address = self.derivation_method.single_addr_or_err().await?;
         let my_address_str = display_eth_address(&my_address);
         let secret = self.priv_key_policy().activated_key_or_err()?.secret().clone();
-        let validation_generator = GuiAuthValidationGenerator {
+        let validation_generator = ProxyAuthValidationGenerator {
             coin_ticker: chain.to_nft_ticker().to_string(),
             secret,
             address: my_address_str,
         };
-        let signed_message = EthCoin::generate_gui_auth_signed_validation(validation_generator).map_err(|e| {
-            EthTokenActivationError::InternalError(format!("GuiAuth signed message generation failed. Error: {:?}", e))
+        let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
+            EthTokenActivationError::InternalError(format!(
+                "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
+                e
+            ))
         })?;
         let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, &signed_message).await?;
 
@@ -772,7 +775,7 @@ async fn build_web3_instances(
                 let mut websocket_transport = WebsocketTransport::with_event_handlers(node, event_handlers.clone());
 
                 if eth_node.gui_auth {
-                    websocket_transport.gui_auth_validation_generator = Some(GuiAuthValidationGenerator {
+                    websocket_transport.proxy_auth_validation_generator = Some(ProxyAuthValidationGenerator {
                         coin_ticker: coin_ticker.clone(),
                         secret: key_pair.secret().clone(),
                         address: address.clone(),
@@ -848,7 +851,7 @@ fn build_http_transport(
     let mut http_transport = HttpTransport::with_event_handlers(node, event_handlers);
 
     if gui_auth {
-        http_transport.gui_auth_validation_generator = Some(GuiAuthValidationGenerator {
+        http_transport.proxy_auth_validation_generator = Some(ProxyAuthValidationGenerator {
             coin_ticker,
             secret: key_pair.secret().clone(),
             address,

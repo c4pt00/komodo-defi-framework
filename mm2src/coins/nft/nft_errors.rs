@@ -1,4 +1,4 @@
-use super::HttpGetPayloadErr;
+use super::MoralisPayloadErr;
 use crate::eth::GetEthAddressError;
 #[cfg(target_arch = "wasm32")]
 use crate::nft::storage::wasm::WasmNftCacheError;
@@ -26,7 +26,7 @@ pub enum GetNftInfoError {
     #[from_stringify("serde_json::Error")]
     #[display(fmt = "Invalid response: {}", _0)]
     InvalidResponse(String),
-    #[from_stringify("HttpGetPayloadErr")]
+    #[from_stringify("MoralisPayloadErr")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
     GetEthAddressError(GetEthAddressError),
@@ -158,7 +158,7 @@ pub enum UpdateNftError {
     #[from_stringify("LockDBError")]
     #[display(fmt = "DB error {}", _0)]
     DbError(String),
-    #[from_stringify("regex::Error", "MyAddressError", "HttpGetPayloadErr")]
+    #[from_stringify("regex::Error", "MyAddressError", "MoralisPayloadErr")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
     GetNftInfoError(GetNftInfoError),
