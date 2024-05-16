@@ -42,11 +42,17 @@ pub async fn init_and_migrate_sql_db(ctx: &MmArc, db_id: Option<&str>) -> SqlRes
         },
     };
 
-    info!("Trying to initialize the SQLite database");
+    info!(
+        "Trying to initialize the SQLite database for {}:db",
+        db_id.unwrap_or("default")
+    );
 
     init_db(ctx, db_id)?;
     migrate_sqlite_database(ctx, 1, db_id).await?;
-    info!("SQLite database initialization is successful");
+    info!(
+        "SQLite {} database initialization is successful",
+        db_id.unwrap_or("default")
+    );
     Ok(())
 }
 
@@ -145,7 +151,10 @@ async fn statements_for_migration(ctx: &MmArc, current_migration: i64) -> Option
 
 pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64, db_id: Option<&str>) -> SqlResult<()> {
     let mut current_migration = current_migration;
-    info!("migrate_sqlite_database current migration {current_migration}");
+    info!(
+        "{}:db migrate_sqlite_database current migration {current_migration}",
+        db_id.unwrap_or("default")
+    );
     while let Some(statements_with_params) = statements_for_migration(ctx, current_migration).await {
         // `statements_for_migration` locks the [`MmCtx::sqlite_connection`] mutex,
         // so we can't create a transaction outside of this loop.
@@ -163,7 +172,10 @@ pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64, db_id:
         ])?;
         transaction.commit()?;
     }
-    info!("migrate_sqlite_database complete migrated to {current_migration}");
+    info!(
+        "{}:db migrate_sqlite_database complete migrated to {current_migration}",
+        db_id.unwrap_or("default")
+    );
 
     Ok(())
 }

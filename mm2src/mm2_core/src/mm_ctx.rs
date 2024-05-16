@@ -29,7 +29,7 @@ cfg_wasm32! {
 
 cfg_native! {
     use db_common::sqlite::rusqlite::Connection;
-    use crate::sql_connection_pool::{AsyncSqliteConnPool, SqliteConnPool};
+    use crate::sql_connection_pool::{AsyncSqliteConnPool, SqliteConnPool, DbMigrationWatcher};
     use rustls::ServerName;
     use mm2_metrics::prometheus;
     use mm2_metrics::MmMetricsError;
@@ -139,6 +139,8 @@ pub struct MmCtx {
     pub db_namespace: DbNamespaceId,
     /// The context belonging to the `nft` mod: `NftCtx`.
     pub nft_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub db_migration_watcher: Constructible<Arc<DbMigrationWatcher>>,
 }
 
 impl MmCtx {
@@ -187,6 +189,8 @@ impl MmCtx {
             #[cfg(target_arch = "wasm32")]
             db_namespace: DbNamespaceId::Main,
             nft_ctx: Mutex::new(None),
+            #[cfg(not(target_arch = "wasm32"))]
+            db_migration_watcher: Constructible::default(),
         }
     }
 
@@ -381,6 +385,19 @@ impl MmCtx {
             .or(&|| panic!("sqlite_connection is not initialized"))
             .clone();
         pool.sqlite_conn(self, db_id)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn init_db_migration_watcher(&self) -> Result<Arc<DbMigrationWatcher>, String> {
+        DbMigrationWatcher::init(self).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn db_migration_watcher(&self) -> Arc<DbMigrationWatcher> {
+        self.db_migration_watcher
+            .as_option()
+            .expect("Db migration watcher isn't intialized yet!")
+            .clone()
     }
 }
 

@@ -30,10 +30,11 @@ use crate::mm2::rpc::spawn_rpc;
 use bitcrypto::sha256;
 use coins::register_balance_update_handler;
 use common::executor::{SpawnFuture, Timer};
-use common::log::{info, warn};
+use common::log::{debug, info, warn};
 use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, WithHwRpcError};
 use derive_more::Display;
 use enum_derives::EnumFromTrait;
+use futures::StreamExt;
 use mm2_core::mm_ctx::{MmArc, MmCtx};
 use mm2_err_handle::common_errors::InternalError;
 use mm2_err_handle::prelude::*;
@@ -453,6 +454,44 @@ fn init_wasm_event_streaming(ctx: &MmArc) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+async fn init_db_migration_watcher_loop(ctx: MmArc) {
+    let db_migration_watcher = &ctx
+        .init_db_migration_watcher()
+        .await
+        .expect("db_migration_watcher initialization failed");
+
+    let watcher_clone = db_migration_watcher.clone();
+    let receiver = db_migration_watcher.get_receiver().await;
+    let mut guard = receiver.lock().await;
+
+    while let Some(db_id) = guard.next().await {
+        if watcher_clone.is_db_migrated(Some(&db_id)).await {
+            debug!("{db_id} migrated, skipping migration..");
+            continue;
+        }
+        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id), None).await {
+            common::log::error!("db_migration failed for {db_id}, err: {err:?}");
+            continue;
+        };
+        watcher_clone.db_id_migrated(Some(&db_id)).await;
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>, shared_db_id: Option<&str>) -> MmInitResult<()> {
+    fix_directories(ctx, db_id, shared_db_id)?;
+    AsyncSqliteConnPool::init(ctx, db_id)
+        .await
+        .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+    SqliteConnPool::init(ctx, db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+    SqliteConnPool::init_shared(ctx, db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+    init_and_migrate_sql_db(ctx, db_id).await?;
+    migrate_db(ctx, db_id)?;
+
+    Ok(())
+}
+
 pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
     init_ordermatch_context(&ctx)?;
     init_p2p(ctx.clone()).await?;
@@ -463,14 +502,8 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        fix_directories(&ctx, None, None)?;
-        AsyncSqliteConnPool::init(&ctx, None)
-            .await
-            .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        SqliteConnPool::init(&ctx, None).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        SqliteConnPool::init_shared(&ctx, None).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-        init_and_migrate_sql_db(&ctx, None).await?;
-        migrate_db(&ctx, None)?;
+        run_db_migration_impl(&ctx, None, None).await?;
+        ctx.spawner().spawn(init_db_migration_watcher_loop(ctx.clone()));
     }
 
     init_message_service(&ctx).await?;

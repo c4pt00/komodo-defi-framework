@@ -2,9 +2,10 @@ use crate::mm_ctx::{log_sqlite_file_open_attempt, MmCtx};
 use common::log::error;
 use db_common::async_sql_conn::AsyncConnection;
 use db_common::sqlite::rusqlite::Connection;
+use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::lock::Mutex as AsyncMutex;
 use gstuff::try_s;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
@@ -257,4 +258,60 @@ impl AsyncSqliteConnPool {
                 .expect("failed to open db"),
         ))
     }
+}
+
+pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<String>>>;
+pub type DbMigrationSender = Arc<AsyncMutex<Sender<String>>>;
+
+pub fn create_db_migration_watcher() -> (Sender<String>, Receiver<String>) {
+    let (sender, receiver) = channel(1);
+    (sender, receiver)
+}
+
+pub struct DbMigrationWatcher {
+    migrations: Arc<AsyncMutex<HashSet<String>>>,
+    sender: DbMigrationSender,
+    receiver: DbMigrationHandler,
+}
+
+impl DbMigrationWatcher {
+    pub async fn init(ctx: &MmCtx) -> Result<Arc<Self>, String> {
+        let (sender, receiver) = create_db_migration_watcher();
+
+        let selfi = Arc::new(Self {
+            migrations: Default::default(),
+            sender: Arc::new(AsyncMutex::new(sender)),
+            receiver: Arc::new(AsyncMutex::new(receiver)),
+        });
+        try_s!(ctx.db_migration_watcher.pin(selfi.clone()));
+
+        Ok(selfi)
+    }
+
+    pub async fn is_db_migrated(&self, db_id: Option<&str>) -> bool {
+        if let Some(db_id) = db_id {
+            let guard = self.migrations.lock().await;
+            if guard.get(db_id).is_some() {
+                // migration hasn'been been ran for db with this id
+                return true;
+            };
+
+            // migration hasn't been ran for db with this id
+            return false;
+        }
+
+        // migration hasn been when no db id is provided we assume it's the default db id
+        true
+    }
+
+    pub async fn db_id_migrated(&self, db_id: Option<&str>) {
+        if let Some(db_id) = db_id {
+            let mut guard = self.migrations.lock().await;
+            guard.insert(db_id.to_owned());
+        }
+    }
+
+    pub async fn get_receiver(&self) -> DbMigrationHandler { self.receiver.clone() }
+
+    pub async fn get_sender(&self) -> DbMigrationSender { self.sender.clone() }
 }

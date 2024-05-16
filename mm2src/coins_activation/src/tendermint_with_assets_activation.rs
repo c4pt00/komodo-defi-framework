@@ -15,9 +15,12 @@ use coins::tendermint::{tendermint_priv_key_policy, TendermintActivationPolicy, 
                         TendermintConf, TendermintInitError, TendermintInitErrorKind, TendermintProtocolInfo,
                         TendermintPublicKey, TendermintToken, TendermintTokenActivationParams,
                         TendermintTokenInitError, TendermintTokenProtocolInfo};
+#[cfg(not(target_arch = "wasm32"))] use coins::utxo::dhash160;
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
+#[cfg(not(target_arch = "wasm32"))] use common::log::debug;
 use common::{true_f, Future01CompatExt};
+#[cfg(not(target_arch = "wasm32"))] use futures::SinkExt;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
@@ -241,6 +244,20 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                     ticker: ticker.clone(),
                     kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
                 });
+            }
+
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                // Send migration request
+                let address_hash = dhash160(&pubkey.to_bytes());
+                let address_rmd160_hex = hex::encode(address_hash.as_slice());
+                let db_migration_sender = ctx.db_migration_watcher().await.get_sender().await;
+                let mut db_migration_sender = db_migration_sender.lock().await;
+                if db_migration_sender.send(address_rmd160_hex.clone()).await.is_ok() {
+                    debug!("Sending migration request for db_id: {address_rmd160_hex:?}");
+                };
+
+                // TODO: handle for shared_db_id.
             }
 
             TendermintActivationPolicy::with_public_key(pubkey)
