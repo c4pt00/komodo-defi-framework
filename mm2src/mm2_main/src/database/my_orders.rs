@@ -24,8 +24,8 @@ pub const CREATE_MY_ORDERS_TABLE: &str = "CREATE TABLE IF NOT EXISTS my_orders (
     rel VARCHAR(255) NOT NULL,
     price DECIMAL NOT NULL,
     volume DECIMAL NOT NULL,
-    created_at INTEGER NOT NULL,    
-    last_updated INTEGER NOT NULL,  
+    created_at INTEGER NOT NULL,
+    last_updated INTEGER NOT NULL,
     was_taker INTEGER NOT NULL,
     status VARCHAR(255) NOT NULL
 );";
@@ -41,7 +41,7 @@ const UPDATE_ORDER_STATUS: &str = "UPDATE my_orders SET last_updated = ?2, statu
 
 const SELECT_STATUS_BY_UUID: &str = "SELECT status FROM my_orders WHERE uuid = ?1";
 
-pub fn insert_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder, db_id: Option<&str>) -> SqlResult<()> {
+pub fn insert_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder) -> SqlResult<()> {
     debug!("Inserting new order {} to the SQLite database", uuid);
     let params = vec![
         uuid.to_string(),
@@ -56,13 +56,13 @@ pub fn insert_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder, db_id: Op
         0.to_string(),
         "Created".to_string(),
     ];
-    let conn = ctx.sqlite_connection(db_id);
+    let conn = ctx.sqlite_connection(order.db_id.as_deref());
     let conn = conn.lock().unwrap();
     conn.execute(INSERT_MY_ORDER, params_from_iter(params.iter()))
         .map(|_| ())
 }
 
-pub fn insert_taker_order(ctx: &MmArc, uuid: Uuid, order: &TakerOrder, db_id: Option<&str>) -> SqlResult<()> {
+pub fn insert_taker_order(ctx: &MmArc, uuid: Uuid, order: &TakerOrder) -> SqlResult<()> {
     debug!("Inserting new order {} to the SQLite database", uuid);
     let price = order.request.rel_amount.to_decimal() / order.request.base_amount.to_decimal();
     let initial_action = match order.request.action {
@@ -82,13 +82,13 @@ pub fn insert_taker_order(ctx: &MmArc, uuid: Uuid, order: &TakerOrder, db_id: Op
         0.to_string(),
         "Created".to_string(),
     ];
-    let conn = ctx.sqlite_connection(db_id);
+    let conn = ctx.sqlite_connection(order.db_id.as_deref());
     let conn = conn.lock().unwrap();
     conn.execute(INSERT_MY_ORDER, params_from_iter(params.iter()))
         .map(|_| ())
 }
 
-pub fn update_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder, db_id: Option<&str>) -> SqlResult<()> {
+pub fn update_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder) -> SqlResult<()> {
     debug!("Updating order {} in the SQLite database", uuid);
     let params = vec![
         uuid.to_string(),
@@ -97,7 +97,7 @@ pub fn update_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder, db_id: Op
         order.updated_at.unwrap_or(0).to_string(),
         "Updated".to_string(),
     ];
-    let conn = ctx.sqlite_connection(db_id);
+    let conn = ctx.sqlite_connection(order.db_id.as_deref());
     let conn = conn.lock().unwrap();
     conn.execute(UPDATE_MY_ORDER, params_from_iter(params.iter()))
         .map(|_| ())

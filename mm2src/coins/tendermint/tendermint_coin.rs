@@ -2292,6 +2292,7 @@ impl MmCoin for TendermintCoin {
             let address_hash = dhash160(&public_key.to_bytes());
             let address_rmd160_hex = hex::encode(address_hash.as_slice());
 
+            println!("address_rmd160_hex: {address_rmd160_hex:?}");
             return Some(address_rmd160_hex);
         };
 

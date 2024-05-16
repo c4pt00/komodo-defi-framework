@@ -1580,7 +1580,7 @@ pub struct TakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    db_id: Option<String>,
+    pub db_id: Option<String>,
 }
 
 /// Result of match_reserved function
@@ -1714,7 +1714,7 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    db_id: Option<String>,
+    pub db_id: Option<String>,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -3380,8 +3380,7 @@ pub async fn clean_memory_loop(ctx_weak: MmWeak) {
 /// The function locks the [`OrdermatchContext::my_maker_orders`] and [`OrdermatchContext::my_taker_orders`] mutexes.
 async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchContext) {
     let mut my_taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
-    // TODO: db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
+    let storage = MyOrdersStorage::new(ctx.clone());
     let mut my_actual_taker_orders = HashMap::with_capacity(my_taker_orders.len());
 
     for (uuid, order) in my_taker_orders.drain() {
@@ -3416,7 +3415,7 @@ async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchCo
             .error_log_with_msg("!save_new_active_maker_order");
         if maker_order.save_in_history {
             storage
-                .update_was_taker_in_filtering_history(uuid)
+                .update_was_taker_in_filtering_history(uuid, maker_order.db_id().as_deref())
                 .await
                 .error_log_with_msg("!update_was_taker_in_filtering_history");
         }
@@ -3471,8 +3470,7 @@ async fn check_balance_for_maker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchC
 /// The function locks the [`OrdermatchContext::my_maker_orders`] mutex.
 async fn handle_timed_out_maker_matches(ctx: MmArc, ordermatch_ctx: &OrdermatchContext) {
     let now = now_ms();
-    // TODO: db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
+    let storage = MyOrdersStorage::new(ctx.clone());
     let my_maker_orders = ordermatch_ctx.maker_orders_ctx.lock().orders.clone();
 
     for (_, order) in my_maker_orders.iter() {
@@ -3586,7 +3584,7 @@ async fn process_maker_reserved(ctx: MmArc, from_pubkey: H256Json, reserved_msg:
                 my_order
                     .matches
                     .insert(taker_match.reserved.maker_order_uuid, taker_match);
-                MyOrdersStorage::new(ctx, base_coin.account_db_id())
+                MyOrdersStorage::new(ctx)
                     .update_active_taker_order(my_order)
                     .await
                     .error_log_with_msg("!update_active_taker_order");
@@ -3663,8 +3661,7 @@ async fn process_taker_request(ctx: MmArc, from_pubkey: H256Json, taker_request:
     }
 
     let ordermatch_ctx = OrdermatchContext::from_ctx(&ctx).unwrap();
-    // TODO: db_id
-    let storage = MyOrdersStorage::new(ctx.clone(), None);
+    let storage = MyOrdersStorage::new(ctx.clone());
     let mut my_orders = ordermatch_ctx.maker_orders_ctx.lock().orders.clone();
     let filtered = my_orders
         .iter_mut()
@@ -3813,8 +3810,7 @@ async fn process_taker_connect(ctx: MmArc, sender_pubkey: PublicKey, connect_msg
             updated_msg.with_new_max_volume(my_order.available_amount().into());
             maker_order_updated_p2p_notify(ctx.clone(), topic, updated_msg, my_order.p2p_keypair());
         }
-        // TODO: db_id
-        MyOrdersStorage::new(ctx, None)
+        MyOrdersStorage::new(ctx)
             .update_active_maker_order(&my_order)
             .await
             .error_log_with_msg("!update_active_maker_order");
@@ -4965,10 +4961,10 @@ pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
             .map_err(|e| ERRL!("{}", e));
     }
 
-    let storage = MyOrdersStorage::new(ctx.clone(), db_id.clone());
+    let storage = MyOrdersStorage::new(ctx.clone());
     if let (Ok(order), Ok(cancellation_reason)) = (
-        storage.load_order_from_history(req.uuid).await,
-        &storage.select_order_status(req.uuid).await,
+        storage.load_order_from_history(req.uuid, db_id.as_deref()).await,
+        &storage.select_order_status(req.uuid, db_id.as_deref()).await,
     ) {
         info!("Order with UUID=({})", req.uuid);
         let res = json!(OrderForRpcWithCancellationReason {
@@ -5040,6 +5036,13 @@ impl Order {
             Order::Taker(taker) => taker.request.uuid,
         }
     }
+
+    pub fn db_id(&self) -> Option<String> {
+        match self {
+            Order::Maker(maker) => maker.db_id(),
+            Order::Taker(taker) => taker.db_id(),
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -5079,8 +5082,8 @@ pub async fn orders_history_by_filter(ctx: MmArc, req: Json) -> Result<Response<
     let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
     let filter: MyOrdersFilter = try_s!(json::from_value(req));
     for db_id in db_ids {
-        let storage = MyOrdersStorage::new(ctx.clone(), Some(db_id.clone()));
-        let db_result = try_s!(storage.select_orders_by_filter(&filter, None).await);
+        let storage = MyOrdersStorage::new(ctx.clone());
+        let db_result = try_s!(storage.select_orders_by_filter(&filter, None, Some(&db_id)).await);
         let mut warnings = vec![];
 
         if filter.include_details {
@@ -5102,7 +5105,7 @@ pub async fn orders_history_by_filter(ctx: MmArc, req: Json) -> Result<Response<
                     },
                 };
 
-                if let Ok(order) = storage.load_order_from_history(uuid).await {
+                if let Ok(order) = storage.load_order_from_history(uuid, Some(&db_id)).await {
                     vec.push(order);
                     continue;
                 }
@@ -5370,27 +5373,33 @@ pub async fn my_orders(ctx: MmArc) -> Result<Response<Vec<u8>>, String> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn my_maker_orders_dir(ctx: &MmArc) -> PathBuf { ctx.dbdir(None).join("ORDERS").join("MY").join("MAKER") }
-
-#[cfg(not(target_arch = "wasm32"))]
-fn my_taker_orders_dir(ctx: &MmArc) -> PathBuf { ctx.dbdir(None).join("ORDERS").join("MY").join("TAKER") }
-
-#[cfg(not(target_arch = "wasm32"))]
-fn my_orders_history_dir(ctx: &MmArc) -> PathBuf { ctx.dbdir(None).join("ORDERS").join("MY").join("HISTORY") }
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn my_maker_order_file_path(ctx: &MmArc, uuid: &Uuid) -> PathBuf {
-    my_maker_orders_dir(ctx).join(format!("{}.json", uuid))
+pub fn my_maker_orders_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
+    ctx.dbdir(db_id).join("ORDERS").join("MY").join("MAKER")
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn my_taker_order_file_path(ctx: &MmArc, uuid: &Uuid) -> PathBuf {
-    my_taker_orders_dir(ctx).join(format!("{}.json", uuid))
+fn my_taker_orders_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
+    ctx.dbdir(db_id).join("ORDERS").join("MY").join("TAKER")
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn my_order_history_file_path(ctx: &MmArc, uuid: &Uuid) -> PathBuf {
-    my_orders_history_dir(ctx).join(format!("{}.json", uuid))
+fn my_orders_history_dir(ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
+    ctx.dbdir(db_id).join("ORDERS").join("MY").join("HISTORY")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn my_maker_order_file_path(ctx: &MmArc, uuid: &Uuid, db_id: Option<&str>) -> PathBuf {
+    my_maker_orders_dir(ctx, db_id).join(format!("{}.json", uuid))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn my_taker_order_file_path(ctx: &MmArc, uuid: &Uuid, db_id: Option<&str>) -> PathBuf {
+    my_taker_orders_dir(ctx, db_id).join(format!("{}.json", uuid))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn my_order_history_file_path(ctx: &MmArc, uuid: &Uuid, db_id: Option<&str>) -> PathBuf {
+    my_orders_history_dir(ctx, db_id).join(format!("{}.json", uuid))
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -5410,9 +5419,9 @@ pub struct HistoricalOrder {
 pub async fn orders_kick_start(ctx: &MmArc) -> Result<HashSet<String>, String> {
     let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(ctx));
     let db_id: Option<String> = None; // TODO
-    let storage = MyOrdersStorage::new(ctx.clone(), db_id);
-    let saved_maker_orders = try_s!(storage.load_active_maker_orders().await);
-    let saved_taker_orders = try_s!(storage.load_active_taker_orders().await);
+    let storage = MyOrdersStorage::new(ctx.clone());
+    let saved_maker_orders = try_s!(storage.load_active_maker_orders(db_id.as_deref()).await);
+    let saved_taker_orders = try_s!(storage.load_active_taker_orders(db_id.as_deref()).await);
     let mut coins = HashSet::with_capacity((saved_maker_orders.len() * 2) + (saved_taker_orders.len() * 2));
 
     {
