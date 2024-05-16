@@ -256,6 +256,7 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             chain,
             orig_url: &req.url,
             url_antispam: &req.url_antispam,
+            // TODO make it optional
             signed_message: &signed_message,
         };
 
@@ -697,7 +698,7 @@ pub(crate) async fn get_nfts_for_activation(
     chain: &Chain,
     my_address: &Address,
     original_url: &Url,
-    signed_message: &KomodefiProxyAuthValidation,
+    signed_message: Option<&KomodefiProxyAuthValidation>,
 ) -> MmResult<HashMap<String, NftInfo>, GetNftInfoError> {
     let mut nfts_map = HashMap::new();
     let uri_without_cursor = construct_moralis_uri_for_nft(original_url, &eth_addr_to_hex(my_address), chain)?;
@@ -710,9 +711,10 @@ pub(crate) async fn get_nfts_for_activation(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = moralis_payload_str(uri, signed_message.clone())?;
-        let response = send_post_request_to_uri(original_url.as_str(), payload).await?;
-        let response: Json = serde_json::from_slice(&response)?;
+        let payload = signed_message
+            .map(|msg| moralis_payload_str(uri, msg.clone()))
+            .transpose()?;
+        let response = send_request_to_uri(original_url.as_str(), payload.as_deref()).await?;
         if let Some(nfts_list) = response["result"].as_array() {
             process_nft_list_for_activation(nfts_list, chain, &mut nfts_map)?;
             // if cursor is not null, there are other NFTs on next page,
@@ -1008,7 +1010,7 @@ fn construct_camo_url_with_token(token_uri: &str, url_antispam: &Url) -> Option<
 }
 
 async fn fetch_meta_from_url(url: Url) -> MmResult<UriMeta, MetaFromUrlError> {
-    let response_meta = send_request_to_uri(url.as_str()).await?;
+    let response_meta = send_request_to_uri(url.as_str(), None).await?;
     serde_json::from_value(response_meta).map_err(|e| e.into())
 }
 

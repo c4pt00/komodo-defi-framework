@@ -120,6 +120,11 @@ impl From<SlurpError> for GetInfoFromUriError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+impl From<hyper::header::InvalidHeaderValue> for GetInfoFromUriError {
+    fn from(e: hyper::header::InvalidHeaderValue) -> Self { GetInfoFromUriError::Internal(e.to_string()) }
+}
+
 /// Sends a POST request to the given URI and expects a 2xx status code in response.
 ///
 /// # Errors

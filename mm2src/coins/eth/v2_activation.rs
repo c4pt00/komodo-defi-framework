@@ -308,7 +308,11 @@ pub struct NftActivationRequest {
 #[derive(Clone, Deserialize)]
 #[serde(tag = "type", content = "info")]
 pub enum NftProviderEnum {
-    Moralis { url: Url },
+    Moralis {
+        url: Url,
+        #[serde(default)]
+        proxy_auth: bool,
+    },
 }
 
 /// Represents the protocol type for an Ethereum-based token, distinguishing between ERC-20 tokens and NFTs.
@@ -442,6 +446,7 @@ impl EthCoin {
     pub async fn global_nft_from_platform_coin(
         &self,
         original_url: &Url,
+        proxy_auth: &bool,
     ) -> MmResult<EthCoin, EthTokenActivationError> {
         let chain = Chain::from_ticker(self.ticker())?;
         let ticker = chain.to_nft_ticker().to_string();
@@ -452,20 +457,10 @@ impl EthCoin {
 
         // Todo: support HD wallet for NFTs, currently we get nfts for enabled address only and there might be some issues when activating NFTs while ETH is activated with HD wallet
         let my_address = self.derivation_method.single_addr_or_err().await?;
-        let my_address_str = display_eth_address(&my_address);
-        let secret = self.priv_key_policy().activated_key_or_err()?.secret().clone();
-        let validation_generator = ProxyAuthValidationGenerator {
-            coin_ticker: chain.to_nft_ticker().to_string(),
-            secret,
-            address: my_address_str,
-        };
-        let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
-            EthTokenActivationError::InternalError(format!(
-                "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
-                e
-            ))
-        })?;
-        let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, &signed_message).await?;
+
+        let signed_message = generate_signed_message(*proxy_auth, &chain, &my_address, self.priv_key_policy()).await?;
+
+        let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, signed_message.as_ref()).await?;
 
         let global_nft = EthCoinImpl {
             ticker,
@@ -496,6 +491,34 @@ impl EthCoin {
         };
         Ok(EthCoin(Arc::new(global_nft)))
     }
+}
+
+async fn generate_signed_message(
+    proxy_auth: bool,
+    chain: &Chain,
+    my_address: &Address,
+    priv_key_policy: &EthPrivKeyPolicy,
+) -> MmResult<Option<KomodefiProxyAuthValidation>, EthTokenActivationError> {
+    if !proxy_auth {
+        return Ok(None);
+    }
+
+    let my_address_str = display_eth_address(my_address);
+    let secret = priv_key_policy.activated_key_or_err()?.secret().clone();
+    let validation_generator = ProxyAuthValidationGenerator {
+        coin_ticker: chain.to_nft_ticker().to_string(),
+        secret,
+        address: my_address_str,
+    };
+
+    let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
+        EthTokenActivationError::InternalError(format!(
+            "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
+            e
+        ))
+    })?;
+
+    Ok(Some(signed_message))
 }
 
 /// Activate eth coin from coin config and private key build policy,
