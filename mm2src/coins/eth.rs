@@ -549,16 +549,16 @@ async fn make_gas_station_request(url: &str) -> GasStationResult {
 
 impl EthCoinImpl {
     #[cfg(not(target_arch = "wasm32"))]
-    fn eth_traces_path(&self, ctx: &MmArc, my_address: Address) -> PathBuf {
-        ctx.dbdir(None)
+    fn eth_traces_path(&self, ctx: &MmArc, my_address: Address, db_id: Option<&str>) -> PathBuf {
+        ctx.dbdir(db_id)
             .join("TRANSACTIONS")
             .join(format!("{}_{:#02x}_trace.json", self.ticker, my_address))
     }
 
     /// Load saved ETH traces from local DB
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_saved_traces(&self, ctx: &MmArc, my_address: Address) -> Option<SavedTraces> {
-        let content = gstuff::slurp(&self.eth_traces_path(ctx, my_address));
+    fn load_saved_traces(&self, ctx: &MmArc, my_address: Address, db_id: Option<&str>) -> Option<SavedTraces> {
+        let content = gstuff::slurp(&self.eth_traces_path(ctx, my_address, db_id));
         if content.is_empty() {
             None
         } else {
@@ -571,54 +571,59 @@ impl EthCoinImpl {
 
     /// Load saved ETH traces from local DB
     #[cfg(target_arch = "wasm32")]
-    fn load_saved_traces(&self, _ctx: &MmArc, _my_address: Address) -> Option<SavedTraces> {
+    fn load_saved_traces(&self, _ctx: &MmArc, _my_address: Address, _db_id: Option<&str>) -> Option<SavedTraces> {
         common::panic_w("'load_saved_traces' is not implemented in WASM");
         unreachable!()
     }
 
     /// Store ETH traces to local DB
     #[cfg(not(target_arch = "wasm32"))]
-    fn store_eth_traces(&self, ctx: &MmArc, my_address: Address, traces: &SavedTraces) {
+    fn store_eth_traces(&self, ctx: &MmArc, my_address: Address, traces: &SavedTraces, db_id: Option<&str>) {
         let content = json::to_vec(traces).unwrap();
-        let tmp_file = format!("{}.tmp", self.eth_traces_path(ctx, my_address).display());
+        let tmp_file = format!("{}.tmp", self.eth_traces_path(ctx, my_address, db_id).display());
         std::fs::write(&tmp_file, content).unwrap();
-        std::fs::rename(tmp_file, self.eth_traces_path(ctx, my_address)).unwrap();
+        std::fs::rename(tmp_file, self.eth_traces_path(ctx, my_address, db_id)).unwrap();
     }
 
     /// Store ETH traces to local DB
     #[cfg(target_arch = "wasm32")]
-    fn store_eth_traces(&self, _ctx: &MmArc, _my_address: Address, _traces: &SavedTraces) {
+    fn store_eth_traces(&self, _ctx: &MmArc, _my_address: Address, _traces: &SavedTraces, _db_id: Option<&str>) {
         common::panic_w("'store_eth_traces' is not implemented in WASM");
         unreachable!()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn erc20_events_path(&self, ctx: &MmArc, my_address: Address) -> PathBuf {
-        ctx.dbdir(None)
+    fn erc20_events_path(&self, ctx: &MmArc, my_address: Address, db_id: Option<&str>) -> PathBuf {
+        ctx.dbdir(db_id)
             .join("TRANSACTIONS")
             .join(format!("{}_{:#02x}_events.json", self.ticker, my_address))
     }
 
     /// Store ERC20 events to local DB
     #[cfg(not(target_arch = "wasm32"))]
-    fn store_erc20_events(&self, ctx: &MmArc, my_address: Address, events: &SavedErc20Events) {
+    fn store_erc20_events(&self, ctx: &MmArc, my_address: Address, events: &SavedErc20Events, db_id: Option<&str>) {
         let content = json::to_vec(events).unwrap();
-        let tmp_file = format!("{}.tmp", self.erc20_events_path(ctx, my_address).display());
+        let tmp_file = format!("{}.tmp", self.erc20_events_path(ctx, my_address, db_id).display());
         std::fs::write(&tmp_file, content).unwrap();
-        std::fs::rename(tmp_file, self.erc20_events_path(ctx, my_address)).unwrap();
+        std::fs::rename(tmp_file, self.erc20_events_path(ctx, my_address, db_id)).unwrap();
     }
 
     /// Store ERC20 events to local DB
     #[cfg(target_arch = "wasm32")]
-    fn store_erc20_events(&self, _ctx: &MmArc, _my_address: Address, _events: &SavedErc20Events) {
+    fn store_erc20_events(&self, _ctx: &MmArc, _my_address: Address, _events: &SavedErc20Events, _db_id: Option<&str>) {
         common::panic_w("'store_erc20_events' is not implemented in WASM");
         unreachable!()
     }
 
     /// Load saved ERC20 events from local DB
     #[cfg(not(target_arch = "wasm32"))]
-    fn load_saved_erc20_events(&self, ctx: &MmArc, my_address: Address) -> Option<SavedErc20Events> {
-        let content = gstuff::slurp(&self.erc20_events_path(ctx, my_address));
+    fn load_saved_erc20_events(
+        &self,
+        ctx: &MmArc,
+        my_address: Address,
+        db_id: Option<&str>,
+    ) -> Option<SavedErc20Events> {
+        let content = gstuff::slurp(&self.erc20_events_path(ctx, my_address, db_id));
         if content.is_empty() {
             None
         } else {
@@ -631,7 +636,12 @@ impl EthCoinImpl {
 
     /// Load saved ERC20 events from local DB
     #[cfg(target_arch = "wasm32")]
-    fn load_saved_erc20_events(&self, _ctx: &MmArc, _my_address: Address) -> Option<SavedErc20Events> {
+    fn load_saved_erc20_events(
+        &self,
+        _ctx: &MmArc,
+        _my_address: Address,
+        _db_id: Option<&str>,
+    ) -> Option<SavedErc20Events> {
         common::panic_w("'load_saved_erc20_events' is not implemented in WASM");
         unreachable!()
     }
@@ -2646,7 +2656,7 @@ impl EthCoin {
                 },
             };
 
-            let mut saved_traces = match self.load_saved_traces(ctx, my_address) {
+            let mut saved_traces = match self.load_saved_traces(ctx, my_address, self.account_db_id().as_deref()) {
                 Some(traces) => traces,
                 None => SavedTraces {
                     traces: vec![],
@@ -2736,7 +2746,7 @@ impl EthCoin {
                 } else {
                     0.into()
                 };
-                self.store_eth_traces(ctx, my_address, &saved_traces);
+                self.store_eth_traces(ctx, my_address, &saved_traces, self.account_db_id().as_deref());
             }
 
             if current_block > saved_traces.latest_block {
@@ -2792,7 +2802,7 @@ impl EthCoin {
                 saved_traces.traces.extend(to_traces_after_latest);
                 saved_traces.latest_block = current_block;
 
-                self.store_eth_traces(ctx, my_address, &saved_traces);
+                self.store_eth_traces(ctx, my_address, &saved_traces, self.account_db_id().as_deref());
             }
             saved_traces.traces.sort_by(|a, b| b.block_number.cmp(&a.block_number));
             for trace in saved_traces.traces {
@@ -3013,7 +3023,8 @@ impl EthCoin {
                 },
             };
 
-            let mut saved_events = match self.load_saved_erc20_events(ctx, my_address) {
+            let mut saved_events = match self.load_saved_erc20_events(ctx, my_address, self.account_db_id().as_deref())
+            {
                 Some(events) => events,
                 None => SavedErc20Events {
                     events: vec![],
@@ -3092,7 +3103,7 @@ impl EthCoin {
                 } else {
                     0.into()
                 };
-                self.store_erc20_events(ctx, my_address, &saved_events);
+                self.store_erc20_events(ctx, my_address, &saved_events, self.account_db_id().as_deref());
             }
 
             if current_block > saved_events.latest_block {
@@ -3149,7 +3160,7 @@ impl EthCoin {
                 saved_events.events.extend(from_events_after_latest);
                 saved_events.events.extend(to_events_after_latest);
                 saved_events.latest_block = current_block;
-                self.store_erc20_events(ctx, my_address, &saved_events);
+                self.store_erc20_events(ctx, my_address, &saved_events, self.account_db_id().as_deref());
             }
 
             let all_events: HashMap<_, _> = saved_events

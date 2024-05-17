@@ -4498,7 +4498,7 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
     let coin_ctx = try_s!(CoinsContext::from_ctx(ctx));
     let coins = coin_ctx.coins.lock().await;
 
-    for coin in coins.values() {
+    for (_, coin) in coins.iter() {
         if let Some(account) = coin.inner.account_db_id() {
             if active_only && coin.is_available() {
                 account_ids.insert(account.clone());

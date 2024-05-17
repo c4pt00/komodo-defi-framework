@@ -359,22 +359,20 @@ impl MmCtx {
     /// Returns `None` if the connection pool is not initialized.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn shared_sqlite_conn_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
-        if let Some(pool) = self.sqlite_conn_pool.as_option().cloned() {
-            return Some(pool.sqlite_conn_shared(self, db_id));
-        };
-
-        None
+        self.sqlite_conn_pool
+            .as_option()
+            .cloned()
+            .map(|pool| pool.sqlite_conn_shared(db_id))
     }
 
     /// Retrieves an optional connection from the pool for the specified database ID.
     /// Returns `None` if the connection pool is not initialized.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn sqlite_conn_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
-        if let Some(pool) = self.sqlite_conn_pool.as_option().cloned() {
-            return Some(pool.sqlite_conn(self, db_id));
-        };
-
-        None
+        self.sqlite_conn_pool
+            .as_option()
+            .cloned()
+            .map(|pool| pool.sqlite_conn(db_id))
     }
 
     /// Obtains a connection from the pool for the specified database ID, panicking if the pool is not initialized.
@@ -384,7 +382,7 @@ impl MmCtx {
             .sqlite_conn_pool
             .or(&|| panic!("sqlite_connection is not initialized"))
             .clone();
-        pool.sqlite_conn(self, db_id)
+        pool.sqlite_conn(db_id)
     }
 
     #[cfg(not(target_arch = "wasm32"))]

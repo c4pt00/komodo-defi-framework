@@ -727,8 +727,6 @@ pub(crate) struct NftCtx {
     pub(crate) nft_cache_db: SharedDb<NftCacheIDB>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) nft_cache_dbs: AsyncSqliteConnPool,
-    #[cfg(not(target_arch = "wasm32"))]
-    ctx: MmArc,
 }
 
 impl NftCtx {
@@ -743,7 +741,6 @@ impl NftCtx {
                 .ok_or("async_sqlite_connection is not initialized".to_owned())?;
             Ok(NftCtx {
                 nft_cache_dbs: async_sqlite_connection.clone(),
-                ctx: ctx.clone(),
             })
         })))
     }
@@ -763,7 +760,7 @@ impl NftCtx {
         &self,
         db_id: Option<&str>,
     ) -> MmResult<impl NftListStorageOps + NftTransferHistoryStorageOps + '_, LockDBError> {
-        let locked = self.nft_cache_dbs.async_sqlite_conn(&self.ctx, db_id).await;
+        let locked = self.nft_cache_dbs.async_sqlite_conn(db_id).await;
         Ok(locked.lock_owned().await)
     }
 
