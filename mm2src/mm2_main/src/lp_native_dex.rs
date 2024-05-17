@@ -465,16 +465,16 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
     let receiver = db_migration_watcher.get_receiver().await;
     let mut guard = receiver.lock().await;
 
-    while let Some(db_id) = guard.next().await {
-        if watcher_clone.is_db_migrated(Some(&db_id)).await {
-            debug!("{db_id} migrated, skipping migration..");
+    while let Some(ids) = guard.next().await {
+        if watcher_clone.is_db_migrated(Some(&ids.db_id)).await {
+            debug!("{} migrated, skipping migration..", ids.db_id);
             continue;
         }
-        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id), None).await {
-            common::log::error!("db_migration failed for {db_id}, err: {err:?}");
+        if let Err(err) = run_db_migration_impl(&ctx, Some(&ids.db_id), Some(&ids.shared_db_id)).await {
+            common::log::error!("{err:?}");
             continue;
         };
-        watcher_clone.db_id_migrated(Some(&db_id)).await;
+        watcher_clone.db_id_migrated(Some(&ids.db_id)).await;
     }
 }
 

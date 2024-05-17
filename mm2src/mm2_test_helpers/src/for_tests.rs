@@ -417,10 +417,10 @@ impl Mm2TestConfForSwap {
             Mm2InitPrivKeyPolicy::Iguana => {
                 let bob_passphrase = crate::get_passphrase!(".env.seed", "BOB_PASSPHRASE").unwrap();
                 Mm2TestConf::seednode(&bob_passphrase, coins)
-            }
+            },
             Mm2InitPrivKeyPolicy::GlobalHDAccount => {
                 Mm2TestConf::seednode_with_hd_account(Self::BOB_HD_PASSPHRASE, coins)
-            }
+            },
         }
     }
 
@@ -429,10 +429,10 @@ impl Mm2TestConfForSwap {
             Mm2InitPrivKeyPolicy::Iguana => {
                 let alice_passphrase = crate::get_passphrase!(".env.client", "ALICE_PASSPHRASE").unwrap();
                 Mm2TestConf::light_node(&alice_passphrase, coins, &[bob_ip])
-            }
+            },
             Mm2InitPrivKeyPolicy::GlobalHDAccount => {
                 Mm2TestConf::light_node_with_hd_account(Self::ALICE_HD_PASSPHRASE, coins, &[bob_ip])
-            }
+            },
         }
     }
 }
@@ -1119,7 +1119,7 @@ impl RaiiKill {
             _ => {
                 self.running = false;
                 false
-            }
+            },
         }
     }
 }
@@ -1264,7 +1264,7 @@ impl MarketMakerIt {
                 let dir = folder.join("DB");
                 conf["dbdir"] = dir.to_str().unwrap().into();
                 dir
-            }
+            },
         };
 
         try_s!(fs::create_dir(&folder));
@@ -1279,7 +1279,7 @@ impl MarketMakerIt {
                 let path = folder.join("mm2.log");
                 conf["log"] = path.to_str().unwrap().into();
                 path
-            }
+            },
         };
 
         // If `local` is provided
@@ -1371,8 +1371,8 @@ impl MarketMakerIt {
     /// Busy-wait on the log until the `pred` returns `true` or `timeout_sec` expires.
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn wait_for_log<F>(&mut self, timeout_sec: f64, pred: F) -> Result<(), String>
-        where
-            F: Fn(&str) -> bool,
+    where
+        F: Fn(&str) -> bool,
     {
         let start = now_float();
         let ms = 50.min((timeout_sec * 1000.) as u64 / 20 + 10);
@@ -1398,8 +1398,8 @@ impl MarketMakerIt {
     /// after process is stopped
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn wait_for_log_after_stop<F>(&self, timeout_sec: f64, pred: F) -> Result<(), String>
-        where
-            F: Fn(&str) -> bool,
+    where
+        F: Fn(&str) -> bool,
     {
         use common::try_or_ready_err;
 
@@ -1412,19 +1412,19 @@ impl MarketMakerIt {
             }
             Retry(())
         })
-            .repeat_every_ms(ms)
-            .with_timeout_secs(timeout_sec)
-            .await
-            .map_err(|e| ERRL!("{:?}", e))
-            // Convert `Result<Result<(), String>, String>` to `Result<(), String>`
-            .flatten()
+        .repeat_every_ms(ms)
+        .with_timeout_secs(timeout_sec)
+        .await
+        .map_err(|e| ERRL!("{:?}", e))
+        // Convert `Result<Result<(), String>, String>` to `Result<(), String>`
+        .flatten()
     }
 
     /// Busy-wait on the instance in-memory log until the `pred` returns `true` or `timeout_sec` expires.
     #[cfg(target_arch = "wasm32")]
     pub async fn wait_for_log<F>(&mut self, timeout_sec: f64, pred: F) -> Result<(), String>
-        where
-            F: Fn(&str) -> bool,
+    where
+        F: Fn(&str) -> bool,
     {
         wait_for_log(&self.ctx, timeout_sec, pred).await
     }
@@ -1448,7 +1448,7 @@ impl MarketMakerIt {
                 let body_str =
                     json::to_string(&body).unwrap_or_else(|_| panic!("Response {:?} is not a valid JSON", body));
                 Ok((status_code, body_str, HeaderMap::new()))
-            }
+            },
             Err(e) => Ok((StatusCode::INTERNAL_SERVER_ERROR, e, HeaderMap::new())),
         }
     }
@@ -1514,7 +1514,7 @@ impl MarketMakerIt {
                 } else {
                     return ERR!("{}", err);
                 }
-            }
+            },
         };
         if status != StatusCode::OK {
             return ERR!("MM didn't accept a stop. body: {}", body);
@@ -1537,10 +1537,10 @@ impl MarketMakerIt {
             }
             Retry(())
         })
-            .repeat_every_secs(0.05)
-            .with_timeout_ms(timeout_ms)
-            .await
-            .map_err(|e| ERRL!("{:?}", e))
+        .repeat_every_secs(0.05)
+        .with_timeout_ms(timeout_ms)
+        .await
+        .map_err(|e| ERRL!("{:?}", e))
     }
 
     /// Currently, we cannot wait for the `Completed IAmrelay handling for peer` log entry on WASM node,
@@ -1645,8 +1645,8 @@ impl Drop for MarketMakerIt {
 
 /// Busy-wait on the log until the `pred` returns `true` or `timeout_sec` expires.
 pub async fn wait_for_log<F>(ctx: &MmArc, timeout_sec: f64, pred: F) -> Result<(), String>
-    where
-        F: Fn(&str) -> bool,
+where
+    F: Fn(&str) -> bool,
 {
     let start = now_float();
     let ms = 50.min((timeout_sec * 1000.) as u64 / 20 + 10);
@@ -1746,7 +1746,7 @@ pub fn mm_spat() -> (&'static str, MarketMakerIt, RaiiDump, RaiiDump) {
         "pass".into(),
         None,
     )
-        .unwrap();
+    .unwrap();
     let (dump_log, dump_dashboard) = mm_dump(&mm.log_path);
     (passphrase, mm, dump_log, dump_dashboard)
 }
@@ -1823,10 +1823,10 @@ pub fn from_env_file(env: Vec<u8>) -> (Option<String>, Option<String>) {
         match cap.get(1) {
             Some(name) if name.as_bytes() == b"PASSPHRASE" => {
                 passphrase = cap.get(2).map(|v| String::from_utf8(v.as_bytes().into()).unwrap())
-            }
+            },
             Some(name) if name.as_bytes() == b"USERPASS" => {
                 userpass = cap.get(2).map(|v| String::from_utf8(v.as_bytes().into()).unwrap())
-            }
+            },
             _ => (),
         }
     }
@@ -2179,7 +2179,7 @@ pub async fn init_lightning_status(mm: &MarketMakerIt, task_id: u64) -> Json {
 pub fn new_mm2_temp_folder_path(ip: Option<IpAddr>) -> PathBuf {
     let now = common::now_ms();
     #[allow(deprecated)]
-        let now = Local.timestamp((now / 1000) as i64, (now % 1000) as u32 * 1_000_000);
+    let now = Local.timestamp((now / 1000) as i64, (now % 1000) as u32 * 1_000_000);
     let folder = match ip {
         Some(ip) => format!("mm2_{}_{}", now.format("%Y-%m-%d_%H-%M-%S-%3f"), ip),
         None => format!("mm2_{}", now.format("%Y-%m-%d_%H-%M-%S-%3f")),
@@ -3283,7 +3283,7 @@ pub async fn wait_for_swaps_finish_and_check_status(
             BigDecimal::try_from(volume).unwrap(),
             BigDecimal::try_from(volume * maker_price).unwrap(),
         )
-            .await;
+        .await;
 
         log!("Checking maker status..");
         check_my_swap_status(
@@ -3292,7 +3292,7 @@ pub async fn wait_for_swaps_finish_and_check_status(
             BigDecimal::try_from(volume).unwrap(),
             BigDecimal::try_from(volume * maker_price).unwrap(),
         )
-            .await;
+        .await;
     }
 }
 
@@ -3317,8 +3317,8 @@ pub async fn test_qrc20_history_impl(local_start: Option<LocalStart>) {
         "pass".into(),
         local_start,
     )
-        .await
-        .unwrap();
+    .await
+    .unwrap();
     let (_dump_log, _dump_dashboard) = mm.mm_dump();
 
     #[cfg(not(target_arch = "wasm32"))]

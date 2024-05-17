@@ -260,10 +260,14 @@ impl AsyncSqliteConnPool {
     }
 }
 
-pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<String>>>;
-pub type DbMigrationSender = Arc<AsyncMutex<Sender<String>>>;
+pub struct DbIds {
+    pub db_id: String,
+    pub shared_db_id: String,
+}
+pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<DbIds>>>;
+pub type DbMigrationSender = Arc<AsyncMutex<Sender<DbIds>>>;
 
-pub fn create_db_migration_watcher() -> (Sender<String>, Receiver<String>) {
+pub fn create_db_migration_watcher() -> (Sender<DbIds>, Receiver<DbIds>) {
     let (sender, receiver) = channel(1);
     (sender, receiver)
 }
@@ -292,15 +296,13 @@ impl DbMigrationWatcher {
         if let Some(db_id) = db_id {
             let guard = self.migrations.lock().await;
             if guard.get(db_id).is_some() {
-                // migration hasn'been been ran for db with this id
+                // migration has been ran for db with id
                 return true;
             };
-
             // migration hasn't been ran for db with this id
             return false;
         }
-
-        // migration hasn been when no db id is provided we assume it's the default db id
+        // migration has been ran when no db id is provided we assume it's the default db id
         true
     }
 
