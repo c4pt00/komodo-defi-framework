@@ -640,15 +640,8 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = wrapper
-            .signed_message
-            .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
-            .transpose()?;
-        let response = if wrapper.signed_message.is_some() {
-            send_request_to_uri(wrapper.orig_url.as_str(), payload.as_deref()).await?
-        } else {
-            send_request_to_uri(uri.as_str(), payload.as_deref()).await?
-        };
+
+        let response = build_and_send_request(&uri, wrapper.orig_url, wrapper.signed_message).await?;
         if let Some(nfts_list) = response["result"].as_array() {
             for nft_json in nfts_list {
                 let nft_moralis = NftFromMoralis::deserialize(nft_json)?;
@@ -693,14 +686,8 @@ pub(crate) async fn get_nfts_for_activation(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = signed_message
-            .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
-            .transpose()?;
-        let response = if signed_message.is_some() {
-            send_request_to_uri(original_url.as_str(), payload.as_deref()).await?
-        } else {
-            send_request_to_uri(uri.as_str(), payload.as_deref()).await?
-        };
+
+        let response = build_and_send_request(&uri, original_url, signed_message).await?;
         if let Some(nfts_list) = response["result"].as_array() {
             process_nft_list_for_activation(nfts_list, chain, &mut nfts_map)?;
             // if cursor is not null, there are other NFTs on next page,
@@ -783,15 +770,8 @@ async fn get_moralis_nft_transfers(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = wrapper
-            .signed_message
-            .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
-            .transpose()?;
-        let response = if wrapper.signed_message.is_some() {
-            send_request_to_uri(wrapper.orig_url.as_str(), payload.as_deref()).await?
-        } else {
-            send_request_to_uri(uri.as_str(), payload.as_deref()).await?
-        };
+
+        let response = build_and_send_request(&uri, wrapper.orig_url, wrapper.signed_message).await?;
         if let Some(transfer_list) = response["result"].as_array() {
             process_transfer_list(transfer_list, chain, wallet_address.as_str(), &eth_coin, &mut res_list).await?;
             // if the cursor is not null, there are other NFTs transfers on next page,
@@ -922,16 +902,7 @@ async fn get_moralis_metadata(
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     drop_mutability!(uri);
 
-    let payload = wrapper
-        .signed_message
-        .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
-        .transpose()?;
-    let response = if wrapper.signed_message.is_some() {
-        send_request_to_uri(wrapper.orig_url.as_str(), payload.as_deref()).await?
-    } else {
-        send_request_to_uri(uri.as_str(), payload.as_deref()).await?
-    };
-
+    let response = build_and_send_request(&uri, wrapper.orig_url, wrapper.signed_message).await?;
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response.to_string())?;
     let contract_type = match nft_moralis.contract_type {
         Some(contract_type) => contract_type,
@@ -1613,4 +1584,21 @@ struct UrlSignWrapper<'a> {
     orig_url: &'a Url,
     url_antispam: &'a Url,
     signed_message: Option<&'a KomodefiProxyAuthValidation>,
+}
+
+async fn build_and_send_request(
+    uri: &Url,
+    original_url: &Url,
+    signed_message: Option<&KomodefiProxyAuthValidation>,
+) -> MmResult<Json, GetNftInfoError> {
+    let payload = signed_message
+        .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
+        .transpose()?;
+    let url_to_use = if signed_message.is_some() {
+        original_url.as_str()
+    } else {
+        uri.as_str()
+    };
+    let response = send_request_to_uri(url_to_use, payload.as_deref()).await?;
+    Ok(response)
 }
