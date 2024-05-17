@@ -1,4 +1,5 @@
 use super::MoralisPayloadErr;
+use crate::eth::v2_activation::GenerateSignedMessageError;
 use crate::eth::GetEthAddressError;
 #[cfg(target_arch = "wasm32")]
 use crate::nft::storage::wasm::WasmNftCacheError;
@@ -254,6 +255,15 @@ impl From<CoinFindError> for UpdateNftError {
 
 impl From<PrivKeyPolicyNotAllowed> for UpdateNftError {
     fn from(e: PrivKeyPolicyNotAllowed) -> Self { Self::PrivKeyPolicyNotAllowed(e) }
+}
+
+impl From<GenerateSignedMessageError> for UpdateNftError {
+    fn from(e: GenerateSignedMessageError) -> Self {
+        match e {
+            GenerateSignedMessageError::InternalError(e) => UpdateNftError::Internal(e),
+            GenerateSignedMessageError::PrivKeyPolicyNotAllowed(e) => UpdateNftError::PrivKeyPolicyNotAllowed(e),
+        }
+    }
 }
 
 impl HttpStatusCode for UpdateNftError {

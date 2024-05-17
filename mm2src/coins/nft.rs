@@ -16,7 +16,7 @@ use nft_structs::{Chain, ContractType, ConvertChain, Nft, NftFromMoralis, NftLis
                   TransactionNftDetails, UpdateNftReq, WithdrawNftReq};
 
 use crate::eth::{eth_addr_to_hex, get_eth_address, withdraw_erc1155, withdraw_erc721, EthCoin, EthCoinType,
-                 EthTxFeeDetails, KomodoDefiAuthMessages};
+                 EthTxFeeDetails};
 use crate::hd_wallet::HDPathAccountToAddressId;
 use crate::nft::nft_errors::{ClearNftDbError, MetaFromUrlError, ProtectFromSpamError, TransferConfirmationsError,
                              UpdateSpamPhishingError};
@@ -31,7 +31,7 @@ use ethereum_types::{Address, H256};
 use futures::compat::Future01CompatExt;
 use futures::future::try_join_all;
 use mm2_err_handle::map_to_mm::MapToMmResult;
-use mm2_net::transport::{send_post_request_to_uri, KomodefiProxyAuthValidation, ProxyAuthValidationGenerator};
+use mm2_net::transport::{send_post_request_to_uri, KomodefiProxyAuthValidation};
 use mm2_number::BigUint;
 use regex::Regex;
 use serde::Deserialize;
@@ -44,6 +44,7 @@ use web3::types::TransactionId;
 #[cfg(not(target_arch = "wasm32"))]
 use mm2_net::native_http::send_request_to_uri;
 
+use crate::eth::v2_activation::generate_signed_message;
 #[cfg(target_arch = "wasm32")]
 use mm2_net::wasm::http::send_request_to_uri;
 
@@ -238,26 +239,13 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
             },
         };
         let my_address = eth_coin.my_address()?;
-        let secret = eth_coin.priv_key_policy.activated_key_or_err()?.secret().clone();
-
-        let validation_generator = ProxyAuthValidationGenerator {
-            coin_ticker: chain.to_nft_ticker().to_string(),
-            secret,
-            address: my_address,
-        };
-        let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
-            UpdateNftError::Internal(format!(
-                "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
-                e
-            ))
-        })?;
-
+        let signed_message =
+            generate_signed_message(req.proxy_auth, chain, my_address, &eth_coin.priv_key_policy).await?;
         let wrapper = UrlSignWrapper {
             chain,
             orig_url: &req.url,
             url_antispam: &req.url_antispam,
-            // TODO make it optional
-            signed_message: &signed_message,
+            signed_message: signed_message.as_ref(),
         };
 
         let nft_transfers = get_moralis_nft_transfers(&ctx, from_block, eth_coin, &wrapper).await?;
@@ -275,7 +263,7 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
                 continue;
             },
             Err(_) => {
-                // if there is an error, then NFT LIST table doesnt exist, so we need to cache nft list from moralis.
+                // if there is an error, then NFT LIST table doesn't exist, so we need to cache nft list from moralis.
                 NftListStorageOps::init(&storage, chain).await?;
                 let nft_list = cache_nfts_from_moralis(&ctx, &storage, &wrapper).await?;
                 update_meta_in_transfers(&storage, chain, nft_list).await?;
@@ -487,25 +475,13 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
         },
     };
     let my_address = eth_coin.my_address()?;
-    let secret = eth_coin.priv_key_policy.activated_key_or_err()?.secret().clone();
-
-    let validation_generator = ProxyAuthValidationGenerator {
-        coin_ticker: req.chain.to_nft_ticker().to_string(),
-        secret,
-        address: my_address,
-    };
-    let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
-        UpdateNftError::Internal(format!(
-            "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
-            e
-        ))
-    })?;
-
+    let signed_message =
+        generate_signed_message(req.proxy_auth, &req.chain, my_address, &eth_coin.priv_key_policy).await?;
     let wrapper = UrlSignWrapper {
         chain: &req.chain,
         orig_url: &req.url,
         url_antispam: &req.url_antispam,
-        signed_message: &signed_message,
+        signed_message: signed_message.as_ref(),
     };
 
     let token_address_str = eth_addr_to_hex(&req.token_address);
@@ -664,9 +640,15 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = moralis_payload_str(uri, wrapper.signed_message.clone())?;
-        let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
-        let response: Json = serde_json::from_slice(&response)?;
+        let payload = wrapper
+            .signed_message
+            .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
+            .transpose()?;
+        let response = if wrapper.signed_message.is_some() {
+            send_request_to_uri(wrapper.orig_url.as_str(), payload.as_deref()).await?
+        } else {
+            send_request_to_uri(uri.as_str(), payload.as_deref()).await?
+        };
         if let Some(nfts_list) = response["result"].as_array() {
             for nft_json in nfts_list {
                 let nft_moralis = NftFromMoralis::deserialize(nft_json)?;
@@ -712,9 +694,13 @@ pub(crate) async fn get_nfts_for_activation(
             uri.set_query(Some(&cursor));
         }
         let payload = signed_message
-            .map(|msg| moralis_payload_str(uri, msg.clone()))
+            .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
             .transpose()?;
-        let response = send_request_to_uri(original_url.as_str(), payload.as_deref()).await?;
+        let response = if signed_message.is_some() {
+            send_request_to_uri(original_url.as_str(), payload.as_deref()).await?
+        } else {
+            send_request_to_uri(uri.as_str(), payload.as_deref()).await?
+        };
         if let Some(nfts_list) = response["result"].as_array() {
             process_nft_list_for_activation(nfts_list, chain, &mut nfts_map)?;
             // if cursor is not null, there are other NFTs on next page,
@@ -797,9 +783,15 @@ async fn get_moralis_nft_transfers(
         if !cursor.is_empty() {
             uri.set_query(Some(&cursor));
         }
-        let payload = moralis_payload_str(uri, wrapper.signed_message.clone())?;
-        let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
-        let response: Json = serde_json::from_slice(&response)?;
+        let payload = wrapper
+            .signed_message
+            .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
+            .transpose()?;
+        let response = if wrapper.signed_message.is_some() {
+            send_request_to_uri(wrapper.orig_url.as_str(), payload.as_deref()).await?
+        } else {
+            send_request_to_uri(uri.as_str(), payload.as_deref()).await?
+        };
         if let Some(transfer_list) = response["result"].as_array() {
             process_transfer_list(transfer_list, chain, wallet_address.as_str(), &eth_coin, &mut res_list).await?;
             // if the cursor is not null, there are other NFTs transfers on next page,
@@ -930,9 +922,16 @@ async fn get_moralis_metadata(
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     drop_mutability!(uri);
 
-    let payload = moralis_payload_str(uri, wrapper.signed_message.clone())?;
-    let response = send_post_request_to_uri(wrapper.orig_url.as_str(), payload).await?;
-    let response: Json = serde_json::from_slice(&response)?;
+    let payload = wrapper
+        .signed_message
+        .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
+        .transpose()?;
+    let response = if wrapper.signed_message.is_some() {
+        send_request_to_uri(wrapper.orig_url.as_str(), payload.as_deref()).await?
+    } else {
+        send_request_to_uri(uri.as_str(), payload.as_deref()).await?
+    };
+
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response.to_string())?;
     let contract_type = match nft_moralis.contract_type {
         Some(contract_type) => contract_type,
@@ -1613,5 +1612,5 @@ struct UrlSignWrapper<'a> {
     chain: &'a Chain,
     orig_url: &'a Url,
     url_antispam: &'a Url,
-    signed_message: &'a KomodefiProxyAuthValidation,
+    signed_message: Option<&'a KomodefiProxyAuthValidation>,
 }

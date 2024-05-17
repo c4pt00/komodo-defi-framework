@@ -262,6 +262,32 @@ impl From<PrivKeyPolicyNotAllowed> for EthTokenActivationError {
     fn from(e: PrivKeyPolicyNotAllowed) -> Self { EthTokenActivationError::PrivKeyPolicyNotAllowed(e) }
 }
 
+impl From<GenerateSignedMessageError> for EthTokenActivationError {
+    fn from(e: GenerateSignedMessageError) -> Self {
+        match e {
+            GenerateSignedMessageError::InternalError(e) => EthTokenActivationError::InternalError(e),
+            GenerateSignedMessageError::PrivKeyPolicyNotAllowed(e) => {
+                EthTokenActivationError::PrivKeyPolicyNotAllowed(e)
+            },
+        }
+    }
+}
+
+#[derive(Display, Serialize)]
+pub enum GenerateSignedMessageError {
+    #[display(fmt = "Internal: {}", _0)]
+    InternalError(String),
+    PrivKeyPolicyNotAllowed(PrivKeyPolicyNotAllowed),
+}
+
+impl From<PrivKeyPolicyNotAllowed> for GenerateSignedMessageError {
+    fn from(e: PrivKeyPolicyNotAllowed) -> Self { GenerateSignedMessageError::PrivKeyPolicyNotAllowed(e) }
+}
+
+impl From<SignatureError> for GenerateSignedMessageError {
+    fn from(e: SignatureError) -> Self { GenerateSignedMessageError::InternalError(e.to_string()) }
+}
+
 /// Represents the parameters required for activating either an ERC-20 token or an NFT on the Ethereum platform.
 #[derive(Clone, Deserialize)]
 #[serde(untagged)]
@@ -458,7 +484,9 @@ impl EthCoin {
         // Todo: support HD wallet for NFTs, currently we get nfts for enabled address only and there might be some issues when activating NFTs while ETH is activated with HD wallet
         let my_address = self.derivation_method.single_addr_or_err().await?;
 
-        let signed_message = generate_signed_message(*proxy_auth, &chain, &my_address, self.priv_key_policy()).await?;
+        let my_address_str = display_eth_address(&my_address);
+        let signed_message =
+            generate_signed_message(*proxy_auth, &chain, my_address_str, self.priv_key_policy()).await?;
 
         let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, signed_message.as_ref()).await?;
 
@@ -493,30 +521,24 @@ impl EthCoin {
     }
 }
 
-async fn generate_signed_message(
+pub(crate) async fn generate_signed_message(
     proxy_auth: bool,
     chain: &Chain,
-    my_address: &Address,
+    my_address: String,
     priv_key_policy: &EthPrivKeyPolicy,
-) -> MmResult<Option<KomodefiProxyAuthValidation>, EthTokenActivationError> {
+) -> MmResult<Option<KomodefiProxyAuthValidation>, GenerateSignedMessageError> {
     if !proxy_auth {
         return Ok(None);
     }
 
-    let my_address_str = display_eth_address(my_address);
     let secret = priv_key_policy.activated_key_or_err()?.secret().clone();
     let validation_generator = ProxyAuthValidationGenerator {
         coin_ticker: chain.to_nft_ticker().to_string(),
         secret,
-        address: my_address_str,
+        address: my_address,
     };
 
-    let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator).map_err(|e| {
-        EthTokenActivationError::InternalError(format!(
-            "KomodefiProxyAuthValidation signed message generation failed. Error: {:?}",
-            e
-        ))
-    })?;
+    let signed_message = EthCoin::generate_proxy_auth_signed_validation(validation_generator)?;
 
     Ok(Some(signed_message))
 }
