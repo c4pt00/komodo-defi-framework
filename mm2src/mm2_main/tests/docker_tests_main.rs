@@ -22,6 +22,7 @@ extern crate serde_json;
 #[cfg(test)] extern crate ser_error_derive;
 #[cfg(test)] extern crate test;
 
+use common::custom_futures::timeout::FutureTimerExt;
 use std::io::{BufRead, BufReader};
 use std::process::Command;
 use std::time::Duration;
@@ -105,21 +106,23 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
 fn wait_for_geth_node_ready() {
     let mut attempts = 0;
     loop {
-        if attempts >= 10 {
-            println!("Failed to connect to Geth node after several attempts.");
-            break;
+        if attempts >= 5 {
+            panic!("Failed to connect to Geth node after several attempts.");
         }
-        match block_on(GETH_WEB3.eth().block_number()) {
-            Ok(block_number) => {
+        match block_on(GETH_WEB3.eth().block_number().timeout(Duration::from_secs(6))) {
+            Ok(Ok(block_number)) => {
                 println!("Geth node is ready, latest block number: {:?}", block_number);
                 break;
             },
-            Err(e) => {
+            Ok(Err(e)) => {
                 println!("Failed to connect to Geth node: {:?}, retrying...", e);
-                attempts += 1;
-                thread::sleep(Duration::from_secs(1));
+            },
+            Err(_) => {
+                println!("Connection to Geth node timed out, retrying...");
             },
         }
+        attempts += 1;
+        thread::sleep(Duration::from_secs(1));
     }
 }
 
