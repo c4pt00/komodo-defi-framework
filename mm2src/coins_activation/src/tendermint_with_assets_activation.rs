@@ -18,7 +18,7 @@ use coins::tendermint::{tendermint_priv_key_policy, TendermintActivationPolicy, 
 #[cfg(not(target_arch = "wasm32"))] use coins::utxo::dhash160;
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
-#[cfg(not(target_arch = "wasm32"))] use common::log::info;
+#[cfg(not(target_arch = "wasm32"))] use common::log::debug;
 use common::{true_f, Future01CompatExt};
 #[cfg(not(target_arch = "wasm32"))]
 use crypto::shared_db_id::shared_db_id_from_seed;
@@ -250,33 +250,8 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                 });
             }
 
-            // Send migration request
             #[cfg(not(target_arch = "wasm32"))]
-            {
-                let db_id = hex::encode(dhash160(pubkey.to_bytes().as_slice()));
-                let shared_db_id = shared_db_id_from_seed(&pubkey.to_hex())
-                    .mm_err(|err| TendermintInitError {
-                        ticker: ticker.clone(),
-                        kind: TendermintInitErrorKind::Internal(err.to_string()),
-                    })?
-                    .to_string();
-
-                let db_migration_sender = ctx.db_migration_watcher().await.get_sender().await;
-                let mut db_migration_sender = db_migration_sender.lock().await;
-                db_migration_sender
-                    .send(DbIds {
-                        db_id: db_id.clone(),
-                        shared_db_id: shared_db_id.clone(),
-                    })
-                    .await
-                    .map_to_mm(|err| TendermintInitError {
-                        ticker: ticker.clone(),
-                        kind: TendermintInitErrorKind::Internal(err.to_string()),
-                    })?;
-
-                info!("Public key hash: {db_id}");
-                info!("Shared Database ID: {shared_db_id}");
-            }
+            run_db_migraiton_for_new_tendermint_pubkey(&ctx, pubkey, ticker.clone()).await?;
 
             TendermintActivationPolicy::with_public_key(pubkey)
         } else {
@@ -417,4 +392,37 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
     ) -> &InitPlatformCoinWithTokensTaskManagerShared<TendermintCoin> {
         unimplemented!()
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn run_db_migraiton_for_new_tendermint_pubkey(
+    ctx: &MmArc,
+    pubkey: TendermintPublicKey,
+    ticker: String,
+) -> MmResult<(), TendermintInitError> {
+    let db_id = hex::encode(dhash160(pubkey.to_bytes().as_slice()));
+    let shared_db_id = shared_db_id_from_seed(&pubkey.to_hex())
+        .mm_err(|err| TendermintInitError {
+            ticker: ticker.to_string(),
+            kind: TendermintInitErrorKind::Internal(err.to_string()),
+        })?
+        .to_string();
+
+    let db_migration_sender = ctx.db_migration_watcher().await.get_sender().await;
+    let mut db_migration_sender = db_migration_sender.lock().await;
+    db_migration_sender
+        .send(DbIds {
+            db_id: db_id.clone(),
+            shared_db_id: shared_db_id.clone(),
+        })
+        .await
+        .map_to_mm(|err| TendermintInitError {
+            ticker: ticker.to_string(),
+            kind: TendermintInitErrorKind::Internal(err.to_string()),
+        })?;
+
+    debug!("Public key hash: {db_id}");
+    debug!("Shared Database ID: {shared_db_id}");
+
+    Ok(())
 }
