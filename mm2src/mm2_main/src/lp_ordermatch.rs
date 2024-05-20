@@ -5416,12 +5416,11 @@ pub struct HistoricalOrder {
     conf_settings: Option<OrderConfirmationsSettings>,
 }
 
-pub async fn orders_kick_start(ctx: &MmArc) -> Result<HashSet<String>, String> {
+pub async fn orders_kick_start(ctx: &MmArc, db_id: Option<&str>) -> Result<HashSet<String>, String> {
     let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(ctx));
-    let db_id: Option<String> = None; // TODO
     let storage = MyOrdersStorage::new(ctx.clone());
-    let saved_maker_orders = try_s!(storage.load_active_maker_orders(db_id.as_deref()).await);
-    let saved_taker_orders = try_s!(storage.load_active_taker_orders(db_id.as_deref()).await);
+    let saved_maker_orders = try_s!(storage.load_active_maker_orders(db_id).await);
+    let saved_taker_orders = try_s!(storage.load_active_taker_orders(db_id).await);
     let mut coins = HashSet::with_capacity((saved_maker_orders.len() * 2) + (saved_taker_orders.len() * 2));
 
     {

@@ -470,7 +470,13 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
             debug!("{} migrated, skipping migration..", ids.db_id);
             continue;
         }
+        // run db migration for db_id if new activated pubkey is unique.
         if let Err(err) = run_db_migration_impl(&ctx, Some(&ids.db_id), Some(&ids.shared_db_id)).await {
+            error!("{err:?}");
+            continue;
+        };
+        // Fetch and extend ctx.coins_needed_for_kick_start from new intialized db.
+        if let Err(err) = kick_start(ctx.clone(), Some(&ids.db_id)).await {
             error!("{err:?}");
             continue;
         };
@@ -578,7 +584,7 @@ async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
         .await
         .map_to_mm(MmInitError::SwapsKickStartError)?;
     coins_needed_for_kick_start.extend(
-        orders_kick_start(&ctx)
+        orders_kick_start(&ctx, db_id)
             .await
             .map_to_mm(MmInitError::OrdersKickStartError)?,
     );
@@ -586,7 +592,8 @@ async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
         .coins_needed_for_kick_start
         .lock()
         .map_to_mm(|poison| MmInitError::Internal(poison.to_string()))?;
-    *lock = coins_needed_for_kick_start;
+    // extend existing coins list needed for kickstart so even there's a new pubkey activation, the coins will added
+    *lock.extend(coins_needed_for_kick_start);
     Ok(())
 }
 
