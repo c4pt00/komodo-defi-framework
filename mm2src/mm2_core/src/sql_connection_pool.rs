@@ -279,25 +279,23 @@ impl DbMigrationWatcher {
         Ok(selfi)
     }
 
-    pub async fn is_db_migrated(&self, db_id: Option<&str>) -> bool {
+    /// This function verifies if a migration has already been executed for the provided
+    /// db_id. If the migration has not been run for the given db_id, it adds
+    /// the `db_id` to the list of migrated databases and returns `false`. If no db_id is provided,
+    /// it assumes that the migration has been run for the default db_id.
+    pub async fn check_db_id_is_migrated(&self, db_id: Option<&str>) -> bool {
         if let Some(db_id) = db_id {
-            let guard = self.migrations.lock().await;
+            let mut guard = self.migrations.lock().await;
             if guard.get(db_id).is_some() {
                 // migration has been ran for db with id
                 return true;
             };
             // migration hasn't been ran for db with this id
+            guard.insert(db_id.to_owned());
             return false;
         }
         // migration has been ran when no db id is provided we assume it's the default db id
         true
-    }
-
-    pub async fn db_id_migrated(&self, db_id: Option<&str>) {
-        if let Some(db_id) = db_id {
-            let mut guard = self.migrations.lock().await;
-            guard.insert(db_id.to_owned());
-        }
     }
 
     pub async fn get_receiver(&self) -> DbMigrationHandler { self.receiver.clone() }

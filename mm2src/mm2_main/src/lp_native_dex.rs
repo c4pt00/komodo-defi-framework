@@ -30,7 +30,7 @@ use crate::mm2::rpc::spawn_rpc;
 use bitcrypto::sha256;
 use coins::register_balance_update_handler;
 use common::executor::{SpawnFuture, Timer};
-use common::log::{debug, info, warn};
+use common::log::{debug, error, info, warn};
 use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, WithHwRpcError};
 use derive_more::Display;
 use enum_derives::EnumFromTrait;
@@ -68,10 +68,10 @@ cfg_native! {
 #[path = "lp_init/init_hw.rs"] pub mod init_hw;
 
 cfg_wasm32! {
-    use mm2_net::wasm_event_stream::handle_worker_stream;
-
     #[path = "lp_init/init_metamask.rs"]
     pub mod init_metamask;
+
+    use mm2_net::wasm_event_stream::handle_worker_stream;
 }
 
 const DEFAULT_NETID_SEEDNODES: &[SeedNodeInfo] = &[
@@ -466,15 +466,14 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
     let mut guard = receiver.lock().await;
 
     while let Some(ids) = guard.next().await {
-        if watcher_clone.is_db_migrated(Some(&ids.db_id)).await {
+        if watcher_clone.check_db_id_is_migrated(Some(&ids.db_id)).await {
             debug!("{} migrated, skipping migration..", ids.db_id);
             continue;
         }
         if let Err(err) = run_db_migration_impl(&ctx, Some(&ids.db_id), Some(&ids.shared_db_id)).await {
-            common::log::error!("{err:?}");
+            error!("{err:?}");
             continue;
         };
-        watcher_clone.db_id_migrated(Some(&ids.db_id)).await;
     }
 }
 
