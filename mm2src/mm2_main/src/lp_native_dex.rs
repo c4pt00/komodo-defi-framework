@@ -593,7 +593,7 @@ async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
         .lock()
         .map_to_mm(|poison| MmInitError::Internal(poison.to_string()))?;
     // extend existing coins list needed for kickstart so even there's a new pubkey activation, the coins will added
-    *lock.extend(coins_needed_for_kick_start);
+    lock.extend(coins_needed_for_kick_start);
     Ok(())
 }
 
