@@ -25,6 +25,7 @@ use mm2_libp2p::Secp256k1PubkeySerialize;
 use mm2_number::{BigDecimal, MmNumber};
 use mm2_state_machine::prelude::*;
 use mm2_state_machine::storable_state_machine::*;
+use num_traits::Zero;
 use primitives::hash::H256;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use secp256k1::PublicKey;
@@ -811,7 +812,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        // FIXME: Fix the naming of this variable, and the state machine variables.
         let taker_payment_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await {
             Ok(fee) => fee,
             Err(e) => {
@@ -962,13 +962,13 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             big_decimal_from_sat_unsigned(taker_data.taker_payment_fee, state_machine.taker_coin.decimals());
 
         // To avoid accidental division by zero, let's set the ratio to 1 if the expected fee is 0.
-        let ratio = if expected_taker_payment_fee == 0.into() {
+        let ratio = if expected_taker_payment_fee.is_zero() {
             1.into()
         } else {
             &actual_taker_payment_fee / &expected_taker_payment_fee
         };
 
-        if ratio < 0.95.try_into().unwrap() {
+        if ratio < "0.95".parse().expect("0.95 is a valid decimal") {
             let diff = &expected_taker_payment_fee - &actual_taker_payment_fee;
             let reason = AbortReason::TakerPaymentSpentFeeTooLow(diff);
             return Self::change_state(Aborted::new(reason), state_machine).await;
