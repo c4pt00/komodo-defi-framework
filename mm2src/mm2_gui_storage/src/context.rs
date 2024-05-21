@@ -8,9 +8,9 @@ pub(crate) struct AccountContext {
     db_id: Option<String>,
 }
 
+#[allow(unused)]
 impl AccountContext {
     /// Obtains a reference to this crate context, creating it if necessary.
-    /// TODO: this is only create/intiliaze once..need to find a way to manage multiple account contexts
     pub(crate) fn from_ctx(ctx: &MmArc, db_id: Option<&str>) -> Result<Arc<AccountContext>, String> {
         from_ctx(&ctx.account_ctx, move || {
             Ok(AccountContext {

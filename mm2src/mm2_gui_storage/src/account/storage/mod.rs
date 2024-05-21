@@ -19,6 +19,7 @@ const DEFAULT_DEVICE_PUB: HwPubkey = HwPubkey::const_default();
 pub(crate) type AccountStorageBoxed = Box<dyn AccountStorage>;
 pub type AccountStorageResult<T> = MmResult<T, AccountStorageError>;
 
+#[allow(unused)]
 #[derive(Debug, Display)]
 pub enum AccountStorageError {
     #[display(fmt = "No such account {:?}", _0)]
@@ -126,6 +127,7 @@ pub(crate) struct AccountStorageBuilder<'a> {
     db_id: Option<&'a str>,
 }
 
+#[allow(unused)]
 impl<'a> AccountStorageBuilder<'a> {
     pub fn new(ctx: &'a MmArc, db_id: Option<&'a str>) -> Self { AccountStorageBuilder { ctx, db_id } }
 
