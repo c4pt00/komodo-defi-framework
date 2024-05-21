@@ -786,6 +786,7 @@ pub fn eth_testnet_conf_trezor() -> Json {
         "name": "ethereum",
         "mm2": 1,
         "chain_id": 1337,
+        "max_eth_tx_type": 2,
         "derivation_path": "m/44'/1'", // Trezor uses coin type 1 for testnet
         "protocol": {
             "type": "ETH"
@@ -804,7 +805,8 @@ pub fn eth_dev_conf() -> Json {
         "derivation_path": "m/44'/60'",
         "protocol": {
             "type": "ETH"
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -822,7 +824,8 @@ pub fn erc20_dev_conf(contract_address: &str) -> Json {
                 "platform": "ETH",
                 "contract_address": contract_address,
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -839,7 +842,8 @@ pub fn nft_dev_conf() -> Json {
             "protocol_data": {
                 "platform": "ETH"
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -852,6 +856,7 @@ pub fn eth_sepolia_conf() -> Json {
         "protocol": {
             "type": "ETH"
         },
+        "max_eth_tx_type": 2,
         "trezor_coin": "Ethereum"
     })
 }
@@ -865,6 +870,7 @@ pub fn eth_sepolia_trezor_firmware_compat_conf() -> Json {
         "protocol": {
             "type": "ETH"
         },
+        "max_eth_tx_type": 2,
         "trezor_coin": "tETH"
     })
 }
@@ -881,7 +887,8 @@ pub fn eth_jst_testnet_conf() -> Json {
                 "platform": "ETH",
                 "contract_address": ETH_SEPOLIA_TOKEN_CONTRACT
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -897,7 +904,8 @@ pub fn jst_sepolia_conf() -> Json {
                 "chain_id": 11155111,
                 "contract_address": ETH_SEPOLIA_TOKEN_CONTRACT
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
