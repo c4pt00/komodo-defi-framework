@@ -79,7 +79,7 @@ use instant::Instant;
 use keys::Public as HtlcPubKey;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
-use mm2_net::transport::{slurp_url, KomodefiProxyAuthValidation, ProxyAuthValidationGenerator, SlurpError};
+use mm2_net::transport::{KomodefiProxyAuthValidation, ProxyAuthValidationGenerator};
 use mm2_number::bigdecimal_custom::CheckedDivision;
 use mm2_number::{BigDecimal, BigUint, MmNumber};
 #[cfg(test)] use mocktopus::macros::*;
