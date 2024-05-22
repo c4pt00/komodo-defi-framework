@@ -169,7 +169,7 @@ impl HDWalletStorageInternalOps for HDWalletIndexedDbStorage {
         let db = SharedDb::downgrade(&coins_ctx.hd_wallet_db);
         Ok(HDWalletIndexedDbStorage {
             db,
-            db_id: db_id.map(|e| e.to_string()),
+            db_id: db_id.map(String::from),
         })
     }
 
@@ -320,6 +320,7 @@ impl HDWalletIndexedDbStorage {
 }
 
 /// This function is used in `hd_wallet_storage::tests`.
+#[cfg(any(test, target_arch = "wasm32"))]
 pub(super) async fn get_all_storage_items(ctx: &MmArc) -> Vec<HDAccountStorageItem> {
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
     let db = coins_ctx.hd_wallet_db.get_or_initialize(None).await.unwrap();

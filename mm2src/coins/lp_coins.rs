@@ -4589,14 +4589,8 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
 
     for (_, coin) in coins.iter() {
         if let Some(account) = coin.inner.account_db_id() {
-            if active_only && coin.is_available() {
+            if !active_only || coin.is_available() {
                 account_ids.insert(account.clone());
-                continue;
-            };
-
-            if !active_only {
-                account_ids.insert(account);
-                continue;
             }
         }
     }
