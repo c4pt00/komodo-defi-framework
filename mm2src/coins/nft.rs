@@ -25,7 +25,6 @@ use crate::nft::nft_structs::{build_nft_with_empty_meta, BuildNftFields, ClearNf
 use crate::nft::storage::{NftListStorageOps, NftTransferHistoryStorageOps};
 use common::log::error;
 use common::parse_rfc3339_to_timestamp;
-use enum_derives::EnumFromStringify;
 use ethereum_types::{Address, H256};
 use futures::compat::Future01CompatExt;
 use futures::future::try_join_all;
@@ -47,7 +46,8 @@ use crate::eth::v2_activation::generate_signed_message;
 #[cfg(target_arch = "wasm32")]
 use mm2_net::wasm::http::send_request_to_uri;
 
-const MORALIS_API_ENDPOINT: &str = "api/v2";
+const MORALIS_API: &str = "api";
+const MORALIS_ENDPOINT_V: &str = "v2";
 /// query parameters for moralis request: The format of the token ID
 const MORALIS_FORMAT_QUERY_NAME: &str = "format";
 const MORALIS_FORMAT_QUERY_VALUE: &str = "decimal";
@@ -635,12 +635,8 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
     let mut cursor = String::new();
     loop {
         // Create a new URL instance from uri_without_cursor and modify its query to include the cursor if present
-        let mut uri = uri_without_cursor.clone();
-        if !cursor.is_empty() {
-            uri.set_query(Some(&cursor));
-        }
-
-        let response = build_and_send_request(&uri, wrapper.orig_url, wrapper.signed_message).await?;
+        let uri = format!("{}{}", uri_without_cursor, cursor);
+        let response = build_and_send_request(uri.as_str(), wrapper.signed_message).await?;
         if let Some(nfts_list) = response["result"].as_array() {
             for nft_json in nfts_list {
                 let nft_moralis = NftFromMoralis::deserialize(nft_json)?;
@@ -656,7 +652,7 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
             // if cursor is not null, there are other NFTs on next page,
             // and we need to send new request with cursor to get info from the next page.
             if let Some(cursor_res) = response["cursor"].as_str() {
-                cursor = format!("cursor={}", cursor_res);
+                cursor = format!("&cursor={}", cursor_res);
                 continue;
             } else {
                 break;
@@ -671,28 +667,24 @@ async fn get_moralis_nft_list(ctx: &MmArc, wrapper: &UrlSignWrapper<'_>) -> MmRe
 pub(crate) async fn get_nfts_for_activation(
     chain: &Chain,
     my_address: &Address,
-    original_url: &Url,
+    orig_url: &Url,
     signed_message: Option<&KomodefiProxyAuthValidation>,
 ) -> MmResult<HashMap<String, NftInfo>, GetNftInfoError> {
     let mut nfts_map = HashMap::new();
-    let uri_without_cursor = construct_moralis_uri_for_nft(original_url, &eth_addr_to_hex(my_address), chain)?;
+    let uri_without_cursor = construct_moralis_uri_for_nft(orig_url, &eth_addr_to_hex(my_address), chain)?;
 
     // The cursor returned in the previous response (used for getting the next page).
     let mut cursor = String::new();
     loop {
         // Create a new URL instance from uri_without_cursor and modify its query to include the cursor if present
-        let mut uri = uri_without_cursor.clone();
-        if !cursor.is_empty() {
-            uri.set_query(Some(&cursor));
-        }
-
-        let response = build_and_send_request(&uri, original_url, signed_message).await?;
+        let uri = format!("{}{}", uri_without_cursor, cursor);
+        let response = build_and_send_request(uri.as_str(), signed_message).await?;
         if let Some(nfts_list) = response["result"].as_array() {
             process_nft_list_for_activation(nfts_list, chain, &mut nfts_map)?;
             // if cursor is not null, there are other NFTs on next page,
             // and we need to send new request with cursor to get info from the next page.
             if let Some(cursor_res) = response["cursor"].as_str() {
-                cursor = format!("cursor={}", cursor_res);
+                cursor = format!("&cursor={}", cursor_res);
                 continue;
             } else {
                 break;
@@ -742,10 +734,11 @@ async fn get_moralis_nft_transfers(
     let my_address = get_eth_address(ctx, &conf, ticker, &HDPathAccountToAddressId::default()).await?;
 
     let mut uri_without_cursor = wrapper.orig_url.clone();
-    uri_without_cursor.set_path(MORALIS_API_ENDPOINT);
     uri_without_cursor
         .path_segments_mut()
         .map_to_mm(|_| GetNftInfoError::Internal("Invalid URI".to_string()))?
+        .push(MORALIS_API)
+        .push(MORALIS_ENDPOINT_V)
         .push(&my_address.wallet_address)
         .push("nft")
         .push("transfers");
@@ -765,18 +758,14 @@ async fn get_moralis_nft_transfers(
     let wallet_address = my_address.wallet_address;
     loop {
         // Create a new URL instance from uri_without_cursor and modify its query to include the cursor if present
-        let mut uri = uri_without_cursor.clone();
-        if !cursor.is_empty() {
-            uri.set_query(Some(&cursor));
-        }
-
-        let response = build_and_send_request(&uri, wrapper.orig_url, wrapper.signed_message).await?;
+        let uri = format!("{}{}", uri_without_cursor, cursor);
+        let response = build_and_send_request(uri.as_str(), wrapper.signed_message).await?;
         if let Some(transfer_list) = response["result"].as_array() {
             process_transfer_list(transfer_list, chain, wallet_address.as_str(), &eth_coin, &mut res_list).await?;
             // if the cursor is not null, there are other NFTs transfers on next page,
             // and we need to send new request with cursor to get info from the next page.
             if let Some(cursor_res) = response["cursor"].as_str() {
-                cursor = format!("cursor={}", cursor_res);
+                cursor = format!("&cursor={}", cursor_res);
                 continue;
             } else {
                 break;
@@ -892,7 +881,7 @@ async fn get_fee_details(eth_coin: &EthCoin, transaction_hash: &str) -> Option<E
 ///
 /// ERC-1155 token can have a total supply more than 1, which means there could be several owners
 /// of the same token. `get_nft_metadata` returns NFTs info with the most recent owner.
-/// **Dont** use this function to get specific info about owner address, amount etc, you will get info not related to my_address.
+/// **Don't** use this function to get specific info about owner address, amount etc, you will get info not related to my_address.
 async fn get_moralis_metadata(
     token_address: String,
     token_id: BigUint,
@@ -900,9 +889,10 @@ async fn get_moralis_metadata(
 ) -> MmResult<Nft, GetNftInfoError> {
     let mut uri = wrapper.orig_url.clone();
     let chain = wrapper.chain;
-    uri.set_path(MORALIS_API_ENDPOINT);
     uri.path_segments_mut()
         .map_to_mm(|_| GetNftInfoError::Internal("Invalid URI".to_string()))?
+        .push(MORALIS_API)
+        .push(MORALIS_ENDPOINT_V)
         .push("nft")
         .push(&token_address)
         .push(&token_id.to_string());
@@ -911,7 +901,7 @@ async fn get_moralis_metadata(
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     drop_mutability!(uri);
 
-    let response = build_and_send_request(&uri, wrapper.orig_url, wrapper.signed_message).await?;
+    let response = build_and_send_request(uri.as_str(), wrapper.signed_message).await?;
     let nft_moralis: NftFromMoralis = serde_json::from_str(&response.to_string())?;
     let contract_type = match nft_moralis.contract_type {
         Some(contract_type) => contract_type,
@@ -1556,35 +1546,18 @@ where
     Ok(())
 }
 
-fn construct_moralis_uri_for_nft(base_url: &Url, address: &str, chain: &Chain) -> MmResult<Url, GetNftInfoError> {
-    let mut uri = base_url.clone();
-    uri.set_path(MORALIS_API_ENDPOINT);
+fn construct_moralis_uri_for_nft(orig_url: &Url, address: &str, chain: &Chain) -> MmResult<Url, GetNftInfoError> {
+    let mut uri = orig_url.clone();
     uri.path_segments_mut()
         .map_to_mm(|_| GetNftInfoError::Internal("Invalid URI".to_string()))?
+        .push(MORALIS_API)
+        .push(MORALIS_ENDPOINT_V)
         .push(address)
         .push("nft");
     uri.query_pairs_mut()
         .append_pair("chain", &chain.to_string())
         .append_pair(MORALIS_FORMAT_QUERY_NAME, MORALIS_FORMAT_QUERY_VALUE);
     Ok(uri)
-}
-
-#[derive(Clone, Serialize)]
-struct MoralisPayload {
-    uri: Url,
-    signed_message: KomodefiProxyAuthValidation,
-}
-
-#[derive(Debug, Display, EnumFromStringify)]
-enum MoralisPayloadErr {
-    #[from_stringify("serde_json::Error")]
-    #[display(fmt = "Internal: {}", _0)]
-    Internal(String),
-}
-
-#[inline(always)]
-fn moralis_payload_str(uri: Url, signed_message: KomodefiProxyAuthValidation) -> MmResult<String, MoralisPayloadErr> {
-    Ok(serde_json::to_string(&MoralisPayload { uri, signed_message })?)
 }
 
 /// A wrapper struct for holding the chain identifier, original URL field from RPC, anti-spam URL and signed message.
@@ -1596,18 +1569,10 @@ struct UrlSignWrapper<'a> {
 }
 
 async fn build_and_send_request(
-    uri: &Url,
-    original_url: &Url,
+    uri: &str,
     signed_message: Option<&KomodefiProxyAuthValidation>,
 ) -> MmResult<Json, GetNftInfoError> {
-    let payload = signed_message
-        .map(|msg| moralis_payload_str(uri.clone(), msg.clone()))
-        .transpose()?;
-    let url_to_use = if signed_message.is_some() {
-        original_url.as_str()
-    } else {
-        uri.as_str()
-    };
-    let response = send_request_to_uri(url_to_use, payload.as_deref()).await?;
+    let payload = signed_message.map(|msg| serde_json::to_string(&msg)).transpose()?;
+    let response = send_request_to_uri(uri, payload.as_deref()).await?;
     Ok(response)
 }
