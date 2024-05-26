@@ -1,6 +1,6 @@
 use crate::coin_errors::{ValidatePaymentError, ValidatePaymentResult};
 use ethabi::{Contract, Token};
-use ethcore_transaction::{Action, UnverifiedTransactionWrapper};
+use ethcore_transaction::Action;
 use ethereum_types::{Address, U256};
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
@@ -15,9 +15,9 @@ use structs::{ExpectedHtlcParams, PaymentType, ValidationParams};
 
 use super::ContractType;
 use crate::eth::{addr_from_raw_pubkey, decode_contract_call, gas_limit::ETH_MAX_TRADE_GAS, EthCoin, EthCoinType,
-                 MakerPaymentStateV2, SignedEthTx, TryToAddress, ERC1155_CONTRACT, ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
-use crate::{ParseCoinAssocTypes, RefundPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs, TransactionErr,
-            ValidateNftMakerPaymentArgs};
+                 MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT, ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
+use crate::{ParseCoinAssocTypes, RefundMakerPaymentArgs, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs,
+            SpendNftMakerPaymentArgs, TransactionErr, ValidateNftMakerPaymentArgs};
 
 impl EthCoin {
     pub(crate) async fn send_nft_maker_payment_v2_impl(
@@ -90,7 +90,7 @@ impl EthCoin {
         validate_from_to_and_maker_status(tx_from_rpc, maker_address, *token_address, maker_status).await?;
         match self.coin_type {
             EthCoinType::Nft { .. } => {
-                let (decoded, index_bytes) = get_decoded_tx_data_and_index_bytes(contract_type, &tx_from_rpc.input.0)?;
+                let (decoded, bytes_index) = get_decoded_tx_data_and_bytes_index(contract_type, &tx_from_rpc.input.0)?;
 
                 let amount = if matches!(contract_type, &ContractType::Erc1155) {
                     Some(args.amount.to_string())
@@ -116,7 +116,7 @@ impl EthCoin {
                     maker_secret_hash: args.maker_secret_hash.to_vec(),
                     time_lock: U256::from(args.time_lock),
                 };
-                decode_and_validate_htlc_params(decoded, index_bytes, htlc_params)?;
+                decode_and_validate_htlc_params(decoded, bytes_index, htlc_params)?;
             },
             EthCoinType::Eth | EthCoinType::Erc20 { .. } => {
                 return MmError::err(ValidatePaymentError::InternalError(
@@ -135,9 +135,8 @@ impl EthCoin {
         if args.maker_secret.len() != 32 {
             return Err(TransactionErr::Plain(ERRL!("maker_secret must be 32 bytes")));
         }
-        let contract_type = args.contract_type;
-        let (decoded, index_bytes) = try_tx_s!(get_decoded_tx_data_and_index_bytes(
-            contract_type,
+        let (decoded, bytes_index) = try_tx_s!(get_decoded_tx_data_and_bytes_index(
+            args.contract_type,
             args.maker_payment_tx.unsigned().data()
         ));
 
@@ -146,7 +145,7 @@ impl EthCoin {
                 *etomic_swap_contract,
                 &NFT_MAKER_SWAP_V2,
                 &decoded,
-                index_bytes,
+                bytes_index,
                 PaymentType::MakerPayments,
             )
             .await
@@ -171,11 +170,47 @@ impl EthCoin {
 
     pub(crate) async fn refund_nft_maker_payment_v2_timelock_impl(
         &self,
-        args: RefundPaymentArgs<'_>,
+        args: RefundNftMakerPaymentArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        let _etomic_swap_contract = try_tx_s!(args.swap_contract_address.try_to_address());
-        let tx: UnverifiedTransactionWrapper = try_tx_s!(rlp::decode(args.payment_tx));
-        let _payment = try_tx_s!(SignedEthTx::new(tx));
+        let etomic_swap_contract = args.swap_contract_address;
+        let (decoded, bytes_index) = try_tx_s!(get_decoded_tx_data_and_bytes_index(
+            args.contract_type,
+            args.maker_payment_tx.unsigned().data()
+        ));
+
+        let (state, htlc_params) = try_tx_s!(
+            self.status_and_htlc_params_from_tx_data(
+                *etomic_swap_contract,
+                &NFT_MAKER_SWAP_V2,
+                &decoded,
+                bytes_index,
+                PaymentType::MakerPayments,
+            )
+            .await
+        );
+        match self.coin_type {
+            EthCoinType::Nft { .. } => {
+                let data =
+                    try_tx_s!(self.prepare_refund_nft_maker_payment_v2_timelock(&args, decoded, htlc_params, state));
+                self.sign_and_send_transaction(
+                    0.into(),
+                    Action::Call(*etomic_swap_contract),
+                    data,
+                    U256::from(ETH_MAX_TRADE_GAS), // TODO: fix to a more accurate const or estimated value
+                )
+                .compat()
+                .await
+            },
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(
+                "ETH and ERC20 Protocols are not supported for NFT Swaps".to_string(),
+            )),
+        }
+    }
+
+    pub(crate) async fn refund_nft_maker_payment_v2_secret_impl(
+        &self,
+        _args: RefundMakerPaymentArgs<'_, Self>,
+    ) -> Result<SignedEthTx, TransactionErr> {
         todo!()
     }
 
@@ -268,11 +303,6 @@ impl EthCoin {
         htlc_params: Vec<Token>,
         state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        let spend_func = match args.contract_type {
-            ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("spendErc1155MakerPayment")?,
-            ContractType::Erc721 => NFT_MAKER_SWAP_V2.function("spendErc721MakerPayment")?,
-        };
-
         if state != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
             return Err(PrepareTxDataError::Internal(ERRL!(
                 "Payment {:?} state is not PAYMENT_STATE_SENT, got {}",
@@ -281,9 +311,14 @@ impl EthCoin {
             )));
         }
 
+        let spend_func = match args.contract_type {
+            ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("spendErc1155MakerPayment")?,
+            ContractType::Erc721 => NFT_MAKER_SWAP_V2.function("spendErc721MakerPayment")?,
+        };
+
         let input_tokens = match args.contract_type {
             ContractType::Erc1155 => vec![
-                htlc_params[0].clone(), // swap_id
+                htlc_params[0].clone(), // swapId
                 Token::Address(args.maker_payment_tx.sender()),
                 Token::FixedBytes(args.taker_secret_hash.to_vec()),
                 Token::FixedBytes(args.maker_secret.to_vec()),
@@ -302,6 +337,49 @@ impl EthCoin {
         };
 
         let data = spend_func.encode_input(&input_tokens)?;
+        Ok(data)
+    }
+
+    fn prepare_refund_nft_maker_payment_v2_timelock(
+        &self,
+        args: &RefundNftMakerPaymentArgs<'_, Self>,
+        decoded: Vec<Token>,
+        htlc_params: Vec<Token>,
+        state: U256,
+    ) -> Result<Vec<u8>, PrepareTxDataError> {
+        if state != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
+            return Err(PrepareTxDataError::Internal(ERRL!(
+                "Payment {:?} state is not PAYMENT_STATE_SENT, got {}",
+                args.maker_payment_tx,
+                state
+            )));
+        }
+
+        let refund_func = match args.contract_type {
+            ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("refundErc1155MakerPaymentTimelock")?,
+            ContractType::Erc721 => NFT_MAKER_SWAP_V2.function("refundErc721MakerPaymentTimelock")?,
+        };
+
+        let input_tokens = match args.contract_type {
+            ContractType::Erc1155 => vec![
+                htlc_params[0].clone(), // swapId
+                htlc_params[1].clone(), // taker address
+                Token::FixedBytes(args.taker_secret_hash.to_vec()),
+                Token::FixedBytes(args.maker_secret_hash.to_vec()),
+                htlc_params[2].clone(), // tokenAddress
+                decoded[2].clone(),     // tokenId
+                decoded[3].clone(),     // amount
+            ],
+            ContractType::Erc721 => vec![
+                htlc_params[0].clone(), // swapId
+                htlc_params[1].clone(), // taker address
+                Token::FixedBytes(args.taker_secret_hash.to_vec()),
+                Token::FixedBytes(args.maker_secret_hash.to_vec()),
+                htlc_params[2].clone(), // tokenAddress
+                decoded[2].clone(),     // tokenId
+            ],
+        };
+        let data = refund_func.encode_input(&input_tokens)?;
         Ok(data)
     }
 
@@ -501,16 +579,16 @@ async fn validate_from_to_and_maker_status(
 /// Identifies the correct "safeTransferFrom" function based on the contract type (either ERC1155 or ERC721)
 /// and decodes the provided contract call bytes using the ABI of the identified function. Additionally, it returns
 /// the index position of the "bytes" field within the function's parameters.
-pub(crate) fn get_decoded_tx_data_and_index_bytes(
+pub(crate) fn get_decoded_tx_data_and_bytes_index(
     contract_type: &ContractType,
     contract_call_bytes: &[u8],
 ) -> Result<(Vec<Token>, usize), PrepareTxDataError> {
-    let (send_func, index_bytes) = match contract_type {
+    let (send_func, bytes_index) = match contract_type {
         ContractType::Erc1155 => (ERC1155_CONTRACT.function("safeTransferFrom")?, 4),
         ContractType::Erc721 => (erc721_transfer_with_data()?, 3),
     };
     let decoded = decode_contract_call(send_func, contract_call_bytes)?;
-    Ok((decoded, index_bytes))
+    Ok((decoded, bytes_index))
 }
 
 /// ERC721 contract has overloaded versions of the `safeTransferFrom` function,

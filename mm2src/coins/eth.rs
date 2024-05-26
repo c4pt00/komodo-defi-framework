@@ -6892,16 +6892,16 @@ impl MakerNftSwapOpsV2 for EthCoin {
 
     async fn refund_nft_maker_payment_v2_timelock(
         &self,
-        args: RefundPaymentArgs<'_>,
+        args: RefundNftMakerPaymentArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr> {
         self.refund_nft_maker_payment_v2_timelock_impl(args).await
     }
 
     async fn refund_nft_maker_payment_v2_secret(
         &self,
-        _args: RefundMakerPaymentArgs<'_, Self>,
+        args: RefundMakerPaymentArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr> {
-        todo!()
+        self.refund_nft_maker_payment_v2_secret_impl(args).await
     }
 }
 
