@@ -404,13 +404,17 @@ impl EthCoin {
             ],
             ContractType::Erc721 => vec![
                 htlc_params[0].clone(), // swapId
-                htlc_params[1].clone(), // taker address
+                htlc_params[1].clone(), // takerAddress
                 Token::FixedBytes(args.taker_secret_hash.to_vec()),
                 Token::FixedBytes(args.maker_secret_hash.to_vec()),
                 htlc_params[2].clone(), // tokenAddress
                 decoded[2].clone(),     // tokenId
             ],
         };
+        println!("htlc_params: {:?}", htlc_params);
+        println!("args.taker_secret_hash: {:?}", args.taker_secret_hash);
+        println!("args.maker_secret_hash: {:?}", args.maker_secret_hash);
+        println!("decoded: {:?}", decoded);
         let data = refund_func.encode_input(&input_tokens)?;
         Ok(data)
     }
