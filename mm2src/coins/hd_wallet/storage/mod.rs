@@ -377,8 +377,7 @@ mod tests {
             .await
             .expect("!HDWalletCoinStorage::upload_new_account: MORTY device=0 account=0");
 
-        // All accounts must be in the only one database for device 0.
-        // Rows in the database must differ by only `coin`, `hd_wallet_rmd160` and `account_id` values.
+        // All accounts must be in only device0_rmd160_db_id database.
         let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device0_rmd160_db_id))
             .await
             .into_iter()
@@ -389,8 +388,7 @@ mod tests {
             rick_device0_account1.clone(),
             morty_device0_account0.clone()
         ]);
-        // All accounts must be in the only one database for device 1.
-        // Rows in the database must differ by only `coin`, `hd_wallet_rmd160` and `account_id` values.
+        // All accounts must be in only device1_rmd160_db_id database.
         let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device1_rmd160_db_id))
             .await
             .into_iter()
@@ -498,7 +496,6 @@ mod tests {
         assert_eq!(all_accounts, vec![]);
 
         // All accounts must be in only device1 database .
-        // Rows in the database must differ by only `coin`, `hd_wallet_rmd160` and `account_id` values.
         let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device1_rmd160_db_id))
             .await
             .into_iter()
@@ -507,7 +504,6 @@ mod tests {
         assert_eq!(all_accounts, vec![wallet1_account0]);
 
         // All accounts must be in only device2 database .
-        // Rows in the database must differ by only `coin`, `hd_wallet_rmd160` and `account_id` values.
         let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device2_rmd160_db_id))
             .await
             .into_iter()
