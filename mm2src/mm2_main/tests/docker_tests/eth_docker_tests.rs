@@ -1176,7 +1176,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_send_and_refund_erc721_maker_payment_timelock() {
-    let token_id = 1u32;
+    let token_id = 2u32;
     let erc721_nft = TestNftType::Erc721 { token_id };
 
     let maker_global_nft = get_or_create_nft(&MM_CTX, SEPOLIA_MAKER_PRIV, Some(erc721_nft));
@@ -1185,50 +1185,47 @@ fn send_send_and_refund_erc721_maker_payment_timelock() {
     let maker_address = block_on(maker_global_nft.my_addr());
     wait_pending_transactions(maker_address);
 
-    let _time_lock_to_refund = now_sec() + 1002;
-    let _taker_pubkey = taker_global_nft.derive_htlc_pubkey(&[]);
+    let time_lock_to_refund = now_sec() + 1002;
+    log!("time_lock_to_refund: {}", time_lock_to_refund);
+    let taker_pubkey = taker_global_nft.derive_htlc_pubkey(&[]);
 
     let maker_secret = &[1; 32];
     let maker_secret_hash = sha256(maker_secret).to_vec();
     let taker_secret = &[2; 32];
     let taker_secret_hash = sha256(taker_secret).to_vec();
 
-    // let nft_swap_info = NftSwapInfo {
-    //     token_address: &sepolia_erc721(),
-    //     token_id: &BigUint::from(1u32).to_bytes(),
-    //     contract_type: &ContractType::Erc721,
-    //     swap_contract_address: &sepolia_etomic_maker_nft(),
-    // };
-    //
-    // let send_payment_args: SendNftMakerPaymentArgs<EthCoin> = SendNftMakerPaymentArgs {
-    //     time_lock: time_lock_to_refund,
-    //     taker_secret_hash: &taker_secret_hash,
-    //     maker_secret_hash: &maker_secret_hash,
-    //     amount: 1.into(),
-    //     taker_pub: &taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
-    //     swap_unique_data: &[],
-    //     nft_swap_info: &nft_swap_info,
-    // };
-    // let maker_payment_to_refund = block_on(maker_global_nft.send_nft_maker_payment_v2(send_payment_args)).unwrap();
-    // log!(
-    //     "Maker sent ERC721 NFT payment, tx hash: {:02x}",
-    //     maker_payment_to_refund.tx_hash()
-    // );
-    //
-    // let confirm_input = ConfirmPaymentInput {
-    //     payment_tx: maker_payment_to_refund.tx_hex(),
-    //     confirmations: 1,
-    //     requires_nota: false,
-    //     wait_until: now_sec() + 200,
-    //     check_every: 1,
-    // };
-    // maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
+    let nft_swap_info = NftSwapInfo {
+        token_address: &sepolia_erc721(),
+        token_id: &BigUint::from(token_id).to_bytes(),
+        contract_type: &ContractType::Erc721,
+        swap_contract_address: &sepolia_etomic_maker_nft(),
+    };
+
+    let send_payment_args: SendNftMakerPaymentArgs<EthCoin> = SendNftMakerPaymentArgs {
+        time_lock: time_lock_to_refund,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        amount: 1.into(),
+        taker_pub: &taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
+        swap_unique_data: &[],
+        nft_swap_info: &nft_swap_info,
+    };
+    let maker_payment_to_refund = block_on(maker_global_nft.send_nft_maker_payment_v2(send_payment_args)).unwrap();
+    log!(
+        "Maker sent ERC721 NFT payment, tx hash: {:02x}",
+        maker_payment_to_refund.tx_hash()
+    );
+
+    let confirm_input = ConfirmPaymentInput {
+        payment_tx: maker_payment_to_refund.tx_hex(),
+        confirmations: 1,
+        requires_nota: false,
+        wait_until: now_sec() + 200,
+        check_every: 1,
+    };
+    maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
     wait_pending_transactions(maker_address);
-
-    let hex_str = "0xf901cf4385103960cbdc830249f094bac1c9f2087f39caaa4e93412c6412809186870e80b90164b88d4fde000000000000000000000000e9f3aaeb5a90f230a4ce78be737bb6d678f9baac0000000000000000000000009eb88cd58605d8fb9b14652d6152727f7e95fb4d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0e060332b2911d1b86445fbafee823aaad2cdf2ecfa989631754586572fb9618000000000000000000000000016e281a9f2e7581269a13e516aa79d6a4a1cd980000000000000000000000000bac1c9f2087f39caaa4e93412c6412809186870e75877bb41d393b5fb8455ce60ecd8dda001d06316496b14dfa7f895656eeca4a72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f01536379300000000000000000000000000000000000000000000000000000000665475c58401546d71a0e7785226b26d55a378e40d0f9311d6f08e9fea99a076a86142cb18bb2fd5f5f8a004de5bd129f3552c184df0bbd779d00515d3a4b6fface767be78a64d542f2f0d";
-
-    let maker_payment_to_refund = maker_global_nft.parse_tx(hex_str.as_bytes()).unwrap();
 
     let refund_timelock_args = RefundNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment_to_refund,
