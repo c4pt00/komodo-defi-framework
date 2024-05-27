@@ -82,7 +82,7 @@ pub async fn init_db(ctx: &MmArc, ticker: String) -> EnableLightningResult<Sqlit
             EnableLightningError::DbError("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
         })?;
 
-    let db = SqliteLightningDB::new(ticker, shared);
+    let db = SqliteLightningDB::new(ticker, shared)?;
 
     if !db.is_db_initialized().await? {
         db.init_db().await?;
