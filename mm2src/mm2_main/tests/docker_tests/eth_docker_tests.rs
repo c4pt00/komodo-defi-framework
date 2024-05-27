@@ -966,7 +966,6 @@ fn send_and_spend_erc721_maker_payment() {
 
     let spend_payment_args = SpendNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
-        time_lock,
         taker_secret_hash: &[0; 32],
         maker_secret_hash: &maker_secret_hash,
         maker_secret,
@@ -1082,7 +1081,6 @@ fn send_and_spend_erc1155_maker_payment() {
 
     let spend_payment_args = SpendNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
-        time_lock,
         taker_secret_hash: &[0; 32],
         maker_secret_hash: &maker_secret_hash,
         maker_secret,
