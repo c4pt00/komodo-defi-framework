@@ -1102,6 +1102,20 @@ pub fn mm_ctx_with_custom_db_with_conf(conf: Option<Json>) -> MmArc {
     ctx
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn add_custom_db(_ctx: &MmArc, _db_id: String) {}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn add_custom_db(ctx: &MmArc, db_id: String) {
+    use db_common::sqlite::rusqlite::Connection;
+    use std::sync::Arc;
+
+    let connections = ctx.sqlite_conn_pool.as_option().expect("db pool not initialized!");
+    let mut connections = connections.connections.write().unwrap();
+    connections.insert(db_id, Arc::new(Mutex::new(Connection::open_in_memory().unwrap())));
+    drop(connections);
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn mm_ctx_with_custom_async_db() -> MmArc {
     let ctx = MmCtxBuilder::new().into_mm_arc();

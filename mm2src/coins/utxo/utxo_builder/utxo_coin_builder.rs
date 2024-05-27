@@ -827,9 +827,7 @@ pub trait UtxoCoinBuilderCommonOps {
             return Ok(None);
         }
 
-        let block_to_sync_from = current_block_height - blocks_to_sync;
-
-        Ok(Some(block_to_sync_from))
+        Ok(Some(current_block_height - blocks_to_sync))
     }
 }
 
