@@ -785,6 +785,7 @@ pub fn eth_testnet_conf_trezor() -> Json {
         "name": "ethereum",
         "mm2": 1,
         "chain_id": 1337,
+        "max_eth_tx_type": 2,
         "derivation_path": "m/44'/1'", // Trezor uses coin type 1 for testnet
         "protocol": {
             "type": "ETH"
@@ -803,7 +804,8 @@ pub fn eth_dev_conf() -> Json {
         "derivation_path": "m/44'/60'",
         "protocol": {
             "type": "ETH"
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -821,7 +823,8 @@ pub fn erc20_dev_conf(contract_address: &str) -> Json {
                 "platform": "ETH",
                 "contract_address": contract_address,
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -838,7 +841,8 @@ pub fn nft_dev_conf() -> Json {
             "protocol_data": {
                 "platform": "ETH"
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -851,6 +855,7 @@ pub fn eth_sepolia_conf() -> Json {
         "protocol": {
             "type": "ETH"
         },
+        "max_eth_tx_type": 2,
         "trezor_coin": "Ethereum"
     })
 }
@@ -864,6 +869,7 @@ pub fn eth_sepolia_trezor_firmware_compat_conf() -> Json {
         "protocol": {
             "type": "ETH"
         },
+        "max_eth_tx_type": 2,
         "trezor_coin": "tETH"
     })
 }
@@ -880,7 +886,8 @@ pub fn eth_jst_testnet_conf() -> Json {
                 "platform": "ETH",
                 "contract_address": ETH_SEPOLIA_TOKEN_CONTRACT
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -896,7 +903,8 @@ pub fn jst_sepolia_conf() -> Json {
                 "chain_id": 11155111,
                 "contract_address": ETH_SEPOLIA_TOKEN_CONTRACT
             }
-        }
+        },
+        "max_eth_tx_type": 2
     })
 }
 
@@ -2604,7 +2612,7 @@ pub async fn ibc_withdraw(
     let request = mm
         .rpc(&json!({
             "userpass": mm.userpass,
-            "method": "ibc_withdraw",
+            "method": "withdraw",
             "mmrpc": "2.0",
             "params": {
                 "ibc_source_channel": source_channel,
@@ -2616,7 +2624,7 @@ pub async fn ibc_withdraw(
         }))
         .await
         .unwrap();
-    assert_eq!(request.0, StatusCode::OK, "'ibc_withdraw' failed: {}", request.1);
+    assert_eq!(request.0, StatusCode::OK, "'withdraw' failed: {}", request.1);
 
     let json: Json = json::from_str(&request.1).unwrap();
     json::from_value(json["result"].clone()).unwrap()

@@ -2,8 +2,9 @@ use crate::rpc_command::init_withdraw::{WithdrawInProgressStatus, WithdrawTaskHa
 use crate::utxo::utxo_common::{big_decimal_from_sat, UtxoTxBuilder};
 use crate::utxo::{output_script, sat_from_big_decimal, Address, FeePolicy, GetUtxoListOps, PrivKeyPolicy, TxFeeType,
                   UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps, UtxoFeeDetails, UtxoTx, UTXO_LOCK};
-use crate::{CoinWithDerivationMethod, GetWithdrawSenderAddress, MarketCoinOps, TransactionDetails, UtxoFeePriority,
-            WithdrawError, WithdrawFee, WithdrawRequest, WithdrawResult};
+use crate::{CoinWithDerivationMethod, GetWithdrawSenderAddress, MarketCoinOps, TransactionData, TransactionDetails,
+            UtxoFeePriority, WithdrawError, WithdrawFee, WithdrawRequest, WithdrawResult};
+
 use async_trait::async_trait;
 use chain::TransactionOutput;
 use common::log::info;
@@ -17,7 +18,7 @@ use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use rpc::v1::types::ToTxHash;
 use rpc_task::RpcTaskError;
-use script::{Builder, Script, SignatureVersion, TransactionInputSigner};
+use script::{SignatureVersion, TransactionInputSigner};
 use serialization::{serialize, serialize_with_flags, SERIALIZE_TRANSACTION_WITNESS};
 use std::iter::once;
 use std::sync::Arc;
@@ -122,19 +123,6 @@ where
             UtxoAddressFormat::Segwit => SignatureVersion::WitnessV0,
             UtxoAddressFormat::Standard | UtxoAddressFormat::CashAddress { .. } => {
                 self.coin().as_ref().conf.signature_version
-            },
-        }
-    }
-
-    #[allow(clippy::result_large_err)]
-    fn prev_script(&self) -> Result<Script, MmError<WithdrawError>> {
-        match self.sender_address().addr_format() {
-            UtxoAddressFormat::Segwit => match Builder::build_p2wpkh(self.sender_address().hash()) {
-                Ok(script) => Ok(script),
-                Err(e) => MmError::err(WithdrawError::InternalError(e.to_string())),
-            },
-            UtxoAddressFormat::Standard | UtxoAddressFormat::CashAddress { .. } => {
-                Ok(Builder::build_p2pkh(self.sender_address().hash()))
             },
         }
     }
@@ -246,8 +234,7 @@ where
             spent_by_me: big_decimal_from_sat(data.spent_by_me as i64, decimals),
             received_by_me: big_decimal_from_sat(data.received_by_me as i64, decimals),
             my_balance_change: big_decimal_from_sat(data.received_by_me as i64 - data.spent_by_me as i64, decimals),
-            tx_hash: signed.hash().reversed().to_vec().to_tx_hash(),
-            tx_hex,
+            tx: TransactionData::new_signed(tx_hex, signed.hash().reversed().to_vec().to_tx_hash()),
             fee_details: Some(fee_details.into()),
             block_height: 0,
             coin: ticker,
@@ -358,8 +345,7 @@ where
 
         sign_params
             .with_signature_version(self.signature_version())
-            .with_unsigned_tx(unsigned_tx)
-            .with_prev_script(self.coin.script_for_address(&self.from_address)?);
+            .with_unsigned_tx(unsigned_tx);
         let sign_params = sign_params.build()?;
 
         let crypto_ctx = CryptoCtx::from_ctx(&self.ctx)?;
@@ -468,7 +454,6 @@ where
         Ok(with_key_pair::sign_tx(
             unsigned_tx,
             &self.key_pair,
-            self.prev_script()?,
             self.signature_version(),
             self.coin.as_ref().conf.fork_id,
         )?)
