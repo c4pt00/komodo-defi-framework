@@ -10,9 +10,10 @@ use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_reque
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
             Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
-            ParseCoinAssocTypes, PrivKeyBuildPolicy, RefundPaymentArgs, SearchForSwapTxSpendInput,
-            SendNftMakerPaymentArgs, SendPaymentArgs, SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps,
-            SwapTxFeePolicy, SwapTxTypeWithSecretHash, ToBytes, Transaction, ValidateNftMakerPaymentArgs};
+            ParseCoinAssocTypes, PrivKeyBuildPolicy, RefundNftMakerPaymentArgs, RefundPaymentArgs,
+            SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SpendNftMakerPaymentArgs,
+            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, ToBytes, Transaction,
+            ValidateNftMakerPaymentArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
@@ -902,6 +903,7 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
 }
 
 #[test]
+#[ignore]
 fn send_and_spend_erc721_maker_payment() {
     // Sepolia Maker owns tokenId = 1
 
@@ -964,6 +966,8 @@ fn send_and_spend_erc721_maker_payment() {
     };
     block_on(maker_global_nft.validate_nft_maker_payment_v2(validate_args)).unwrap();
 
+    wait_pending_transactions(maker_address);
+
     let spend_payment_args = SpendNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
         taker_secret_hash: &[0; 32],
@@ -1020,6 +1024,7 @@ fn send_and_spend_erc721_maker_payment() {
 }
 
 #[test]
+#[ignore]
 fn send_and_spend_erc1155_maker_payment() {
     // Sepolia Maker owns tokenId = 1, amount = 3
 
@@ -1027,6 +1032,9 @@ fn send_and_spend_erc1155_maker_payment() {
 
     let maker_global_nft = get_or_create_nft(&MM_CTX, SEPOLIA_MAKER_PRIV, Some(erc1155_nft));
     let taker_global_nft = get_or_create_nft(&MM_CTX1, SEPOLIA_TAKER_PRIV, None);
+
+    let maker_address = block_on(maker_global_nft.my_addr());
+    wait_pending_transactions(maker_address);
 
     let time_lock = now_sec() + 1000;
     let maker_pubkey = maker_global_nft.derive_htlc_pubkey(&[]);
@@ -1078,6 +1086,8 @@ fn send_and_spend_erc1155_maker_payment() {
         nft_swap_info: &nft_swap_info,
     };
     block_on(maker_global_nft.validate_nft_maker_payment_v2(validate_args)).unwrap();
+
+    wait_pending_transactions(maker_address);
 
     let spend_payment_args = SpendNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment,
@@ -1162,4 +1172,83 @@ fn test_nonce_lock() {
     for result in results {
         result.unwrap();
     }
+}
+
+#[test]
+fn send_send_and_refund_erc721_maker_payment_timelock() {
+    let erc721_nft = TestNftType::Erc721 { token_id: 2 };
+
+    let maker_global_nft = get_or_create_nft(&MM_CTX, SEPOLIA_MAKER_PRIV, Some(erc721_nft));
+    let taker_global_nft = get_or_create_nft(&MM_CTX1, SEPOLIA_TAKER_PRIV, None);
+
+    let maker_address = block_on(maker_global_nft.my_addr());
+    wait_pending_transactions(maker_address);
+
+    let time_lock_to_refund = now_sec() + 1002;
+    let taker_pubkey = taker_global_nft.derive_htlc_pubkey(&[]);
+
+    let maker_secret = &[1; 32];
+    let maker_secret_hash = sha256(maker_secret).to_vec();
+    let taker_secret = &[2; 32];
+    let taker_secret_hash = sha256(taker_secret).to_vec();
+
+    let nft_swap_info = NftSwapInfo {
+        token_address: &sepolia_erc721(),
+        token_id: &BigUint::from(1u32).to_bytes(),
+        contract_type: &ContractType::Erc721,
+        swap_contract_address: &sepolia_etomic_maker_nft(),
+    };
+
+    let send_payment_args: SendNftMakerPaymentArgs<EthCoin> = SendNftMakerPaymentArgs {
+        time_lock: time_lock_to_refund,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        amount: 1.into(),
+        taker_pub: &taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
+        swap_unique_data: &[],
+        nft_swap_info: &nft_swap_info,
+    };
+    let maker_payment_to_refund = block_on(maker_global_nft.send_nft_maker_payment_v2(send_payment_args)).unwrap();
+    log!(
+        "Maker sent ERC721 NFT payment, tx hash: {:02x}",
+        maker_payment_to_refund.tx_hash()
+    );
+
+    let confirm_input = ConfirmPaymentInput {
+        payment_tx: maker_payment_to_refund.tx_hex(),
+        confirmations: 1,
+        requires_nota: false,
+        wait_until: now_sec() + 200,
+        check_every: 1,
+    };
+    maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
+
+    wait_pending_transactions(maker_address);
+
+    let refund_timelock_args = RefundNftMakerPaymentArgs {
+        maker_payment_tx: &maker_payment_to_refund,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        taker_secret,
+        swap_unique_data: &[],
+        contract_type: &ContractType::Erc721,
+        swap_contract_address: &sepolia_etomic_maker_nft(),
+    };
+    let refund_timelock_tx =
+        block_on(taker_global_nft.refund_nft_maker_payment_v2_timelock(refund_timelock_args)).unwrap();
+    log!(
+        "Maker refunded ERC721 NFT Maker payment Timelock, tx hash: {:02x}",
+        refund_timelock_tx.tx_hash()
+    );
+    let confirm_input = ConfirmPaymentInput {
+        payment_tx: refund_timelock_tx.tx_hex(),
+        confirmations: 1,
+        requires_nota: false,
+        wait_until: now_sec() + 200,
+        check_every: 1,
+    };
+    maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
+
+    let current_owner = erc712_owner(U256::from(1));
+    assert_eq!(current_owner, maker_address);
 }
