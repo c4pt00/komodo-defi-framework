@@ -295,7 +295,7 @@ pub async fn get_htlc_spend_fee<T: UtxoCommonOps>(
         }
     }
 
-    Ok(HtlcSpendFeeResult::from(fee, Some(tx_size)))
+    Ok(HtlcSpendFeeResult::from(fee, tx_size))
 }
 
 pub fn addresses_from_script<T: UtxoCommonOps>(coin: &T, script: &Script) -> Result<Vec<Address>, String> {
@@ -1006,9 +1006,7 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
             coin.get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
                 .await?
         },
-        FundingSpendFeeSetting::UseExact(f) => {
-            HtlcSpendFeeResult::from(f, Some(args.funding_tx.serialized_size() as u64))
-        },
+        FundingSpendFeeSetting::UseExact(f) => HtlcSpendFeeResult::from(f, args.funding_tx.serialized_size() as u64),
     };
 
     let fee_plus_dust = fee.fee + coin.as_ref().dust_amount;
@@ -3797,7 +3795,7 @@ pub fn get_trade_fee<T: UtxoCommonOps>(coin: T) -> Box<dyn Future<Item = TradeFe
             coin: ticker,
             amount: big_decimal_from_sat(fee as i64, decimals).into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     };
     Box::new(fut.boxed().compat())
@@ -3805,7 +3803,7 @@ pub fn get_trade_fee<T: UtxoCommonOps>(coin: T) -> Box<dyn Future<Item = TradeFe
 
 pub struct PreImageTradeFeeResult {
     pub fee: BigDecimal,
-    pub tx_size: Option<u64>,
+    pub tx_size: u64,
 }
 
 /// To ensure the `get_sender_trade_fee(x) <= get_sender_trade_fee(y)` condition is satisfied for any `x < y`,
@@ -3877,7 +3875,7 @@ where
 
     Ok(PreImageTradeFeeResult {
         fee: big_decimal_from_sat(total_fee as i64, decimals),
-        tx_size: Some(data.tx_size),
+        tx_size: data.tx_size,
     })
 }
 

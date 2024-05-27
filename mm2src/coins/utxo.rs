@@ -964,11 +964,11 @@ impl MatureUnspentList {
 #[derive(Debug)]
 pub struct HtlcSpendFeeResult {
     pub fee: u64,
-    pub tx_size: Option<u64>,
+    pub tx_size: u64,
 }
 
 impl HtlcSpendFeeResult {
-    fn from(fee: u64, tx_size: Option<u64>) -> Self { Self { fee, tx_size } }
+    fn from(fee: u64, tx_size: u64) -> Self { Self { fee, tx_size } }
 }
 
 #[async_trait]

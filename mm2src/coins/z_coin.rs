@@ -1729,7 +1729,7 @@ impl MmCoin for ZCoin {
             coin: self.ticker().to_owned(),
             amount: self.get_one_kbyte_tx_fee().await?.into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     }
 
@@ -1746,7 +1746,7 @@ impl MmCoin for ZCoin {
             coin: self.ticker().to_owned(),
             amount: self.get_one_kbyte_tx_fee().await?.into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     }
 

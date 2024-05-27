@@ -907,7 +907,7 @@ fn test_withdraw_kmd_rewards_impl(
         ibc_source_channel: None,
     };
     let tx_details = coin.withdraw(withdraw_req).wait().unwrap();
-    let tx_size_kb = tx_details.tx_hex.len() as f64 / KILO_BYTE;
+    let tx_size_kb = tx_details.tx.tx_hex().unwrap().len() as f64 / KILO_BYTE;
     // In transaction size calculations we assume the script sig size is (2 + MAX_DER_SIGNATURE_LEN + COMPRESSED_PUBKEY_LEN) or 107 bytes
     // when in reality signatures can vary by 1 or 2 bytes because of possible zero padding of r and s values of the signature.
     // This is why we test for a range of values here instead of a single value. The value we use in fees calculation is the
@@ -999,7 +999,7 @@ fn test_withdraw_rick_rewards_none() {
         ibc_source_channel: None,
     };
     let tx_details = coin.withdraw(withdraw_req).wait().unwrap();
-    let tx_size_kb = tx_details.tx_hex.len() as f64 / KILO_BYTE;
+    let tx_size_kb = tx_details.tx.tx_hex().unwrap().len() as f64 / KILO_BYTE;
     // In transaction size calculations we assume the script sig size is (2 + MAX_DER_SIGNATURE_LEN + COMPRESSED_PUBKEY_LEN) or 107 bytes
     // when in reality signatures can vary by 1 or 2 bytes because of possible zero padding of r and s values of the signature.
     // This is why we test for a range of values here instead of a single value. The value we use in fees calculation is the

@@ -1354,7 +1354,7 @@ impl MmCoin for Qrc20Coin {
                 coin: selfi.platform.clone(),
                 amount: big_decimal_from_sat(fee as i64, selfi.utxo.decimals).into(),
                 paid_from_trading_vol: false,
-                tx_size: None,
+                tx_size: 0,
             })
         };
         Box::new(fut.boxed().compat())
@@ -1403,7 +1403,11 @@ impl MmCoin for Qrc20Coin {
             self.preimage_trade_fee_required_to_send_outputs(vec![sender_refund_output], &stage)
                 .await?
         } else {
-            BigDecimal::from(0) // No refund fee if not included.
+            // No refund fee if not included.
+            PreImageTradeFeeResult {
+                fee: 0.into(),
+                tx_size: 0,
+            }
         };
 
         let qrc20_payment_fee = erc20_payment_fee.fee + sender_refund_fee.fee;

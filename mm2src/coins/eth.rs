@@ -5506,24 +5506,26 @@ impl MmCoin for EthCoin {
     fn history_sync_status(&self) -> HistorySyncState { self.history_sync_state.lock().unwrap().clone() }
 
     fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> {
-        let coin = self.clone();
+        let selfi = self.clone();
         Box::new(
-            self.get_gas_price()
-                .map_err(|e| e.to_string())
-                .and_then(move |gas_price| {
-                    let fee = gas_price * U256::from(ETH_GAS);
-                    let fee_coin = match &coin.coin_type {
-                        EthCoinType::Eth => &coin.ticker,
-                        EthCoinType::Erc20 { platform, .. } => platform,
-                        EthCoinType::Nft { .. } => return ERR!("Nft Protocol is not supported yet!"),
-                    };
-                    Ok(TradeFee {
-                        coin: fee_coin.into(),
-                        amount: try_s!(u256_to_big_decimal(fee, ETH_DECIMALS)).into(),
-                        paid_from_trading_vol: false,
-                        tx_size: None,
-                    })
-                }),
+            async move {
+                let gas_price = try_s!(selfi.get_gas_price().await);
+                let fee = gas_price * U256::from(gas_limit::ETH_MAX_TRADE_GAS);
+                let fee_coin = match &selfi.coin_type {
+                    EthCoinType::Eth => &selfi.ticker,
+                    EthCoinType::Erc20 { platform, .. } => platform,
+                    EthCoinType::Nft { .. } => return ERR!("Nft Protocol is not supported yet!"),
+                };
+
+                Ok(TradeFee {
+                    coin: fee_coin.into(),
+                    amount: try_s!(u256_to_big_decimal(fee, ETH_DECIMALS)).into(),
+                    paid_from_trading_vol: false,
+                    tx_size: 0,
+                })
+            }
+            .boxed()
+            .compat(),
         )
     }
 
@@ -5587,7 +5589,7 @@ impl MmCoin for EthCoin {
             coin: fee_coin.into(),
             amount: amount.into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     }
 
@@ -5614,7 +5616,7 @@ impl MmCoin for EthCoin {
                 coin: fee_coin.into(),
                 amount: amount.into(),
                 paid_from_trading_vol: false,
-                tx_size: None,
+                tx_size: 0,
             })
         };
         Box::new(fut.boxed().compat())
@@ -5664,7 +5666,7 @@ impl MmCoin for EthCoin {
             coin: fee_coin.into(),
             amount: amount.into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     }
 

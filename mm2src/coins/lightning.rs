@@ -1342,7 +1342,7 @@ impl MmCoin for LightningCoin {
             coin: self.ticker().to_owned(),
             amount: Default::default(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     }
 
@@ -1352,7 +1352,7 @@ impl MmCoin for LightningCoin {
             coin: self.ticker().to_owned(),
             amount: Default::default(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         }))
     }
 
@@ -1366,7 +1366,7 @@ impl MmCoin for LightningCoin {
             coin: self.ticker().to_owned(),
             amount: Default::default(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         })
     }
 

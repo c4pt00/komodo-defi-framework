@@ -315,7 +315,7 @@ fn get_sender_trade_preimage() {
             coin: "ETH".to_owned(),
             amount: amount.into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         }
     }
 
@@ -383,7 +383,7 @@ fn get_erc20_sender_trade_preimage() {
             coin: "ETH".to_owned(),
             amount: amount.into(),
             paid_from_trading_vol: false,
-            tx_size: None,
+            tx_size: 0,
         }
     }
 
@@ -476,7 +476,7 @@ fn get_receiver_trade_preimage() {
         coin: "ETH".to_owned(),
         amount: amount.into(),
         paid_from_trading_vol: false,
-        tx_size: None,
+        tx_size: 0,
     };
 
     let actual = coin
@@ -501,7 +501,7 @@ fn test_get_fee_to_send_taker_fee() {
         coin: "ETH".to_owned(),
         amount: amount.into(),
         paid_from_trading_vol: false,
-        tx_size: None,
+        tx_size: 0,
     };
 
     let dex_fee_amount = u256_to_big_decimal(DEX_FEE_AMOUNT.into(), 18).expect("!u256_to_big_decimal");
