@@ -179,6 +179,12 @@ fn erc712_owner(token_id: U256) -> Address {
     block_on(erc721_contract.query("ownerOf", Token::Uint(token_id), None, Options::default(), None)).unwrap()
 }
 
+fn get_erc712_owner(token_id: U256) -> Address {
+    let _guard = GETH_NONCE_LOCK.lock().unwrap();
+    let erc721_contract = Contract::from_json(GETH_WEB3.eth(), erc721_contract(), ERC721_TEST_ABI.as_bytes()).unwrap();
+    block_on(erc721_contract.query("ownerOf", Token::Uint(token_id), None, Options::default(), None)).unwrap()
+}
+
 #[allow(dead_code)]
 fn mint_erc1155(to_addr: Address, token_id: U256, amount: U256) {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
@@ -1183,7 +1189,9 @@ fn send_send_and_refund_erc721_maker_payment_timelock() {
     let taker_global_nft = global_nft_with_random_privkey(nft_maker_swap_v2(), None);
 
     let maker_address = block_on(maker_global_nft.my_addr());
+    log!("maker_address: {:?}", maker_address);
     let taker_address = block_on(taker_global_nft.my_addr());
+    log!("taker_address: {:?}", taker_address);
 
     let time_lock_to_refund = now_sec() - 1000;
     log!("time_lock_to_refund: {}", time_lock_to_refund);
@@ -1225,9 +1233,6 @@ fn send_send_and_refund_erc721_maker_payment_timelock() {
     };
     maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
-    // let raw_tx_hex = "f9012e7785103a6708f8830249f0949eb88cd58605d8fb9b14652d6152727f7e95fb4d80b8c40f235fce0367f2f8f78bb4d8f2b6267e20ef7b5467e183315546049e2a88443230bd0b3100000000000000000000000016e281a9f2e7581269a13e516aa79d6a4a1cd98075877bb41d393b5fb8455ce60ecd8dda001d06316496b14dfa7f895656eeca4a72cd6e8422c407fb6d098690f1130b7ded7ec2f7f5e1d30bd9d521f015363793000000000000000000000000bac1c9f2087f39caaa4e93412c6412809186870e00000000000000000000000000000000000000000000000000000000000000028401546d71a0cf6e0876226c1cec668423b59eebe2bb22bbfc8f1d39914633d2555ff7bcbd8ca016f46356ad917fb268a0386946cc66b868339d593db3060f60bcb1262d2b4f9a";
-    // let maker_payment_to_refund = maker_global_nft.parse_tx(raw_tx_hex.as_bytes()).unwrap();
-
     let payment_hash_refund = calculate_payment_hash(
         &taker_address,
         &maker_address,
@@ -1237,6 +1242,9 @@ fn send_send_and_refund_erc721_maker_payment_timelock() {
         token_id,
     );
     println!("payment_hash_refund: {:?}", payment_hash_refund);
+
+    let current_owner = get_erc712_owner(U256::from(token_id));
+    assert_eq!(current_owner, nft_maker_swap_v2());
 
     let refund_timelock_args = RefundNftMakerPaymentArgs {
         maker_payment_tx: &maker_payment_to_refund,
@@ -1262,7 +1270,7 @@ fn send_send_and_refund_erc721_maker_payment_timelock() {
     };
     maker_global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
 
-    let current_owner = erc712_owner(U256::from(1));
+    let current_owner = get_erc712_owner(U256::from(token_id));
     assert_eq!(current_owner, maker_address);
 }
 
