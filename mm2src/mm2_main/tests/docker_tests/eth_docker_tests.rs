@@ -1248,7 +1248,7 @@ fn send_send_and_refund_erc721_maker_payment_timelock() {
         swap_contract_address: &nft_maker_swap_v2(),
     };
     let refund_timelock_tx =
-        block_on(taker_global_nft.refund_nft_maker_payment_v2_timelock(refund_timelock_args)).unwrap();
+        block_on(maker_global_nft.refund_nft_maker_payment_v2_timelock(refund_timelock_args)).unwrap();
     log!(
         "Maker refunded ERC721 NFT Maker payment Timelock, tx hash: {:02x}",
         refund_timelock_tx.tx_hash()
