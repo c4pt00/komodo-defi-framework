@@ -504,6 +504,17 @@ impl UtxoSyncStatusLoopHandle {
     }
 }
 
+/// Priority levels for UTXO fee estimation for withdrawal.
+#[derive(Clone, Debug, Deserialize)]
+pub struct UtxoFeePriorities {
+    /// Low priority. Recommended (8-10 blocks atleast for btc)
+    pub low: u8,
+    /// Normal priority. Recommended (6 blocks atleast for btc)
+    pub normal: u8,
+    /// High priority. Recommended (2 blocks atleast for btc)
+    pub high: u8,
+}
+
 #[derive(Debug)]
 pub struct UtxoCoinConf {
     pub ticker: String,
@@ -582,6 +593,8 @@ pub struct UtxoCoinConf {
     pub derivation_path: Option<HDPathToCoin>,
     /// The average time in seconds needed to mine a new block for this coin.
     pub avg_blocktime: Option<u64>,
+    /// The average time in seconds needed to mine a new block for this coin.
+    pub fee_priorities: Option<UtxoFeePriorities>,
 }
 
 pub struct UtxoCoinFields {

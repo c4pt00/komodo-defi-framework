@@ -1939,11 +1939,11 @@ pub trait MarketCoinOps {
 /// Priority levels for UTXO fee estimation for withdrawal.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub enum UtxoFeePriority {
-    /// Low priority: Estimated confirmation within approximately 3 blocks.
+    /// Low priority.
     Low,
-    /// Normal priority: Estimated confirmation within approximately 2 blocks.
+    /// Normal priority.
     Normal,
-    /// High priority: Estimated confirmation within approximately 1 block.
+    /// High priority.
     High,
 }
 

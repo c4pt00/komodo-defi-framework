@@ -26,13 +26,15 @@ use utxo_signer::sign_params::{OutputDestination, SendingOutputInfo, SpendingInp
 use utxo_signer::{with_key_pair, UtxoSignTxError};
 use utxo_signer::{SignPolicy, UtxoSignerOps};
 
+use super::UtxoFeePriorities;
+
 /// Num of blocks applied to withdrawal transactions
 /// that have a high priority, indicating a need for faster confirmation.
-pub const HIGH_TX_FEE: u8 = 1;
+pub const HIGH_TX_FEE: u8 = 2;
 
 /// Num of blocks applied to withdrawal transactions
 /// that have a normal priority, indicating a moderate confirmation time.
-pub const NORMAL_TX_FEE: u8 = 2;
+pub const NORMAL_TX_FEE: u8 = 6;
 
 /// Num of blocks applied to withdrawal transactions
 /// that have a low priority, indicating a longer confirmation time.
@@ -179,24 +181,10 @@ where
             },
             Some(WithdrawFee::UtxoPriority { ref priority, .. }) => {
                 // handle the withdrawal fee calculation based on the priority of the transaction.
-                let n_blocks = match priority {
-                    UtxoFeePriority::Low => LOW_TX_FEE,
-                    UtxoFeePriority::Normal => NORMAL_TX_FEE,
-                    UtxoFeePriority::High => HIGH_TX_FEE,
-                };
-                // Note: If the coin doesn't support smart_fee with n_blocks, we skip using n_blocks. So, smart_fee returns a fee without using n_blocks.
-                let fee_estimate = coin
-                    .as_ref()
-                    .rpc_client
-                    .estimate_fee_sat(
-                        decimals,
-                        &crate::utxo::rpc_clients::EstimateFeeMethod::Standard,
-                        &None,
-                        n_blocks.into(),
-                    )
-                    .compat()
-                    .await?;
-                tx_builder = tx_builder.with_fee(TxFeeType::PerKb(fee_estimate));
+                let fee =
+                    generate_withdraw_fee_using_priority(coin, priority, &coin.as_ref().conf.fee_priorities, decimals)
+                        .await?;
+                tx_builder = tx_builder.with_fee(TxFeeType::PerKb(fee));
             },
             Some(ref fee_policy) => {
                 let error = format!(
@@ -245,6 +233,36 @@ where
             memo: None,
         })
     }
+}
+
+async fn generate_withdraw_fee_using_priority<C: UtxoCommonOps + GetUtxoListOps>(
+    coin: &C,
+    priority: &UtxoFeePriority,
+    priorities: &Option<UtxoFeePriorities>,
+    decimals: u8,
+) -> Result<u64, MmError<WithdrawError>> {
+    let n_blocks = match (priorities, priority) {
+        (Some(details), UtxoFeePriority::Low) => details.low,
+        (Some(details), UtxoFeePriority::Normal) => details.normal,
+        (Some(details), UtxoFeePriority::High) => details.high,
+        (None, UtxoFeePriority::Low) => LOW_TX_FEE,
+        (None, UtxoFeePriority::Normal) => NORMAL_TX_FEE,
+        (None, UtxoFeePriority::High) => HIGH_TX_FEE,
+    };
+    let estimate_fee_sat = coin
+        .as_ref()
+        .rpc_client
+        .estimate_fee_sat(
+            decimals,
+            &crate::utxo::rpc_clients::EstimateFeeMethod::Standard,
+            &None,
+            n_blocks.into(),
+        )
+        .compat()
+        .await?;
+
+    // let mem_pool_n_blocks = slurp_url(url)
+    Ok(estimate_fee_sat)
 }
 
 /// estimates the fee for a transaction using the provided RPC client, priority level
