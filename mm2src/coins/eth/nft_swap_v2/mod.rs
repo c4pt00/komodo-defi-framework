@@ -31,12 +31,10 @@ impl EthCoin {
             args.nft_swap_info.contract_type
         ));
         let htlc_data = try_tx_s!(self.prepare_htlc_data(&args));
-        println!("encoded htlc_data to send payment: {:?}", htlc_data);
 
         match &self.coin_type {
             EthCoinType::Nft { .. } => {
                 let data = try_tx_s!(self.prepare_nft_maker_payment_v2_data(&args, htlc_data).await);
-                println!("encoded tx send payment data: {:?}", data);
                 self.sign_and_send_transaction(
                     0.into(),
                     Action::Call(*args.nft_swap_info.token_address),
@@ -315,19 +313,6 @@ impl EthCoin {
             .await?;
         let decoded_tokens = function.decode_output(&bytes.0)?;
 
-        println!(
-            "decoded makerPayments paymentHash: {:?}",
-            decoded_tokens.get(0).unwrap()
-        );
-        println!(
-            "decoded makerPayments paymentLockTime: {:?}",
-            decoded_tokens.get(1).unwrap()
-        );
-        println!(
-            "decoded makerPayments MakerPaymentState: {:?}",
-            decoded_tokens.get(2).unwrap()
-        );
-
         let state = decoded_tokens
             .get(2)
             .ok_or_else(|| PaymentStatusErr::Internal(ERRL!("Payment status must contain 'state' as the 2nd token")))?;
@@ -427,10 +412,6 @@ impl EthCoin {
                 decoded[2].clone(),     // tokenId
             ],
         };
-        println!("htlc_params: {:?}", htlc_params);
-        println!("args.taker_secret_hash: {:?}", args.taker_secret_hash);
-        println!("args.maker_secret_hash: {:?}", args.maker_secret_hash);
-        println!("decoded: {:?}", decoded);
         let data = refund_func.encode_input(&input_tokens)?;
         Ok(data)
     }
