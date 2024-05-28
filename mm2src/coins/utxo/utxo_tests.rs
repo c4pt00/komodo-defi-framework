@@ -3427,6 +3427,10 @@ fn test_withdraw_p2pk_balance() {
 
     let coin = utxo_coin_for_test(UtxoRpcClientEnum::Native(client), None, false);
 
+    const VALUE: u64 = 1000000000;
+    const TX_SIZE: u64 = 211;
+    const TXFEE_PER_KB: u64 = 1000;
+
     UtxoStandardCoin::get_unspent_ordered_list.mock_safe(|coin, _| {
         let cache = block_on(coin.as_ref().recently_spent_outpoints.lock());
         let unspents = vec![UnspentInfo {
@@ -3434,7 +3438,7 @@ fn test_withdraw_p2pk_balance() {
                 hash: 1.into(),
                 index: 0,
             },
-            value: 1000000000,
+            value: VALUE,
             height: Default::default(),
             // Use a p2pk output script for this UTXO
             script: output_script_p2pk(
@@ -3449,8 +3453,9 @@ fn test_withdraw_p2pk_balance() {
     // Create a dummy p2pkh address to withdraw the coins to.
     let my_p2pkh_address = block_on(coin.as_ref().derivation_method.unwrap_single_addr());
 
+    let total_value_sent = BigDecimal::from(1);
     let withdraw_req = WithdrawRequest {
-        amount: 1.into(),
+        amount: total_value_sent.clone(),
         from: None,
         to: my_p2pkh_address.to_string(),
         coin: TEST_COIN_NAME.into(),
@@ -3467,8 +3472,13 @@ fn test_withdraw_p2pk_balance() {
     let expected_script = Builder::build_p2pkh(my_p2pkh_address.hash());
     assert_eq!(output_script, expected_script);
 
+    let mut expected_fee = calculate_fee!(TXFEE_PER_KB, TX_SIZE) as u64;
+    expected_fee += calculate_fee!(TXFEE_PER_KB, P2PKH_OUTPUT_LEN) as u64;
+    let amount_sent = sat_from_big_decimal(&total_value_sent, TEST_COIN_DECIMALS).unwrap();
+    let expected_balance = VALUE - amount_sent - expected_fee;
+
     // And it should have this value (p2pk balance - amount sent - fees).
-    assert_eq!(transaction.outputs[1].value, 899999000);
+    assert_eq!(transaction.outputs[1].value, expected_balance);
 }
 
 /// `UtxoStandardCoin` has to check UTXO maturity if `check_utxo_maturity` is `true`.
