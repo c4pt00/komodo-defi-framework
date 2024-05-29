@@ -35,6 +35,7 @@ cfg_native! {
     use mm2_metrics::MmMetricsError;
     use std::net::{IpAddr, SocketAddr, AddrParseError};
     use std::path::{Path, PathBuf};
+    use std::sync::MutexGuard;
 }
 
 /// Default interval to export and record metrics to log.
