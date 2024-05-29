@@ -9,7 +9,7 @@ use gstuff::try_s;
 use primitives::hash::H160;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 
 pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 const SYNC_SQLITE_DB_ID: &str = "MM2.db";
@@ -145,6 +145,53 @@ impl SqliteConnPool {
         connections.insert(db_id, Arc::clone(&connection));
 
         connection
+    }
+
+    /// Retrieves a single-user connection from the pool.
+    pub fn run_sql_query<F, R>(&self, db_id: Option<&str>, f: F) -> R
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.run_sql_query_impl(db_id, DbIdConnKind::Single, f)
+    }
+
+    /// Retrieves a shared connection from the pool.
+    pub fn run_sql_query_shared<F, R>(&self, db_id: Option<&str>, f: F) -> R
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.run_sql_query_impl(db_id, DbIdConnKind::Shared, f)
+    }
+
+    /// Internal implementation to retrieve or create a connection.
+    fn run_sql_query_impl<F, R>(&self, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind, f: F) -> R
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        let db_id_default = match db_id_conn_kind {
+            DbIdConnKind::Shared => hex::encode(self.shared_db_id.as_slice()),
+            DbIdConnKind::Single => self.rmd160_hex.clone(),
+        };
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| db_id_default);
+
+        let connections = self.connections.read().unwrap();
+        if let Some(connection) = connections.get(&db_id) {
+            let conn = connection.lock().unwrap();
+            return f(conn);
+        }
+
+        let mut connections = self.connections.write().unwrap();
+        let sqlite_file_path = match db_id_conn_kind {
+            DbIdConnKind::Shared => self.db_dir(&db_id).join(SQLITE_SHARED_DB_ID),
+            DbIdConnKind::Single => self.db_dir(&db_id).join(SYNC_SQLITE_DB_ID),
+        };
+        let connection = Self::open_connection(sqlite_file_path);
+        connections.insert(db_id, Arc::clone(&connection));
+        let conn = connection.lock().unwrap();
+        f(conn)
     }
 
     /// Opens a database connection based on the database ID and connection kind.

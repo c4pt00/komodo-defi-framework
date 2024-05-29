@@ -1580,7 +1580,7 @@ pub struct TakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    pub db_id: Option<String>,
+    db_id: Option<String>,
 }
 
 /// Result of match_reserved function
@@ -1682,7 +1682,7 @@ impl TakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
-    fn db_id(&self) -> Option<String> { self.db_id.clone() }
+    pub fn db_id(&self) -> Option<String> { self.db_id.clone() }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1714,7 +1714,7 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    pub db_id: Option<String>,
+    db_id: Option<String>,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -2104,7 +2104,7 @@ impl MakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
-    fn db_id(&self) -> Option<String> { self.db_id.clone() }
+    pub fn db_id(&self) -> Option<String> { self.db_id.clone() }
 }
 
 impl From<TakerOrder> for MakerOrder {
@@ -4995,7 +4995,7 @@ pub enum TakerOrderCancellationReason {
     Cancelled,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct MyOrdersFilter {
     pub order_type: Option<String>,
     pub initial_action: Option<String>,

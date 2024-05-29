@@ -34,7 +34,7 @@ use uuid::Uuid;
 cfg_native!(
     use crate::mm2::database::my_swaps::{insert_new_swap_v2, SELECT_MY_SWAP_V2_BY_UUID};
     use common::async_blocking;
-    use db_common::sqlite::rusqlite::{named_params, Error as SqlError, Result as SqlResult, Row};
+    use db_common::sqlite::rusqlite::{named_params, Connection, Error as SqlError, Result as SqlResult, Row};
     use db_common::sqlite::rusqlite::types::Type as SqlType;
 );
 
@@ -128,6 +128,15 @@ pub enum MakerSwapEvent {
     Completed,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn get_repr_impl(conn: &Connection, id_str: &str) -> SqlResult<MakerSwapDbRepr> {
+    conn.query_row(
+        SELECT_MY_SWAP_V2_BY_UUID,
+        &[(":uuid", &id_str)],
+        MakerSwapDbRepr::from_sql_row,
+    )
+}
+
 /// Storage for maker swaps.
 #[derive(Clone)]
 pub struct MakerSwapStorage {
@@ -155,29 +164,31 @@ impl StateMachineStorage for MakerSwapStorage {
         let ctx = self.ctx.clone();
         let db_id = self.db_id.clone();
         async_blocking(move || {
-            let sql_params = named_params! {
-                ":my_coin": &repr.maker_coin,
-                ":other_coin": &repr.taker_coin,
-                ":uuid": repr.uuid.to_string(),
-                ":started_at": repr.started_at,
-                ":swap_type": MAKER_SWAP_V2_TYPE,
-                ":maker_volume": repr.maker_volume.to_fraction_string(),
-                ":taker_volume": repr.taker_volume.to_fraction_string(),
-                ":premium": repr.taker_premium.to_fraction_string(),
-                ":dex_fee": repr.dex_fee_amount.to_fraction_string(),
-                ":dex_fee_burn": repr.dex_fee_burn.to_fraction_string(),
-                ":secret": repr.maker_secret.0,
-                ":secret_hash": repr.maker_secret_hash.0,
-                ":secret_hash_algo": repr.secret_hash_algo as u8,
-                ":p2p_privkey": repr.p2p_keypair.map(|k| k.priv_key()).unwrap_or_default(),
-                ":lock_duration": repr.lock_duration,
-                ":maker_coin_confs": repr.conf_settings.maker_coin_confs,
-                ":maker_coin_nota": repr.conf_settings.maker_coin_nota,
-                ":taker_coin_confs": repr.conf_settings.taker_coin_confs,
-                ":taker_coin_nota": repr.conf_settings.taker_coin_nota,
-                ":other_p2p_pub": repr.taker_p2p_pub.to_bytes(),
-            };
-            insert_new_swap_v2(&ctx, sql_params, db_id.as_deref())?;
+            ctx.run_sql_query(db_id.as_deref(), move |conn| {
+                let sql_params = named_params! {
+                    ":my_coin": &repr.maker_coin,
+                    ":other_coin": &repr.taker_coin,
+                    ":uuid": repr.uuid.to_string(),
+                    ":started_at": repr.started_at,
+                    ":swap_type": MAKER_SWAP_V2_TYPE,
+                    ":maker_volume": repr.maker_volume.to_fraction_string(),
+                    ":taker_volume": repr.taker_volume.to_fraction_string(),
+                    ":premium": repr.taker_premium.to_fraction_string(),
+                    ":dex_fee": repr.dex_fee_amount.to_fraction_string(),
+                    ":dex_fee_burn": repr.dex_fee_burn.to_fraction_string(),
+                    ":secret": repr.maker_secret.0,
+                    ":secret_hash": repr.maker_secret_hash.0,
+                    ":secret_hash_algo": repr.secret_hash_algo as u8,
+                    ":p2p_privkey": repr.p2p_keypair.map(|k| k.priv_key()).unwrap_or_default(),
+                    ":lock_duration": repr.lock_duration,
+                    ":maker_coin_confs": repr.conf_settings.maker_coin_confs,
+                    ":maker_coin_nota": repr.conf_settings.maker_coin_nota,
+                    ":taker_coin_confs": repr.conf_settings.taker_coin_confs,
+                    ":taker_coin_nota": repr.conf_settings.taker_coin_nota,
+                    ":other_p2p_pub": repr.taker_p2p_pub.to_bytes(),
+                };
+                insert_new_swap_v2(&conn, sql_params)
+            })?;
             Ok(())
         })
         .await
@@ -216,16 +227,8 @@ impl StateMachineStorage for MakerSwapStorage {
         let id_str = id.to_string();
         let db_id = self.db_id.clone();
 
-        async_blocking(move || {
-            let conn = ctx.sqlite_connection(db_id.as_deref());
-            let conn = conn.lock().unwrap();
-            Ok(conn.query_row(
-                SELECT_MY_SWAP_V2_BY_UUID,
-                &[(":uuid", &id_str)],
-                MakerSwapDbRepr::from_sql_row,
-            )?)
-        })
-        .await
+        async_blocking(move || Ok(ctx.run_sql_query(db_id.as_deref(), move |conn| get_repr_impl(&conn, &id_str))?))
+            .await
     }
 
     #[cfg(target_arch = "wasm32")]

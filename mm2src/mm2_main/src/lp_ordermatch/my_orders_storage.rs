@@ -326,16 +326,18 @@ mod native_impl {
             paging_options: Option<&PagingOptions>,
             db_id: Option<&str>,
         ) -> MyOrdersResult<RecentOrdersSelectResult> {
-            let conn = self.ctx.sqlite_connection(db_id);
-            let conn = conn.lock().unwrap();
-            select_orders_by_filter(&conn, filter, paging_options)
-                .map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
+            let filter = filter.clone();
+            let paging_options = paging_options.cloned();
+            self.ctx.run_sql_query(db_id, move |conn| {
+                select_orders_by_filter(&conn, &filter, paging_options)
+                    .map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
+            })
         }
 
         async fn select_order_status(&self, uuid: Uuid, db_id: Option<&str>) -> MyOrdersResult<String> {
-            let conn = self.ctx.sqlite_connection(db_id);
-            let conn = conn.lock().unwrap();
-            select_status_by_uuid(&conn, &uuid).map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
+            self.ctx.run_sql_query(db_id, move |conn| {
+                select_status_by_uuid(&conn, &uuid).map_to_mm(|e| MyOrdersError::ErrorLoading(e.to_string()))
+            })
         }
 
         async fn save_maker_order_in_filtering_history(&self, order: &MakerOrder) -> MyOrdersResult<()> {

@@ -18,9 +18,9 @@ use stats_swaps::create_and_fill_stats_swaps_from_json_statements;
 const SELECT_MIGRATION: &str = "SELECT * FROM migration ORDER BY current_migration DESC LIMIT 1;";
 
 fn get_current_migration(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<i64> {
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
-    conn.query_row(SELECT_MIGRATION, [], |row| row.get(0))
+    ctx.run_sql_query(db_id, move |conn| {
+        conn.query_row(SELECT_MIGRATION, [], |row| row.get(0))
+    })
 }
 
 pub async fn init_and_migrate_sql_db(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<()> {
@@ -57,28 +57,28 @@ pub async fn init_and_migrate_sql_db(ctx: &MmArc, db_id: Option<&str>) -> SqlRes
 }
 
 fn init_db(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<()> {
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
-    run_optimization_pragmas(&conn)?;
-    let init_batch = concat!(
-        "BEGIN;
-        CREATE TABLE IF NOT EXISTS migration (current_migration INTEGER NOT_NULL UNIQUE);
-        INSERT INTO migration (current_migration) VALUES (1);",
-        CREATE_MY_SWAPS_TABLE!(),
-        "COMMIT;"
-    );
-    conn.execute_batch(init_batch)
+    ctx.run_sql_query(db_id, move |conn| {
+        run_optimization_pragmas(&conn)?;
+        let init_batch = concat!(
+            "BEGIN;
+            CREATE TABLE IF NOT EXISTS migration (current_migration INTEGER NOT_NULL UNIQUE);
+            INSERT INTO migration (current_migration) VALUES (1);",
+            CREATE_MY_SWAPS_TABLE!(),
+            "COMMIT;"
+        );
+        conn.execute_batch(init_batch)
+    })
 }
 
 fn clean_db(ctx: &MmArc, db_id: Option<&str>) {
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
-    if let Err(e) = conn.execute_batch(
-        "DROP TABLE migration;
-                    DROP TABLE my_swaps;",
-    ) {
-        error!("Error {} on SQLite database cleanup", e);
-    }
+    ctx.run_sql_query(db_id, move |conn| {
+        if let Err(e) = conn.execute_batch(
+            "DROP TABLE migration;
+                       DROP TABLE my_swaps;",
+        ) {
+            error!("Error {} on SQLite database cleanup", e);
+        }
+    })
 }
 
 async fn migration_1(ctx: &MmArc) -> Vec<(&'static str, Vec<String>)> {
@@ -149,16 +149,18 @@ async fn statements_for_migration(ctx: &MmArc, current_migration: i64) -> Option
     }
 }
 
-pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64, db_id: Option<&str>) -> SqlResult<()> {
-    let mut current_migration = current_migration;
+pub async fn migrate_sqlite_database(ctx: &MmArc, mut current_migration: i64, db_id: Option<&str>) -> SqlResult<()> {
     info!(
         "{}:db migrate_sqlite_database current migration {current_migration}",
         db_id.unwrap_or("default")
     );
+
     while let Some(statements_with_params) = statements_for_migration(ctx, current_migration).await {
         // `statements_for_migration` locks the [`MmCtx::sqlite_connection`] mutex,
         // so we can't create a transaction outside of this loop.
-        let conn = ctx.sqlite_connection(db_id);
+        let conn = ctx
+            .sqlite_conn_opt(db_id)
+            .expect("Connection should be initialized before we get here");
         let conn = conn.lock().unwrap();
         let transaction = conn.unchecked_transaction()?;
         for (statement, params) in statements_with_params {
@@ -172,6 +174,7 @@ pub async fn migrate_sqlite_database(ctx: &MmArc, current_migration: i64, db_id:
         ])?;
         transaction.commit()?;
     }
+
     info!(
         "{}:db migrate_sqlite_database complete migrated to {current_migration}",
         db_id.unwrap_or("default")

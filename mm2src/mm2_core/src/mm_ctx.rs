@@ -375,27 +375,21 @@ impl MmCtx {
             .map(|pool| pool.sqlite_conn(db_id))
     }
 
-    /// Obtains a connection from the pool for the specified database ID, panicking if the pool is not initialized.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn sqlite_connection(&self, db_id: Option<&str>) -> Arc<Mutex<Connection>> {
-        let pool = self
-            .sqlite_conn_pool
+    pub fn run_sql_query<F, R>(&self, db_id: Option<&str>, f: F) -> R
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        self.sqlite_conn_pool
             .or(&|| panic!("sqlite_connection is not initialized"))
-            .clone();
-        pool.sqlite_conn(db_id)
+            .clone()
+            .run_sql_query(db_id, f)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn init_db_migration_watcher(&self) -> Result<Arc<DbMigrationWatcher>, String> {
         DbMigrationWatcher::init(self).await
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn db_migration_watcher(&self) -> Arc<DbMigrationWatcher> {
-        self.db_migration_watcher
-            .as_option()
-            .expect("Db migration watcher isn't intialized yet!")
-            .clone()
     }
 }
 

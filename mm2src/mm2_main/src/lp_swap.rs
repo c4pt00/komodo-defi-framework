@@ -1027,10 +1027,10 @@ pub async fn insert_new_swap_to_db(
 
 #[cfg(not(target_arch = "wasm32"))]
 fn add_swap_to_db_index(ctx: &MmArc, swap: &SavedSwap, db_id: Option<&str>) {
-    if let Some(conn) = ctx.sqlite_conn_opt(db_id) {
-        let conn = conn.lock().unwrap();
-        crate::mm2::database::stats_swaps::add_swap_to_index(&conn, swap)
-    }
+    let swap = swap.clone();
+    ctx.run_sql_query(db_id, move |conn| {
+        crate::mm2::database::stats_swaps::add_swap_to_index(&conn, &swap)
+    });
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1203,7 +1203,7 @@ async fn broadcast_my_swap_status(ctx: &MmArc, uuid: Uuid, db_id: Option<&str>) 
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct MySwapsFilter {
     pub my_coin: Option<String>,
     pub other_coin: Option<String>,

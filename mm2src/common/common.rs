@@ -880,7 +880,7 @@ pub const fn sixty_f64() -> f64 { 60. }
 
 pub fn one() -> NonZeroUsize { NonZeroUsize::new(1).unwrap() }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct PagingOptions {
     #[serde(default = "ten")]
     pub limit: usize,

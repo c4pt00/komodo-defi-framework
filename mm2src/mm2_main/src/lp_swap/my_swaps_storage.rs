@@ -87,15 +87,18 @@ mod native_impl {
             swap_type: u8,
             db_id: Option<&str>,
         ) -> MySwapsResult<()> {
-            Ok(insert_new_swap(
-                &self.ctx,
-                my_coin,
-                other_coin,
-                &uuid.to_string(),
-                &started_at.to_string(),
-                swap_type,
-                db_id,
-            )?)
+            let my_coin = my_coin.to_owned();
+            let other_coin = other_coin.to_owned();
+            Ok(self.ctx.run_sql_query(db_id, move |conn| {
+                insert_new_swap(
+                    &conn,
+                    &my_coin,
+                    &other_coin,
+                    &uuid.to_string(),
+                    &started_at.to_string(),
+                    swap_type,
+                )
+            })?)
         }
 
         async fn my_recent_swaps_with_filters(
@@ -104,9 +107,12 @@ mod native_impl {
             paging_options: Option<&PagingOptions>,
             db_id: &str,
         ) -> MySwapsResult<MyRecentSwapsUuids> {
-            let conn = self.ctx.sqlite_connection(Some(db_id));
-            let conn = conn.lock().unwrap();
-            Ok(select_uuids_by_my_swaps_filter(&conn, filter, paging_options, db_id)?)
+            let filter = filter.clone();
+            let paging_options = paging_options.map(|e| e.to_owned());
+            let db_id = db_id.to_owned();
+            Ok(self.ctx.run_sql_query(Some(&db_id.clone()), move |conn| {
+                select_uuids_by_my_swaps_filter(&conn, &filter, paging_options, db_id)
+            })?)
         }
     }
 }

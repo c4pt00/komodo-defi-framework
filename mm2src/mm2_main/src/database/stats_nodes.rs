@@ -1,7 +1,7 @@
 /// This module contains code to work with nodes table for stats collection in MM2 SQLite DB
 use crate::mm2::lp_stats::{NodeInfo, NodeVersionStat};
 use common::log::debug;
-use db_common::sqlite::rusqlite::{params_from_iter, Error as SqlError, Result as SqlResult};
+use db_common::sqlite::rusqlite::{params_from_iter, Connection, Error as SqlError, Result as SqlResult};
 use mm2_core::mm_ctx::MmArc;
 use std::collections::hash_map::HashMap;
 
@@ -37,39 +37,42 @@ pub fn insert_node_info(ctx: &MmArc, node_info: &NodeInfo, db_id: Option<&str>) 
         node_info.address.clone(),
         node_info.peer_id.clone(),
     ];
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
-    conn.execute(INSERT_NODE, params_from_iter(params.iter())).map(|_| ())
+    ctx.run_sql_query(db_id, move |conn| {
+        conn.execute(INSERT_NODE, params_from_iter(params.iter())).map(|_| ())
+    })
 }
 
 pub fn delete_node_info(ctx: &MmArc, name: String, db_id: Option<&str>) -> SqlResult<()> {
     debug!("Deleting info about node {} from the SQLite database", name);
     let params = vec![name];
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
-    conn.execute(DELETE_NODE, params_from_iter(params.iter())).map(|_| ())
+    ctx.run_sql_query(db_id, move |conn| {
+        conn.execute(DELETE_NODE, params_from_iter(params.iter())).map(|_| ())
+    })
 }
 
-pub fn select_peers_addresses(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<Vec<(String, String)>, SqlError> {
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
+fn select_peers_addresses_impl(conn: &Connection) -> SqlResult<Vec<(String, String)>, SqlError> {
     let mut stmt = conn.prepare(SELECT_PEERS_ADDRESSES)?;
     let peers_addresses = stmt
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<SqlResult<Vec<(String, String)>>>()?;
-
     Ok(peers_addresses)
 }
 
-pub fn select_peers_names(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<HashMap<String, String>, SqlError> {
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
+pub fn select_peers_addresses(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<Vec<(String, String)>, SqlError> {
+    ctx.run_sql_query(db_id, move |conn| select_peers_addresses_impl(&conn))
+}
+
+fn select_peers_names_impl(conn: &Connection) -> SqlResult<HashMap<String, String>, SqlError> {
     let mut stmt = conn.prepare(SELECT_PEERS_NAMES)?;
     let peers_names = stmt
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-        .collect::<SqlResult<HashMap<String, String>>>();
+        .collect::<SqlResult<HashMap<String, String>>>()?;
 
-    peers_names
+    Ok(peers_names)
+}
+
+pub fn select_peers_names(ctx: &MmArc, db_id: Option<&str>) -> SqlResult<HashMap<String, String>, SqlError> {
+    ctx.run_sql_query(db_id, move |conn| select_peers_names_impl(&conn))
 }
 
 pub fn insert_node_version_stat(ctx: &MmArc, node_version_stat: NodeVersionStat, db_id: Option<&str>) -> SqlResult<()> {
@@ -83,7 +86,8 @@ pub fn insert_node_version_stat(ctx: &MmArc, node_version_stat: NodeVersionStat,
         node_version_stat.timestamp.to_string(),
         node_version_stat.error.unwrap_or_default(),
     ];
-    let conn = ctx.sqlite_connection(db_id);
-    let conn = conn.lock().unwrap();
-    conn.execute(INSERT_STAT, params_from_iter(params.iter())).map(|_| ())
+
+    ctx.run_sql_query(db_id, move |conn| {
+        conn.execute(INSERT_STAT, params_from_iter(params.iter())).map(|_| ())
+    })
 }
