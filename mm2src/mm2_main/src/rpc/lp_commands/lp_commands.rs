@@ -56,7 +56,6 @@ pub struct GetSharedDbIdResponse {
     shared_db_id: H160Json,
 }
 
-// TODO: Return shared_db_id for all available and active unique pubkeys
 pub async fn get_shared_db_id(ctx: MmArc, _req: Json) -> GetSharedDbIdResult<GetSharedDbIdResponse> {
     let shared_db_id = ctx.shared_db_id().to_owned().into();
     Ok(GetSharedDbIdResponse { shared_db_id })

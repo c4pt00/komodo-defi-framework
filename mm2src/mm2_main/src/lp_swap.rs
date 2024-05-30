@@ -1869,7 +1869,6 @@ async fn recv_swap_v2_msg<T>(
     let wait_until = started + timeout;
     loop {
         Timer::sleep(1.).await;
-        // TODO: db_id
         let swap_ctx = SwapsContext::from_ctx(&ctx).unwrap();
         let mut msgs = swap_ctx.swap_v2_msgs.lock().unwrap();
         if let Some(msg_store) = msgs.get_mut(uuid) {
