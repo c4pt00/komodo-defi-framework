@@ -1232,7 +1232,7 @@ fn setup_test(
         token_address: token_contract,
         token_id,
         contract_type,
-        swap_contract_address,
+        swap_contract_address: nft_swap_contract,
     };
 
     NftTestSetup {
@@ -1281,6 +1281,12 @@ fn wait_for_confirmations(global_nft: &EthCoin, tx: &SignedEthTx, wait_seconds: 
 fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx, amount: BigDecimal) {
     let maker_pubkey = setup.maker_global_nft.derive_htlc_pubkey(&[]);
     let taker_pubkey = setup.taker_global_nft.derive_htlc_pubkey(&[]);
+    let nft_swap_info = NftSwapInfo {
+        token_address: &setup.nft_swap_info.token_address,
+        token_id: &setup.nft_swap_info.token_id,
+        contract_type: &setup.nft_swap_info.contract_type,
+        swap_contract_address: &setup.nft_swap_info.swap_contract_address,
+    };
     let validate_args = ValidateNftMakerPaymentArgs {
         maker_payment_tx: maker_payment,
         time_lock: setup.time_lock,
@@ -1290,7 +1296,7 @@ fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx,
         taker_pub: &setup.taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
         maker_pub: &setup.maker_global_nft.parse_pubkey(&maker_pubkey).unwrap(),
         swap_unique_data: &[],
-        nft_swap_info: &setup.nft_swap_info,
+        nft_swap_info: &nft_swap_info,
     };
     block_on(setup.maker_global_nft.validate_nft_maker_payment_v2(validate_args)).unwrap()
 }
