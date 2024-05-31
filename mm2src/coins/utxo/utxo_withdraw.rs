@@ -16,6 +16,7 @@ use crypto::{from_hw_error, CryptoCtx, CryptoCtxError, DerivationPath, HwError, 
 use keys::{AddressFormat, KeyPair, Private, Public as PublicKey};
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
+use mm2_net::transport::slurp_url;
 use rpc::v1::types::ToTxHash;
 use rpc_task::RpcTaskError;
 use script::{SignatureVersion, TransactionInputSigner};
@@ -28,17 +29,7 @@ use utxo_signer::{SignPolicy, UtxoSignerOps};
 
 use super::UtxoFeePriorities;
 
-/// Num of blocks applied to withdrawal transactions
-/// that have a high priority, indicating a need for faster confirmation.
-pub const HIGH_TX_FEE: u8 = 2;
-
-/// Num of blocks applied to withdrawal transactions
-/// that have a normal priority, indicating a moderate confirmation time.
-pub const NORMAL_TX_FEE: u8 = 6;
-
-/// Num of blocks applied to withdrawal transactions
-/// that have a low priority, indicating a longer confirmation time.
-pub const LOW_TX_FEE: u8 = 4;
+const MEMPOOL_BTC_FEE_RATE: &str = "https://mempool.space/api/v1/fees/recommended";
 
 impl From<UtxoSignTxError> for WithdrawError {
     fn from(sign_err: UtxoSignTxError) -> Self {
@@ -235,21 +226,24 @@ where
     }
 }
 
+/// Checks if fee priorities are defined in the coin's configuration,
+/// retrieves the fee estimate from mempool, and adjusts the fee for Bitcoin if necessary.
 async fn generate_withdraw_fee_using_priority<C: UtxoCommonOps + GetUtxoListOps>(
     coin: &C,
     priority: &UtxoFeePriority,
     priorities: &Option<UtxoFeePriorities>,
     decimals: u8,
 ) -> Result<u64, MmError<WithdrawError>> {
-    let n_blocks = match (priorities, priority) {
-        (Some(details), UtxoFeePriority::Low) => details.low,
-        (Some(details), UtxoFeePriority::Normal) => details.normal,
-        (Some(details), UtxoFeePriority::High) => details.high,
-        (None, UtxoFeePriority::Low) => LOW_TX_FEE,
-        (None, UtxoFeePriority::Normal) => NORMAL_TX_FEE,
-        (None, UtxoFeePriority::High) => HIGH_TX_FEE,
+    // Check if priorities are defined in coin config.
+    let Some(detail) = priorities else {
+         return MmError::err(WithdrawError::InternalError(format!("fee_priorities not found in {} config",  coin.as_ref().conf.ticker)))
+     };
+    let n_blocks = match priority {
+        UtxoFeePriority::Low => detail.low,
+        UtxoFeePriority::Normal => detail.normal,
+        UtxoFeePriority::High => detail.high,
     };
-    let estimate_fee_sat = coin
+    let mut estimate_fee_sat = coin
         .as_ref()
         .rpc_client
         .estimate_fee_sat(
@@ -261,8 +255,36 @@ async fn generate_withdraw_fee_using_priority<C: UtxoCommonOps + GetUtxoListOps>
         .compat()
         .await?;
 
-    // let mem_pool_n_blocks = slurp_url(url)
+    if ["BTC"].contains(&coin.as_ref().conf.ticker.as_str()) {
+        if let UtxoFeePriority::Low = priority {
+            let mem_pool_fee = fetch_btc_mempool_low_fee_sat(decimals)
+                .await
+                .map_err(WithdrawError::InternalError)?;
+            info!("mem_pool_fee: {mem_pool_fee} - estimate_fee_sat: {estimate_fee_sat}");
+            if mem_pool_fee < estimate_fee_sat {
+                estimate_fee_sat = mem_pool_fee;
+            }
+        }
+    }
+
     Ok(estimate_fee_sat)
+}
+
+#[derive(Debug, Deserialize)]
+struct BTCMempoolFeeRate {
+    #[serde(rename = "economyFee")]
+    economy_fee: u8,
+}
+
+/// Fetches the current low (economy) fee rate for Bitcoin transactions from the mempool.
+async fn fetch_btc_mempool_low_fee_sat(decimals: u8) -> Result<u64, String> {
+    let (status, _, body) = try_s!(slurp_url(MEMPOOL_BTC_FEE_RATE).await);
+    if !status.is_success() {
+        return Err("Fetch BTC mempool fee rate was unsuccessful".to_owned());
+    };
+    let fee_rate: BTCMempoolFeeRate = try_s!(serde_json::from_slice(&body));
+    let fee_rate = (fee_rate.economy_fee as f64 * 10.0_f64.powf(decimals as f64)) as u64;
+    Ok(fee_rate)
 }
 
 /// estimates the fee for a transaction using the provided RPC client, priority level

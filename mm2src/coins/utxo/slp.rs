@@ -1077,7 +1077,7 @@ impl UtxoTxBroadcastOps for SlpToken {
 
 #[async_trait]
 impl UtxoTxGenerationOps for SlpToken {
-    async fn get_tx_fee_per_kb(&self) -> UtxoRpcResult<u64> { todo!() }
+    async fn get_tx_fee_per_kb(&self) -> UtxoRpcResult<u64> { self.platform_coin.get_tx_fee_per_kb().await }
 
     async fn calc_interest_if_required(
         &self,
