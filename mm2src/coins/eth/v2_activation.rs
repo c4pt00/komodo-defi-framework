@@ -477,7 +477,7 @@ impl EthCoin {
     /// It fetches NFT details from a given URL to populate the `nfts_infos` field, which stores information about the user's NFTs.
     ///
     /// This setup allows the Global NFT to function like a coin, supporting swap operations and providing easy access to NFT details via `nfts_infos`.
-    pub async fn global_nft_from_platform_coin(
+    pub async fn initialize_global_nft(
         &self,
         original_url: &Url,
         proxy_auth: &bool,
@@ -490,6 +490,30 @@ impl EthCoin {
             .map_err(EthTokenActivationError::InternalError)?;
 
         let conf = coin_conf(&ctx, &ticker);
+
+        let web3_instances: Vec<Web3Instance> = self
+            .web3_instances
+            .lock()
+            .await
+            .iter()
+            .map(|node| {
+                let mut transport = node.web3.transport().clone();
+                if let Some(auth) = transport.proxy_auth_validation_generator_as_mut() {
+                    auth.coin_ticker = ticker.clone();
+                }
+                let web3 = Web3::new(transport);
+                Web3Instance {
+                    web3,
+                    is_parity: node.is_parity,
+                }
+            })
+            .collect();
+
+        let required_confirmations = AtomicU64::new(
+            conf["required_confirmations"]
+                .as_u64()
+                .unwrap_or_else(|| self.required_confirmations.load(Ordering::Relaxed)),
+        );
 
         // Create an abortable system linked to the `platform_coin` (which is self) so if the platform coin is disabled,
         // all spawned futures related to global Non-Fungible Token will be aborted as well.
@@ -518,12 +542,12 @@ impl EthCoin {
             swap_contract_address: self.swap_contract_address,
             fallback_swap_contract: self.fallback_swap_contract,
             contract_supports_watchers: self.contract_supports_watchers,
-            web3_instances: self.web3_instances.lock().await.clone().into(),
+            web3_instances: AsyncMutex::new(web3_instances),
             decimals: self.decimals,
             history_sync_state: Mutex::new(self.history_sync_state.lock().unwrap().clone()),
             swap_txfee_policy: Mutex::new(SwapTxFeePolicy::Internal),
             max_eth_tx_type,
-            required_confirmations: AtomicU64::new(self.required_confirmations.load(Ordering::Relaxed)),
+            required_confirmations,
             ctx: self.ctx.clone(),
             chain_id: self.chain_id,
             trezor_coin: self.trezor_coin.clone(),
