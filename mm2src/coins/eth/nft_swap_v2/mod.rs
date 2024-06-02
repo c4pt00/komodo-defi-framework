@@ -336,13 +336,7 @@ impl EthCoin {
         htlc_params: Vec<Token>,
         state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        if state != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
-            return Err(PrepareTxDataError::Internal(ERRL!(
-                "Payment {:?} state is not PAYMENT_STATE_SENT, got {}",
-                args.maker_payment_tx,
-                state
-            )));
-        }
+        validate_state(args.maker_payment_tx, state, MakerPaymentStateV2::PaymentSent as u8)?;
 
         let spend_func = match args.contract_type {
             ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("spendErc1155MakerPayment")?,
@@ -380,13 +374,7 @@ impl EthCoin {
         htlc_params: Vec<Token>,
         state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        if state != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
-            return Err(PrepareTxDataError::Internal(ERRL!(
-                "Payment {:?} state is not PAYMENT_STATE_SENT, got {}",
-                args.maker_payment_tx,
-                state
-            )));
-        }
+        validate_state(args.maker_payment_tx, state, MakerPaymentStateV2::PaymentSent as u8)?;
 
         let refund_func = match args.contract_type {
             ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("refundErc1155MakerPaymentTimelock")?,
@@ -423,13 +411,7 @@ impl EthCoin {
         htlc_params: Vec<Token>,
         state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        if state != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
-            return Err(PrepareTxDataError::Internal(ERRL!(
-                "Payment {:?} state is not PAYMENT_STATE_SENT, got {}",
-                args.maker_payment_tx,
-                state
-            )));
-        }
+        validate_state(args.maker_payment_tx, state, MakerPaymentStateV2::PaymentSent as u8)?;
 
         let refund_func = match args.contract_type {
             ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("refundErc1155MakerPaymentSecret")?,
@@ -692,4 +674,16 @@ fn erc721_transfer_with_data<'a>() -> Result<&'a ethabi::Function, Erc721Functio
             )
         })?;
     Ok(function)
+}
+
+fn validate_state(tx: &SignedEthTx, state: U256, expected_state: u8) -> Result<(), PrepareTxDataError> {
+    if state != U256::from(expected_state) {
+        return Err(PrepareTxDataError::Internal(ERRL!(
+            "Payment {:?} state is not {}, got {}",
+            tx,
+            expected_state,
+            state
+        )));
+    }
+    Ok(())
 }
