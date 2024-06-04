@@ -321,9 +321,9 @@ impl HDWalletIndexedDbStorage {
 
 /// This function is used in `hd_wallet_storage::tests`.
 #[cfg(any(test, target_arch = "wasm32"))]
-pub(super) async fn get_all_storage_items(ctx: &MmArc, db_id: Option<&str>) -> Vec<HDAccountStorageItem> {
+pub(super) async fn get_all_storage_items(ctx: &MmArc) -> Vec<HDAccountStorageItem> {
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
-    let db = coins_ctx.hd_wallet_db.get_or_initialize(db_id).await.unwrap();
+    let db = coins_ctx.hd_wallet_db.get_or_initialize(None).await.unwrap();
     let transaction = db.inner.transaction().await.unwrap();
     let table = transaction.table::<HDAccountTable>().await.unwrap();
     table

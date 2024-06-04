@@ -220,13 +220,13 @@ impl Default for HDWalletCoinStorage {
 }
 
 impl HDWalletCoinStorage {
+    // TODO: Since hd_wallet_rmd160 is unique for a device, do we use it as db_id too? or we can just use mm2 shared_db_id and use hd_wallet_rmd160 for primary key as it's currently done
     pub async fn init(ctx: &MmArc, coin: String) -> HDWalletStorageResult<HDWalletCoinStorage> {
         let crypto_ctx = CryptoCtx::from_ctx(ctx)?;
         let hd_wallet_rmd160 = crypto_ctx
             .hw_wallet_rmd160()
             .or_mm_err(|| HDWalletStorageError::HDWalletUnavailable)?;
-        let db_id = hex::encode(hd_wallet_rmd160.as_slice());
-        let inner = Box::new(HDWalletStorageInstance::init(ctx, Some(&db_id)).await?);
+        let inner = Box::new(HDWalletStorageInstance::init(ctx, None).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,
@@ -234,14 +234,13 @@ impl HDWalletCoinStorage {
         })
     }
 
+    // TODO: Since hd_wallet_rmd160 is unique for a device, do we use it as db_id too? or we can just use mm2 shared_db_id and use hd_wallet_rmd160 for primary key as it's currently done
     pub async fn init_with_rmd160(
         ctx: &MmArc,
         coin: String,
         hd_wallet_rmd160: H160,
     ) -> HDWalletStorageResult<HDWalletCoinStorage> {
-        let db_id = hex::encode(hd_wallet_rmd160.as_slice());
-        let inner = Box::new(HDWalletStorageInstance::init(ctx, Some(&db_id)).await?);
-
+        let inner = Box::new(HDWalletStorageInstance::init(ctx, None).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,
@@ -300,7 +299,7 @@ fn display_rmd160(rmd160: &H160) -> String { hex::encode(rmd160.deref()) }
 mod tests {
     use super::*;
     use itertools::Itertools;
-    use mm2_test_helpers::for_tests::{add_custom_db, mm_ctx_with_custom_db};
+    use mm2_test_helpers::for_tests::mm_ctx_with_custom_db;
     use primitives::hash::H160;
 
     cfg_wasm32! {
@@ -343,12 +342,7 @@ mod tests {
 
         let ctx = mm_ctx_with_custom_db();
         let device0_rmd160 = H160::from("0000000000000000000000000000000000000020");
-        let device0_rmd160_db_id = hex::encode(device0_rmd160.as_slice());
-        add_custom_db(&ctx, device0_rmd160_db_id.clone());
-
         let device1_rmd160 = H160::from("0000000000000000000000000000000000000030");
-        let device1_rmd160_db_id = hex::encode(device1_rmd160.as_slice());
-        add_custom_db(&ctx, device1_rmd160_db_id.clone());
 
         let rick_device0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160)
             .await
@@ -377,8 +371,9 @@ mod tests {
             .await
             .expect("!HDWalletCoinStorage::upload_new_account: MORTY device=0 account=0");
 
-        // All accounts must be in only device0_rmd160_db_id database.
-        let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device0_rmd160_db_id))
+        // All accounts must be in the only one database.
+        // Rows in the database must differ by only `coin`, `hd_wallet_rmd160` and `account_id` values.
+        let all_accounts: Vec<_> = get_all_storage_items(&ctx)
             .await
             .into_iter()
             .sorted_by(|x, y| x.external_addresses_number.cmp(&y.external_addresses_number))
@@ -386,15 +381,9 @@ mod tests {
         assert_eq!(all_accounts, vec![
             rick_device0_account0.clone(),
             rick_device0_account1.clone(),
+            rick_device1_account0.clone(),
             morty_device0_account0.clone()
         ]);
-        // All accounts must be in only device1_rmd160_db_id database.
-        let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device1_rmd160_db_id))
-            .await
-            .into_iter()
-            .sorted_by(|x, y| x.external_addresses_number.cmp(&y.external_addresses_number))
-            .collect();
-        assert_eq!(all_accounts, vec![rick_device1_account0.clone(),]);
 
         let mut actual = rick_device0_db
             .load_all_accounts()
@@ -444,16 +433,8 @@ mod tests {
 
         let ctx = mm_ctx_with_custom_db();
         let device0_rmd160 = H160::from("0000000000000000000000000000000000000010");
-        let device0_rmd160_db_id = hex::encode(device0_rmd160.as_slice());
-        add_custom_db(&ctx, device0_rmd160_db_id.clone());
-
         let device1_rmd160 = H160::from("0000000000000000000000000000000000000020");
-        let device1_rmd160_db_id = hex::encode(device1_rmd160.as_slice());
-        add_custom_db(&ctx, device1_rmd160_db_id.clone());
-
         let device2_rmd160 = H160::from("0000000000000000000000000000000000000030");
-        let device2_rmd160_db_id = hex::encode(device2_rmd160.as_slice());
-        add_custom_db(&ctx, device2_rmd160_db_id.clone());
 
         let wallet0_db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device0_rmd160)
             .await
@@ -487,29 +468,14 @@ mod tests {
             .await
             .expect("HDWalletCoinStorage::clear_accounts: RICK wallet=0");
 
-        // device0 database should return no account.
-        let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device0_rmd160_db_id))
+        // All accounts must be in the only one database.
+        // Rows in the database must differ by only `coin`, `hd_wallet_rmd160` and `account_id` values.
+        let all_accounts: Vec<_> = get_all_storage_items(&ctx)
             .await
             .into_iter()
             .sorted_by(|x, y| x.external_addresses_number.cmp(&y.external_addresses_number))
             .collect();
-        assert_eq!(all_accounts, vec![]);
-
-        // All accounts must be in only device1 database .
-        let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device1_rmd160_db_id))
-            .await
-            .into_iter()
-            .sorted_by(|x, y| x.external_addresses_number.cmp(&y.external_addresses_number))
-            .collect();
-        assert_eq!(all_accounts, vec![wallet1_account0]);
-
-        // All accounts must be in only device2 database .
-        let all_accounts: Vec<_> = get_all_storage_items(&ctx, Some(&device2_rmd160_db_id))
-            .await
-            .into_iter()
-            .sorted_by(|x, y| x.external_addresses_number.cmp(&y.external_addresses_number))
-            .collect();
-        assert_eq!(all_accounts, vec![wallet2_account0]);
+        assert_eq!(all_accounts, vec![wallet1_account0, wallet2_account0]);
     }
 
     async fn test_update_account_impl() {
@@ -528,8 +494,6 @@ mod tests {
 
         let ctx = mm_ctx_with_custom_db();
         let device_rmd160 = H160::from("0000000000000000000000000000000000000010");
-        let device_rmd160_db_id = hex::encode(device_rmd160.as_slice());
-        add_custom_db(&ctx, device_rmd160_db_id.clone());
 
         let db = HDWalletCoinStorage::init_with_rmd160(&ctx, "RICK".to_owned(), device_rmd160)
             .await

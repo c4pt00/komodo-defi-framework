@@ -24,7 +24,7 @@ enum DbIdConnKind {
 /// A pool for managing SQLite connections, where each connection is keyed by a unique string identifier.
 #[derive(Clone)]
 pub struct SqliteConnPool {
-    pub connections: Arc<RwLock<HashMap<String, Arc<Mutex<Connection>>>>>,
+    connections: Arc<RwLock<HashMap<String, Arc<Mutex<Connection>>>>>,
     // default db_id
     rmd160_hex: String,
     // default shared_db_id
