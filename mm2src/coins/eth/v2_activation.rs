@@ -523,8 +523,7 @@ impl EthCoin {
         let my_address = self.derivation_method.single_addr_or_err().await?;
 
         let my_address_str = display_eth_address(&my_address);
-        let signed_message =
-            generate_signed_message(*proxy_auth, &chain, my_address_str, self.priv_key_policy()).await?;
+        let signed_message = nft_signed_message(*proxy_auth, &chain, my_address_str, self.priv_key_policy()).await?;
 
         let nft_infos = get_nfts_for_activation(&chain, &my_address, original_url, signed_message.as_ref()).await?;
         let coin_type = EthCoinType::Nft {
@@ -562,7 +561,7 @@ impl EthCoin {
     }
 }
 
-pub(crate) async fn generate_signed_message(
+pub(crate) async fn nft_signed_message(
     proxy_auth: bool,
     chain: &Chain,
     my_address: String,

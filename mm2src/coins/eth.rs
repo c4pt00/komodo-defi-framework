@@ -344,11 +344,11 @@ type GasDetails = (U256, PayForGasOption);
 pub enum Web3RpcError {
     #[display(fmt = "Transport: {}", _0)]
     Transport(String),
-    #[from_stringify("serde_json::Error")]
     #[display(fmt = "Invalid response: {}", _0)]
     InvalidResponse(String),
     #[display(fmt = "Timeout: {}", _0)]
     Timeout(String),
+    #[from_stringify("serde_json::Error")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
     #[display(fmt = "Invalid gas api provider config: {}", _0)]
