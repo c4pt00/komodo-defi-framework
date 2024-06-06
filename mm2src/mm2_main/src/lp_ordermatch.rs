@@ -1422,7 +1422,7 @@ impl<'a> TakerOrderBuilder<'a> {
 
     /// Validate fields and build
     #[allow(clippy::result_large_err)]
-    pub fn build(self) -> Result<TakerOrder, TakerOrderBuildError> {
+    pub async fn build(self) -> Result<TakerOrder, TakerOrderBuildError> {
         let min_base_amount = self.base_coin.min_trading_vol();
         let min_rel_amount = self.rel_coin.min_trading_vol();
 
@@ -1517,13 +1517,13 @@ impl<'a> TakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
-            db_id: self.base_coin.account_db_id(),
+            db_id: self.base_coin.account_db_id().await,
         })
     }
 
     #[cfg(test)]
     /// skip validation for tests
-    fn build_unchecked(self) -> TakerOrder {
+    async fn build_unchecked(self) -> TakerOrder {
         let base_protocol_info = match &self.action {
             TakerAction::Buy => self.base_coin.coin_protocol_info(Some(self.base_amount.clone())),
             TakerAction::Sell => self.base_coin.coin_protocol_info(None),
@@ -1558,7 +1558,7 @@ impl<'a> TakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
-            db_id: self.base_coin.account_db_id(),
+            db_id: self.base_coin.account_db_id().await,
         }
     }
 }
@@ -1916,7 +1916,7 @@ impl<'a> MakerOrderBuilder<'a> {
 
     /// Build MakerOrder
     #[allow(clippy::result_large_err)]
-    pub fn build(self) -> Result<MakerOrder, MakerOrderBuildError> {
+    pub async fn build(self) -> Result<MakerOrder, MakerOrderBuildError> {
         if self.base_coin.ticker() == self.rel_coin.ticker() {
             return Err(MakerOrderBuildError::BaseEqualRel);
         }
@@ -1970,12 +1970,12 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
-            db_id: self.base_coin.account_db_id(),
+            db_id: self.base_coin.account_db_id().await,
         })
     }
 
     #[cfg(test)]
-    fn build_unchecked(self) -> MakerOrder {
+    async fn build_unchecked(self) -> MakerOrder {
         let created_at = now_ms();
         #[allow(clippy::or_fun_call)]
         MakerOrder {
@@ -1995,7 +1995,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
-            db_id: self.base_coin.account_db_id(),
+            db_id: self.base_coin.account_db_id().await,
         }
     }
 }
@@ -2986,7 +2986,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             },
         };
 
-        let account_db_id = maker_coin.account_db_id();
+        let account_db_id = maker_coin.account_db_id().await;
         if ctx.use_trading_proto_v2() {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
             match (maker_coin, taker_coin) {
@@ -3139,7 +3139,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
         );
 
         let now = now_sec();
-        let account_db_id = taker_coin.account_db_id();
+        let account_db_id = taker_coin.account_db_id().await;
         if ctx.use_trading_proto_v2() {
             let taker_secret = match generate_secret() {
                 Ok(s) => s.into(),
@@ -3960,7 +3960,7 @@ pub async fn lp_auto_buy(
     if let Some(timeout) = input.timeout {
         order_builder = order_builder.with_timeout(timeout);
     }
-    let order = try_s!(order_builder.build());
+    let order = try_s!(order_builder.build().await);
 
     let request_orderbook = false;
     try_s!(
@@ -4703,7 +4703,7 @@ pub async fn create_maker_order(ctx: &MmArc, req: SetPriceReq) -> Result<MakerOr
         .with_base_orderbook_ticker(ordermatch_ctx.orderbook_ticker(base_coin.ticker()))
         .with_rel_orderbook_ticker(ordermatch_ctx.orderbook_ticker(rel_coin.ticker()));
 
-    let new_order = try_s!(builder.build());
+    let new_order = try_s!(builder.build().await);
 
     let request_orderbook = false;
     try_s!(

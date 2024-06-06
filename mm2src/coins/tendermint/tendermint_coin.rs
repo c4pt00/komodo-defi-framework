@@ -2284,7 +2284,7 @@ impl MmCoin for TendermintCoin {
 
     fn on_token_deactivated(&self, _ticker: &str) {}
 
-    fn account_db_id(&self) -> Option<String> {
+    async fn account_db_id(&self) -> Option<String> {
         if let Ok(public_key) = self.activation_policy.public_key() {
             let address_hash = dhash160(&public_key.to_bytes());
             let address_rmd160_hex = hex::encode(address_hash.as_slice());

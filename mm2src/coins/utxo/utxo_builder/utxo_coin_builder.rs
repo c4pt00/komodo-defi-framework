@@ -607,7 +607,7 @@ pub trait UtxoCoinBuilderCommonOps {
             .await
             .map_to_mm(UtxoCoinBuildError::Internal)?
         {
-            Some(coin) => coin.inner.account_db_id(),
+            Some(coin) => coin.inner.account_db_id().await,
             None => None,
         };
         let storage_ticker = self.ticker().replace('-', "_");

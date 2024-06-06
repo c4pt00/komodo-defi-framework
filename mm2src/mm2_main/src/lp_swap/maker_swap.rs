@@ -87,7 +87,7 @@ pub fn stats_maker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
 }
 
 async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSavedEvent) -> Result<(), String> {
-    let db_id = swap.maker_coin.account_db_id();
+    let db_id = swap.db_id();
     let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Maker(MakerSavedSwap {
@@ -282,7 +282,7 @@ impl MakerSwap {
     }
 
     #[inline]
-    fn db_id(&self) -> Option<String> { self.maker_coin.account_db_id() }
+    fn db_id(&self) -> Option<String> { self.r().data.db_id.clone() }
 
     fn apply_event(&self, event: MakerSwapEvent) {
         match event {
@@ -579,7 +579,7 @@ impl MakerSwap {
             maker_coin_htlc_pubkey: Some(maker_coin_htlc_pubkey.as_slice().into()),
             taker_coin_htlc_pubkey: Some(taker_coin_htlc_pubkey.as_slice().into()),
             p2p_privkey: self.p2p_privkey.map(SerializableSecp256k1Keypair::from),
-            db_id: self.db_id(),
+            db_id: self.maker_coin.account_db_id().await,
         };
 
         // This will be done during order match
@@ -2034,10 +2034,10 @@ impl RunMakerSwapInput {
         }
     }
 
-    fn db_id(&self) -> Option<String> {
+    async fn db_id(&self) -> Option<String> {
         match self {
             RunMakerSwapInput::StartNew(swap) => swap.db_id(),
-            RunMakerSwapInput::KickStart { maker_coin, .. } => maker_coin.account_db_id(),
+            RunMakerSwapInput::KickStart { maker_coin, .. } => maker_coin.account_db_id().await,
         }
     }
 }
@@ -2048,7 +2048,7 @@ impl RunMakerSwapInput {
 /// Every produced event is saved to local DB. Swap status is broadcasted to P2P network after completion.
 pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
     let uuid = swap.uuid().to_owned();
-    let db_id = swap.db_id().to_owned();
+    let db_id = swap.db_id().await.to_owned();
     let mut attempts = 0;
     let swap_lock = loop {
         match SwapLock::lock(&ctx, uuid, 40., db_id.as_deref()).await {
@@ -2309,6 +2309,7 @@ pub async fn maker_swap_trade_preimage(
     // perform an additional validation
     let _order = builder
         .build()
+        .await
         .map_to_mm(|e| TradePreimageRpcError::from_maker_order_build_error(e, base_coin_ticker, rel_coin_ticker))?;
 
     let volume = if req.max { Some(volume) } else { None };

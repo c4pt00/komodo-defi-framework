@@ -108,7 +108,7 @@ pub fn stats_taker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
 }
 
 async fn save_my_taker_swap_event(ctx: &MmArc, swap: &TakerSwap, event: TakerSavedEvent) -> Result<(), String> {
-    let db_id = swap.taker_coin.account_db_id();
+    let db_id = swap.db_id();
     let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Taker(TakerSavedSwap {
@@ -381,10 +381,10 @@ impl RunTakerSwapInput {
         }
     }
 
-    fn db_id(&self) -> Option<String> {
+    async fn db_id(&self) -> Option<String> {
         match self {
             RunTakerSwapInput::StartNew(swap) => swap.db_id(),
-            RunTakerSwapInput::KickStart { taker_coin, .. } => taker_coin.account_db_id(),
+            RunTakerSwapInput::KickStart { taker_coin, .. } => taker_coin.account_db_id().await,
         }
     }
 }
@@ -395,7 +395,7 @@ impl RunTakerSwapInput {
 /// Every produced event is saved to local DB. Swap status is broadcast to P2P network after completion.
 pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
     let uuid = swap.uuid().to_owned();
-    let db_id = swap.db_id().to_owned();
+    let db_id = swap.db_id().await.to_owned();
     let mut attempts = 0;
     let swap_lock = loop {
         match SwapLock::lock(&ctx, uuid, 40., db_id.as_deref()).await {
@@ -806,7 +806,7 @@ impl TakerSwap {
     fn wait_refund_until(&self) -> u64 { self.r().data.taker_payment_lock + 3700 }
 
     #[inline]
-    fn db_id(&self) -> Option<String> { self.taker_coin.account_db_id() }
+    fn db_id(&self) -> Option<String> { self.r().data.db_id.clone() }
 
     pub(crate) fn apply_event(&self, event: TakerSwapEvent) {
         match event {
@@ -1129,7 +1129,7 @@ impl TakerSwap {
             maker_coin_htlc_pubkey: Some(maker_coin_htlc_pubkey.as_slice().into()),
             taker_coin_htlc_pubkey: Some(taker_coin_htlc_pubkey.as_slice().into()),
             p2p_privkey: self.p2p_privkey.map(SerializableSecp256k1Keypair::from),
-            db_id: self.taker_coin.account_db_id(),
+            db_id: self.taker_coin.account_db_id().await,
         };
 
         // This will be done during order match
@@ -2548,6 +2548,7 @@ pub async fn taker_swap_trade_preimage(
         .with_sender_pubkey(H256Json::from(our_public_id.bytes));
     let _ = order_builder
         .build()
+        .await
         .map_to_mm(|e| TradePreimageRpcError::from_taker_order_build_error(e, &req.base, &req.rel))?;
 
     let (base_coin_fee, rel_coin_fee) = match action {

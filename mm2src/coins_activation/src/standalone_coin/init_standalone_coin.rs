@@ -223,7 +223,7 @@ where
             .await?;
             coin.start_history_background_fetching(
                 self.ctx.metrics.clone(),
-                TxHistoryStorageBuilder::new(&self.ctx, coin_clone.into().account_db_id()).build()?,
+                TxHistoryStorageBuilder::new(&self.ctx, coin_clone.into().account_db_id().await).build()?,
                 current_balances,
             );
         }

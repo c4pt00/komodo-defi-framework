@@ -1653,7 +1653,7 @@ pub async fn find_unique_nft_account_ids(
     for coin in coins.iter() {
         if coin.is_available() {
             // Use default if no db_id
-            let db_id = coin.inner.account_db_id().unwrap_or_else(|| ctx.rmd160_hex());
+            let db_id = coin.inner.account_db_id().await.unwrap_or_else(|| ctx.rmd160_hex());
             let entry = active_id_chains.entry(db_id).or_insert_with(Vec::new);
             if let Ok(chain) = Chain::from_ticker(coin.inner.ticker()) {
                 if chains.contains(&chain) {
@@ -1674,7 +1674,7 @@ pub async fn find_nft_account_id_for_chain(ctx: &MmArc, chains: Chain) -> Result
     for coin in coins.iter() {
         if coin.is_available() {
             // Use default if no db_id
-            let db_id = coin.inner.account_db_id().unwrap_or_else(|| ctx.rmd160_hex());
+            let db_id = coin.inner.account_db_id().await.unwrap_or_else(|| ctx.rmd160_hex());
             if let Ok(chain) = Chain::from_ticker(coin.inner.ticker()) {
                 if chains == chain {
                     return Ok(Some((db_id, chain)));

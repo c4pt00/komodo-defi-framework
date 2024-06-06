@@ -48,7 +48,7 @@ use common::custom_futures::timeout::TimeoutError;
 use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
                        AbortSettings, AbortedError, SpawnAbortable, SpawnFuture};
 use common::log::{warn, LogOnError};
-use common::{calc_total_pages, now_sec, ten, HttpStatusCode};
+use common::{block_on, calc_total_pages, now_sec, ten, HttpStatusCode};
 use crypto::{derive_secp256k1_secret, Bip32Error, Bip44Chain, CryptoCtx, CryptoCtxError, DerivationPath,
              GlobalHDAccountArc, HDPathToCoin, HwRpcError, KeyPairPolicy, RpcDerivationPath,
              Secp256k1ExtendedPublicKey, Secp256k1Secret, WithHwRpcError};
@@ -3207,7 +3207,7 @@ pub trait MmCoin:
     /// Loop collecting coin transaction history and saving it to local DB
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
-    fn account_db_id(&self) -> Option<String> { None }
+    async fn account_db_id(&self) -> Option<String> { None }
 
     fn account_shared_db_id(&self) -> Option<H160> { None }
 
@@ -3218,7 +3218,8 @@ pub trait MmCoin:
         // BCH cash address format has colon after prefix, e.g. bitcoincash:
         // Colon can't be used in file names on Windows so it should be escaped
         let my_address = my_address.replace(':', "_");
-        ctx.dbdir(self.account_db_id().as_deref())
+        let db_id = block_on(self.account_db_id());
+        ctx.dbdir(db_id.as_deref())
             .join("TRANSACTIONS")
             .join(format!("{}_{}.json", self.ticker(), my_address))
     }
@@ -3230,7 +3231,8 @@ pub trait MmCoin:
         // BCH cash address format has colon after prefix, e.g. bitcoincash:
         // Colon can't be used in file names on Windows so it should be escaped
         let my_address = my_address.replace(':', "_");
-        ctx.dbdir(self.account_db_id().as_deref())
+        let db_id = block_on(self.account_db_id());
+        ctx.dbdir(db_id.as_deref())
             .join("TRANSACTIONS")
             .join(format!("{}_{}_migration", self.ticker(), my_address))
     }
@@ -4588,7 +4590,7 @@ async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashS
     let coins = coin_ctx.coins.lock().await;
 
     for (_, coin) in coins.iter() {
-        if let Some(account) = coin.inner.account_db_id() {
+        if let Some(account) = coin.inner.account_db_id().await {
             if !active_only || coin.is_available() {
                 account_ids.insert(account.clone());
             }
@@ -4863,7 +4865,7 @@ pub async fn my_tx_history(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, S
 }
 
 /// `get_trade_fee` rpc implementation.
-/// There is some consideration about this rpc:  
+/// There is some consideration about this rpc:
 /// for eth coin this rpc returns max possible trade fee (estimated for maximum possible gas limit for any kind of swap).
 /// However for eth coin, as part of fixing this issue https://github.com/KomodoPlatform/komodo-defi-framework/issues/1848,
 /// `max_taker_vol' and `trade_preimage` rpc now return more accurate required gas calculations.

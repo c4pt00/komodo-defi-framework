@@ -2823,7 +2823,8 @@ impl EthCoin {
                 },
             };
 
-            let mut saved_traces = match self.load_saved_traces(ctx, my_address, self.account_db_id().as_deref()) {
+            let mut saved_traces = match self.load_saved_traces(ctx, my_address, self.account_db_id().await.as_deref())
+            {
                 Some(traces) => traces,
                 None => SavedTraces {
                     traces: vec![],
@@ -2913,7 +2914,7 @@ impl EthCoin {
                 } else {
                     0.into()
                 };
-                self.store_eth_traces(ctx, my_address, &saved_traces, self.account_db_id().as_deref());
+                self.store_eth_traces(ctx, my_address, &saved_traces, self.account_db_id().await.as_deref());
             }
 
             if current_block > saved_traces.latest_block {
@@ -2969,7 +2970,7 @@ impl EthCoin {
                 saved_traces.traces.extend(to_traces_after_latest);
                 saved_traces.latest_block = current_block;
 
-                self.store_eth_traces(ctx, my_address, &saved_traces, self.account_db_id().as_deref());
+                self.store_eth_traces(ctx, my_address, &saved_traces, self.account_db_id().await.as_deref());
             }
             saved_traces.traces.sort_by(|a, b| b.block_number.cmp(&a.block_number));
             for trace in saved_traces.traces {
@@ -3197,15 +3198,15 @@ impl EthCoin {
                 },
             };
 
-            let mut saved_events = match self.load_saved_erc20_events(ctx, my_address, self.account_db_id().as_deref())
-            {
-                Some(events) => events,
-                None => SavedErc20Events {
-                    events: vec![],
-                    earliest_block: current_block,
-                    latest_block: current_block,
-                },
-            };
+            let mut saved_events =
+                match self.load_saved_erc20_events(ctx, my_address, self.account_db_id().await.as_deref()) {
+                    Some(events) => events,
+                    None => SavedErc20Events {
+                        events: vec![],
+                        earliest_block: current_block,
+                        latest_block: current_block,
+                    },
+                };
             *self.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
                 "blocks_left": saved_events.earliest_block,
             }));
@@ -3277,7 +3278,7 @@ impl EthCoin {
                 } else {
                     0.into()
                 };
-                self.store_erc20_events(ctx, my_address, &saved_events, self.account_db_id().as_deref());
+                self.store_erc20_events(ctx, my_address, &saved_events, self.account_db_id().await.as_deref());
             }
 
             if current_block > saved_events.latest_block {
@@ -3334,7 +3335,7 @@ impl EthCoin {
                 saved_events.events.extend(from_events_after_latest);
                 saved_events.events.extend(to_events_after_latest);
                 saved_events.latest_block = current_block;
-                self.store_erc20_events(ctx, my_address, &saved_events, self.account_db_id().as_deref());
+                self.store_erc20_events(ctx, my_address, &saved_events, self.account_db_id().await.as_deref());
             }
 
             let all_events: HashMap<_, _> = saved_events
@@ -5722,6 +5723,20 @@ impl MmCoin for EthCoin {
         if let Ok(tokens) = self.erc20_tokens_infos.lock().as_deref_mut() {
             tokens.remove(ticker);
         };
+    }
+
+    async fn account_db_id(&self) -> Option<String> {
+        let derivation_method = &self.deref().derivation_method;
+        match derivation_method.as_ref() {
+            DerivationMethod::SingleAddress(single) => return Some(hex::encode(single.as_bytes())),
+            DerivationMethod::HDWallet(hd_wallet) => {
+                if let Some(addr) = hd_wallet.get_enabled_address().await {
+                    return Some(hex::encode(addr.address.as_bytes()));
+                }
+            },
+        }
+
+        None
     }
 }
 

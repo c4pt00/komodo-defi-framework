@@ -777,7 +777,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     }
 
     async fn acquire_reentrancy_lock(&self) -> Result<Self::ReentrancyLock, Self::Error> {
-        acquire_reentrancy_lock_impl(&self.ctx, self.uuid, self.taker_coin.account_db_id().as_deref()).await
+        acquire_reentrancy_lock_impl(&self.ctx, self.uuid, self.taker_coin.account_db_id().await.as_deref()).await
     }
 
     fn spawn_reentrancy_lock_renew(&mut self, guard: Self::ReentrancyLock) {
