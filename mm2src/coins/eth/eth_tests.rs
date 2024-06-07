@@ -788,6 +788,8 @@ fn polygon_check_if_my_payment_sent() {
         "coin": "MATIC",
         "urls": ["https://polygon-mainnet.g.alchemy.com/v2/9YYl6iMLmXXLoflMPHnMTC4Dcm2L2tFH"],
         "swap_contract_address": "0x9130b257d37a52e52f21054c4da3450c72f595ce",
+        "maker_swap_v2_contract": "0x9130b257d37a52e52f21054c4da3450c72f595ce",
+        "taker_swap_v2_contract": "0x9130b257d37a52e52f21054c4da3450c72f595ce",
     });
 
     let priv_key_policy = PrivKeyBuildPolicy::IguanaPrivKey(IguanaPrivKey::from([1; 32]));
@@ -940,6 +942,8 @@ fn test_eth_validate_valid_and_invalid_pubkey() {
         "coin": "MATIC",
         "urls": ["https://polygon-mainnet.g.alchemy.com/v2/9YYl6iMLmXXLoflMPHnMTC4Dcm2L2tFH"],
         "swap_contract_address": "0x9130b257d37a52e52f21054c4da3450c72f595ce",
+        "maker_swap_v2_contract": "0x9130b257d37a52e52f21054c4da3450c72f595ce",
+        "taker_swap_v2_contract": "0x9130b257d37a52e52f21054c4da3450c72f595ce",
     });
 
     let priv_key = [

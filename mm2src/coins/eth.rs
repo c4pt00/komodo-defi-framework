@@ -173,6 +173,8 @@ const ERC721_ABI: &str = include_str!("eth/erc721_abi.json");
 const ERC1155_ABI: &str = include_str!("eth/erc1155_abi.json");
 const NFT_SWAP_CONTRACT_ABI: &str = include_str!("eth/nft_swap_contract_abi.json");
 const NFT_MAKER_SWAP_V2_ABI: &str = include_str!("eth/nft_maker_swap_v2_abi.json");
+const MAKER_SWAP_V2_ABI: &str = include_str!("eth/maker_swap_v2_abi.json");
+const TAKER_SWAP_V2_ABI: &str = include_str!("eth/taker_swap_v2_abi.json");
 
 /// Payment states from etomic swap smart contract: https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol#L5
 pub enum PaymentState {
@@ -258,6 +260,8 @@ const ETH_MAX_TX_TYPE: u64 = 0x7f;
 
 lazy_static! {
     pub static ref SWAP_CONTRACT: Contract = Contract::load(SWAP_CONTRACT_ABI.as_bytes()).unwrap();
+    pub static ref MAKER_SWAP_V2: Contract = Contract::load(MAKER_SWAP_V2_ABI.as_bytes()).unwrap();
+    pub static ref TAKER_SWAP_V2: Contract = Contract::load(TAKER_SWAP_V2_ABI.as_bytes()).unwrap();
     pub static ref ERC20_CONTRACT: Contract = Contract::load(ERC20_ABI.as_bytes()).unwrap();
     pub static ref ERC721_CONTRACT: Contract = Contract::load(ERC721_ABI.as_bytes()).unwrap();
     pub static ref ERC1155_CONTRACT: Contract = Contract::load(ERC1155_ABI.as_bytes()).unwrap();
@@ -609,6 +613,9 @@ pub struct EthCoinImpl {
     derivation_method: Arc<EthDerivationMethod>,
     sign_message_prefix: Option<String>,
     swap_contract_address: Address,
+    maker_swap_v2_contract: Address,
+    taker_swap_v2_contract: Address,
+    nft_maker_swap_v2_contract: Option<Address>,
     fallback_swap_contract: Option<Address>,
     contract_supports_watchers: bool,
     web3_instances: AsyncMutex<Vec<Web3Instance>>,
@@ -6218,6 +6225,21 @@ pub async fn eth_coin_from_conf_and_request(
     if swap_contract_address == Address::default() {
         return ERR!("swap_contract_address can't be zero address");
     }
+    let maker_swap_v2_contract: Address = try_s!(json::from_value(req["maker_swap_v2_contract"].clone()));
+    if maker_swap_v2_contract == Address::default() {
+        return ERR!("maker_swap_v2_contract can't be zero address");
+    }
+    let taker_swap_v2_contract: Address = try_s!(json::from_value(req["taker_swap_v2_contract"].clone()));
+    if taker_swap_v2_contract == Address::default() {
+        return ERR!("taker_swap_v2_contract can't be zero address");
+    }
+    let nft_maker_swap_v2_contract: Option<Address> =
+        try_s!(json::from_value(req["nft_maker_swap_v2_contract"].clone()));
+    if let Some(nft_maker_swap_v2) = nft_maker_swap_v2_contract {
+        if nft_maker_swap_v2 == Address::default() {
+            return ERR!("nft_maker_swap_v2_contract can't be zero address");
+        }
+    }
     let fallback_swap_contract: Option<Address> = try_s!(json::from_value(req["fallback_swap_contract"].clone()));
     if let Some(fallback) = fallback_swap_contract {
         if fallback == Address::default() {
@@ -6371,6 +6393,9 @@ pub async fn eth_coin_from_conf_and_request(
         coin_type,
         sign_message_prefix,
         swap_contract_address,
+        maker_swap_v2_contract,
+        taker_swap_v2_contract,
+        nft_maker_swap_v2_contract,
         fallback_swap_contract,
         contract_supports_watchers,
         decimals,

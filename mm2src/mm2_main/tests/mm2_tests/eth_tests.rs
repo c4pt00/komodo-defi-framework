@@ -68,6 +68,8 @@ async fn enable_eth(mm: &MarketMakerIt, platform_coin: &str, nodes: &[&str]) -> 
         "coin": platform_coin,
         "urls": nodes,
         "swap_contract_address": ETH_SEPOLIA_SWAP_CONTRACT,
+        "maker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
+        "taker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
         "mm2": 1,
         }))
         .await

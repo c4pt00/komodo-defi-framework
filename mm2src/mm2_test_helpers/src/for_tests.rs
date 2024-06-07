@@ -1832,6 +1832,8 @@ pub async fn enable_qrc20(
             "servers": servers,
             "mm2": 1,
             "swap_contract_address": swap_contract_address,
+            "maker_swap_v2_contract": swap_contract_address,
+            "taker_swap_v2_contract": swap_contract_address,
             "path_to_address": path_to_address.unwrap_or_default(),
         }))
         .await
@@ -1918,6 +1920,8 @@ pub async fn enable_native(
             "urls": urls,
             // Dev chain swap contract address
             "swap_contract_address": ETH_SEPOLIA_SWAP_CONTRACT,
+            "maker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
+            "taker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
             "path_to_address": path_to_address.unwrap_or_default(),
             "mm2": 1,
         }))
@@ -1942,6 +1946,8 @@ pub async fn enable_eth_coin(
             "coin": coin,
             "urls": urls,
             "swap_contract_address": swap_contract_address,
+            "maker_swap_v2_contract": swap_contract_address,
+            "taker_swap_v2_contract": swap_contract_address,
             "fallback_swap_contract": fallback_swap_contract,
             "mm2": 1,
             "contract_supports_watchers": contract_supports_watcher
@@ -3136,6 +3142,8 @@ pub async fn init_eth_with_tokens(
         "params": {
                 "ticker": platform_coin,
                 "swap_contract_address": swap_contract_address,
+                "maker_swap_v2_contract": swap_contract_address,
+                "taker_swap_v2_contract": swap_contract_address,
                 "nodes": nodes,
                 "tx_history": true,
                 "erc20_tokens_requests": erc20_tokens_requests,
@@ -3372,6 +3380,8 @@ pub async fn test_qrc20_history_impl(local_start: Option<LocalStart>) {
             "mm2": 1,
             "tx_history": true,
             "swap_contract_address": "0xd362e096e873eb7907e205fadc6175c6fec7bc44",
+            "maker_swap_v2_contract": "0xd362e096e873eb7907e205fadc6175c6fec7bc44",
+            "taker_swap_v2_contract": "0xd362e096e873eb7907e205fadc6175c6fec7bc44",
         }))
         .await
         .unwrap();
