@@ -48,7 +48,7 @@ use common::custom_futures::timeout::TimeoutError;
 use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
                        AbortSettings, AbortedError, SpawnAbortable, SpawnFuture};
 use common::log::{warn, LogOnError};
-use common::{block_on, calc_total_pages, now_sec, ten, HttpStatusCode};
+use common::{calc_total_pages, now_sec, ten, HttpStatusCode};
 use crypto::{derive_secp256k1_secret, Bip32Error, Bip44Chain, CryptoCtx, CryptoCtxError, DerivationPath,
              GlobalHDAccountArc, HDPathToCoin, HwRpcError, KeyPairPolicy, RpcDerivationPath,
              Secp256k1ExtendedPublicKey, Secp256k1Secret, WithHwRpcError};
@@ -57,7 +57,7 @@ use enum_derives::{EnumFromStringify, EnumFromTrait};
 use ethereum_types::H256;
 use futures::compat::Future01CompatExt;
 use futures::lock::Mutex as AsyncMutex;
-use futures::{FutureExt, TryFutureExt};
+use futures::TryFutureExt;
 use futures01::Future;
 use hex::FromHexError;
 use http::{Response, StatusCode};
@@ -92,7 +92,8 @@ cfg_native! {
     use crate::lightning::ln_conf::PlatformCoinConfirmationTargets;
     use ::lightning::ln::PaymentHash as LightningPayment;
     use async_std::fs;
-    use futures::AsyncWriteExt;
+    use common::block_on;
+    use futures::{AsyncWriteExt, FutureExt};
     use lightning_invoice::{Invoice, ParseOrSemanticError};
     use std::io;
     use std::path::PathBuf;
@@ -3239,12 +3240,12 @@ pub trait MmCoin:
 
     /// Loads existing tx history from file, returns empty vector if file is not found
     /// Cleans the existing file if deserialization fails
-    fn load_history_from_file(&self, ctx: &MmArc) -> TxHistoryFut<Vec<TransactionDetails>> {
-        load_history_from_file_impl(self, ctx)
+    async fn load_history_from_file(&self, ctx: &MmArc) -> TxHistoryResult<Vec<TransactionDetails>> {
+        load_history_from_file_impl(self, ctx).await
     }
 
-    fn save_history_to_file(&self, ctx: &MmArc, history: Vec<TransactionDetails>) -> TxHistoryFut<()> {
-        save_history_to_file_impl(self, ctx, history)
+    async fn save_history_to_file(&self, ctx: &MmArc, history: Vec<TransactionDetails>) -> TxHistoryResult<()> {
+        save_history_to_file_impl(self, ctx, history).await
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -4812,7 +4813,7 @@ pub async fn my_tx_history(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, S
         Err(err) => return ERR!("!lp_coinfind({}): {}", request.coin, err),
     };
 
-    let history = try_s!(coin.load_history_from_file(&ctx).compat().await);
+    let history = try_s!(coin.load_history_from_file(&ctx).await);
     let total_records = history.len();
     let limit = if request.max { total_records } else { request.limit };
 
@@ -5104,40 +5105,37 @@ pub fn address_by_coin_conf_and_pubkey_str(
 }
 
 #[cfg(target_arch = "wasm32")]
-fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryFut<Vec<TransactionDetails>>
+async fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryResult<Vec<TransactionDetails>>
 where
     T: MmCoin + ?Sized,
 {
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
-    let my_address = try_f!(coin.my_address());
-    let db_id = coin.account_db_id();
+    let my_address = coin.my_address()?;
+    let db_id = coin.account_db_id().await;
+    let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
 
-    let fut = async move {
-        let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
-        let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
-        let err = match load_tx_history(&db, &ticker, &my_address).await {
-            Ok(history) => return Ok(history),
-            Err(e) => e,
-        };
-
-        if let TxHistoryError::ErrorDeserializing(e) = err.get_inner() {
-            ctx.log.log(
-                "🌋",
-                &[&"tx_history", &ticker.to_owned()],
-                &ERRL!("Error {} on history deserialization, resetting the cache.", e),
-            );
-            clear_tx_history(&db, &ticker, &my_address).await?;
-            return Ok(Vec::new());
-        }
-
-        Err(err)
+    let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
+    let err = match load_tx_history(&db, &ticker, &my_address).await {
+        Ok(history) => return Ok(history),
+        Err(e) => e,
     };
-    Box::new(fut.boxed().compat())
+
+    if let TxHistoryError::ErrorDeserializing(e) = err.get_inner() {
+        ctx.log.log(
+            "🌋",
+            &[&"tx_history", &ticker.to_owned()],
+            &ERRL!("Error {} on history deserialization, resetting the cache.", e),
+        );
+        clear_tx_history(&db, &ticker, &my_address).await?;
+        return Ok(Vec::new());
+    }
+
+    Err(err)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryFut<Vec<TransactionDetails>>
+async fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryResult<Vec<TransactionDetails>>
 where
     T: MmCoin + ?Sized,
 {
@@ -5145,7 +5143,7 @@ where
     let history_path = coin.tx_history_path(ctx);
     let ctx = ctx.clone();
 
-    let fut = async move {
+    async move {
         let content = match fs::read(&history_path).await {
             Ok(content) => content,
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
@@ -5174,29 +5172,31 @@ where
             .await
             .map_to_mm(|e| TxHistoryError::ErrorClearing(e.to_string()))?;
         Ok(Vec::new())
-    };
-    Box::new(fut.boxed().compat())
+    }
+    .await
 }
 
 #[cfg(target_arch = "wasm32")]
-fn save_history_to_file_impl<T>(coin: &T, ctx: &MmArc, mut history: Vec<TransactionDetails>) -> TxHistoryFut<()>
+async fn save_history_to_file_impl<T>(
+    coin: &T,
+    ctx: &MmArc,
+    mut history: Vec<TransactionDetails>,
+) -> TxHistoryResult<()>
 where
     T: MmCoin + MarketCoinOps + ?Sized,
 {
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
-    let my_address = try_f!(coin.my_address());
-    let db_id = coin.account_db_id();
+    let my_address = coin.my_address()?;
 
     history.sort_unstable_by(compare_transaction_details);
 
-    let fut = async move {
-        let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
-        let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
-        save_tx_history(&db, &ticker, &my_address, history).await?;
-        Ok(())
-    };
-    Box::new(fut.boxed().compat())
+    let db_id = coin.account_db_id().await;
+    let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
+    let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
+    save_tx_history(&db, &ticker, &my_address, history).await?;
+
+    Ok(())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -5255,7 +5255,11 @@ where
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn save_history_to_file_impl<T>(coin: &T, ctx: &MmArc, mut history: Vec<TransactionDetails>) -> TxHistoryFut<()>
+async fn save_history_to_file_impl<T>(
+    coin: &T,
+    ctx: &MmArc,
+    mut history: Vec<TransactionDetails>,
+) -> TxHistoryResult<()>
 where
     T: MmCoin + MarketCoinOps + ?Sized,
 {
@@ -5264,7 +5268,7 @@ where
 
     history.sort_unstable_by(compare_transaction_details);
 
-    let fut = async move {
+    async move {
         let content = json::to_vec(&history).map_to_mm(|e| TxHistoryError::ErrorSerializing(e.to_string()))?;
 
         let fs_fut = async {
@@ -5280,9 +5284,10 @@ where
             let error = format!("Error '{}' creating/writing/renaming the tmp file {}", e, tmp_file);
             return MmError::err(TxHistoryError::ErrorSaving(error));
         }
+
         Ok(())
-    };
-    Box::new(fut.boxed().compat())
+    }
+    .await
 }
 
 pub(crate) fn compare_transaction_details(a: &TransactionDetails, b: &TransactionDetails) -> Ordering {

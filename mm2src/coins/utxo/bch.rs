@@ -1358,6 +1358,8 @@ impl MmCoin for BchCoin {
             tokens.remove(ticker);
         };
     }
+
+    async fn account_db_id(&self) -> Option<String> { utxo_common::account_db_id(self.clone()).await }
 }
 
 #[async_trait]

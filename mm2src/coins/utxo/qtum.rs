@@ -73,6 +73,7 @@ impl From<ScriptHashTypeNotSupported> for WithdrawError {
 }
 
 #[path = "qtum_delegation.rs"] mod qtum_delegation;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "format")]
 pub enum QtumAddressFormat {
@@ -978,6 +979,8 @@ impl MmCoin for QtumCoin {
     fn on_disabled(&self) -> Result<(), AbortedError> { AbortableSystem::abort_all(&self.as_ref().abortable_system) }
 
     fn on_token_deactivated(&self, _ticker: &str) {}
+
+    async fn account_db_id(&self) -> Option<String> { utxo_common::account_db_id(self.clone()).await }
 }
 
 #[async_trait]

@@ -2119,7 +2119,7 @@ pub fn watcher_validate_taker_fee<T: UtxoCommonOps>(
                     return MmError::err(ValidatePaymentError::WrongPaymentTx(format!(
                         "Provided dex fee tx {:?} does not have output {}",
                         taker_fee_tx, output_index
-                    )))
+                    )));
                 },
             }
 
@@ -2207,7 +2207,7 @@ pub fn validate_fee<T: UtxoCommonOps>(
                 return MmError::err(ValidatePaymentError::WrongPaymentTx(format!(
                     "Provided dex fee tx {:?} does not have output {}",
                     tx, output_index
-                )))
+                )));
             },
         }
 
@@ -2234,7 +2234,7 @@ pub fn validate_fee<T: UtxoCommonOps>(
                     return MmError::err(ValidatePaymentError::WrongPaymentTx(format!(
                         "Provided burn tx output {:?} does not have output {}",
                         tx, output_index
-                    )))
+                    )));
                 },
             }
         }
@@ -2308,7 +2308,7 @@ pub fn watcher_validate_taker_payment<T: UtxoCommonOps + SwapOps>(
             None => {
                 return MmError::err(ValidatePaymentError::WrongPaymentTx(
                     "Payment tx has no outputs".to_string(),
-                ))
+                ));
             },
         };
 
@@ -2323,7 +2323,7 @@ pub fn watcher_validate_taker_payment<T: UtxoCommonOps + SwapOps>(
             None => {
                 return MmError::err(ValidatePaymentError::WrongPaymentTx(
                     "Taker payment refund tx has no inputs".to_string(),
-                ))
+                ));
             },
         };
 
@@ -2546,7 +2546,7 @@ pub async fn get_taker_watcher_reward<T: UtxoCommonOps + SwapOps + MarketCoinOps
             return Err(WatcherRewardError::InvalidCoinType(
                 "At least one coin must be Ethereum to use watcher rewards".to_string(),
             )
-            .into())
+            .into());
         },
     };
 
@@ -3095,7 +3095,7 @@ pub fn validate_address<T: UtxoCommonOps>(coin: &T, address: &str) -> ValidateAd
             return ValidateAddressResult {
                 is_valid: false,
                 reason: Some(e.to_string()),
-            }
+            };
         },
     };
 
@@ -3124,7 +3124,7 @@ where
     T: UtxoStandardOps + UtxoCommonOps + MmCoin + MarketCoinOps,
 {
     const MIGRATION_NUMBER: u64 = 1;
-    let history = match coin.load_history_from_file(ctx).compat().await {
+    let history = match coin.load_history_from_file(ctx).await {
         Ok(history) => history,
         Err(e) => {
             log_tag!(
@@ -3155,7 +3155,7 @@ where
         .collect();
 
     if updated {
-        if let Err(e) = coin.save_history_to_file(ctx, to_write).compat().await {
+        if let Err(e) = coin.save_history_to_file(ctx, to_write).await {
             log_tag!(
                 ctx,
                 "",
@@ -3197,7 +3197,7 @@ where
     migrate_tx_history(&coin, &ctx).await;
 
     let mut my_balance: Option<CoinBalance> = None;
-    let history = match coin.load_history_from_file(&ctx).compat().await {
+    let history = match coin.load_history_from_file(&ctx).await {
         Ok(history) => history,
         Err(e) => {
             log_tag!(
@@ -3304,7 +3304,7 @@ where
 
         if history_map.len() < history_length {
             let to_write: Vec<TransactionDetails> = history_map.values().cloned().collect();
-            if let Err(e) = coin.save_history_to_file(&ctx, to_write).compat().await {
+            if let Err(e) = coin.save_history_to_file(&ctx, to_write).await {
                 log_tag!(
                     ctx,
                     "",
@@ -3390,7 +3390,7 @@ where
             }
             if updated {
                 let to_write: Vec<TransactionDetails> = history_map.values().cloned().collect();
-                if let Err(e) = coin.save_history_to_file(&ctx, to_write).compat().await {
+                if let Err(e) = coin.save_history_to_file(&ctx, to_write).await {
                     log_tag!(
                         ctx,
                         "",
@@ -3430,7 +3430,7 @@ where
             return RequestTxHistoryResult::CriticalError(ERRL!(
                 "Error on getting self address: {}. Stop tx history",
                 e
-            ))
+            ));
         },
     };
 
@@ -4308,7 +4308,7 @@ pub async fn validate_payment<'a, T: UtxoCommonOps>(
         None => {
             return MmError::err(ValidatePaymentError::WrongPaymentTx(
                 "Payment tx has no outputs".to_string(),
-            ))
+            ));
         },
     };
 
@@ -5125,6 +5125,17 @@ where
     try_tx_s!(tx_fut.await, transaction);
 
     Ok(transaction)
+}
+
+pub async fn account_db_id<Coin>(coin: Coin) -> Option<String>
+where
+    Coin: CoinWithDerivationMethod + HDWalletCoinOps<HDWallet = UtxoHDWallet> + HDCoinWithdrawOps + UtxoCommonOps,
+{
+    let derivation = coin.derivation_method();
+    derivation
+        .single_addr()
+        .await
+        .map(|addr| hex::encode(addr.hash().to_vec()))
 }
 
 #[test]
