@@ -325,6 +325,15 @@ pub fn init_swap_contract_addresses() -> SwapAddressesWrapper {
     }
 }
 
+pub fn init_watchers_swap_contract() -> SwapAddressesWrapper {
+    SwapAddressesWrapper {
+        swap_contract_address: watchers_swap_contract(),
+        maker_swap_v2_contract: maker_swap_v2(),
+        taker_swap_v2_contract: taker_swap_v2(),
+        nft_maker_swap_v2_contract: geth_nft_maker_swap_v2(),
+    }
+}
+
 /// Creates ETH protocol coin supplied with 100 ETH, using the default GETH_RPC_URL
 pub fn eth_coin_with_random_privkey(swap_addresses: SwapAddressesWrapper) -> EthCoin {
     eth_coin_with_random_privkey_using_urls(swap_addresses, &[GETH_RPC_URL])

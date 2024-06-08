@@ -1,6 +1,6 @@
 use crate::docker_tests::docker_tests_common::GETH_RPC_URL;
 use crate::docker_tests::eth_docker_tests::{erc20_coin_with_random_privkey, erc20_contract_checksum,
-                                            eth_coin_with_random_privkey, init_swap_contract_addresses,
+                                            eth_coin_with_random_privkey, init_watchers_swap_contract,
                                             watchers_swap_contract};
 use crate::integration_tests_common::*;
 use crate::{generate_utxo_coin_with_privkey, generate_utxo_coin_with_random_privkey, random_secp256k1_secret};
@@ -764,9 +764,9 @@ fn test_watcher_spends_maker_payment_utxo_utxo() {
 
 #[test]
 fn test_watcher_spends_maker_payment_utxo_eth() {
-    let alice_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "ETH",
@@ -793,9 +793,9 @@ fn test_watcher_spends_maker_payment_utxo_eth() {
 
 #[test]
 fn test_watcher_spends_maker_payment_eth_utxo() {
-    let alice_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "MYCOIN",
@@ -835,9 +835,9 @@ fn test_watcher_spends_maker_payment_eth_utxo() {
 
 #[test]
 fn test_watcher_spends_maker_payment_eth_erc20() {
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "ERC20DEV",
@@ -868,9 +868,9 @@ fn test_watcher_spends_maker_payment_eth_erc20() {
 
 #[test]
 fn test_watcher_spends_maker_payment_erc20_eth() {
-    let alice_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "ETH",
@@ -898,9 +898,9 @@ fn test_watcher_spends_maker_payment_erc20_eth() {
 
 #[test]
 fn test_watcher_spends_maker_payment_utxo_erc20() {
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "ERC20DEV",
@@ -931,9 +931,9 @@ fn test_watcher_spends_maker_payment_utxo_erc20() {
 
 #[test]
 fn test_watcher_spends_maker_payment_erc20_utxo() {
-    let alice_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "MYCOIN",
@@ -1010,9 +1010,9 @@ fn test_watcher_refunds_taker_payment_utxo() {
 
 #[test]
 fn test_watcher_refunds_taker_payment_eth() {
-    let alice_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "ETH",
@@ -1033,9 +1033,9 @@ fn test_watcher_refunds_taker_payment_eth() {
 
 #[test]
 fn test_watcher_refunds_taker_payment_erc20() {
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let balances = start_swaps_and_get_balances(
         "ERC20DEV",
@@ -1088,9 +1088,9 @@ fn test_watcher_waits_for_taker_utxo() {
 
 #[test]
 fn test_watcher_waits_for_taker_eth() {
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let bob_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
-    let watcher_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let alice_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
+    let bob_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
+    let watcher_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     start_swaps_and_get_balances(
         "ERC20DEV",
@@ -1329,7 +1329,7 @@ fn test_watcher_validate_taker_fee_eth() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
     let lock_duration = get_payment_locktime();
 
-    let taker_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pubkey = taker_keypair.public();
 
@@ -1436,7 +1436,7 @@ fn test_watcher_validate_taker_fee_erc20() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
     let lock_duration = get_payment_locktime();
 
-    let taker_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pubkey = taker_keypair.public();
 
@@ -1753,7 +1753,7 @@ fn test_watcher_validate_taker_payment_utxo() {
 fn test_watcher_validate_taker_payment_eth() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
 
-    let taker_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pub = taker_keypair.public();
 
@@ -1996,7 +1996,7 @@ fn test_watcher_validate_taker_payment_eth() {
 fn test_watcher_validate_taker_payment_erc20() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
 
-    let taker_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pub = taker_keypair.public();
 
@@ -2324,11 +2324,11 @@ fn test_taker_validates_taker_payment_refund_utxo() {
 fn test_taker_validates_taker_payment_refund_eth() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
 
-    let taker_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pub = taker_keypair.public();
 
-    let maker_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let maker_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
     let maker_keypair = maker_coin.derive_htlc_key_pair(&[]);
     let maker_pub = maker_keypair.public();
 
@@ -2645,7 +2645,7 @@ fn test_taker_validates_taker_payment_refund_eth() {
 fn test_taker_validates_taker_payment_refund_erc20() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
 
-    let taker_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pub = taker_keypair.public();
 
@@ -2854,11 +2854,11 @@ fn test_taker_validates_maker_payment_spend_utxo() {
 fn test_taker_validates_maker_payment_spend_eth() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
 
-    let taker_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pub = taker_keypair.public();
 
-    let maker_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let maker_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
     let maker_keypair = maker_coin.derive_htlc_key_pair(&[]);
     let maker_pub = maker_keypair.public();
 
@@ -3184,11 +3184,11 @@ fn test_taker_validates_maker_payment_spend_eth() {
 fn test_taker_validates_maker_payment_spend_erc20() {
     let timeout = wait_until_sec(120); // timeout if test takes more than 120 seconds to run
 
-    let taker_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let taker_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
     let taker_keypair = taker_coin.derive_htlc_key_pair(&[]);
     let taker_pub = taker_keypair.public();
 
-    let maker_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let maker_coin = erc20_coin_with_random_privkey(init_watchers_swap_contract());
     let maker_keypair = maker_coin.derive_htlc_key_pair(&[]);
     let maker_pub = maker_keypair.public();
 
@@ -3390,7 +3390,7 @@ fn test_send_taker_payment_refund_preimage_utxo() {
 fn test_watcher_reward() {
     let timeout = wait_until_sec(300); // timeout if test takes more than 300 seconds to run
     let (_ctx, utxo_coin, _) = generate_utxo_coin_with_random_privkey("MYCOIN", 1000u64.into());
-    let eth_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
+    let eth_coin = eth_coin_with_random_privkey(init_watchers_swap_contract());
 
     let watcher_reward =
         block_on(eth_coin.get_taker_watcher_reward(&MmCoinEnum::EthCoin(eth_coin.clone()), None, None, None, timeout))
