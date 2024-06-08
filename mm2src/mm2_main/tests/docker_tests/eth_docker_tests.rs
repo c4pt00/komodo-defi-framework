@@ -283,7 +283,6 @@ pub fn eth_coin_with_random_privkey_using_urls(swap_addresses: SwapAddressesWrap
         "swap_contract_address": swap_addresses.swap_contract_address,
         "maker_swap_v2_contract": swap_addresses.maker_swap_v2_contract,
         "taker_swap_v2_contract": swap_addresses.taker_swap_v2_contract,
-        "nft_maker_swap_v2_contract": swap_addresses.nft_maker_swap_v2_contract,
         "urls": urls,
     });
 
@@ -340,7 +339,6 @@ pub fn erc20_coin_with_random_privkey(swap_addresses: SwapAddressesWrapper) -> E
         "swap_contract_address": swap_addresses.swap_contract_address,
         "maker_swap_v2_contract": swap_addresses.maker_swap_v2_contract,
         "taker_swap_v2_contract": swap_addresses.taker_swap_v2_contract,
-        "nft_maker_swap_v2_contract": swap_addresses.nft_maker_swap_v2_contract,
         "urls": [GETH_RPC_URL],
     });
 
@@ -545,7 +543,6 @@ pub fn fill_eth_erc20_with_private_key(priv_key: Secp256k1Secret) {
         "swap_contract_address": swap_contract(),
         "maker_swap_v2_contract": maker_swap_v2(),
         "taker_swap_v2_contract": taker_swap_v2(),
-        "nft_maker_swap_v2_contract": geth_nft_maker_swap_v2(),
     });
 
     let eth_coin = block_on(eth_coin_from_conf_and_request(
@@ -570,7 +567,6 @@ pub fn fill_eth_erc20_with_private_key(priv_key: Secp256k1Secret) {
         "swap_contract_address": swap_contract(),
         "maker_swap_v2_contract": maker_swap_v2(),
         "taker_swap_v2_contract": taker_swap_v2(),
-        "nft_maker_swap_v2_contract": geth_nft_maker_swap_v2(),
     });
 
     let _erc20_coin = block_on(eth_coin_from_conf_and_request(
