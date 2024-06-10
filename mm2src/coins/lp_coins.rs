@@ -5111,14 +5111,17 @@ pub fn address_by_coin_conf_and_pubkey_str(
 }
 
 #[cfg(target_arch = "wasm32")]
-async fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryResult<Vec<TransactionDetails>>
+async fn load_history_from_file_impl<T>(
+    coin: &T,
+    ctx: &MmArc,
+    db_id: Option<&str>,
+) -> TxHistoryResult<Vec<TransactionDetails>>
 where
     T: MmCoin + ?Sized,
 {
     let ctx = ctx.clone();
     let ticker = coin.ticker().to_owned();
     let my_address = coin.my_address()?;
-    let db_id = coin.account_db_id().await;
     let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
 
     let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
