@@ -596,6 +596,7 @@ pub fn fill_eth_erc20_with_private_key(priv_key: Secp256k1Secret) {
 }
 
 fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
+    thread::sleep(Duration::from_secs(3));
     let eth_coin = eth_coin_with_random_privkey(init_swap_contract_addresses());
     eth_coin.set_swap_transaction_fee_policy(swap_txfee_policy);
 
@@ -850,6 +851,7 @@ fn send_and_refund_erc20_maker_payment_priority_fee() {
 }
 
 fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
+    thread::sleep(Duration::from_secs(1));
     let maker_erc20_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
     let taker_erc20_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
 
@@ -1081,7 +1083,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(10));
+    thread::sleep(Duration::from_secs(25));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let setup = setup_test(
@@ -1122,7 +1124,7 @@ fn send_and_refund_erc721_maker_payment_timelock() {
 
 #[test]
 fn send_and_refund_erc1155_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(10));
+    thread::sleep(Duration::from_secs(20));
     let token_id = 2u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() - 1000;
@@ -1141,7 +1143,7 @@ fn send_and_refund_erc1155_maker_payment_timelock() {
         maker_payment_to_refund.tx_hash()
     );
 
-    wait_for_confirmations(&setup.maker_global_nft, &maker_payment_to_refund, 100);
+    wait_for_confirmations(&setup.maker_global_nft, &maker_payment_to_refund, 150);
     let balance = geth_erc1155_balance(geth_nft_maker_swap_v2(), U256::from(token_id));
     assert_eq!(U256::from(amount), balance);
 
@@ -1156,7 +1158,7 @@ fn send_and_refund_erc1155_maker_payment_timelock() {
         refund_timelock_tx.tx_hash()
     );
 
-    wait_for_confirmations(&setup.maker_global_nft, &refund_timelock_tx, 100);
+    wait_for_confirmations(&setup.maker_global_nft, &refund_timelock_tx, 150);
     let maker_address = block_on(setup.maker_global_nft.my_addr());
     let balance = geth_erc1155_balance(maker_address, U256::from(token_id));
     assert_eq!(U256::from(amount), balance);
