@@ -92,7 +92,6 @@ cfg_native! {
     use crate::lightning::ln_conf::PlatformCoinConfirmationTargets;
     use ::lightning::ln::PaymentHash as LightningPayment;
     use async_std::fs;
-    use common::block_on;
     use futures::{AsyncWriteExt, FutureExt};
     use lightning_invoice::{Invoice, ParseOrSemanticError};
     use std::io;
@@ -3214,34 +3213,36 @@ pub trait MmCoin:
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
-    fn tx_history_path(&self, ctx: &MmArc) -> PathBuf {
+    fn tx_history_path(&self, ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
         let my_address = self.my_address().unwrap_or_default();
         // BCH cash address format has colon after prefix, e.g. bitcoincash:
         // Colon can't be used in file names on Windows so it should be escaped
         let my_address = my_address.replace(':', "_");
-        let db_id = block_on(self.account_db_id());
-        ctx.dbdir(db_id.as_deref())
+        ctx.dbdir(db_id)
             .join("TRANSACTIONS")
             .join(format!("{}_{}.json", self.ticker(), my_address))
     }
 
     /// Path to tx history migration file
     #[cfg(not(target_arch = "wasm32"))]
-    fn tx_migration_path(&self, ctx: &MmArc) -> PathBuf {
+    fn tx_migration_path(&self, ctx: &MmArc, db_id: Option<&str>) -> PathBuf {
         let my_address = self.my_address().unwrap_or_default();
         // BCH cash address format has colon after prefix, e.g. bitcoincash:
         // Colon can't be used in file names on Windows so it should be escaped
         let my_address = my_address.replace(':', "_");
-        let db_id = block_on(self.account_db_id());
-        ctx.dbdir(db_id.as_deref())
+        ctx.dbdir(db_id)
             .join("TRANSACTIONS")
             .join(format!("{}_{}_migration", self.ticker(), my_address))
     }
 
     /// Loads existing tx history from file, returns empty vector if file is not found
     /// Cleans the existing file if deserialization fails
-    async fn load_history_from_file(&self, ctx: &MmArc) -> TxHistoryResult<Vec<TransactionDetails>> {
-        load_history_from_file_impl(self, ctx).await
+    async fn load_history_from_file(
+        &self,
+        ctx: &MmArc,
+        db_id: Option<&str>,
+    ) -> TxHistoryResult<Vec<TransactionDetails>> {
+        load_history_from_file_impl(self, ctx, db_id).await
     }
 
     async fn save_history_to_file(&self, ctx: &MmArc, history: Vec<TransactionDetails>) -> TxHistoryResult<()> {
@@ -3249,11 +3250,13 @@ pub trait MmCoin:
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn get_tx_history_migration(&self, ctx: &MmArc) -> TxHistoryFut<u64> { get_tx_history_migration_impl(self, ctx) }
+    fn get_tx_history_migration(&self, ctx: &MmArc, db_id: Option<&str>) -> TxHistoryFut<u64> {
+        get_tx_history_migration_impl(self, ctx, db_id)
+    }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn update_migration_file(&self, ctx: &MmArc, migration_number: u64) -> TxHistoryFut<()> {
-        update_migration_file_impl(self, ctx, migration_number)
+    fn update_migration_file(&self, ctx: &MmArc, migration_number: u64, db_id: Option<&str>) -> TxHistoryFut<()> {
+        update_migration_file_impl(self, ctx, migration_number, db_id)
     }
 
     /// Transaction history background sync status
@@ -4813,7 +4816,10 @@ pub async fn my_tx_history(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, S
         Err(err) => return ERR!("!lp_coinfind({}): {}", request.coin, err),
     };
 
-    let history = try_s!(coin.load_history_from_file(&ctx).await);
+    let history = try_s!(
+        coin.load_history_from_file(&ctx, coin.account_db_id().await.as_deref())
+            .await
+    );
     let total_records = history.len();
     let limit = if request.max { total_records } else { request.limit };
 
@@ -5135,12 +5141,16 @@ where
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn load_history_from_file_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryResult<Vec<TransactionDetails>>
+async fn load_history_from_file_impl<T>(
+    coin: &T,
+    ctx: &MmArc,
+    db_id: Option<&str>,
+) -> TxHistoryResult<Vec<TransactionDetails>>
 where
     T: MmCoin + ?Sized,
 {
     let ticker = coin.ticker().to_owned();
-    let history_path = coin.tx_history_path(ctx);
+    let history_path = coin.tx_history_path(ctx, db_id);
     let ctx = ctx.clone();
 
     async move {
@@ -5200,11 +5210,11 @@ where
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn get_tx_history_migration_impl<T>(coin: &T, ctx: &MmArc) -> TxHistoryFut<u64>
+fn get_tx_history_migration_impl<T>(coin: &T, ctx: &MmArc, db_id: Option<&str>) -> TxHistoryFut<u64>
 where
     T: MmCoin + MarketCoinOps + ?Sized,
 {
-    let migration_path = coin.tx_migration_path(ctx);
+    let migration_path = coin.tx_migration_path(ctx, db_id);
 
     let fut = async move {
         let current_migration = match fs::read(&migration_path).await {
@@ -5227,11 +5237,11 @@ where
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn update_migration_file_impl<T>(coin: &T, ctx: &MmArc, migration_number: u64) -> TxHistoryFut<()>
+fn update_migration_file_impl<T>(coin: &T, ctx: &MmArc, migration_number: u64, db_id: Option<&str>) -> TxHistoryFut<()>
 where
     T: MmCoin + MarketCoinOps + ?Sized,
 {
-    let migration_path = coin.tx_migration_path(ctx);
+    let migration_path = coin.tx_migration_path(ctx, db_id);
     let tmp_file = format!("{}.tmp", migration_path.display());
 
     let fut = async move {
@@ -5263,7 +5273,7 @@ async fn save_history_to_file_impl<T>(
 where
     T: MmCoin + MarketCoinOps + ?Sized,
 {
-    let history_path = coin.tx_history_path(ctx);
+    let history_path = coin.tx_history_path(ctx, coin.account_db_id().await.as_deref());
     let tmp_file = format!("{}.tmp", history_path.display());
 
     history.sort_unstable_by(compare_transaction_details);

@@ -197,6 +197,11 @@ impl SqliteConnPool {
         f(connection.try_lock().unwrap())
     }
 
+    pub fn add_test_db(&self, db_id: String) {
+        let mut connections = self.connections.write().unwrap();
+        connections.insert(db_id, Arc::new(Mutex::new(Connection::open_in_memory().unwrap())));
+    }
+
     /// Opens a database connection based on the database ID and connection kind.
     #[cfg(not(test))]
     fn open_connection(sqlite_file_path: PathBuf) -> Arc<Mutex<Connection>> {

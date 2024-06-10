@@ -3124,7 +3124,10 @@ where
     T: UtxoStandardOps + UtxoCommonOps + MmCoin + MarketCoinOps,
 {
     const MIGRATION_NUMBER: u64 = 1;
-    let history = match coin.load_history_from_file(ctx).await {
+    let history = match coin
+        .load_history_from_file(ctx, coin.account_db_id().await.as_deref())
+        .await
+    {
         Ok(history) => history,
         Err(e) => {
             log_tag!(
@@ -3166,7 +3169,11 @@ where
             return;
         };
     }
-    if let Err(e) = coin.update_migration_file(ctx, MIGRATION_NUMBER).compat().await {
+    if let Err(e) = coin
+        .update_migration_file(ctx, MIGRATION_NUMBER, coin.account_db_id().await.as_deref())
+        .compat()
+        .await
+    {
         log_tag!(
             ctx,
             "",
@@ -3182,7 +3189,11 @@ async fn migrate_tx_history<T>(coin: &T, ctx: &MmArc)
 where
     T: UtxoStandardOps + UtxoCommonOps + MmCoin + MarketCoinOps,
 {
-    let current_migration = coin.get_tx_history_migration(ctx).compat().await.unwrap_or(0);
+    let current_migration = coin
+        .get_tx_history_migration(ctx, coin.account_db_id().await.as_deref())
+        .compat()
+        .await
+        .unwrap_or(0);
     if current_migration < 1 {
         tx_history_migration_1(coin, ctx).await;
     }
@@ -3197,7 +3208,10 @@ where
     migrate_tx_history(&coin, &ctx).await;
 
     let mut my_balance: Option<CoinBalance> = None;
-    let history = match coin.load_history_from_file(&ctx).await {
+    let history = match coin
+        .load_history_from_file(&ctx, coin.account_db_id().await.as_deref())
+        .await
+    {
         Ok(history) => history,
         Err(e) => {
             log_tag!(
@@ -5133,7 +5147,7 @@ where
 {
     if let DerivationMethod::HDWallet(hd_wallet) = coin.derivation_method() {
         if let Some(addr) = hd_wallet.get_enabled_address().await {
-            return Some(hex::encode(addr.address().hash().to_vec()));
+            return Some(hex::encode(addr.pubkey().address_hash().as_slice()));
         }
     }
 

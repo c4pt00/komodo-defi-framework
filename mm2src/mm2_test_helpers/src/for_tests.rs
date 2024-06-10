@@ -2247,10 +2247,11 @@ pub async fn my_swap_status(mm: &MarketMakerIt, uuid: &str) -> Result<Json, Stri
 pub async fn wait_for_swap_status(mm: &MarketMakerIt, uuid: &str, wait_sec: i64) {
     let wait_until = get_utc_timestamp() + wait_sec;
     loop {
-        if my_swap_status(mm, uuid).await.is_ok() {
+        let swap_status = my_swap_status(mm, uuid).await;
+        if swap_status.is_ok() {
             break;
         }
-
+        println!("swap_statuss: {swap_status:?}");
         if get_utc_timestamp() > wait_until {
             panic!("Timed out waiting for swap {} status", uuid);
         }

@@ -2843,7 +2843,10 @@ impl EthCoin {
                 "blocks_left": saved_traces.earliest_block.as_u64(),
             }));
 
-            let mut existing_history = match self.load_history_from_file(ctx).await {
+            let mut existing_history = match self
+                .load_history_from_file(ctx, self.account_db_id().await.as_deref())
+                .await
+            {
                 Ok(history) => history,
                 Err(e) => {
                     ctx.log.log(
@@ -3355,7 +3358,10 @@ impl EthCoin {
             all_events.sort_by(|a, b| b.block_number.unwrap().cmp(&a.block_number.unwrap()));
 
             for event in all_events {
-                let mut existing_history = match self.load_history_from_file(ctx).await {
+                let mut existing_history = match self
+                    .load_history_from_file(ctx, self.account_db_id().await.as_deref())
+                    .await
+                {
                     Ok(history) => history,
                     Err(e) => {
                         ctx.log.log(

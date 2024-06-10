@@ -541,7 +541,9 @@ impl Qrc20Coin {
     }
 
     async fn try_load_history_from_file(&self, ctx: &MmArc) -> TxHistoryResult<HistoryMapByHash> {
-        let history = self.load_history_from_file(ctx).await?;
+        let history = self
+            .load_history_from_file(ctx, self.account_db_id().await.as_deref())
+            .await?;
         let mut history_map: HistoryMapByHash = HashMap::default();
 
         for tx in history {
