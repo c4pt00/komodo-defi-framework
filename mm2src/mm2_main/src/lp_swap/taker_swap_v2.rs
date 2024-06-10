@@ -1221,8 +1221,10 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
     async fn on_changed(self: Box<Self>, state_machine: &mut Self::StateMachine) -> StateResult<Self::StateMachine> {
         let args = SendTakerFundingArgs {
-            time_lock: state_machine.taker_funding_locktime(),
+            funding_time_lock: state_machine.taker_funding_locktime(),
+            payment_time_lock: state_machine.taker_payment_locktime(),
             taker_secret_hash: &state_machine.taker_secret_hash(),
+            maker_secret_hash: &self.negotiation_data.maker_secret_hash,
             maker_pub: &self.negotiation_data.taker_coin_htlc_pub_from_maker.to_bytes(),
             dex_fee: &state_machine.dex_fee,
             premium_amount: state_machine.taker_premium.to_decimal(),

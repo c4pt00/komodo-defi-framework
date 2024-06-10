@@ -159,6 +159,7 @@ mod eip1559_gas_fee;
 pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
 use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
                       InfuraGasApiCaller};
+mod eth_swap_v2;
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852
@@ -7047,4 +7048,101 @@ impl Eip1559Ops for EthCoin {
     fn set_swap_transaction_fee_policy(&self, swap_txfee_policy: SwapTxFeePolicy) {
         *self.swap_txfee_policy.lock().unwrap() = swap_txfee_policy
     }
+}
+
+#[async_trait]
+impl TakerCoinSwapOpsV2 for EthCoin {
+    async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        self.send_taker_funding_impl(args).await
+    }
+
+    async fn validate_taker_funding(&self, _args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
+        todo!()
+    }
+
+    async fn refund_taker_funding_timelock(&self, _args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn refund_taker_funding_secret(
+        &self,
+        _args: RefundFundingSecretArgs<'_, Self>,
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn search_for_taker_funding_spend(
+        &self,
+        _tx: &Self::Tx,
+        _from_block: u64,
+        _secret_hash: &[u8],
+    ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
+        todo!()
+    }
+
+    async fn gen_taker_funding_spend_preimage(
+        &self,
+        _args: &GenTakerFundingSpendArgs<'_, Self>,
+        _swap_unique_data: &[u8],
+    ) -> GenPreimageResult<Self> {
+        todo!()
+    }
+
+    async fn validate_taker_funding_spend_preimage(
+        &self,
+        _gen_args: &GenTakerFundingSpendArgs<'_, Self>,
+        _preimage: &TxPreimageWithSig<Self>,
+    ) -> ValidateTakerFundingSpendPreimageResult {
+        todo!()
+    }
+
+    async fn sign_and_send_taker_funding_spend(
+        &self,
+        _preimage: &TxPreimageWithSig<Self>,
+        _args: &GenTakerFundingSpendArgs<'_, Self>,
+        _swap_unique_data: &[u8],
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn refund_combined_taker_payment(&self, _args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn gen_taker_payment_spend_preimage(
+        &self,
+        _args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _swap_unique_data: &[u8],
+    ) -> GenPreimageResult<Self> {
+        todo!()
+    }
+
+    async fn validate_taker_payment_spend_preimage(
+        &self,
+        _gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _preimage: &TxPreimageWithSig<Self>,
+    ) -> ValidateTakerPaymentSpendPreimageResult {
+        todo!()
+    }
+
+    async fn sign_and_broadcast_taker_payment_spend(
+        &self,
+        _preimage: &TxPreimageWithSig<Self>,
+        _gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _secret: &[u8],
+        _swap_unique_data: &[u8],
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn wait_for_taker_payment_spend(
+        &self,
+        _taker_payment: &Self::Tx,
+        _from_block: u64,
+        _wait_until: u64,
+    ) -> MmResult<Self::Tx, WaitForTakerPaymentSpendError> {
+        todo!()
+    }
+
+    fn derive_htlc_pubkey_v2(&self, _swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
 }
