@@ -5734,13 +5734,11 @@ impl MmCoin for EthCoin {
 
     async fn account_db_id(&self) -> Option<String> {
         let derivation_method = &self.deref().derivation_method;
-        match derivation_method.as_ref() {
-            DerivationMethod::SingleAddress(single) => return Some(hex::encode(single.as_bytes())),
-            DerivationMethod::HDWallet(hd_wallet) => {
-                if let Some(addr) = hd_wallet.get_enabled_address().await {
-                    return Some(hex::encode(addr.address.as_bytes()));
-                }
-            },
+        if let DerivationMethod::HDWallet(hd_wallet) = derivation_method.as_ref() {
+            if let Some(addr) = hd_wallet.get_enabled_address().await {
+                let addr = dhash160(addr.address.as_bytes());
+                return Some(hex::encode(addr));
+            }
         }
 
         None

@@ -5131,11 +5131,13 @@ pub async fn account_db_id<Coin>(coin: Coin) -> Option<String>
 where
     Coin: CoinWithDerivationMethod + HDWalletCoinOps<HDWallet = UtxoHDWallet> + HDCoinWithdrawOps + UtxoCommonOps,
 {
-    let derivation = coin.derivation_method();
-    derivation
-        .single_addr()
-        .await
-        .map(|addr| hex::encode(addr.hash().to_vec()))
+    if let DerivationMethod::HDWallet(hd_wallet) = coin.derivation_method() {
+        if let Some(addr) = hd_wallet.get_enabled_address().await {
+            return Some(hex::encode(addr.address().hash().to_vec()));
+        }
+    }
+
+    None
 }
 
 #[test]

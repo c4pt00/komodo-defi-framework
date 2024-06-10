@@ -1,6 +1,6 @@
 use crate::mm_ctx::{log_sqlite_file_open_attempt, path_to_dbdir, MmCtx};
 use async_std::sync::RwLock as AsyncRwLock;
-use common::log::error;
+use common::log::{error, info};
 use db_common::async_sql_conn::AsyncConnection;
 use db_common::sqlite::rusqlite::Connection;
 use futures::channel::mpsc::{channel, Receiver, Sender};
@@ -29,7 +29,7 @@ pub struct SqliteConnPool {
     rmd160_hex: String,
     // default shared_db_id
     shared_db_id: H160,
-    db_dir: String,
+    db_root: Option<String>,
 }
 
 impl SqliteConnPool {
@@ -68,11 +68,12 @@ impl SqliteConnPool {
         // Connection pool is not already initialized, create new connection pool.
         let conn = Self::open_connection(sqlite_file_path);
         let connections = Arc::new(RwLock::new(HashMap::from([(db_id, conn)])));
+        let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
             rmd160_hex: ctx.rmd160_hex(),
             shared_db_id: *ctx.shared_db_id(),
-            db_dir: ctx.conf["dbdir"].to_string()
+            db_root: db_root.map(|d| d.to_owned())
         }));
 
         Ok(())
@@ -102,11 +103,12 @@ impl SqliteConnPool {
 
         let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
         let connections = Arc::new(RwLock::new(HashMap::from([(db_id, connection)])));
+        let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
             rmd160_hex: ctx.rmd160_hex(),
             shared_db_id: *ctx.shared_db_id(),
-            db_dir: ctx.conf["dbdir"].to_string()
+            db_root: db_root.map(|d| d.to_owned())
         }));
 
         Ok(())
@@ -137,10 +139,10 @@ impl SqliteConnPool {
         drop(connections);
 
         let mut connections = self.connections.write().unwrap();
-        let sqlite_file_path = match db_id_conn_kind {
-            DbIdConnKind::Shared => self.db_dir(&db_id).join(SQLITE_SHARED_DB_ID),
-            DbIdConnKind::Single => self.db_dir(&db_id).join(SYNC_SQLITE_DB_ID),
-        };
+        let sqlite_file_path = self.db_dir(&db_id).join(match db_id_conn_kind {
+            DbIdConnKind::Shared => SQLITE_SHARED_DB_ID,
+            DbIdConnKind::Single => SYNC_SQLITE_DB_ID,
+        });
         let connection = Self::open_connection(sqlite_file_path);
         connections.insert(db_id, Arc::clone(&connection));
 
@@ -149,27 +151,27 @@ impl SqliteConnPool {
 
     /// Retrieves a single-user connection from the pool.
     pub fn run_sql_query<F, R>(&self, db_id: Option<&str>, f: F) -> R
-    where
-        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-        R: Send + 'static,
+        where
+            F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+            R: Send + 'static,
     {
         self.run_sql_query_impl(db_id, DbIdConnKind::Single, f)
     }
 
     /// Retrieves a shared connection from the pool.
     pub fn run_sql_query_shared<F, R>(&self, db_id: Option<&str>, f: F) -> R
-    where
-        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-        R: Send + 'static,
+        where
+            F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+            R: Send + 'static,
     {
         self.run_sql_query_impl(db_id, DbIdConnKind::Shared, f)
     }
 
-    /// Internal implementation to retrieve or create a connection.
+    /// Internal run a sql query.
     fn run_sql_query_impl<F, R>(&self, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind, f: F) -> R
-    where
-        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-        R: Send + 'static,
+        where
+            F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+            R: Send + 'static,
     {
         let db_id_default = match db_id_conn_kind {
             DbIdConnKind::Shared => hex::encode(self.shared_db_id.as_slice()),
@@ -182,19 +184,21 @@ impl SqliteConnPool {
             let conn = connection.lock().unwrap();
             return f(conn);
         }
+        drop(connections);
 
+        let sqlite_file_path = self.db_dir(&db_id).join(match db_id_conn_kind {
+            DbIdConnKind::Shared => SQLITE_SHARED_DB_ID,
+            DbIdConnKind::Single => SYNC_SQLITE_DB_ID,
+        });
         let mut connections = self.connections.write().unwrap();
-        let sqlite_file_path = match db_id_conn_kind {
-            DbIdConnKind::Shared => self.db_dir(&db_id).join(SQLITE_SHARED_DB_ID),
-            DbIdConnKind::Single => self.db_dir(&db_id).join(SYNC_SQLITE_DB_ID),
-        };
         let connection = Self::open_connection(sqlite_file_path);
         connections.insert(db_id, Arc::clone(&connection));
-        let conn = connection.lock().unwrap();
-        f(conn)
+
+        f(connection.try_lock().unwrap())
     }
 
     /// Opens a database connection based on the database ID and connection kind.
+    #[cfg(not(test))]
     fn open_connection(sqlite_file_path: PathBuf) -> Arc<Mutex<Connection>> {
         log_sqlite_file_open_attempt(&sqlite_file_path);
         Arc::new(Mutex::new(
@@ -202,7 +206,13 @@ impl SqliteConnPool {
         ))
     }
 
-    fn db_dir(&self, db_id: &str) -> PathBuf { path_to_dbdir(Some(&self.db_dir), db_id) }
+    /// Opens a database connection based on the database ID and connection kind.
+    #[cfg(test)]
+    fn open_connection(_sqlite_file_path: PathBuf) -> Arc<Mutex<Connection>> {
+        Arc::new(Mutex::new(Connection::open_in_memory().unwrap()))
+    }
+
+    fn db_dir(&self, db_id: &str) -> PathBuf { path_to_dbdir(self.db_root.as_deref(), db_id) }
 }
 
 /// A pool for managing async SQLite connections, where each connection is keyed by a unique string identifier.
@@ -303,6 +313,7 @@ pub struct DbIds {
     pub db_id: String,
     pub shared_db_id: String,
 }
+
 pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<DbIds>>>;
 pub type DbMigrationSender = Arc<AsyncMutex<Sender<DbIds>>>;
 

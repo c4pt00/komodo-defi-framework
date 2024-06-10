@@ -6,9 +6,14 @@ use crate::nft::nft_errors::{GetNftInfoError, ParseChainTypeError};
 use crate::nft::nft_structs::Chain;
 #[cfg(target_arch = "wasm32")] use crate::EthMetamaskPolicy;
 use common::executor::AbortedError;
+#[cfg(not(target_arch = "wasm32"))]
+use crypto::shared_db_id::shared_db_id_from_seed;
 use crypto::{trezor::TrezorError, Bip32Error, CryptoCtxError, HwError};
 use enum_derives::EnumFromTrait;
+#[cfg(not(target_arch = "wasm32"))] use futures::SinkExt;
 use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use mm2_core::sql_connection_pool::DbIds;
 use mm2_err_handle::common_errors::WithInternal;
 #[cfg(target_arch = "wasm32")]
 use mm2_metamask::{from_metamask_error, MetamaskError, MetamaskRpcError, WithMetamaskRpcError};
@@ -540,6 +545,7 @@ pub async fn eth_coin_from_conf_and_request_v2(
         ) => {
             let auth_address = key_pair.address();
             let auth_address_str = display_eth_address(&auth_address);
+            // TODO: send migration request.
             build_web3_instances(ctx, ticker.to_string(), auth_address_str, key_pair, req.nodes.clone()).await?
         },
         (EthRpcMode::Default, EthPrivKeyPolicy::Trezor) => {
@@ -682,6 +688,10 @@ pub(crate) async fn build_address_and_priv_key_policy(
                 enabled_address: *path_to_address,
                 gap_limit,
             };
+
+            #[cfg(not(target_arch = "wasm32"))]
+            run_db_migraiton_for_new_eth_pubkey(ctx, &activated_key).await?;
+
             let derivation_method = DerivationMethod::HDWallet(hd_wallet);
             Ok((
                 EthPrivKeyPolicy::HDWallet {
@@ -921,4 +931,32 @@ fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Erro
         .map_to_mm(|e| EthActivationV2Error::InternalError(e.to_string()))?;
     let compressed = public_key.serialize();
     Ok(H264::from(compressed))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn run_db_migraiton_for_new_eth_pubkey(ctx: &MmArc, pubkey: &KeyPair) -> MmResult<(), EthActivationV2Error> {
+    let db_id = hex::encode(pubkey.address().to_bytes());
+    let shared_db_id = shared_db_id_from_seed(&db_id)
+        .mm_err(|err| EthActivationV2Error::InternalError(err.to_string()))?
+        .to_string();
+
+    let db_migration_sender = ctx
+        .db_migration_watcher
+        .as_option()
+        .expect("Db migration watcher isn't intialized yet!")
+        .get_sender()
+        .await;
+    let mut db_migration_sender = db_migration_sender.lock().await;
+    db_migration_sender
+        .send(DbIds {
+            db_id: db_id.clone(),
+            shared_db_id: shared_db_id.clone(),
+        })
+        .await
+        .map_to_mm(|err| EthActivationV2Error::InternalError(err.to_string()))?;
+
+    debug!("Public key hash: {db_id}");
+    debug!("Shared Database ID: {shared_db_id}");
+
+    Ok(())
 }
