@@ -1,6 +1,6 @@
 use crate::mm_ctx::{log_sqlite_file_open_attempt, path_to_dbdir, MmCtx};
 use async_std::sync::RwLock as AsyncRwLock;
-use common::log::{error, info};
+use common::log::error;
 use db_common::async_sql_conn::AsyncConnection;
 use db_common::sqlite::rusqlite::Connection;
 use futures::channel::mpsc::{channel, Receiver, Sender};
@@ -151,27 +151,27 @@ impl SqliteConnPool {
 
     /// Retrieves a single-user connection from the pool.
     pub fn run_sql_query<F, R>(&self, db_id: Option<&str>, f: F) -> R
-        where
-            F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-            R: Send + 'static,
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
     {
         self.run_sql_query_impl(db_id, DbIdConnKind::Single, f)
     }
 
     /// Retrieves a shared connection from the pool.
     pub fn run_sql_query_shared<F, R>(&self, db_id: Option<&str>, f: F) -> R
-        where
-            F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-            R: Send + 'static,
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
     {
         self.run_sql_query_impl(db_id, DbIdConnKind::Shared, f)
     }
 
     /// Internal run a sql query.
     fn run_sql_query_impl<F, R>(&self, db_id: Option<&str>, db_id_conn_kind: DbIdConnKind, f: F) -> R
-        where
-            F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-            R: Send + 'static,
+    where
+        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
+        R: Send + 'static,
     {
         let db_id_default = match db_id_conn_kind {
             DbIdConnKind::Shared => hex::encode(self.shared_db_id.as_slice()),
