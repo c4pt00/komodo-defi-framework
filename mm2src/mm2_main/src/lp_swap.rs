@@ -62,8 +62,8 @@ use crate::mm2::lp_network::{broadcast_p2p_msg, Libp2pPeerId, P2PProcessError, P
 use crate::mm2::lp_swap::maker_swap_v2::{MakerSwapStateMachine, MakerSwapStorage};
 use crate::mm2::lp_swap::taker_swap_v2::{TakerSwapStateMachine, TakerSwapStorage};
 use bitcrypto::{dhash160, sha256};
-use coins::{find_unique_account_ids_active, lp_coinfind, lp_coinfind_or_err, CoinFindError, DexFee, MmCoin,
-            MmCoinEnum, TradeFee, TransactionEnum};
+use coins::{find_unique_account_ids_active, find_unique_account_ids_any, lp_coinfind, lp_coinfind_or_err,
+            CoinFindError, DexFee, MmCoin, MmCoinEnum, TradeFee, TransactionEnum};
 use common::log::{debug, warn};
 use common::now_sec;
 use common::time_cache::DuplicateCache;
@@ -1117,36 +1117,70 @@ impl From<SavedSwap> for MySwapStatusResponse {
 /// Returns the status of swap performed on `my` node
 pub async fn my_swap_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let uuid: Uuid = try_s!(json::from_value(req["params"]["uuid"].clone()));
-    let db_id: Option<String> = try_s!(json::from_value(req["params"]["db_id"].clone()));
-    let swap_type = try_s!(get_swap_type(&ctx, &uuid, db_id.as_deref()).await);
+    let db_ids = find_unique_account_ids_any(&ctx).await?;
+    let mut last_error = None;
 
-    match swap_type {
-        Some(LEGACY_SWAP_TYPE) => {
-            let status = match SavedSwap::load_my_swap_from_db(&ctx, db_id.as_deref(), uuid).await {
-                Ok(Some(status)) => status,
-                Ok(None) => return Err("swap data is not found".to_owned()),
-                Err(e) => return ERR!("{}", e),
-            };
+    for db_id in db_ids.iter() {
+        match get_swap_type(&ctx, &uuid, Some(db_id)).await {
+            Ok(Some(LEGACY_SWAP_TYPE)) => {
+                let status = match SavedSwap::load_my_swap_from_db(&ctx, Some(db_id), uuid).await {
+                    Ok(Some(status)) => status,
+                    Ok(None) => {
+                        last_error = Some("swap data is not found".to_owned());
+                        continue;
+                    },
+                    Err(e) => {
+                        last_error = Some(format!("{}", e));
+                        continue;
+                    },
+                };
 
-            let res_js = json!({ "result": MySwapStatusResponse::from(status) });
-            let res = try_s!(json::to_vec(&res_js));
-            Ok(try_s!(Response::builder().body(res)))
-        },
-        Some(MAKER_SWAP_V2_TYPE) => {
-            let swap_data = try_s!(get_maker_swap_data_for_rpc(&ctx, &uuid, db_id.as_deref()).await);
-            let res_js = json!({ "result": swap_data });
-            let res = try_s!(json::to_vec(&res_js));
-            Ok(try_s!(Response::builder().body(res)))
-        },
-        Some(TAKER_SWAP_V2_TYPE) => {
-            let swap_data = try_s!(get_taker_swap_data_for_rpc(&ctx, &uuid, db_id.as_deref()).await);
-            let res_js = json!({ "result": swap_data });
-            let res = try_s!(json::to_vec(&res_js));
-            Ok(try_s!(Response::builder().body(res)))
-        },
-        Some(unsupported_type) => ERR!("Got unsupported swap type from DB: {}", unsupported_type),
-        None => ERR!("No swap with uuid {}", uuid),
+                let res_js = json!({ "result": MySwapStatusResponse::from(status) });
+                let res = try_s!(json::to_vec(&res_js));
+                return Ok(try_s!(Response::builder().body(res)));
+            },
+            Ok(Some(MAKER_SWAP_V2_TYPE)) => {
+                let swap_data = match get_maker_swap_data_for_rpc(&ctx, &uuid, Some(db_id)).await {
+                    Ok(data) => data,
+                    Err(e) => {
+                        last_error = Some(format!("{}", e));
+                        continue;
+                    },
+                };
+
+                let res_js = json!({ "result": swap_data });
+                let res = try_s!(json::to_vec(&res_js));
+                return Ok(try_s!(Response::builder().body(res)));
+            },
+            Ok(Some(TAKER_SWAP_V2_TYPE)) => {
+                let swap_data = match get_taker_swap_data_for_rpc(&ctx, &uuid, Some(db_id)).await {
+                    Ok(data) => data,
+                    Err(e) => {
+                        last_error = Some(format!("{}", e));
+                        continue;
+                    },
+                };
+
+                let res_js = json!({ "result": swap_data });
+                let res = try_s!(json::to_vec(&res_js));
+                return Ok(try_s!(Response::builder().body(res)));
+            },
+            Ok(Some(unsupported_type)) => {
+                last_error = Some(format!("Got unsupported swap type from DB: {}", unsupported_type));
+                continue;
+            },
+            Ok(None) => {
+                last_error = Some(format!("No swap type found for uuid {}", uuid));
+                continue;
+            },
+            Err(e) => {
+                last_error = Some(format!("{}", e));
+                continue;
+            },
+        }
     }
+
+    Err(last_error.unwrap_or_else(|| format!("swap_status not found for {uuid:?}")))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -1339,7 +1373,7 @@ pub async fn latest_swaps_for_pair(
 /// Returns the data of recent swaps of `my` node.
 pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: MyRecentSwapsReq = try_s!(json::from_value(req));
-    let db_ids = try_s!(find_unique_account_ids_active(&ctx).await);
+    let db_ids = try_s!(find_unique_account_ids_any(&ctx).await);
 
     let mut res_js = vec![];
     for db_id in db_ids {
@@ -1388,17 +1422,19 @@ pub async fn my_recent_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
             }
         }
 
-        res_js.push(json!({
-            "swaps": swaps,
-            "from_uuid": req.paging_options.from_uuid,
-            "skipped": db_result.skipped,
-            "limit": req.paging_options.limit,
-            "total": db_result.total_count,
-            "page_number": req.paging_options.page_number,
-            "total_pages": calc_total_pages(db_result.total_count, req.paging_options.limit),
-            "found_records": db_result.uuids_and_types.len(),
-            "pubkey": db_result.pubkey
-        }));
+        if !swaps.is_empty() {
+            res_js.push(json!({
+                "swaps": swaps,
+                "from_uuid": req.paging_options.from_uuid,
+                "skipped": db_result.skipped,
+                "limit": req.paging_options.limit,
+                "total": db_result.total_count,
+                "page_number": req.paging_options.page_number,
+                "total_pages": calc_total_pages(db_result.total_count, req.paging_options.limit),
+                "found_records": db_result.uuids_and_types.len(),
+                "pubkey": db_result.pubkey
+            }));
+        }
     }
 
     let res_js = json!({ "result": res_js });

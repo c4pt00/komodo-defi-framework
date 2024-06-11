@@ -86,9 +86,13 @@ pub fn stats_maker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
     stats_maker_swap_dir(ctx, db_id).join(format!("{}.json", uuid))
 }
 
-async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSavedEvent) -> Result<(), String> {
-    let db_id = swap.db_id();
-    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
+async fn save_my_maker_swap_event(
+    ctx: &MmArc,
+    swap: &MakerSwap,
+    event: MakerSavedEvent,
+    db_id: Option<&str>,
+) -> Result<(), String> {
+    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id, swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Maker(MakerSavedSwap {
             uuid: swap.uuid,
@@ -114,7 +118,7 @@ async fn save_my_maker_swap_event(ctx: &MmArc, swap: &MakerSwap, event: MakerSav
             maker_swap.fetch_and_set_usd_prices().await;
         }
         let new_swap = SavedSwap::Maker(maker_swap);
-        try_s!(new_swap.save_to_db(ctx, db_id.as_deref()).await);
+        try_s!(new_swap.save_to_db(ctx, db_id).await);
         Ok(())
     } else {
         ERR!("Expected SavedSwap::Maker, got {:?}", swap)
@@ -280,9 +284,6 @@ impl MakerSwap {
             _ => None,
         }
     }
-
-    #[inline]
-    fn db_id(&self) -> Option<String> { self.r().data.db_id.clone() }
 
     fn apply_event(&self, event: MakerSwapEvent) {
         match event {
@@ -2034,10 +2035,10 @@ impl RunMakerSwapInput {
         }
     }
 
-    async fn db_id(&self) -> Option<String> {
+    fn maker_coin(&self) -> &MmCoinEnum {
         match self {
-            RunMakerSwapInput::StartNew(swap) => swap.db_id(),
-            RunMakerSwapInput::KickStart { maker_coin, .. } => maker_coin.account_db_id().await,
+            RunMakerSwapInput::StartNew(swap) => &swap.maker_coin,
+            RunMakerSwapInput::KickStart { maker_coin, .. } => maker_coin,
         }
     }
 }
@@ -2047,8 +2048,8 @@ impl RunMakerSwapInput {
 /// because it's usually means that swap is in invalid state which is possible only if there's developer error.
 /// Every produced event is saved to local DB. Swap status is broadcasted to P2P network after completion.
 pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
+    let db_id = swap.maker_coin().account_db_id().await;
     let uuid = swap.uuid().to_owned();
-    let db_id = swap.db_id().await.to_owned();
     let mut attempts = 0;
     let swap_lock = loop {
         match SwapLock::lock(&ctx, uuid, 40., db_id.as_deref()).await {
@@ -2144,7 +2145,7 @@ pub async fn run_maker_swap(swap: RunMakerSwapInput, ctx: MmArc) {
                         .dispatch_async(ctx.clone(), LpEvents::MakerSwapStatusChanged(event_to_send))
                         .await;
                     drop(dispatcher);
-                    save_my_maker_swap_event(&ctx, &running_swap, to_save)
+                    save_my_maker_swap_event(&ctx, &running_swap, to_save, db_id.as_deref())
                         .await
                         .expect("!save_my_maker_swap_event");
                     if event.should_ban_taker() {

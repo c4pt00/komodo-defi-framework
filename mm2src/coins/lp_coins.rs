@@ -5124,7 +5124,7 @@ where
     let my_address = coin.my_address()?;
     let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
 
-    let db = coins_ctx.tx_history_db(db_id.as_deref()).await?;
+    let db = coins_ctx.tx_history_db(db_id).await?;
     let err = match load_tx_history(&db, &ticker, &my_address).await {
         Ok(history) => return Ok(history),
         Err(e) => e,

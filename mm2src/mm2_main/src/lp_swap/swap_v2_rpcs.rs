@@ -5,7 +5,7 @@ use super::taker_swap::TakerSavedSwap;
 use super::taker_swap_v2::TakerSwapEvent;
 use super::{active_swaps, MySwapsFilter, SavedSwap, SavedSwapError, SavedSwapIo, LEGACY_SWAP_TYPE, MAKER_SWAP_V2_TYPE,
             TAKER_SWAP_V2_TYPE};
-use coins::find_unique_account_ids_active;
+use coins::{find_unique_account_ids_active, find_unique_account_ids_any};
 use common::log::{error, warn};
 use common::{calc_total_pages, HttpStatusCode, PagingOptions};
 use derive_more::Display;
@@ -338,7 +338,6 @@ async fn get_swap_data_by_uuid_and_type(
 #[derive(Deserialize)]
 pub(crate) struct MySwapStatusRequest {
     uuid: Uuid,
-    db_id: Option<String>,
 }
 
 #[derive(Display, Serialize, SerializeErrorType)]
@@ -383,12 +382,38 @@ pub(crate) async fn my_swap_status_rpc(
     ctx: MmArc,
     req: MySwapStatusRequest,
 ) -> MmResult<SwapRpcData, MySwapStatusError> {
-    let swap_type = get_swap_type(&ctx, &req.uuid, req.db_id.as_deref())
-        .await?
-        .or_mm_err(|| MySwapStatusError::NoSwapWithUuid(req.uuid))?;
-    get_swap_data_by_uuid_and_type(&ctx, None, req.uuid, swap_type)
-        .await?
-        .or_mm_err(|| MySwapStatusError::NoSwapWithUuid(req.uuid))
+    let db_ids = find_unique_account_ids_any(&ctx)
+        .await
+        .map_to_mm(|_| MySwapStatusError::DbError("No db_ids found".to_string()))?;
+
+    let mut last_error = MySwapStatusError::NoSwapWithUuid(req.uuid);
+
+    for db_id in db_ids.iter() {
+        match get_swap_type(&ctx, &req.uuid, Some(db_id)).await {
+            Ok(Some(swap_type)) => match get_swap_data_by_uuid_and_type(&ctx, Some(db_id), req.uuid, swap_type).await {
+                Ok(Some(swap_data)) => {
+                    return Ok(swap_data);
+                },
+                Ok(None) => {
+                    last_error = MySwapStatusError::NoSwapWithUuid(req.uuid);
+                },
+                Err(e) => {
+                    last_error = MySwapStatusError::DbError(format!(
+                        "Error loading swap data for uuid {} in db_id: {}: {}",
+                        req.uuid, db_id, e
+                    ));
+                },
+            },
+            Ok(None) => {
+                last_error = MySwapStatusError::NoSwapWithUuid(req.uuid);
+            },
+            Err(e) => {
+                last_error = MySwapStatusError::DbError(format!("Error getting swap type for db_id: {}: {}", db_id, e));
+            },
+        }
+    }
+
+    Err(last_error.into())
 }
 
 #[derive(Deserialize)]

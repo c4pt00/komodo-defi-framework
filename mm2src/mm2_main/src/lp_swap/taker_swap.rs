@@ -107,9 +107,15 @@ pub fn stats_taker_swap_file_path(ctx: &MmArc, db_id: Option<&str>, uuid: &Uuid)
     stats_taker_swap_dir(ctx, db_id).join(format!("{}.json", uuid))
 }
 
-async fn save_my_taker_swap_event(ctx: &MmArc, swap: &TakerSwap, event: TakerSavedEvent) -> Result<(), String> {
-    let db_id = swap.db_id();
-    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id.as_deref(), swap.uuid).await {
+async fn save_my_taker_swap_event(
+    ctx: &MmArc,
+    swap: &TakerSwap,
+    event: TakerSavedEvent,
+    db_id: Option<&str>,
+) -> Result<(), String> {
+    info!("event: {event:?}");
+
+    let swap = match SavedSwap::load_my_swap_from_db(ctx, db_id, swap.uuid).await {
         Ok(Some(swap)) => swap,
         Ok(None) => SavedSwap::Taker(TakerSavedSwap {
             uuid: swap.uuid,
@@ -145,7 +151,7 @@ async fn save_my_taker_swap_event(ctx: &MmArc, swap: &TakerSwap, event: TakerSav
             taker_swap.fetch_and_set_usd_prices().await;
         }
         let new_swap = SavedSwap::Taker(taker_swap);
-        try_s!(new_swap.save_to_db(ctx, db_id.as_deref()).await);
+        try_s!(new_swap.save_to_db(ctx, db_id).await);
         Ok(())
     } else {
         ERR!("Expected SavedSwap::Taker, got {:?}", swap)
@@ -381,10 +387,10 @@ impl RunTakerSwapInput {
         }
     }
 
-    async fn db_id(&self) -> Option<String> {
+    fn taker_coin(&self) -> &MmCoinEnum {
         match self {
-            RunTakerSwapInput::StartNew(swap) => swap.db_id(),
-            RunTakerSwapInput::KickStart { taker_coin, .. } => taker_coin.account_db_id().await,
+            RunTakerSwapInput::StartNew(swap) => &swap.taker_coin,
+            RunTakerSwapInput::KickStart { taker_coin, .. } => taker_coin,
         }
     }
 }
@@ -394,8 +400,8 @@ impl RunTakerSwapInput {
 /// because it's usually means that swap is in invalid state which is possible only if there's developer error
 /// Every produced event is saved to local DB. Swap status is broadcast to P2P network after completion.
 pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
+    let db_id = swap.taker_coin().account_db_id().await;
     let uuid = swap.uuid().to_owned();
-    let db_id = swap.db_id().await.to_owned();
     let mut attempts = 0;
     let swap_lock = loop {
         match SwapLock::lock(&ctx, uuid, 40., db_id.as_deref()).await {
@@ -479,7 +485,7 @@ pub async fn run_taker_swap(swap: RunTakerSwapInput, ctx: MmArc) {
                         event: event.clone(),
                     };
 
-                    save_my_taker_swap_event(&ctx, &running_swap, to_save)
+                    save_my_taker_swap_event(&ctx, &running_swap, to_save, db_id.as_deref())
                         .await
                         .expect("!save_my_taker_swap_event");
                     if event.should_ban_maker() {
@@ -804,9 +810,6 @@ impl TakerSwap {
 
     #[inline]
     fn wait_refund_until(&self) -> u64 { self.r().data.taker_payment_lock + 3700 }
-
-    #[inline]
-    fn db_id(&self) -> Option<String> { self.r().data.db_id.clone() }
 
     pub(crate) fn apply_event(&self, event: TakerSwapEvent) {
         match event {

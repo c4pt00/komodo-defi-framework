@@ -134,37 +134,27 @@ cfg_native! {
     use std::path::PathBuf;
 }
 
+mod eip1559_gas_fee;
 mod eth_balance_events;
+pub mod eth_hd_wallet;
 mod eth_rpc;
 #[cfg(test)] mod eth_tests;
 #[cfg(target_arch = "wasm32")] mod eth_wasm_tests;
+mod eth_withdraw;
 #[cfg(any(test, target_arch = "wasm32"))] mod for_tests;
 pub(crate) mod nft_swap_v2;
-mod web3_transport;
-
-use web3_transport::{http_transport::HttpTransportNode, Web3Transport};
-
-pub mod eth_hd_wallet;
-
-use eth_hd_wallet::EthHDWallet;
-
-#[path = "eth/v2_activation.rs"] pub mod v2_activation;
-
-use v2_activation::{build_address_and_priv_key_policy, EthActivationV2Error};
-
-mod eth_withdraw;
-
-use eth_withdraw::{EthWithdraw, InitEthWithdraw, StandardEthWithdraw};
-
 mod nonce;
-
-use nonce::ParityNonce;
-
-mod eip1559_gas_fee;
+#[path = "eth/v2_activation.rs"] pub mod v2_activation;
+mod web3_transport;
 
 pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
 use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
                       InfuraGasApiCaller};
+use eth_hd_wallet::EthHDWallet;
+use eth_withdraw::{EthWithdraw, InitEthWithdraw, StandardEthWithdraw};
+use nonce::ParityNonce;
+use v2_activation::{build_address_and_priv_key_policy, EthActivationV2Error};
+use web3_transport::{http_transport::HttpTransportNode, Web3Transport};
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852

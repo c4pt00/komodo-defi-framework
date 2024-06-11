@@ -321,7 +321,6 @@ mod wasm_impl {
     }
 
     pub async fn migrate_swaps_data(ctx: &MmArc, db_id: Option<&str>) -> MmResult<(), SavedSwapError> {
-        info!("migrate_swaps_data: {db_id:?}");
         let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
         let db = swaps_ctx.swap_db(db_id).await?;
         let transaction = db.transaction().await?;
@@ -413,7 +412,6 @@ mod wasm_impl {
             db_id: Option<&str>,
             uuid: Uuid,
         ) -> SavedSwapResult<Option<SavedSwap>> {
-            info!("load_my_swap_from_db: {db_id:?}");
             let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
             let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
@@ -428,7 +426,6 @@ mod wasm_impl {
         }
 
         async fn load_all_my_swaps_from_db(ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<Vec<SavedSwap>> {
-            info!("load_all_my_swaps_from_db: {db_id:?}");
             let swaps_ctx = SwapsContext::from_ctx(ctx).map_to_mm(SavedSwapError::InternalError)?;
             let db = swaps_ctx.swap_db(db_id).await?;
             let transaction = db.transaction().await?;
@@ -444,7 +441,6 @@ mod wasm_impl {
         }
 
         async fn save_to_db(&self, ctx: &MmArc, db_id: Option<&str>) -> SavedSwapResult<()> {
-            info!("save_to_db: {db_id:?}");
             let saved_swap = json::to_value(self).map_to_mm(|e| SavedSwapError::ErrorSerializing(e.to_string()))?;
             let saved_swap_item = SavedSwapTable {
                 uuid: *self.uuid(),
