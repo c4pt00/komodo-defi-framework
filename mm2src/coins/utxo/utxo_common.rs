@@ -5154,6 +5154,19 @@ where
     None
 }
 
+/// This function will return regular db_id(pubkey rmd160) for normal wallet mode and hd_wallet_rmd160 for hd mode.
+pub async fn tx_history_db_id<Coin>(coin: Coin) -> Option<String>
+where
+    Coin: CoinWithDerivationMethod + HDWalletCoinOps<HDWallet = UtxoHDWallet> + HDCoinWithdrawOps + UtxoCommonOps,
+{
+    if let DerivationMethod::HDWallet(hd_wallet) = coin.derivation_method() {
+        // we can use hd_wallet_rmd160 as our db_id since it's unique to a device and not a single address
+        Some(hex::encode(hd_wallet.inner.hd_wallet_rmd160.as_slice()))
+    } else {
+        account_db_id(coin).await
+    }
+}
+
 #[test]
 fn test_increase_by_percent() {
     assert_eq!(increase_by_percent(4300, 1.), 4343);

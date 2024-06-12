@@ -3211,6 +3211,10 @@ pub trait MmCoin:
 
     async fn shared_db_id(&self) -> Option<H160> { None }
 
+    /// In normal wallet mode, this function returns the regular `db_id`, which is the RMD160 hash of the public key.
+    /// In HD wallet mode, it returns `hd_wallet_rmd160`, which is the RMD160 hash unique to the HD wallet/device.
+    async fn tx_history_db_id(&self) -> Option<String> { None }
+
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
     fn tx_history_path(&self, ctx: &MmArc, db_id: Option<&str>) -> PathBuf {

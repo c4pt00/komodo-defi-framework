@@ -288,10 +288,10 @@ pub(super) async fn test_hd_utxo_tx_history_impl(rpc_client: ElectrumClient) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let dbs = ctx.sqlite_conn_pool.as_option().unwrap();
-        dbs.add_test_db("b591d089ee36906f96172761c78556f2f75953aa".to_string());
+        dbs.add_test_db(coin.tx_history_db_id().await.unwrap());
     }
     let current_balances = coin.my_addresses_balances().await.unwrap();
-    let storage = TxHistoryStorageBuilder::new(&ctx, Some("b591d089ee36906f96172761c78556f2f75953aa".to_string()))
+    let storage = TxHistoryStorageBuilder::new(&ctx, coin.tx_history_db_id().await)
         .build()
         .unwrap();
     spawn(utxo_history_loop(
@@ -318,7 +318,7 @@ pub(super) async fn test_hd_utxo_tx_history_impl(rpc_client: ElectrumClient) {
         _ => unimplemented!(),
     }
 
-    let storage = TxHistoryStorageBuilder::new(&ctx, coin.account_db_id().await)
+    let storage = TxHistoryStorageBuilder::new(&ctx, coin.tx_history_db_id().await)
         .build()
         .unwrap();
     spawn(utxo_history_loop(
