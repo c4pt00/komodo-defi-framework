@@ -592,12 +592,10 @@ impl SolanaCoin {
                 recent_blockhash,
             );
 
-            let res = coin
-                .client
+            coin.client
                 .send_and_confirm_transaction(&transaction)
                 .map(|_signature| transaction)
-                .map_err(|e| TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)));
-            res
+                .map_err(|e| TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)))
         };
         Box::new(fut.boxed().compat())
     }

@@ -439,7 +439,7 @@ fn solana_coin_send_and_spend_maker_payment() {
 async fn test_get_public_key() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
-    let expected_pubkey = solana_sdk::pubkey::Pubkey::from(coin.key_pair.pubkey()).to_string();
+    let expected_pubkey = coin.key_pair.pubkey().to_string();
     let result = coin.get_public_key().await;
     match result {
         Ok(pubkey) => assert_eq!(pubkey, expected_pubkey),
