@@ -37,9 +37,8 @@ fn solana_keypair_from_secp() {
 fn solana_prerequisites() {
     // same test as trustwallet
     {
-        let fin = generate_key_pair_from_seed(
-            "hood vacant left trim hard mushroom device flavor ask better arrest again".to_string(),
-        );
+        let fin =
+            generate_key_pair_from_seed("hood vacant left trim hard mushroom device flavor ask better arrest again");
         let public_address = fin.pubkey().to_string();
         let priv_key = &fin.secret().to_bytes()[..].to_base58();
         assert_eq!(public_address.len(), 44);
@@ -66,7 +65,7 @@ fn solana_prerequisites() {
         let token_accounts = client
             .get_token_accounts_by_owner(&key_pair.pubkey(), TokenAccountsFilter::ProgramId(spl_token::id()))
             .expect("");
-        println!("{:?}", token_accounts);
+        log!("{:?}", token_accounts);
         let actual_token_pubkey = solana_sdk::pubkey::Pubkey::from_str(token_accounts[0].pubkey.as_str()).unwrap();
         let amount = client.get_token_account_balance(&actual_token_pubkey).unwrap();
         assert_ne!(amount.ui_amount_string.as_str(), "0");
@@ -99,7 +98,7 @@ fn solana_block_height() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Testnet);
     let res = block_on(sol_coin.current_block().compat()).unwrap();
-    println!("block is : {}", res);
+    log!("block is : {}", res);
     assert!(res > 0);
 }
 
@@ -167,6 +166,7 @@ fn solana_transaction_simulations() {
                 max: false,
                 fee: None,
                 memo: None,
+                ibc_source_channel: None,
             })
             .compat(),
     )
@@ -195,6 +195,7 @@ fn solana_transaction_zero_balance() {
                 max: false,
                 fee: None,
                 memo: None,
+                ibc_source_channel: None,
             })
             .compat(),
     );
@@ -224,6 +225,7 @@ fn solana_transaction_simulations_not_enough_for_fees() {
                 max: false,
                 fee: None,
                 memo: None,
+                ibc_source_channel: None,
             })
             .compat(),
     );
@@ -258,6 +260,7 @@ fn solana_transaction_simulations_max() {
                 max: true,
                 fee: None,
                 memo: None,
+                ibc_source_channel: None,
             })
             .compat(),
     )
@@ -269,7 +272,7 @@ fn solana_transaction_simulations_max() {
     assert_eq!(valid_tx_details.total_amount, balance);
     assert_eq!(valid_tx_details.spent_by_me, balance);
     assert_eq!(valid_tx_details.received_by_me, &balance - &sol_required);
-    println!("{:?}", valid_tx_details);
+    log!("{:?}", valid_tx_details);
 }
 
 #[test]
@@ -287,19 +290,25 @@ fn solana_test_transactions() {
                 max: false,
                 fee: None,
                 memo: None,
+                ibc_source_channel: None,
             })
             .compat(),
     )
     .unwrap();
-    println!("{:?}", valid_tx_details);
+    log!("{:?}", valid_tx_details);
 
-    let tx_str = hex::encode(&*valid_tx_details.tx_hex.0);
+    let tx_str = hex::encode(&*valid_tx_details.tx.tx_hex().unwrap().0);
     let res = block_on(sol_coin.send_raw_tx(&tx_str).compat()).unwrap();
 
-    let res2 = block_on(sol_coin.send_raw_tx_bytes(&valid_tx_details.tx_hex.0).compat()).unwrap();
+    let res2 = block_on(
+        sol_coin
+            .send_raw_tx_bytes(&valid_tx_details.tx.tx_hex().unwrap().0)
+            .compat(),
+    )
+    .unwrap();
     assert_eq!(res, res2);
 
-    //println!("{:?}", res);
+    //log!("{:?}", res);
 }
 
 // This test is just a unit test for brainstorming around tx_history for base_coin.
@@ -320,13 +329,13 @@ fn solana_test_tx_history() {
             .client
             .get_transaction(&signature, UiTransactionEncoding::JsonParsed)
             .unwrap();
-        println!("{}", serde_json::to_string(&res).unwrap());
+        log!("{}", serde_json::to_string(&res).unwrap());
         let parsed = serde_json::to_value(&res).unwrap();
         let tx_infos: SolanaConfirmedTransaction = serde_json::from_value(parsed).unwrap();
         let mut txs = tx_infos.extract_solana_transactions(&sol_coin).unwrap();
         history.append(&mut txs);
     }
-    println!("{}", serde_json::to_string(&history).unwrap());
+    log!("{}", serde_json::to_string(&history).unwrap());
 }
 
 #[test]
@@ -341,7 +350,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 
     let pk_data = [1; 32];
     let time_lock = now_sec() - 3600;
-    let taker_pub = coin.get_public_key().unwrap();
+    let taker_pub = coin.key_pair.pubkey().to_string();
     let taker_pub = Pubkey::from_str(taker_pub.as_str()).unwrap();
     let secret = [0; 32];
     let secret_hash = sha256(&secret);
@@ -388,7 +397,7 @@ fn solana_coin_send_and_spend_maker_payment() {
 
     let pk_data = [1; 32];
     let lock_time = now_sec() - 1000;
-    let taker_pub = coin.get_public_key().unwrap();
+    let taker_pub = coin.key_pair.pubkey().to_string();
     let taker_pub = Pubkey::from_str(taker_pub.as_str()).unwrap();
     let secret = [0; 32];
     let secret_hash = sha256(&secret);
@@ -421,9 +430,19 @@ fn solana_coin_send_and_spend_maker_payment() {
         swap_unique_data: pk_data.as_slice(),
         watcher_reward: false,
     };
-    let spend_tx = coin
-        .send_taker_spends_maker_payment(spends_payment_args)
-        .wait()
-        .unwrap();
-    println!("spend tx {:?}", spend_tx);
+
+    let spend_tx = block_on(coin.send_taker_spends_maker_payment(spends_payment_args)).unwrap();
+    log!("spend tx {}", hex::encode(spend_tx.tx_hash_as_bytes().0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_get_public_key() {
+    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
+    let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
+    let expected_pubkey = coin.key_pair.pubkey().to_string();
+    let result = coin.get_public_key().await;
+    match result {
+        Ok(pubkey) => assert_eq!(pubkey, expected_pubkey),
+        Err(e) => panic!("Expected Ok, got Err: {:?}", e),
+    }
 }

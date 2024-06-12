@@ -1,6 +1,7 @@
 use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, SwapOps, TradeFee, Transaction, TransactionEnum,
             TransactionErr, WatcherOps};
 use crate::coin_errors::{MyAddressError, ValidatePaymentResult};
+use crate::hd_wallet::HDPathAccountToAddressId;
 use crate::solana::solana_common::{lamports_to_sol, PrepareTransferData, SufficientBalanceError};
 use crate::solana::spl::SplTokenInfo;
 use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinFutSpawner, ConfirmPaymentInput, DexFee,
@@ -10,7 +11,7 @@ use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinFutSpawner, 
             RawTransactionResult, RefundError, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
             SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignRawTransactionRequest, SignatureResult,
             SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue,
-            TransactionDetails, TransactionFut, TransactionResult, TransactionType, TxMarshalingErr,
+            TransactionData, TransactionDetails, TransactionFut, TransactionResult, TransactionType, TxMarshalingErr,
             UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs, ValidateInstructionsErr,
             ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentInput,
             ValidateWatcherSpendInput, VerificationResult, WaitForHTLCTxSpendArgs, WatcherReward, WatcherRewardError,
@@ -22,7 +23,7 @@ use bincode::{deserialize, serialize};
 use bitcrypto::sha256;
 use common::executor::{abortable_queue::AbortableQueue, AbortableSystem, AbortedError};
 use common::{async_blocking, now_sec};
-use crypto::{StandardHDCoinAddress, StandardHDPathToCoin};
+use crypto::HDPathToCoin;
 use derive_more::Display;
 use futures::compat::Future01CompatExt;
 use futures::{FutureExt, TryFutureExt};
@@ -151,7 +152,7 @@ pub struct SolanaActivationParams {
     confirmation_commitment: CommitmentLevel,
     client_url: String,
     #[serde(default)]
-    path_to_address: StandardHDCoinAddress,
+    path_to_address: HDPathAccountToAddressId,
 }
 
 #[derive(Debug, Display)]
@@ -199,8 +200,9 @@ pub async fn solana_coin_with_policy(
     let priv_key = match priv_key_policy {
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
         PrivKeyBuildPolicy::GlobalHDAccount(global_hd) => {
-            let derivation_path: StandardHDPathToCoin = try_s!(json::from_value(conf["derivation_path"].clone()));
-            try_s!(global_hd.derive_secp256k1_secret(&derivation_path, &params.path_to_address))
+            let path_to_coin: HDPathToCoin = try_s!(json::from_value(conf["derivation_path"].clone()));
+            let derivation_path = try_s!(params.path_to_address.to_derivation_path(&path_to_coin));
+            try_s!(global_hd.derive_secp256k1_secret(&derivation_path))
         },
         PrivKeyBuildPolicy::Trezor => return ERR!("{}", PrivKeyPolicyNotAllowed::HardwareWalletNotSupported),
     };
@@ -282,8 +284,7 @@ async fn withdraw_base_coin_impl(coin: SolanaCoin, req: WithdrawRequest) -> With
     };
     let spent_by_me = &total_amount + &res.sol_required;
     Ok(TransactionDetails {
-        tx_hex: serialized_tx.into(),
-        tx_hash: tx.signatures[0].to_string(),
+        tx: TransactionData::new_signed(serialized_tx.into(), tx.signatures[0].to_string()),
         from: vec![coin.my_address.clone()],
         to: vec![req.to],
         total_amount: spent_by_me.clone(),
@@ -321,7 +322,7 @@ type SolTxFut = Box<dyn Future<Item = SolTransaction, Error = TransactionErr> + 
 impl Transaction for SolTransaction {
     fn tx_hex(&self) -> Vec<u8> { serialize(self).unwrap() }
 
-    fn tx_hash(&self) -> BytesJson { BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref())) }
+    fn tx_hash_as_bytes(&self) -> BytesJson { BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref())) }
 }
 impl SolanaCoin {
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
@@ -591,12 +592,10 @@ impl SolanaCoin {
                 recent_blockhash,
             );
 
-            let res = coin
-                .client
+            coin.client
                 .send_and_confirm_transaction(&transaction)
                 .map(|_signature| transaction)
-                .map_err(|e| TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)));
-            res
+                .map_err(|e| TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)))
         };
         Box::new(fut.boxed().compat())
     }
@@ -644,7 +643,7 @@ impl MarketCoinOps for SolanaCoin {
 
     fn my_address(&self) -> MmResult<String, MyAddressError> { Ok(self.my_address.clone()) }
 
-    fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
+    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
         Ok(self.key_pair.pubkey().to_string())
     }
 
@@ -734,11 +733,15 @@ impl MarketCoinOps for SolanaCoin {
     fn min_tx_amount(&self) -> BigDecimal { BigDecimal::from(0) }
 
     fn min_trading_vol(&self) -> MmNumber { MmNumber::from("0.00777") }
+
+    fn is_trezor(&self) -> bool { unimplemented!() }
 }
 
 #[async_trait]
 impl SwapOps for SolanaCoin {
-    fn send_taker_fee(&self, _fee_addr: &[u8], dex_fee: DexFee, _uuid: &[u8]) -> TransactionFut { unimplemented!() }
+    fn send_taker_fee(&self, _fee_addr: &[u8], dex_fee: DexFee, _uuid: &[u8], _expire_at: u64) -> TransactionFut {
+        unimplemented!()
+    }
 
     fn send_maker_payment(&self, maker_payment: SendPaymentArgs) -> TransactionFut {
         Box::new(
@@ -754,18 +757,24 @@ impl SwapOps for SolanaCoin {
         )
     }
 
-    fn send_maker_spends_taker_payment(&self, maker_spends_payment_args: SpendPaymentArgs) -> TransactionFut {
-        Box::new(
-            self.spend_hash_time_locked_payment(maker_spends_payment_args)
-                .map(TransactionEnum::from),
-        )
+    async fn send_maker_spends_taker_payment(
+        &self,
+        maker_spends_payment_args: SpendPaymentArgs<'_>,
+    ) -> Result<TransactionEnum, TransactionErr> {
+        self.spend_hash_time_locked_payment(maker_spends_payment_args)
+            .compat()
+            .await
+            .map(TransactionEnum::from)
     }
 
-    fn send_taker_spends_maker_payment(&self, taker_spends_payment_args: SpendPaymentArgs) -> TransactionFut {
-        Box::new(
-            self.spend_hash_time_locked_payment(taker_spends_payment_args)
-                .map(TransactionEnum::from),
-        )
+    async fn send_taker_spends_maker_payment(
+        &self,
+        taker_spends_payment_args: SpendPaymentArgs<'_>,
+    ) -> Result<TransactionEnum, TransactionErr> {
+        self.spend_hash_time_locked_payment(taker_spends_payment_args)
+            .compat()
+            .await
+            .map(TransactionEnum::from)
     }
 
     async fn send_taker_refunds_payment(&self, taker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
@@ -1027,6 +1036,7 @@ impl MmCoin for SolanaCoin {
         &self,
         _value: TradePreimageValue,
         _stage: FeeApproxStage,
+        _include_refund_fee: bool,
     ) -> TradePreimageResult<TradeFee> {
         unimplemented!()
     }
