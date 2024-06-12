@@ -5141,11 +5141,12 @@ where
     Ok(transaction)
 }
 
-pub async fn account_db_id<Coin>(coin: Coin) -> Option<String>
+pub async fn account_db_id<Coin>(coin: &Coin) -> Option<String>
 where
     Coin: CoinWithDerivationMethod + HDWalletCoinOps<HDWallet = UtxoHDWallet> + HDCoinWithdrawOps + UtxoCommonOps,
 {
-    if let DerivationMethod::HDWallet(hd_wallet) = coin.derivation_method() {
+    if let Some(hd_wallet) = coin.derivation_method().hd_wallet() {
+        // we can use hd_wallet_rmd160 as our shared_db_id since it's unique to a device
         if let Some(addr) = hd_wallet.get_enabled_address().await {
             return Some(hex::encode(addr.pubkey().address_hash().as_slice()));
         }
@@ -5154,17 +5155,19 @@ where
     None
 }
 
-/// This function will return regular db_id(pubkey rmd160) for normal wallet mode and hd_wallet_rmd160 for hd mode.
-pub async fn tx_history_db_id<Coin>(coin: Coin) -> Option<String>
+/// In normal wallet mode, this function returns the regular `db_id`, which is the RMD160 hash of the public key.
+/// In HD wallet mode, it returns `hd_wallet_rmd160`, which is the RMD160 hash unique to the HD wallet/device.
+pub async fn tx_history_db_id<Coin>(coin: &Coin) -> Option<String>
 where
     Coin: CoinWithDerivationMethod + HDWalletCoinOps<HDWallet = UtxoHDWallet> + HDCoinWithdrawOps + UtxoCommonOps,
 {
-    if let DerivationMethod::HDWallet(hd_wallet) = coin.derivation_method() {
-        // we can use hd_wallet_rmd160 as our db_id since it's unique to a device and not a single address
-        Some(hex::encode(hd_wallet.inner.hd_wallet_rmd160.as_slice()))
-    } else {
-        account_db_id(coin).await
+    if let Some(hd_wallet) = coin.derivation_method().hd_wallet() {
+        // Use the hd_wallet_rmd160 as the db_id since it's unique to a device and not tied to a single address
+        return Some(hex::encode(hd_wallet.inner.hd_wallet_rmd160.as_slice()));
     }
+
+    // Fallback to the account db_id for non-HD wallets
+    account_db_id(coin).await
 }
 
 #[test]

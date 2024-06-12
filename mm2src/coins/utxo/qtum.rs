@@ -980,9 +980,9 @@ impl MmCoin for QtumCoin {
 
     fn on_token_deactivated(&self, _ticker: &str) {}
 
-    async fn account_db_id(&self) -> Option<String> { utxo_common::account_db_id(self.clone()).await }
+    async fn account_db_id(&self) -> Option<String> { utxo_common::account_db_id(self).await }
 
-    async fn tx_history_db_id(&self) -> Option<String> { utxo_common::tx_history_db_id(self.clone()).await }
+    async fn tx_history_db_id(&self) -> Option<String> { utxo_common::tx_history_db_id(self).await }
 }
 
 #[async_trait]

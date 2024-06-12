@@ -5729,15 +5729,23 @@ impl MmCoin for EthCoin {
     }
 
     async fn account_db_id(&self) -> Option<String> {
-        let derivation_method = &self.deref().derivation_method;
-        if let DerivationMethod::HDWallet(hd_wallet) = derivation_method.as_ref() {
+        if let Some(hd_wallet) = self.derivation_method().hd_wallet() {
             if let Some(addr) = hd_wallet.get_enabled_address().await {
-                let addr = dhash160(addr.address.as_bytes());
-                return Some(hex::encode(addr));
+                return Some(hex::encode(dhash160(addr.pubkey().as_bytes())));
             }
         }
 
         None
+    }
+
+    async fn tx_history_db_id(&self) -> Option<String> {
+        if let Some(hd_wallet) = self.derivation_method().hd_wallet() {
+            // Use the hd_wallet_rmd160 as the db_id since it's unique to a device and not tied to a single address
+            return Some(hex::encode(hd_wallet.hd_wallet_rmd160.as_slice()));
+        };
+
+        // Fallback to the account db_id for non-HD wallets
+        self.account_db_id().await
     }
 }
 
