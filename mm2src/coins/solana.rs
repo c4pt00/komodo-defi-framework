@@ -324,6 +324,7 @@ impl Transaction for SolTransaction {
 
     fn tx_hash_as_bytes(&self) -> BytesJson { BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref())) }
 }
+
 impl SolanaCoin {
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
         let hash = async_blocking({
@@ -760,7 +761,7 @@ impl SwapOps for SolanaCoin {
     async fn send_maker_spends_taker_payment(
         &self,
         maker_spends_payment_args: SpendPaymentArgs<'_>,
-    ) -> Result<TransactionEnum, TransactionErr> {
+    ) -> TransactionResult {
         self.spend_hash_time_locked_payment(maker_spends_payment_args)
             .compat()
             .await
@@ -770,21 +771,27 @@ impl SwapOps for SolanaCoin {
     async fn send_taker_spends_maker_payment(
         &self,
         taker_spends_payment_args: SpendPaymentArgs<'_>,
-    ) -> Result<TransactionEnum, TransactionErr> {
+    ) -> TransactionResult {
         self.spend_hash_time_locked_payment(taker_spends_payment_args)
             .compat()
             .await
             .map(TransactionEnum::from)
     }
 
-    async fn send_taker_refunds_payment(&self, taker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
+    async fn send_taker_refunds_payment(
+        &self,
+        taker_refunds_payment_args: RefundPaymentArgs<'_>,
+    ) -> TransactionResult {
         self.refund_hash_time_locked_payment(taker_refunds_payment_args)
             .map(TransactionEnum::from)
             .compat()
             .await
     }
 
-    async fn send_maker_refunds_payment(&self, maker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
+    async fn send_maker_refunds_payment(
+        &self,
+        maker_refunds_payment_args: RefundPaymentArgs<'_>,
+    ) -> TransactionResult {
         self.refund_hash_time_locked_payment(maker_refunds_payment_args)
             .map(TransactionEnum::from)
             .compat()
