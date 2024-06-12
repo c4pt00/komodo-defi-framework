@@ -3209,7 +3209,7 @@ pub trait MmCoin:
 
     async fn account_db_id(&self) -> Option<String> { None }
 
-    fn account_shared_db_id(&self) -> Option<H160> { None }
+    async fn shared_db_id(&self) -> Option<H160> { None }
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]
