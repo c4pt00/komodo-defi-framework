@@ -1580,32 +1580,47 @@ pub(crate) fn get_domain_from_url(url: Option<&str>) -> Option<String> {
 
 /// Clears NFT data from the database for specified chains.
 pub async fn clear_nft_db(ctx: MmArc, req: ClearNftDbReq) -> MmResult<(), ClearNftDbError> {
-    // TODO: db_id
-    let db_id: Option<String> = None;
-    if req.clear_all {
-        let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(ClearNftDbError::Internal)?;
-        let storage = nft_ctx.lock_db(None).await?;
-        storage.clear_all_nft_data().await?;
-        storage.clear_all_history_data().await?;
-        return Ok(());
-    }
+    let db_ids = find_unique_nft_account_ids(&ctx, req.chains.clone())
+        .await
+        .map_to_mm(ClearNftDbError::Internal)?;
 
-    if req.chains.is_empty() {
-        return MmError::err(ClearNftDbError::InvalidRequest(
-            "Nothing to clear was specified".to_string(),
-        ));
-    }
-
-    let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(ClearNftDbError::Internal)?;
-    let storage = nft_ctx.lock_db(db_id.as_deref()).await?;
-    let mut errors = Vec::new();
-    for chain in req.chains.iter() {
-        if let Err(e) = clear_data_for_chain(&storage, chain).await {
-            errors.push(e);
+    for (idx, (db_id, chains)) in db_ids.iter().enumerate() {
+        if req.clear_all {
+            let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(ClearNftDbError::Internal)?;
+            let storage = nft_ctx.lock_db(None).await?;
+            storage.clear_all_nft_data().await?;
+            storage.clear_all_history_data().await?;
+            if idx == db_ids.len() - 1 {
+                return Ok(());
+            }
         }
-    }
-    if !errors.is_empty() {
-        return MmError::err(ClearNftDbError::DbError(format!("{:?}", errors)));
+
+        let filtered_chains = chains
+            .iter()
+            .filter_map(|c| req.chains.contains(c).then_some(c))
+            .collect::<Vec<_>>();
+        if filtered_chains.is_empty() {
+            if idx == db_ids.len() - 1 {
+                return MmError::err(ClearNftDbError::InvalidRequest(
+                    "Nothing to clear was specified".to_string(),
+                ));
+            } else {
+                continue;
+            }
+        }
+
+        let nft_ctx = NftCtx::from_ctx(&ctx).map_to_mm(ClearNftDbError::Internal)?;
+        let storage = nft_ctx.lock_db(Some(db_id)).await?;
+        let mut errors = Vec::new();
+        for chain in filtered_chains {
+            if let Err(e) = clear_data_for_chain(&storage, chain).await {
+                errors.push(e);
+            }
+        }
+
+        if !errors.is_empty() && idx == db_ids.len() - 1 {
+            return MmError::err(ClearNftDbError::DbError(format!("{:?}", errors)));
+        }
     }
 
     Ok(())

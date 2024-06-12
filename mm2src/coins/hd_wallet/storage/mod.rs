@@ -220,7 +220,6 @@ impl Default for HDWalletCoinStorage {
 }
 
 impl HDWalletCoinStorage {
-    // TODO: Since hd_wallet_rmd160 is unique for a device, do we use it as db_id too? or we can just use mm2 shared_db_id and use hd_wallet_rmd160 for primary key as it's currently done
     pub async fn init(ctx: &MmArc, coin: String) -> HDWalletStorageResult<HDWalletCoinStorage> {
         let crypto_ctx = CryptoCtx::from_ctx(ctx)?;
         let hd_wallet_rmd160 = crypto_ctx
@@ -234,7 +233,6 @@ impl HDWalletCoinStorage {
         })
     }
 
-    // TODO: Since hd_wallet_rmd160 is unique for a device, do we use it as db_id too? or we can just use mm2 shared_db_id and use hd_wallet_rmd160 for primary key as it's currently done
     pub async fn init_with_rmd160(
         ctx: &MmArc,
         coin: String,
