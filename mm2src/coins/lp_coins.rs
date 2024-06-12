@@ -4869,7 +4869,7 @@ pub async fn my_tx_history(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, S
 }
 
 /// `get_trade_fee` rpc implementation.
-/// There is some consideration about this rpc:  
+/// There is some consideration about this rpc:
 /// for eth coin this rpc returns max possible trade fee (estimated for maximum possible gas limit for any kind of swap).
 /// However for eth coin, as part of fixing this issue https://github.com/KomodoPlatform/komodo-defi-framework/issues/1848,
 /// `max_taker_vol' and `trade_preimage` rpc now return more accurate required gas calculations.

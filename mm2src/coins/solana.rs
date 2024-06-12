@@ -322,7 +322,7 @@ type SolTxFut = Box<dyn Future<Item = SolTransaction, Error = TransactionErr> + 
 impl Transaction for SolTransaction {
     fn tx_hex(&self) -> Vec<u8> { serialize(self).unwrap() }
 
-    fn tx_hash(&self) -> BytesJson { BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref())) }
+    fn tx_hash_as_bytes(&self) -> BytesJson { BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref())) }
 }
 impl SolanaCoin {
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
@@ -645,7 +645,7 @@ impl MarketCoinOps for SolanaCoin {
 
     fn my_address(&self) -> MmResult<String, MyAddressError> { Ok(self.my_address.clone()) }
 
-    fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
+    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
         Ok(self.key_pair.pubkey().to_string())
     }
 
@@ -761,22 +761,22 @@ impl SwapOps for SolanaCoin {
 
     async fn send_maker_spends_taker_payment(
         &self,
-        maker_spends_payment_args: SpendPaymentArgs,
-    ) -> TransactionResult {
-        Box::new(
-            self.spend_hash_time_locked_payment(maker_spends_payment_args)
-                .map(TransactionEnum::from),
-        ).await
+        maker_spends_payment_args: SpendPaymentArgs<'_>,
+    ) -> Result<TransactionEnum, TransactionErr> {
+        self.spend_hash_time_locked_payment(maker_spends_payment_args)
+            .compat()
+            .await
+            .map(TransactionEnum::from)
     }
 
     async fn send_taker_spends_maker_payment(
         &self,
         taker_spends_payment_args: SpendPaymentArgs<'_>,
-    ) -> TransactionResult {
-        Box::new(
-            self.spend_hash_time_locked_payment(taker_spends_payment_args)
-                .map(TransactionEnum::from),
-        ).await
+    ) -> Result<TransactionEnum, TransactionErr> {
+        self.spend_hash_time_locked_payment(taker_spends_payment_args)
+            .compat()
+            .await
+            .map(TransactionEnum::from)
     }
 
     async fn send_taker_refunds_payment(&self, taker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {

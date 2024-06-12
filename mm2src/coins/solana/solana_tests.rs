@@ -350,7 +350,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 
     let pk_data = [1; 32];
     let time_lock = now_sec() - 3600;
-    let taker_pub = coin.get_public_key().unwrap();
+    let taker_pub = coin.key_pair.pubkey().to_string();
     let taker_pub = Pubkey::from_str(taker_pub.as_str()).unwrap();
     let secret = [0; 32];
     let secret_hash = sha256(&secret);
@@ -397,7 +397,7 @@ fn solana_coin_send_and_spend_maker_payment() {
 
     let pk_data = [1; 32];
     let lock_time = now_sec() - 1000;
-    let taker_pub = coin.get_public_key().unwrap();
+    let taker_pub = coin.key_pair.pubkey().to_string();
     let taker_pub = Pubkey::from_str(taker_pub.as_str()).unwrap();
     let secret = [0; 32];
     let secret_hash = sha256(&secret);
@@ -430,9 +430,19 @@ fn solana_coin_send_and_spend_maker_payment() {
         swap_unique_data: pk_data.as_slice(),
         watcher_reward: false,
     };
-    let spend_tx = coin
-        .send_taker_spends_maker_payment(spends_payment_args)
-        .wait()
-        .unwrap();
-    println!("spend tx {:?}", spend_tx);
+
+    let spend_tx = block_on(coin.send_taker_spends_maker_payment(spends_payment_args)).unwrap();
+    log!("spend tx {}", hex::encode(spend_tx.tx_hash_as_bytes().0));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_get_public_key() {
+    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
+    let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
+    let expected_pubkey = solana_sdk::pubkey::Pubkey::from(coin.key_pair.pubkey()).to_string();
+    let result = coin.get_public_key().await;
+    match result {
+        Ok(pubkey) => assert_eq!(pubkey, expected_pubkey),
+        Err(e) => panic!("Expected Ok, got Err: {:?}", e),
+    }
 }
