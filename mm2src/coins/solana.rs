@@ -778,20 +778,14 @@ impl SwapOps for SolanaCoin {
             .map(TransactionEnum::from)
     }
 
-    async fn send_taker_refunds_payment(
-        &self,
-        taker_refunds_payment_args: RefundPaymentArgs<'_>,
-    ) -> TransactionResult {
+    async fn send_taker_refunds_payment(&self, taker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
         self.refund_hash_time_locked_payment(taker_refunds_payment_args)
             .map(TransactionEnum::from)
             .compat()
             .await
     }
 
-    async fn send_maker_refunds_payment(
-        &self,
-        maker_refunds_payment_args: RefundPaymentArgs<'_>,
-    ) -> TransactionResult {
+    async fn send_maker_refunds_payment(&self, maker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
         self.refund_hash_time_locked_payment(maker_refunds_payment_args)
             .map(TransactionEnum::from)
             .compat()
