@@ -77,7 +77,7 @@ impl SpendPolicy {
                 encoder.write_u64(unlock_condition.timelock);
                 encoder.write_u64(unlock_condition.unlock_keys.len() as u64);
                 for uc in &unlock_condition.unlock_keys {
-                    uc.public_key.encode(encoder);
+                    uc.encode(encoder);
                 }
                 encoder.write_u64(unlock_condition.sigs_required);
             },
