@@ -216,9 +216,7 @@ pub fn select_uuids_by_my_swaps_filter(
     if total_count == 0 {
         return Ok(MyRecentSwapsUuids {
             pubkey: db_id,
-            uuids_and_types: vec![],
-            skipped: 0,
-            total_count: 0,
+            ..MyRecentSwapsUuids::default()
         });
     }
 

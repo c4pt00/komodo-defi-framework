@@ -60,7 +60,6 @@ const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 /// Only the pointers (`MmArc`, `MmWeak`) can be moved around.
 ///
 /// Threads only have the non-`mut` access to `MmCtx`, allowing us to directly share certain fields.
-#[allow(clippy::type_complexity)]
 pub struct MmCtx {
     /// MM command-line configuration.
     pub conf: Json,
@@ -120,7 +119,7 @@ pub struct MmCtx {
     /// The RPC sender forwarding requests to writing part of underlying stream.
     #[cfg(target_arch = "wasm32")]
     pub wasm_rpc: Constructible<WasmRpcSender>,
-    /// Deprecated, please create `shared_async_sqlite_conn` for new implementations and call db `KOMODEFI-shared.db` for shared_db.
+    /// Deprecated, please use `async_sqlite_conn_pool` for new implementations.
     #[cfg(not(target_arch = "wasm32"))]
     pub sqlite_conn_pool: Constructible<SqliteConnPool>,
     /// asynchronous handle for rusqlite connection.

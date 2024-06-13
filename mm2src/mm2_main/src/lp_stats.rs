@@ -96,7 +96,7 @@ pub struct NodeVersionStat {
 fn insert_node_info_to_db(_ctx: &MmArc, _node_info: &NodeInfo) -> Result<(), String> { Ok(()) }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn insert_node_info_to_db(ctx: &MmArc, node_info: &NodeInfo, db_id: Option<&str>) -> Result<(), String> {
+fn insert_node_info_to_db(ctx: &MmArc, node_info: NodeInfo, db_id: Option<&str>) -> Result<(), String> {
     crate::mm2::database::stats_nodes::insert_node_info(ctx, node_info, db_id).map_err(|e| e.to_string())
 }
 
@@ -168,9 +168,9 @@ pub async fn add_node_to_version_stat(ctx: MmArc, req: Json) -> NodeVersionResul
         .map(|db_id| {
             let ctx = ctx.clone();
             let node_info_with_ipv4_addr = node_info_with_ipv4_addr.clone();
-            let db_id = db_id.clone();
+            let db_id = db_id.to_owned();
             async_blocking(move || {
-                insert_node_info_to_db(&ctx, &node_info_with_ipv4_addr, Some(&db_id))
+                insert_node_info_to_db(&ctx, node_info_with_ipv4_addr, Some(&db_id))
                     .map_to_mm(NodeVersionError::DatabaseError)
             })
         })

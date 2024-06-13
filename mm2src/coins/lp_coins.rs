@@ -3207,8 +3207,13 @@ pub trait MmCoin:
     /// Loop collecting coin transaction history and saving it to local DB
     fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send>;
 
+    /// Retrieves a unique identifier for the account based on the coin's derivation method.
+    /// E.g, If the coin is derived from an HD wallet, it uses the public key hash of the enabled address as the database ID.
+    /// If the coin is not derived from an HD wallet, it returns `None`.
     async fn account_db_id(&self) -> Option<String> { None }
 
+    // Retrieves a unique identifier for the account that is shared across different contexts,
+    /// such as different derivation methods (HD wallet vs. non-HD wallet)
     async fn shared_db_id(&self) -> Option<H160> { None }
 
     /// In normal wallet mode, this function returns the regular `db_id`, which is the RMD160 hash of the public key.
