@@ -117,6 +117,54 @@ impl SpendPolicy {
     pub fn anyone_can_spend() -> Self { SpendPolicy::threshold(0, vec![]) }
 }
 
+pub fn opacify_policy(p: &SpendPolicy) -> SpendPolicy { SpendPolicy::Opaque(p.address()) }
+
+pub fn spend_policy_atomic_swap(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
+    let policy_after = SpendPolicy::After(lock_time);
+    let policy_hash = SpendPolicy::Hash(hash);
+
+    let policy_success = SpendPolicy::Threshold(PolicyTypeThreshold {
+        n: 2,
+        of: vec![SpendPolicy::PublicKey(alice), policy_hash],
+    });
+
+    let policy_refund = SpendPolicy::Threshold(PolicyTypeThreshold {
+        n: 2,
+        of: vec![SpendPolicy::PublicKey(bob), policy_after],
+    });
+
+    SpendPolicy::Threshold(PolicyTypeThreshold {
+        n: 1,
+        of: vec![policy_success, policy_refund],
+    })
+}
+
+pub fn spend_policy_atomic_swap_success(
+    alice: PublicKey,
+    bob: PublicKey,
+    lock_time: u64,
+    hash: H256,
+) -> SpendPolicy {
+    match spend_policy_atomic_swap(alice, bob, lock_time, hash) {
+        SpendPolicy::Threshold(mut p) => {
+            p.of[1] = opacify_policy(&p.of[1]);
+            SpendPolicy::Threshold(p)
+        },
+        _ => unreachable!(),
+    }
+}
+
+pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
+    match spend_policy_atomic_swap(alice, bob, lock_time, hash) {
+        SpendPolicy::Threshold(mut p) => {
+            p.of[0] = opacify_policy(&p.of[0]);
+            SpendPolicy::Threshold(p)
+        },
+        _ => unreachable!(),
+    }
+}
+
+// FIXME can this type be removed?
 #[derive(Debug, Clone)]
 pub struct PolicyTypeThreshold {
     pub n: u8,
