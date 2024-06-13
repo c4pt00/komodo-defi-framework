@@ -18,7 +18,7 @@ pub enum SpendPolicy {
     Hash(H256),
     Threshold(PolicyTypeThreshold),
     Opaque(Address),
-    UnlockConditions(PolicyTypeUnlockConditions), // For v1 compatibility
+    UnlockConditions(UnlockCondition), // For v1 compatibility
 }
 
 impl Encodable for SpendPolicy {
@@ -72,7 +72,7 @@ impl SpendPolicy {
                 encoder.write_u8(opcode);
                 encoder.write_slice(&p.0 .0);
             },
-            SpendPolicy::UnlockConditions(PolicyTypeUnlockConditions(unlock_condition)) => {
+            SpendPolicy::UnlockConditions(unlock_condition) => {
                 encoder.write_u8(opcode);
                 encoder.write_u64(unlock_condition.timelock);
                 encoder.write_u64(unlock_condition.unlock_keys.len() as u64);
@@ -84,8 +84,8 @@ impl SpendPolicy {
         }
     }
 
-    fn address(&self) -> Address {
-        if let SpendPolicy::UnlockConditions(PolicyTypeUnlockConditions(unlock_condition)) = self {
+    pub fn address(&self) -> Address {
+        if let SpendPolicy::UnlockConditions(unlock_condition) = self {
             return unlock_condition.address();
         }
         let mut encoder = Encoder::default();
@@ -122,10 +122,6 @@ pub struct PolicyTypeThreshold {
     pub n: u8,
     pub of: Vec<SpendPolicy>,
 }
-
-// Compatibility with Sia's "UnlockConditions"
-#[derive(Debug, Clone)]
-pub struct PolicyTypeUnlockConditions(UnlockCondition);
 
 // Sia v1 has theoretical support other key types via softforks
 // We only support ed25519 for now. No other type was ever implemented in Sia Go.
@@ -339,7 +335,7 @@ fn test_spend_policy_encode_unlock_condition() {
     .unwrap();
     let unlock_condition = UnlockCondition::new(vec![pubkey], 0, 1);
 
-    let sub_policy = SpendPolicy::UnlockConditions(PolicyTypeUnlockConditions(unlock_condition));
+    let sub_policy = SpendPolicy::UnlockConditions(unlock_condition);
     let base_address = sub_policy.address();
     let expected =
         Address::from_str("addr:72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515dd64b9a56043a").unwrap();
