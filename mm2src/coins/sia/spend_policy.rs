@@ -127,8 +127,8 @@ pub struct PolicyTypeThreshold {
 // We only support ed25519 for now. No other type was ever implemented in Sia Go.
 #[derive(Debug, Clone)]
 pub struct UnlockKey {
-    algorithm: Specifier,
-    public_key: PublicKey,
+    pub algorithm: Specifier,
+    pub public_key: PublicKey,
 }
 
 impl Encodable for PublicKey {
@@ -145,9 +145,9 @@ impl Encodable for UnlockKey {
 
 #[derive(Debug, Clone)]
 pub struct UnlockCondition {
-    unlock_keys: Vec<UnlockKey>,
-    timelock: u64,
-    sigs_required: u64,
+    pub unlock_keys: Vec<UnlockKey>,
+    pub timelock: u64,
+    pub sigs_required: u64,
 }
 
 impl Encodable for UnlockCondition {
