@@ -63,6 +63,44 @@ pub struct SatisfiedPolicy {
     pub preimages: Vec<Vec<u8>>,
 }
 
+impl Encodable for Signature {
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.to_bytes()); }
+}
+
+impl Encodable for SatisfiedPolicy {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.policy.encode(encoder);
+        let mut sigi: usize = 0;
+        let mut prei: usize = 0;
+
+        fn rec(policy: &SpendPolicy, encoder: &mut Encoder, sigi: &mut usize, prei: &mut usize, sp: &SatisfiedPolicy) {
+            match policy {
+                SpendPolicy::PublicKey(_) => {
+                    sp.signatures[*sigi].encode(encoder);
+                    *sigi += 1;
+                },
+                SpendPolicy::Hash(_) => {
+                    encoder.write_len_prefixed_bytes(&sp.preimages[*prei]);
+                    *prei += 1;
+                },
+                SpendPolicy::Threshold(threshold) => {
+                    for p in &threshold.of {
+                        rec(p, encoder, sigi, prei, sp);
+                    }
+                },
+                SpendPolicy::UnlockConditions(uc) => {
+                    for unlock_key in &uc.unlock_keys {
+                        rec(&SpendPolicy::PublicKey(unlock_key.public_key), encoder, sigi, prei, sp);
+                    }
+                },
+                _ => {},
+            }
+        }
+
+        rec(&self.policy, encoder, &mut sigi, &mut prei, self);
+    }
+}
+
 pub struct StateElement {
     pub id: H256,
     pub leaf_index: u64,
