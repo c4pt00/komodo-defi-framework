@@ -118,6 +118,12 @@ impl Encodable for StateElement {
     }
 }
 
+pub struct SiafundElement {
+    pub state_element: StateElement,
+    pub siacoin_output: SiafundOutput,
+    pub maturity_height: u64,
+}
+
 pub struct SiacoinElement {
     pub state_element: StateElement,
     pub siacoin_output: SiacoinOutput,
@@ -130,6 +136,12 @@ impl Encodable for SiacoinElement {
         SiacoinOutputVersion::V2(self.siacoin_output.clone()).encode(encoder);
         encoder.write_u64(self.maturity_height);
     }
+}
+
+pub struct SiafundInputV2 {
+    pub parent: SiafundElement,
+    pub claim_address: Address,
+    pub satisfied_policy: SatisfiedPolicy,
 }
 
 pub enum SiacoinInput {
@@ -156,7 +168,10 @@ impl Encodable for SiacoinInputV1 {
 }
 
 impl Encodable for SiacoinInputV2 {
-    fn encode(&self, encoder: &mut Encoder) { self.parent.encode(encoder); }
+    fn encode(&self, encoder: &mut Encoder) {
+        self.parent.encode(encoder);
+        self.satisfied_policy.encode(encoder);
+    }
 }
 
 impl Encodable for SiacoinInput {
@@ -166,6 +181,12 @@ impl Encodable for SiacoinInput {
             SiacoinInput::V2(v2) => v2.encode(encoder),
         }
     }
+}
+
+#[derive(Clone)]
+pub struct SiafundOutput {
+    pub value: Currency,
+    pub address: Address,
 }
 
 // SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
@@ -201,6 +222,28 @@ impl Encodable for SiacoinOutputVersion {
     }
 }
 
+pub struct CoveredFields {
+    pub whole_transaction: bool,
+    pub siacoin_inputs: Vec<u64>,
+    pub siacoin_outputs: Vec<u64>,
+    pub file_contracts: Vec<u64>,
+    pub file_contract_revisions: Vec<u64>,
+    pub storage_proofs: Vec<u64>,
+    pub siafund_inputs: Vec<u64>,
+    pub siafund_outputs: Vec<u64>,
+    pub miner_fees: Vec<u64>,
+    pub arbitrary_data: Vec<u64>,
+    pub signatures: Vec<u64>,
+}
+
+pub struct TransactionSignature {
+    pub parent_id: H256,
+    pub public_key_index: u64,
+    pub timelock: u64,
+    pub covered_fields: CoveredFields,
+    pub signature: Vec<u8>,
+}
+
 pub struct FileContract {
     pub filesize: u64,
     pub file_merkle_root: H256,
@@ -213,12 +256,60 @@ pub struct FileContract {
     pub revision_number: u64,
 }
 
+pub struct FileContractV2 {
+    pub filesize: u64,
+    pub file_merkle_root: H256,
+    pub proof_height: u64,
+    pub expiration_height: u64,
+    pub renter_output: SiacoinOutput,
+    pub host_output: SiacoinOutput,
+    pub missed_host_value: Currency,
+    pub total_collateral: Currency,
+    pub renter_public_key: PublicKey,
+    pub host_public_key: PublicKey,
+    pub revision_number: u64,
+    pub renter_signature: Signature,
+    pub host_signature: Signature,
+}
+
+pub struct FileContractElementV2 {
+    pub state_element: StateElement,
+    pub v2_file_contract: FileContractV2,
+}
+
+pub struct FileContractRevisionV2 {
+    pub parent: FileContractElementV2,
+    pub revision: FileContractV2,
+}
+
+pub struct Attestation {
+    pub public_key: PublicKey,
+    pub key: String,
+    pub value: Vec<u8>,
+    pub signature: Signature,
+}
+
+pub struct StorageProof {
+    pub parent_id: FileContractID,
+    pub leaf: [u8; 64],
+    pub proof: Vec<H256>,
+}
+
+type SiafundOutputID = H256;
+type FileContractID = H256;
+pub struct FileContractRevision {
+    pub parent_id: FileContractID,
+    pub unlock_condition: UnlockCondition,
+}
+
+pub struct SiafundInputV1 {
+    pub parent_id: SiafundOutputID,
+    pub unlock_condition: UnlockCondition,
+    pub claim_address: Address,
+}
+
 // TODO temporary stubs
-type FileContractRevision = Vec<u8>;
-type StorageProof = Vec<u8>;
-type SiafundInput = Vec<u8>;
-type SiafundOutput = Vec<u8>;
-type TransactionSignature = Vec<u8>;
+type FileContractResolutionV2 = Vec<u8>;
 
 pub struct TransactionV1 {
     pub siacoin_inputs: Vec<SiacoinInput>,
@@ -226,11 +317,25 @@ pub struct TransactionV1 {
     pub file_contracts: Vec<FileContract>,
     pub file_contract_revisions: Vec<FileContractRevision>,
     pub storage_proofs: Vec<StorageProof>,
-    pub siafund_inputs: Vec<SiafundInput>,
+    pub siafund_inputs: Vec<SiafundInputV1>,
     pub siafund_outputs: Vec<SiafundOutput>,
     pub miner_fees: Vec<Currency>,
-    pub arbitrary_data: Vec<Vec<u8>>,
+    pub arbitrary_data: Vec<u8>,
     pub signatures: Vec<TransactionSignature>,
+}
+
+pub struct TransactionV2 {
+    pub siacoin_inputs: Vec<SiacoinInputV2>,
+    pub siacoin_outputs: Vec<SiacoinOutput>,
+    pub siafund_inputs: Vec<SiafundInputV2>,
+    pub siafund_outputs: Vec<SiafundOutput>,
+    pub file_contracts: Vec<FileContractV2>,
+    pub file_contract_revisions: Vec<FileContractRevisionV2>,
+    pub file_contract_resolutions: Vec<FileContractResolutionV2>, // TODO
+    pub attestations: Vec<Attestation>,
+    pub arbitrary_data: Vec<u8>,
+    pub new_foundation_address: Option<Address>,
+    pub miner_fee: Currency,
 }
 
 #[test]
