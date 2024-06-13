@@ -68,9 +68,9 @@ impl SpendPolicy {
                     policy.encode_wo_prefix(encoder);
                 }
             },
-            SpendPolicy::Opaque(p) => {
+            SpendPolicy::Opaque(address) => {
                 encoder.write_u8(opcode);
-                encoder.write_slice(&p.0 .0);
+                encoder.write_slice(&address.0 .0);
             },
             SpendPolicy::UnlockConditions(unlock_condition) => {
                 encoder.write_u8(opcode);
