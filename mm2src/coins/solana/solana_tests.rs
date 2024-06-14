@@ -344,7 +344,7 @@ fn solana_coin_send_and_refund_maker_payment() {
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
     let solana_program_id = "AEwou7VU9bahWRSN2zzgMGqozNY2G27U9fbbdLF9myZx";
     let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
-        eprintln!("Failed to decode program ID: {}", e);
+        log!("Failed to decode program ID: {}", e);
         Vec::new()
     });
 
@@ -368,7 +368,7 @@ fn solana_coin_send_and_refund_maker_payment() {
         wait_for_confirmation_until: 0,
     };
     let tx = coin.send_maker_payment(args).wait().unwrap();
-    println!("swap tx {:?}", tx);
+    log!("swap tx {:?}", tx);
 
     let refund_args = RefundPaymentArgs {
         payment_tx: &tx.tx_hex(),
@@ -382,7 +382,7 @@ fn solana_coin_send_and_refund_maker_payment() {
         watcher_reward: false,
     };
     let refund_tx = block_on(coin.send_maker_refunds_payment(refund_args)).unwrap();
-    println!("refund tx {:?}", refund_tx);
+    log!("refund tx {:?}", refund_tx);
 }
 
 #[test]
@@ -391,7 +391,7 @@ fn solana_coin_send_and_spend_maker_payment() {
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
     let solana_program_id = "AEwou7VU9bahWRSN2zzgMGqozNY2G27U9fbbdLF9myZx";
     let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
-        eprintln!("Failed to decode program ID: {}", e);
+        log!("Failed to decode program ID: {}", e);
         Vec::new()
     });
 
@@ -416,7 +416,7 @@ fn solana_coin_send_and_spend_maker_payment() {
     };
 
     let tx = coin.send_maker_payment(maker_payment_args).wait().unwrap();
-    println!("swap tx {:?}", tx);
+    log!("swap tx {:?}", tx);
 
     let maker_pub = taker_pub;
 
@@ -433,16 +433,4 @@ fn solana_coin_send_and_spend_maker_payment() {
 
     let spend_tx = block_on(coin.send_taker_spends_maker_payment(spends_payment_args)).unwrap();
     log!("spend tx {}", hex::encode(spend_tx.tx_hash_as_bytes().0));
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_get_public_key() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
-    let expected_pubkey = coin.key_pair.pubkey().to_string();
-    let result = coin.get_public_key().await;
-    match result {
-        Ok(pubkey) => assert_eq!(pubkey, expected_pubkey),
-        Err(e) => panic!("Expected Ok, got Err: {:?}", e),
-    }
 }

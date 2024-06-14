@@ -1,9 +1,48 @@
+use std::{collections::HashMap,
+          convert::{TryFrom, TryInto},
+          fmt::Debug,
+          ops::Deref,
+          str::FromStr,
+          sync::{Arc, Mutex}};
+
+use async_trait::async_trait;
+use base58::ToBase58;
+use bincode::{deserialize, serialize};
+use bitcrypto::sha256;
+use common::{async_blocking,
+             executor::{abortable_queue::AbortableQueue, AbortableSystem, AbortedError},
+             log::error,
+             now_sec};
+use crypto::HDPathToCoin;
+use derive_more::Display;
+use futures::{compat::Future01CompatExt,
+              {FutureExt, TryFutureExt}};
+use futures01::Future;
+use keys::KeyPair;
+use mm2_core::mm_ctx::MmArc;
+use mm2_err_handle::prelude::*;
+use mm2_number::{BigDecimal, MmNumber};
+use num_traits::ToPrimitive;
+use rpc::v1::types::Bytes as BytesJson;
+use serde_json::{self as json, Value as Json};
+use solana_client::{client_error::{ClientError, ClientErrorKind},
+                    rpc_client::RpcClient,
+                    rpc_request::TokenAccountsFilter};
+pub use solana_sdk::transaction::Transaction as SolTransaction;
+use solana_sdk::{commitment_config::{CommitmentConfig, CommitmentLevel},
+                 instruction::{AccountMeta, Instruction},
+                 native_token::sol_to_lamports,
+                 program_error::ProgramError,
+                 pubkey::{ParsePubkeyError, Pubkey},
+                 signature::{Keypair as SolKeypair, Signer}};
+use spl_token::solana_program;
+
 use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, SwapOps, TradeFee, Transaction, TransactionEnum,
             TransactionErr, WatcherOps};
 use crate::coin_errors::{MyAddressError, ValidatePaymentResult};
 use crate::hd_wallet::HDPathAccountToAddressId;
-use crate::solana::solana_common::{lamports_to_sol, PrepareTransferData, SufficientBalanceError};
-use crate::solana::spl::SplTokenInfo;
+use crate::solana::{solana_common::{lamports_to_sol, PrepareTransferData, SufficientBalanceError},
+                    spl::SplTokenInfo};
 use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinFutSpawner, ConfirmPaymentInput, DexFee,
             FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum, NegotiateSwapContractAddrErr,
             PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr, PrivKeyBuildPolicy,
@@ -17,42 +56,6 @@ use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinFutSpawner, 
             ValidateWatcherSpendInput, VerificationResult, WaitForHTLCTxSpendArgs, WatcherReward, WatcherRewardError,
             WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput,
             WithdrawError, WithdrawFut, WithdrawRequest, WithdrawResult};
-use async_trait::async_trait;
-use base58::ToBase58;
-use bincode::{deserialize, serialize};
-use bitcrypto::sha256;
-use common::executor::{abortable_queue::AbortableQueue, AbortableSystem, AbortedError};
-use common::{async_blocking, now_sec};
-use crypto::HDPathToCoin;
-use derive_more::Display;
-use futures::compat::Future01CompatExt;
-use futures::{FutureExt, TryFutureExt};
-use futures01::Future;
-use keys::KeyPair;
-use mm2_core::mm_ctx::MmArc;
-use mm2_err_handle::prelude::*;
-use mm2_number::{BigDecimal, MmNumber};
-use num_traits::ToPrimitive;
-use rpc::v1::types::Bytes as BytesJson;
-use serde_json::{self as json, Value as Json};
-use solana_client::rpc_request::TokenAccountsFilter;
-use solana_client::{client_error::{ClientError, ClientErrorKind},
-                    rpc_client::RpcClient};
-use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-use solana_sdk::instruction::AccountMeta;
-use solana_sdk::instruction::Instruction;
-use solana_sdk::native_token::sol_to_lamports;
-use solana_sdk::program_error::ProgramError;
-use solana_sdk::pubkey::ParsePubkeyError;
-pub use solana_sdk::transaction::Transaction as SolTransaction;
-use solana_sdk::{pubkey::Pubkey,
-                 signature::{Keypair, Signer}};
-use spl_token::solana_program;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::str::FromStr;
-use std::sync::Mutex;
-use std::{convert::TryFrom, fmt::Debug, ops::Deref, sync::Arc};
 
 pub mod solana_common;
 mod solana_decode_tx_helpers;
@@ -64,6 +67,8 @@ pub mod spl;
 
 pub const SOLANA_DEFAULT_DECIMALS: u64 = 9;
 pub const LAMPORTS_DUMMY_AMOUNT: u64 = 10;
+
+// TODO: this shall be replaced with solana_swaps::STORAGE_SIZE_ALLOCATED when it's accepted.
 const PAYMENT_STORAGE_SPACE: u64 = 41;
 
 #[async_trait]
@@ -174,7 +179,7 @@ impl From<ed25519_dalek::SignatureError> for KeyPairCreationError {
     fn from(e: ed25519_dalek::SignatureError) -> Self { KeyPairCreationError::SignatureError(e) }
 }
 
-fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<Keypair, MmError<KeyPairCreationError>> {
+fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<SolKeypair, MmError<KeyPairCreationError>> {
     let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key)?;
     let public_key = ed25519_dalek::PublicKey::from(&secret_key);
     let key_pair = ed25519_dalek::Keypair {
@@ -230,7 +235,7 @@ pub async fn solana_coin_with_policy(
 /// pImpl idiom.
 pub struct SolanaCoinImpl {
     ticker: String,
-    key_pair: Keypair,
+    key_pair: SolKeypair,
     client: RpcClient,
     decimals: u8,
     my_address: String,
@@ -320,9 +325,23 @@ async fn withdraw_impl(coin: SolanaCoin, req: WithdrawRequest) -> WithdrawResult
 type SolTxFut = Box<dyn Future<Item = SolTransaction, Error = TransactionErr> + Send + 'static>;
 
 impl Transaction for SolTransaction {
-    fn tx_hex(&self) -> Vec<u8> { serialize(self).unwrap() }
+    fn tx_hex(&self) -> Vec<u8> {
+        serialize(self).unwrap_or_else(|e| {
+            error!("Error serializing SolTransaction: {}", e);
+            vec![]
+        })
+    }
 
-    fn tx_hash_as_bytes(&self) -> BytesJson { BytesJson(Vec::from(self.signatures.get(0).unwrap().as_ref())) }
+    fn tx_hash_as_bytes(&self) -> BytesJson {
+        let hash = match self.signatures.get(0) {
+            Some(signature) => signature,
+            None => {
+                error!("No signature found in SolTransaction");
+                return BytesJson(Vec::new());
+            },
+        };
+        BytesJson(Vec::from(hash.as_ref()))
+    }
 }
 
 impl SolanaCoin {
@@ -398,17 +417,14 @@ impl SolanaCoin {
     }
 
     fn send_hash_time_locked_payment(&self, args: SendPaymentArgs<'_>) -> SolTxFut {
-        let receiver = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(
-            try_tx_fus_opt!(
-                args.swap_contract_address.as_ref(),
-                format!(
-                    "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
-                    args.swap_contract_address
-                )
+        let receiver = Pubkey::new(args.other_pubkey);
+        let swap_program_id = Pubkey::new(try_tx_fus_opt!(
+            args.swap_contract_address,
+            format!(
+                "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
+                args.swap_contract_address
             )
-            .as_slice(),
-        );
+        ));
         let amount = sol_to_lamports(try_tx_fus_opt!(
             args.amount.to_f64(),
             format!("Unable to extract value from args.amount ( {:?} )", args.amount)
@@ -432,25 +448,22 @@ impl SolanaCoin {
             AccountMeta::new(vault_pda, false),
             AccountMeta::new(solana_program::system_program::id(), false),
         ];
-        self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
+        self.sign_and_send_swap_transaction_fut(swap_program_id, accounts, swap_instruction.pack())
     }
 
     fn spend_hash_time_locked_payment(&self, args: SpendPaymentArgs) -> SolTxFut {
-        let sender = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(
-            try_tx_fus_opt!(
-                args.swap_contract_address.as_ref(),
-                format!(
-                    "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
-                    args.swap_contract_address
-                )
+        let sender = Pubkey::new(args.other_pubkey);
+        let swap_program_id = Pubkey::new(try_tx_fus_opt!(
+            args.swap_contract_address.as_ref(),
+            format!(
+                "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
+                args.swap_contract_address
             )
-            .as_slice(),
-        );
+        ));
         let secret: [u8; 32] = try_tx_fus!(<[u8; 32]>::try_from(args.secret));
         let secret_hash = sha256(secret.as_slice()).take();
         let (lock_time, tx_secret_hash, amount, token_program) =
-            try_tx_fus!(self.get_transaction_details(args.other_payment_tx));
+            try_tx_fus!(self.get_swap_transaction_details(args.other_payment_tx));
         if secret_hash != tx_secret_hash {
             try_tx_fus_err!(format!(
                 "Provided secret_hash {:?} does not match transaction secret_hash {:?}",
@@ -474,23 +487,20 @@ impl SolanaCoin {
             AccountMeta::new(vault_pda, false),
             AccountMeta::new(solana_program::system_program::id(), false),
         ];
-        self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
+        self.sign_and_send_swap_transaction_fut(swap_program_id, accounts, swap_instruction.pack())
     }
 
     fn refund_hash_time_locked_payment(&self, args: RefundPaymentArgs) -> SolTxFut {
-        let receiver = Pubkey::new(args.other_pubkey.iter().as_slice());
-        let swap_program_id = Pubkey::new(
-            try_tx_fus_opt!(
-                args.swap_contract_address.as_ref(),
-                format!(
-                    "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
-                    args.swap_contract_address
-                )
+        let receiver = Pubkey::new(args.other_pubkey);
+        let swap_program_id = Pubkey::new(try_tx_fus_opt!(
+            args.swap_contract_address.as_ref(),
+            format!(
+                "Unable to extract Bytes from args.swap_contract_address ( {:?} )",
+                args.swap_contract_address
             )
-            .as_slice(),
-        );
+        ));
         let (lock_time, secret_hash, amount, token_program) =
-            try_tx_fus!(self.get_transaction_details(args.payment_tx));
+            try_tx_fus!(self.get_swap_transaction_details(args.payment_tx));
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
             try_tx_fus!(self.create_vaults(lock_time, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE));
         let swap_instruction = AtomicSwapInstruction::SenderRefund {
@@ -508,68 +518,77 @@ impl SolanaCoin {
             AccountMeta::new(vault_pda, false),             // Not a signer
             AccountMeta::new(solana_program::system_program::id(), false), //system_program must be included
         ];
-        self.sign_and_send_transaction(swap_program_id, accounts, swap_instruction.pack())
+        self.sign_and_send_swap_transaction_fut(swap_program_id, accounts, swap_instruction.pack())
     }
 
-    fn get_transaction_details(&self, tx_hash: &[u8]) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
-        let transaction = deserialize(tx_hash);
-        let transaction: SolTransaction =
-            transaction.map_err(|e| Box::new(TransactionErr::Plain(ERRL!("error deserializing tx_hash: {:?}", e))))?;
+    fn get_swap_transaction_details(
+        &self,
+        tx_hash: &[u8],
+    ) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
+        let transaction: SolTransaction = deserialize(tx_hash)
+            .map_err(|e| Box::new(TransactionErr::Plain(ERRL!("error deserializing tx_hash: {:?}", e))))?;
 
-        if let Some(instruction) = &transaction.message.instructions.get(0) {
-            let data = &instruction.data;
-            let instruction_data = &data[..];
-            let instruction = AtomicSwapInstruction::unpack(instruction_data[0], instruction_data)
-                .map_err(|e| Box::new(TransactionErr::Plain(ERRL!("error unpacking tx data: {:?}", e))))?;
+        let instruction = transaction
+            .message
+            .instructions
+            .get(0)
+            .ok_or_else(|| Box::new(TransactionErr::Plain(ERRL!("Instruction not found in message"))))?;
 
-            match instruction {
-                AtomicSwapInstruction::LamportsPayment {
-                    secret_hash,
-                    lock_time,
-                    amount,
-                    receiver,
-                    rent_exemption_lamports,
-                    vault_bump_seed,
-                    vault_bump_seed_data,
-                } => Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32]))),
-                AtomicSwapInstruction::SLPTokenPayment {
-                    secret_hash,
-                    lock_time,
-                    amount,
-                    receiver,
-                    token_program,
-                    rent_exemption_lamports,
-                    vault_bump_seed,
-                    vault_bump_seed_data,
-                } => Ok((lock_time, secret_hash, amount, token_program)),
-                AtomicSwapInstruction::ReceiverSpend {
-                    secret,
-                    lock_time,
-                    amount,
-                    sender,
-                    token_program,
-                    vault_bump_seed,
-                    vault_bump_seed_data,
-                } => Ok((lock_time, sha256(&secret).take(), amount, token_program)),
-                AtomicSwapInstruction::SenderRefund {
-                    secret_hash,
-                    lock_time,
-                    amount,
-                    receiver,
-                    token_program,
-                    vault_bump_seed,
-                    vault_bump_seed_data,
-                } => Ok((lock_time, secret_hash, amount, token_program)),
-            }
-        } else {
-            Err(Box::new(TransactionErr::Plain(ERRL!(
-                "Instruction not found in message"
-            ))))
+        let instruction_data = &instruction.data[..];
+        let instruction = AtomicSwapInstruction::unpack(instruction_data[0], instruction_data)
+            .map_err(|e| Box::new(TransactionErr::Plain(ERRL!("error unpacking tx data: {:?}", e))))?;
+
+        match instruction {
+            AtomicSwapInstruction::LamportsPayment {
+                secret_hash,
+                lock_time,
+                amount,
+                ..
+            } => Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32]))),
+            AtomicSwapInstruction::SLPTokenPayment {
+                secret_hash,
+                lock_time,
+                amount,
+                token_program,
+                ..
+            } => Ok((lock_time, secret_hash, amount, token_program)),
+            AtomicSwapInstruction::ReceiverSpend {
+                secret,
+                lock_time,
+                amount,
+                token_program,
+                ..
+            } => Ok((lock_time, sha256(&secret).take(), amount, token_program)),
+            AtomicSwapInstruction::SenderRefund {
+                secret_hash,
+                lock_time,
+                amount,
+                token_program,
+                ..
+            } => Ok((lock_time, secret_hash, amount, token_program)),
         }
     }
 
-    pub fn sign_and_send_transaction(&self, program_id: Pubkey, accounts: Vec<AccountMeta>, data: Vec<u8>) -> SolTxFut {
+    fn sign_and_send_swap_transaction_fut(
+        &self,
+        program_id: Pubkey,
+        accounts: Vec<AccountMeta>,
+        data: Vec<u8>,
+    ) -> SolTxFut {
         let coin = self.clone();
+        Box::new(
+            async move { coin.sign_and_send_swap_transaction(program_id, accounts, data).await }
+                .boxed()
+                .compat(),
+        )
+    }
+
+    pub async fn sign_and_send_swap_transaction(
+        &self,
+        program_id: Pubkey,
+        accounts: Vec<AccountMeta>,
+        data: Vec<u8>,
+    ) -> Result<SolTransaction, TransactionErr> {
         // Construct the instruction to send to the program
         // The parameters here depend on your specific program's requirements
         let instruction = Instruction {
@@ -578,27 +597,27 @@ impl SolanaCoin {
             data,     // Pass data to the program here
         };
 
+        // Create a transaction
+        let recent_blockhash = self
+            .client
+            .get_latest_blockhash()
+            .map_err(|e| TransactionErr::Plain(format!("Failed to get recent blockhash: {:?}", e)))?;
+
+        let transaction: SolTransaction = SolTransaction::new_signed_with_payer(
+            &[instruction],
+            Some(&self.key_pair.pubkey()), //payer pubkey
+            &[&self.key_pair],             //payer
+            recent_blockhash,
+        );
+
         // Send the transaction
-        let fut = async move {
-            // Create a transaction
-            let recent_blockhash = coin
-                .client
-                .get_latest_blockhash()
-                .map_err(|e| TransactionErr::Plain(format!("Failed to get recent blockhash: {:?}", e)))?;
+        let tx = self
+            .client
+            .send_and_confirm_transaction(&transaction)
+            .map(|_signature| transaction)
+            .map_err(|e| TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)))?;
 
-            let transaction: SolTransaction = SolTransaction::new_signed_with_payer(
-                &[instruction],
-                Some(&coin.key_pair.pubkey()), //payer pubkey
-                &[&coin.key_pair],             //payer
-                recent_blockhash,
-            );
-
-            coin.client
-                .send_and_confirm_transaction(&transaction)
-                .map(|_signature| transaction)
-                .map_err(|e| TransactionErr::Plain(ERRL!("Solana ClientError: {:?}", e)))
-        };
-        Box::new(fut.boxed().compat())
+        Ok(tx)
     }
 
     fn create_vaults(
@@ -1080,7 +1099,7 @@ impl MmCoin for SolanaCoin {
 
     fn on_disabled(&self) -> Result<(), AbortedError> { AbortableSystem::abort_all(&self.abortable_system) }
 
-    fn on_token_deactivated(&self, _ticker: &str) {}
+    fn on_token_deactivated(&self, _ticker: &str) { unimplemented!() }
 }
 
 #[derive(Debug)]
