@@ -149,12 +149,17 @@ fn send_and_refund_taker_funding_secret() {
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         maker_pubkey: maker_pub,
         taker_secret: &taker_secret,
         taker_secret_hash,
-        swap_unique_data: &[],
+        maker_secret_hash: &[],
         swap_contract_address: &None,
+        dex_fee,
+        premium_amount: "0.1".parse().unwrap(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
         watcher_reward: false,
     };
 

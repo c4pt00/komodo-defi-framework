@@ -1274,11 +1274,19 @@ pub struct SendTakerFundingArgs<'a> {
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::refund_taker_funding_secret]
 pub struct RefundFundingSecretArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     pub funding_tx: &'a Coin::Tx,
-    pub time_lock: u64,
+    pub funding_time_lock: u64,
+    pub payment_time_lock: u64,
     pub maker_pubkey: &'a Coin::Pubkey,
     pub taker_secret: &'a [u8],
     pub taker_secret_hash: &'a [u8],
+    pub maker_secret_hash: &'a [u8],
     pub swap_contract_address: &'a Option<BytesJson>,
+    /// DEX fee
+    pub dex_fee: &'a DexFee,
+    /// Additional reward for maker (premium)
+    pub premium_amount: BigDecimal,
+    /// Actual volume of taker's payment
+    pub trading_amount: BigDecimal,
     pub swap_unique_data: &'a [u8],
     pub watcher_reward: bool,
 }

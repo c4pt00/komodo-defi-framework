@@ -1793,11 +1793,16 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
         let refund_args = RefundFundingSecretArgs {
             funding_tx: &self.taker_funding,
-            time_lock: state_machine.taker_funding_locktime(),
+            funding_time_lock: state_machine.taker_funding_locktime(),
+            payment_time_lock: state_machine.taker_payment_locktime(),
             maker_pubkey: &self.negotiation_data.taker_coin_htlc_pub_from_maker,
             taker_secret: state_machine.taker_secret.as_slice(),
             taker_secret_hash: &secret_hash,
+            maker_secret_hash: &self.negotiation_data.maker_secret_hash,
             swap_contract_address: &None,
+            dex_fee: &state_machine.dex_fee,
+            premium_amount: state_machine.taker_premium.to_decimal(),
+            trading_amount: state_machine.taker_volume.to_decimal(),
             swap_unique_data: &unique_data,
             watcher_reward: false,
         };
