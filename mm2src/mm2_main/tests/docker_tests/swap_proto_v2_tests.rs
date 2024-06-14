@@ -40,7 +40,7 @@ fn send_and_refund_taker_funding_timelock() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(coin.send_taker_funding(send_args)).unwrap();
-    log!("{:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("{:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
@@ -80,7 +80,7 @@ fn send_and_refund_taker_funding_timelock() {
     };
 
     let refund_tx = block_on(coin.refund_taker_funding_timelock(refund_args)).unwrap();
-    log!("{:02x}", refund_tx.tx_hash());
+    log!("{:02x}", refund_tx.tx_hash_as_bytes());
 
     // refund tx has to be confirmed before it can be found as payment spend in native mode
     let confirm_input = ConfirmPaymentInput {
@@ -123,7 +123,7 @@ fn send_and_refund_taker_funding_secret() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(coin.send_taker_funding(send_args)).unwrap();
-    log!("{:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("{:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
@@ -162,7 +162,7 @@ fn send_and_refund_taker_funding_secret() {
     };
 
     let refund_tx = block_on(coin.refund_taker_funding_secret(refund_args)).unwrap();
-    log!("{:02x}", refund_tx.tx_hash());
+    log!("{:02x}", refund_tx.tx_hash_as_bytes());
 
     // refund tx has to be confirmed before it can be found as payment spend in native mode
     let confirm_input = ConfirmPaymentInput {
@@ -210,7 +210,7 @@ fn send_and_spend_taker_funding() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
-    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
@@ -250,7 +250,7 @@ fn send_and_spend_taker_funding() {
     let preimage = block_on(maker_coin.gen_taker_payment_preimage(&preimage_args, &[])).unwrap();
 
     let payment_tx = block_on(taker_coin.sign_and_send_taker_payment(&preimage, &preimage_args, &[])).unwrap();
-    log!("Taker payment tx {:02x}", payment_tx.tx_hash());
+    log!("Taker payment tx {:02x}", payment_tx.tx_hash_as_bytes());
 
     // payment tx has to be confirmed before it can be found as payment spend in native mode
     let confirm_input = ConfirmPaymentInput {
@@ -418,7 +418,7 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
-    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
@@ -458,7 +458,7 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
     let preimage = block_on(maker_coin.gen_taker_payment_preimage(&preimage_args, &[])).unwrap();
 
     let payment_tx = block_on(taker_coin.sign_and_send_taker_payment(&preimage, &preimage_args, &[])).unwrap();
-    log!("Taker payment tx {:02x}", payment_tx.tx_hash());
+    log!("Taker payment tx {:02x}", payment_tx.tx_hash_as_bytes());
 
     let gen_taker_payment_spend_args = GenTakerPaymentSpendArgs {
         taker_tx: &payment_tx,
@@ -494,7 +494,7 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
         &[],
     ))
     .unwrap();
-    log!("Taker payment spend tx {:02x}", taker_payment_spend.tx_hash());
+    log!("Taker payment spend tx {:02x}", taker_payment_spend.tx_hash_as_bytes());
 }
 
 #[test]
@@ -526,7 +526,7 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
-    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
     // tx must have 3 outputs: actual funding, OP_RETURN containing the secret hash and change
     assert_eq!(3, taker_funding_utxo_tx.outputs.len());
 
@@ -566,7 +566,7 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
     let preimage = block_on(maker_coin.gen_taker_payment_preimage(&preimage_args, &[])).unwrap();
 
     let payment_tx = block_on(taker_coin.sign_and_send_taker_payment(&preimage, &preimage_args, &[])).unwrap();
-    log!("Taker payment tx {:02x}", payment_tx.tx_hash());
+    log!("Taker payment tx {:02x}", payment_tx.tx_hash_as_bytes());
 
     let gen_taker_payment_spend_args = GenTakerPaymentSpendArgs {
         taker_tx: &payment_tx,
@@ -599,7 +599,10 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
         &[],
     ))
     .unwrap();
-    log!("Taker payment spend tx hash {:02x}", taker_payment_spend.tx_hash());
+    log!(
+        "Taker payment spend tx hash {:02x}",
+        taker_payment_spend.tx_hash_as_bytes()
+    );
 }
 
 #[test]
@@ -621,7 +624,7 @@ fn send_and_refund_maker_payment_timelock() {
         swap_unique_data: &[],
     };
     let maker_payment = block_on(coin.send_maker_payment_v2(send_args)).unwrap();
-    log!("{:02x}", maker_payment.tx_hash());
+    log!("{:02x}", maker_payment.tx_hash_as_bytes());
     // tx must have 3 outputs: actual payment, OP_RETURN containing the secret hash and change
     assert_eq!(3, maker_payment.outputs.len());
 
@@ -661,7 +664,7 @@ fn send_and_refund_maker_payment_timelock() {
     };
 
     let refund_tx = block_on(coin.refund_maker_payment_v2_timelock(refund_args)).unwrap();
-    log!("{:02x}", refund_tx.tx_hash());
+    log!("{:02x}", refund_tx.tx_hash_as_bytes());
 }
 
 #[test]
@@ -685,7 +688,7 @@ fn send_and_refund_maker_payment_taker_secret() {
         swap_unique_data: &[],
     };
     let maker_payment = block_on(coin.send_maker_payment_v2(send_args)).unwrap();
-    log!("{:02x}", maker_payment.tx_hash());
+    log!("{:02x}", maker_payment.tx_hash_as_bytes());
     // tx must have 3 outputs: actual payment, OP_RETURN containing the secret hash and change
     assert_eq!(3, maker_payment.outputs.len());
 
@@ -722,7 +725,7 @@ fn send_and_refund_maker_payment_taker_secret() {
     };
 
     let refund_tx = block_on(coin.refund_maker_payment_v2_secret(refund_args)).unwrap();
-    log!("{:02x}", refund_tx.tx_hash());
+    log!("{:02x}", refund_tx.tx_hash_as_bytes());
 }
 
 #[test]

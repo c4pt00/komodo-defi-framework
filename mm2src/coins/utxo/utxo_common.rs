@@ -19,15 +19,15 @@ use crate::{scan_for_new_addresses_impl, CanRefundHtlc, CoinBalance, CoinWithDer
             SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
             SendTakerFundingArgs, SignRawTransactionEnum, SignRawTransactionRequest, SignUtxoTransactionParams,
             SignatureError, SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs, SwapOps,
-            SwapTxTypeWithSecretHash, TradePreimageValue, TransactionFut, TransactionResult, TxFeeDetails, TxGenError,
-            TxMarshalingErr, TxPreimageWithSig, ValidateAddressResult, ValidateOtherPubKeyErr, ValidatePaymentFut,
-            ValidatePaymentInput, ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs,
-            ValidateTakerFundingSpendPreimageError, ValidateTakerFundingSpendPreimageResult,
-            ValidateTakerPaymentSpendPreimageError, ValidateTakerPaymentSpendPreimageResult,
-            ValidateWatcherSpendInput, VerificationError, VerificationResult, WatcherSearchForSwapTxSpendInput,
-            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawResult, WithdrawSenderAddress,
-            EARLY_CONFIRMATION_ERR_LOG, INVALID_RECEIVER_ERR_LOG, INVALID_REFUND_TX_ERR_LOG, INVALID_SCRIPT_ERR_LOG,
-            INVALID_SENDER_ERR_LOG, OLD_TRANSACTION_ERR_LOG};
+            SwapTxTypeWithSecretHash, TradePreimageValue, TransactionData, TransactionFut, TransactionResult,
+            TxFeeDetails, TxGenError, TxMarshalingErr, TxPreimageWithSig, ValidateAddressResult,
+            ValidateOtherPubKeyErr, ValidatePaymentFut, ValidatePaymentInput, ValidateSwapV2TxError,
+            ValidateSwapV2TxResult, ValidateTakerFundingArgs, ValidateTakerFundingSpendPreimageError,
+            ValidateTakerFundingSpendPreimageResult, ValidateTakerPaymentSpendPreimageError,
+            ValidateTakerPaymentSpendPreimageResult, ValidateWatcherSpendInput, VerificationError, VerificationResult,
+            WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput,
+            WithdrawResult, WithdrawSenderAddress, EARLY_CONFIRMATION_ERR_LOG, INVALID_RECEIVER_ERR_LOG,
+            INVALID_REFUND_TX_ERR_LOG, INVALID_SCRIPT_ERR_LOG, INVALID_SENDER_ERR_LOG, OLD_TRANSACTION_ERR_LOG};
 use crate::{MmCoinEnum, WatcherReward, WatcherRewardError};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -310,19 +310,18 @@ pub fn addresses_from_script<T: UtxoCommonOps>(coin: &T, script: &Script) -> Res
             let (addr_format, build_option) = match dst.kind {
                 AddressScriptType::P2PKH => (
                     coin.addr_format_for_standard_scripts(),
-                    AddressBuilderOption::BuildAsPubkeyHash,
+                    AddressBuilderOption::PubkeyHash(dst.hash),
                 ),
                 AddressScriptType::P2SH => (
                     coin.addr_format_for_standard_scripts(),
-                    AddressBuilderOption::BuildAsScriptHash,
+                    AddressBuilderOption::ScriptHash(dst.hash),
                 ),
-                AddressScriptType::P2WPKH => (UtxoAddressFormat::Segwit, AddressBuilderOption::BuildAsPubkeyHash),
-                AddressScriptType::P2WSH => (UtxoAddressFormat::Segwit, AddressBuilderOption::BuildAsScriptHash),
+                AddressScriptType::P2WPKH => (UtxoAddressFormat::Segwit, AddressBuilderOption::PubkeyHash(dst.hash)),
+                AddressScriptType::P2WSH => (UtxoAddressFormat::Segwit, AddressBuilderOption::ScriptHash(dst.hash)),
             };
 
             AddressBuilder::new(
                 addr_format,
-                dst.hash,
                 conf.checksum_type,
                 conf.address_prefixes.clone(),
                 conf.bech32_hrp.clone(),
@@ -514,9 +513,9 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
             .inputs
             .extend(inputs.into_iter().map(|input| UnsignedTransactionInput {
                 previous_output: input.outpoint,
+                prev_script: input.script,
                 sequence: SEQUENCE_FINAL,
                 amount: input.value,
-                witness: Vec::new(),
             }));
         self
     }
@@ -589,9 +588,9 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
                     }
                     if let Some(min_relay) = self.min_relay_fee {
                         if self.tx_fee < min_relay {
-                            outputs_plus_fee -= self.tx_fee;
-                            outputs_plus_fee += min_relay;
-                            self.tx_fee = min_relay;
+                            let fee_diff = min_relay - self.tx_fee;
+                            outputs_plus_fee += fee_diff;
+                            self.tx_fee += fee_diff;
                         }
                     }
                     self.sum_inputs >= outputs_plus_fee
@@ -680,17 +679,23 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
             None
         };
 
-        for utxo in self.available_inputs.clone() {
-            self.tx.inputs.push(UnsignedTransactionInput {
-                previous_output: utxo.outpoint,
-                sequence: SEQUENCE_FINAL,
-                amount: utxo.value,
-                witness: vec![],
-            });
-            self.sum_inputs += utxo.value;
+        // The function `update_fee_and_check_completeness` checks if the total value of the current inputs
+        // (added using add_required_inputs or directly) is enough to cover the transaction outputs and fees.
+        // If it returns `true`, it indicates that no additional inputs are needed from the available inputs,
+        // and we can skip the loop that adds these additional inputs.
+        if !self.update_fee_and_check_completeness(from.addr_format(), &actual_tx_fee) {
+            for utxo in self.available_inputs.clone() {
+                self.tx.inputs.push(UnsignedTransactionInput {
+                    previous_output: utxo.outpoint,
+                    prev_script: utxo.script,
+                    sequence: SEQUENCE_FINAL,
+                    amount: utxo.value,
+                });
+                self.sum_inputs += utxo.value;
 
-            if self.update_fee_and_check_completeness(from.addr_format(), &actual_tx_fee) {
-                break;
+                if self.update_fee_and_check_completeness(from.addr_format(), &actual_tx_fee) {
+                    break;
+                }
             }
         }
 
@@ -769,12 +774,13 @@ impl<'a, T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps> UtxoTxBuilder<'a, T> {
                 .find(|input| input.previous_output == utxo.outpoint)
             {
                 input.amount = utxo.value;
+                input.prev_script = utxo.script;
             } else {
                 self.tx.inputs.push(UnsignedTransactionInput {
                     previous_output: utxo.outpoint,
+                    prev_script: utxo.script,
                     sequence: SEQUENCE_FINAL,
                     amount: utxo.value,
-                    witness: vec![],
                 });
             }
         }
@@ -888,8 +894,8 @@ pub async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
                 hash: H256::default(),
                 index: DEFAULT_SWAP_VOUT as u32,
             },
+            prev_script: Vec::new().into(),
             amount: 0,
-            witness: Vec::new(),
         }],
         outputs: vec![TransactionOutput {
             value: 0,
@@ -968,8 +974,8 @@ async fn p2sh_spending_tx_preimage<T: UtxoCommonOps>(
                 hash: prev_tx.hash(),
                 index: DEFAULT_SWAP_VOUT as u32,
             },
+            prev_script: Vec::new().into(),
             amount,
-            witness: Vec::new(),
         }],
         outputs,
         expiry_height: 0,
@@ -1272,12 +1278,11 @@ pub async fn sign_and_send_taker_payment<T: UtxoCommonOps>(
         );
         let payment_address = AddressBuilder::new(
             UtxoAddressFormat::Standard,
-            AddressHashEnum::AddressHash(dhash160(&payment_redeem_script)),
             coin.as_ref().conf.checksum_type,
             coin.as_ref().conf.address_prefixes.clone(),
             coin.as_ref().conf.bech32_hrp.clone(),
         )
-        .as_sh()
+        .as_sh(dhash160(&payment_redeem_script).into())
         .build()
         .map_err(TransactionErr::Plain)?;
         let payment_address_str = payment_address.to_string();
@@ -2503,12 +2508,11 @@ pub fn check_if_my_payment_sent<T: UtxoCommonOps + SwapOps>(
             UtxoRpcClientEnum::Native(client) => {
                 let target_addr = AddressBuilder::new(
                     coin.addr_format_for_standard_scripts(),
-                    hash.into(),
                     coin.as_ref().conf.checksum_type,
                     coin.as_ref().conf.address_prefixes.clone(),
                     coin.as_ref().conf.bech32_hrp.clone(),
                 )
-                .as_sh()
+                .as_sh(hash.into())
                 .build()?;
                 let target_addr = target_addr.to_string();
                 let is_imported = try_s!(client.is_address_imported(&target_addr).await);
@@ -2747,25 +2751,23 @@ pub fn send_raw_tx_bytes(
 }
 
 /// Helper to load unspent outputs from cache or rpc
-/// also returns first previous scriptpubkey
 async fn get_unspents_for_inputs(
     coin: &UtxoCoinFields,
     inputs: &Vec<TransactionInput>,
-) -> Result<(Option<Script>, Vec<UnspentInfo>), RawTransactionError> {
+) -> Result<Vec<UnspentInfo>, RawTransactionError> {
     let txids_reversed = inputs
         .iter()
         .map(|input| input.previous_output.hash.reversed().into()) // reverse hashes to send to electrum
         .collect::<HashSet<H256Json>>();
 
     if txids_reversed.is_empty() {
-        return Ok((None, vec![]));
+        return Ok(vec![]);
     }
 
     let prev_txns_loaded = utxo_common::get_verbose_transactions_from_cache_or_rpc(coin, txids_reversed)
         .await
         .map_err(|err| RawTransactionError::InvalidParam(err.to_string()))?;
 
-    let mut prev_script = None;
     let mut unspents_loaded = Vec::with_capacity(inputs.len());
 
     for input in inputs {
@@ -2785,15 +2787,13 @@ async fn get_unspents_for_inputs(
                 input.previous_output.hash, input.previous_output.index
             )));
         }
-        if prev_script.is_none() {
-            // get first previous script pubkey
-            let script_bytes: Vec<u8> = prev_tx.vout[input.previous_output.index as usize]
+        let prev_script = Script::from(
+            prev_tx.vout[input.previous_output.index as usize]
                 .clone()
                 .script
                 .hex
-                .into();
-            prev_script = Some(Script::from(script_bytes));
-        }
+                .to_vec(),
+        );
         let prev_amount = prev_tx.vout[input.previous_output.index as usize]
             .value
             .ok_or_else(|| {
@@ -2809,9 +2809,10 @@ async fn get_unspents_for_inputs(
             value: sat_from_big_decimal(&prev_amount, coin.decimals)
                 .expect("Conversion to satoshi from bigdecimal must be valid"),
             height: None,
+            script: prev_script,
         });
     }
-    Ok((prev_script, unspents_loaded))
+    Ok(unspents_loaded)
 }
 
 /// Takes args with a raw transaction in hexadecimal format and previous transactions data as input
@@ -2837,15 +2838,13 @@ async fn sign_raw_utxo_tx<T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps>(
         hex::decode(args.tx_hex.as_bytes()).map_to_mm(|e| RawTransactionError::DecodeError(e.to_string()))?;
     let tx: UtxoTx = deserialize(tx_bytes.as_slice()).map_to_mm(|e| RawTransactionError::DecodeError(e.to_string()))?;
 
-    let mut prev_script = HashSet::new();
     let mut unspents = vec![];
 
     if let Some(prev_txns) = &args.prev_txns {
         for prev_utxo in prev_txns.iter() {
-            // get first previous utxo script assuming all are the same
-            let script_bytes = hex::decode(prev_utxo.clone().script_pub_key)
-                .map_to_mm(|e| RawTransactionError::DecodeError(e.to_string()))?;
-            prev_script.insert(Script::from(script_bytes));
+            let prev_script = hex::decode(prev_utxo.clone().script_pub_key)
+                .map_to_mm(|e| RawTransactionError::DecodeError(e.to_string()))?
+                .into();
 
             let prev_hash = hex::decode(prev_utxo.tx_hash.as_bytes())
                 .map_to_mm(|e| RawTransactionError::DecodeError(e.to_string()))?;
@@ -2858,6 +2857,7 @@ async fn sign_raw_utxo_tx<T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps>(
                 value: sat_from_big_decimal(&prev_utxo.amount, coin.as_ref().decimals)
                     .expect("conversion satoshi from bigdecimal must be valid"),
                 height: None,
+                script: prev_script,
             });
         }
     }
@@ -2865,21 +2865,14 @@ async fn sign_raw_utxo_tx<T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps>(
     let inputs_to_load = tx
         .inputs()
         .iter()
+        .filter(|input| !unspents.iter().any(|u| u.outpoint == input.previous_output))
         .cloned()
-        .filter(|input| {
-            !unspents.iter().any(|u| {
-                u.outpoint.hash == input.previous_output.hash && u.outpoint.index == input.previous_output.index
-            })
-        })
         .collect::<Vec<TransactionInput>>();
 
     // If some previous utxos are not provided in the params load them from the chain
     if !inputs_to_load.is_empty() {
-        let (loaded_script, loaded_unspents) = get_unspents_for_inputs(coin.as_ref(), &inputs_to_load).await?;
+        let loaded_unspents = get_unspents_for_inputs(coin.as_ref(), &inputs_to_load).await?;
         unspents.extend(loaded_unspents.into_iter());
-        if let Some(loaded_script) = loaded_script {
-            prev_script.insert(loaded_script);
-        }
     }
 
     // TODO: use zeroise for privkey
@@ -2898,31 +2891,9 @@ async fn sign_raw_utxo_tx<T: AsRef<UtxoCoinFields> + UtxoTxGenerationOps>(
         .map_err(|e| RawTransactionError::InvalidParam(e.to_string()))?;
     debug!("Unsigned tx = {:?} for signing", unsigned);
 
-    let prev_script = match prev_script.len() {
-        0 => {
-            return MmError::err(RawTransactionError::NonExistentPrevOutputError(String::from(
-                "no previous script",
-            )))
-        },
-        1 => prev_script.into_iter().next().unwrap(),
-        _ => {
-            return MmError::err(RawTransactionError::InvalidParam(String::from(
-                "spends are from same address only",
-            )))
-        },
-    };
-    let signature_version = match prev_script.is_pay_to_witness_key_hash() {
-        true => SignatureVersion::WitnessV0,
-        _ => coin.as_ref().conf.signature_version,
-    };
-    let tx_signed = sign_tx(
-        unsigned,
-        key_pair,
-        prev_script,
-        signature_version,
-        coin.as_ref().conf.fork_id,
-    )
-    .map_err(|err| RawTransactionError::SigningError(err.to_string()))?;
+    let signature_version = coin.as_ref().conf.signature_version;
+    let tx_signed = sign_tx(unsigned, key_pair, signature_version, coin.as_ref().conf.fork_id)
+        .map_err(|err| RawTransactionError::SigningError(err.to_string()))?;
 
     let tx_signed_bytes = serialize_with_flags(&tx_signed, SERIALIZE_TRANSACTION_WITNESS);
     Ok(RawTransactionRes {
@@ -3303,7 +3274,7 @@ where
     let mut history_map: HashMap<H256Json, TransactionDetails> = history
         .into_iter()
         .filter_map(|tx| {
-            let tx_hash = H256Json::from_str(&tx.tx_hash).ok()?;
+            let tx_hash = H256Json::from_str(tx.tx.tx_hash()?).ok()?;
             Some((tx_hash, tx))
         })
         .collect();
@@ -3753,8 +3724,7 @@ pub async fn tx_details_by_hash<T: UtxoCommonOps>(
         spent_by_me: big_decimal_from_sat_unsigned(spent_by_me, coin.as_ref().decimals),
         my_balance_change: big_decimal_from_sat(received_by_me as i64 - spent_by_me as i64, coin.as_ref().decimals),
         total_amount: big_decimal_from_sat_unsigned(input_amount, coin.as_ref().decimals),
-        tx_hash: tx.hash().reversed().to_vec().to_tx_hash(),
-        tx_hex: verbose_tx.hex,
+        tx: TransactionData::new_signed(verbose_tx.hex, tx.hash().reversed().to_vec().to_tx_hash()),
         fee_details: Some(fee_details.into()),
         block_height: verbose_tx.height.unwrap_or(0),
         coin: ticker.clone(),
@@ -3809,14 +3779,19 @@ pub async fn update_kmd_rewards<T>(
 where
     T: UtxoCommonOps + UtxoStandardOps + MarketCoinOps,
 {
+    let (Some(tx_hex), Some(tx_hash)) = (tx_details.tx.tx_hex(), tx_details.tx.tx_hash()) else {
+        return MmError::err(UtxoRpcError::Internal("Invalid TransactionDetails".to_string()));
+    };
+
     if !tx_details.should_update_kmd_rewards() {
         let error = "There is no need to update KMD rewards".to_owned();
         return MmError::err(UtxoRpcError::Internal(error));
     }
-    let tx: UtxoTx = deserialize(tx_details.tx_hex.as_slice()).map_to_mm(|e| {
+
+    let tx: UtxoTx = deserialize(tx_hex.as_slice()).map_to_mm(|e| {
         UtxoRpcError::Internal(format!(
             "Error deserializing the {:?} transaction hex: {:?}",
-            tx_details.tx_hash, e
+            tx_hash, e
         ))
     })?;
     let kmd_rewards = coin.calc_interest_of_tx(&tx, input_transactions).await?;
@@ -4329,26 +4304,20 @@ pub fn address_from_raw_pubkey(
     hrp: Option<String>,
     addr_format: UtxoAddressFormat,
 ) -> Result<Address, String> {
-    AddressBuilder::new(
-        addr_format,
-        try_s!(Public::from_slice(pub_key)).address_hash().into(),
-        checksum_type,
-        prefixes,
-        hrp,
-    )
-    .as_pkh()
-    .build()
+    AddressBuilder::new(addr_format, checksum_type, prefixes, hrp)
+        .as_pkh_from_pk(try_s!(Public::from_slice(pub_key)))
+        .build()
 }
 
 pub fn address_from_pubkey(
-    pub_key: &Public,
+    pubkey: &Public,
     prefixes: NetworkAddressPrefixes,
     checksum_type: ChecksumType,
     hrp: Option<String>,
     addr_format: UtxoAddressFormat,
 ) -> Address {
-    AddressBuilder::new(addr_format, pub_key.address_hash().into(), checksum_type, prefixes, hrp)
-        .as_pkh()
+    AddressBuilder::new(addr_format, checksum_type, prefixes, hrp)
+        .as_pkh_from_pk(*pubkey)
         .build()
         .expect("valid address props")
 }
@@ -4371,7 +4340,7 @@ pub async fn validate_payment<'a, T: UtxoCommonOps>(
     let amount = sat_from_big_decimal(&amount, coin.as_ref().decimals)?;
 
     let expected_redeem = tx_type_with_secret_hash.redeem_script(time_lock, first_pub0, second_pub0);
-    let tx_hash = tx.tx_hash();
+    let tx_hash = tx.tx_hash_as_bytes();
 
     let tx_from_rpc = retry_on_err!(async {
         coin.as_ref()
@@ -4550,12 +4519,11 @@ where
 
     let payment_address = AddressBuilder::new(
         UtxoAddressFormat::Standard,
-        redeem_script_hash.into(),
         coin.as_ref().conf.checksum_type,
         coin.as_ref().conf.address_prefixes.clone(),
         coin.as_ref().conf.bech32_hrp.clone(),
     )
-    .as_sh()
+    .as_sh(redeem_script_hash.into())
     .build()?;
     let result = SwapPaymentOutputsResult {
         payment_address,
@@ -5030,12 +4998,11 @@ where
     // import funding address in native mode to track funding tx spend
     let funding_address = AddressBuilder::new(
         AddressFormat::Standard,
-        dhash160(&redeem_script).into(),
         coin.as_ref().conf.checksum_type,
         coin.as_ref().conf.address_prefixes.clone(),
         coin.as_ref().conf.bech32_hrp.clone(),
     )
-    .as_sh()
+    .as_sh(dhash160(&redeem_script).into())
     .build()
     .map_to_mm(ValidateSwapV2TxError::Internal)?;
 

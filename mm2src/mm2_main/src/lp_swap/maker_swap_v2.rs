@@ -3,9 +3,9 @@ use super::{swap_v2_topic, LockedAmount, LockedAmountInfo, SavedTradeFee, SwapsC
             NEGOTIATION_TIMEOUT_SEC};
 use crate::mm2::lp_swap::maker_swap::MakerSwapPreparedParams;
 use crate::mm2::lp_swap::swap_lock::SwapLock;
-use crate::mm2::lp_swap::swap_v2_pb::*;
 use crate::mm2::lp_swap::{broadcast_swap_v2_msg_every, check_balance_for_maker_swap, recv_swap_v2_msg, SecretHashAlgo,
                           SwapConfirmationsSettings, TransactionIdentifier, MAKER_SWAP_V2_TYPE, MAX_STARTED_AT_DIFF};
+use crate::mm2::lp_swap::{swap_v2_pb::*, NO_REFUND_FEE};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
 use coins::utxo::utxo_common::big_decimal_from_sat_unsigned;
@@ -802,7 +802,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         let stage = FeeApproxStage::StartSwap;
         let maker_payment_fee = match state_machine
             .maker_coin
-            .get_sender_trade_fee(preimage_value, stage)
+            .get_sender_trade_fee(preimage_value, stage, NO_REFUND_FEE)
             .await
         {
             Ok(fee) => fee,
@@ -1222,7 +1222,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         info!(
             "Sent maker payment {} tx {:02x} during swap {}",
             state_machine.maker_coin.ticker(),
-            maker_payment.tx_hash(),
+            maker_payment.tx_hash_as_bytes(),
             state_machine.uuid
         );
         let next_state = MakerPaymentSentTakerPaymentPreimageGenerated {
@@ -1250,7 +1250,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             negotiation_data: self.negotiation_data.to_stored_data(),
             taker_funding: TransactionIdentifier {
                 tx_hex: self.taker_funding.tx_hex().into(),
-                tx_hash: self.taker_funding.tx_hash(),
+                tx_hash: self.taker_funding.tx_hash_as_bytes(),
             },
             maker_payment_fee: self.maker_payment_fee.clone(),
         }
@@ -1397,11 +1397,11 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             negotiation_data: self.negotiation_data.to_stored_data(),
             maker_payment: TransactionIdentifier {
                 tx_hex: self.maker_payment.tx_hex().into(),
-                tx_hash: self.maker_payment.tx_hash(),
+                tx_hash: self.maker_payment.tx_hash_as_bytes(),
             },
             taker_funding: TransactionIdentifier {
                 tx_hex: self.taker_funding.tx_hex().into(),
-                tx_hash: self.taker_funding.tx_hash(),
+                tx_hash: self.taker_funding.tx_hash_as_bytes(),
             },
             taker_payment_preimage: StoredTxPreimage {
                 preimage: self.taker_payment_preimage.preimage.to_bytes().into(),
@@ -1554,7 +1554,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             negotiation_data: self.negotiation_data.to_stored_data(),
             maker_payment: TransactionIdentifier {
                 tx_hex: self.maker_payment.tx_hex().into(),
-                tx_hash: self.maker_payment.tx_hash(),
+                tx_hash: self.maker_payment.tx_hash_as_bytes(),
             },
             reason: self.reason.clone(),
         }
@@ -1705,7 +1705,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         info!(
             "Spent taker payment {} tx {:02x} during swap {}",
             state_machine.taker_coin.ticker(),
-            taker_payment_spend.tx_hash(),
+            taker_payment_spend.tx_hash_as_bytes(),
             state_machine.uuid
         );
         let next_state = TakerPaymentSpent {
@@ -1731,11 +1731,11 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             negotiation_data: self.negotiation_data.to_stored_data(),
             maker_payment: TransactionIdentifier {
                 tx_hex: self.maker_payment.tx_hex().into(),
-                tx_hash: self.maker_payment.tx_hash(),
+                tx_hash: self.maker_payment.tx_hash_as_bytes(),
             },
             taker_payment: TransactionIdentifier {
                 tx_hex: self.taker_payment.tx_hex().into(),
-                tx_hash: self.taker_payment.tx_hash(),
+                tx_hash: self.taker_payment.tx_hash_as_bytes(),
             },
         }
     }
@@ -1776,15 +1776,15 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_coin_start_block: self.taker_coin_start_block,
             maker_payment: TransactionIdentifier {
                 tx_hex: self.maker_payment.tx_hex().into(),
-                tx_hash: self.maker_payment.tx_hash(),
+                tx_hash: self.maker_payment.tx_hash_as_bytes(),
             },
             taker_payment: TransactionIdentifier {
                 tx_hex: self.taker_payment.tx_hex().into(),
-                tx_hash: self.taker_payment.tx_hash(),
+                tx_hash: self.taker_payment.tx_hash_as_bytes(),
             },
             taker_payment_spend: TransactionIdentifier {
                 tx_hex: self.taker_payment_spend.tx_hex().into(),
-                tx_hash: self.taker_payment_spend.tx_hash(),
+                tx_hash: self.taker_payment_spend.tx_hash_as_bytes(),
             },
         }
     }
@@ -1928,11 +1928,11 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         MakerSwapEvent::MakerPaymentRefunded {
             maker_payment: TransactionIdentifier {
                 tx_hex: self.maker_payment.tx_hex().into(),
-                tx_hash: self.maker_payment.tx_hash(),
+                tx_hash: self.maker_payment.tx_hash_as_bytes(),
             },
             maker_payment_refund: TransactionIdentifier {
                 tx_hex: self.maker_payment_refund.tx_hex().into(),
-                tx_hash: self.maker_payment_refund.tx_hash(),
+                tx_hash: self.maker_payment_refund.tx_hash_as_bytes(),
             },
             reason: self.reason.clone(),
         }
