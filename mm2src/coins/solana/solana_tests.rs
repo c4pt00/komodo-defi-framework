@@ -1,17 +1,17 @@
-use super::*;
-use crate::solana::solana_common_tests::{generate_key_pair_from_iguana_seed, generate_key_pair_from_seed,
-                                         solana_coin_for_test, SolanaNet};
-use crate::solana::solana_decode_tx_helpers::SolanaConfirmedTransaction;
-use crate::{MarketCoinOps, SwapTxTypeWithSecretHash};
 use base58::ToBase58;
 use common::{block_on, Future01CompatExt};
 use rpc::v1::types::Bytes;
 use solana_client::rpc_request::TokenAccountsFilter;
-use solana_sdk::bs58;
-use solana_sdk::signature::{Signature, Signer};
+use solana_sdk::{bs58,
+                 signature::{Signature, Signer}};
 use solana_transaction_status::UiTransactionEncoding;
-use std::ops::Neg;
-use std::str::FromStr;
+use std::{ops::Neg, str::FromStr};
+
+use super::*;
+use crate::solana::{solana_common_tests::{generate_key_pair_from_iguana_seed, generate_key_pair_from_seed,
+                                          solana_coin_for_test, SolanaNet},
+                    solana_decode_tx_helpers::SolanaConfirmedTransaction};
+use crate::{MarketCoinOps, SwapTxTypeWithSecretHash};
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
