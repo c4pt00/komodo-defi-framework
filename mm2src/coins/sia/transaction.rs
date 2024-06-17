@@ -124,6 +124,7 @@ pub struct SiafundElement {
     pub maturity_height: u64,
 }
 
+
 pub struct SiacoinElement {
     pub state_element: StateElement,
     pub siacoin_output: SiacoinOutput,
@@ -144,6 +145,15 @@ pub struct SiafundInputV2 {
     pub satisfied_policy: SatisfiedPolicy,
 }
 
+impl Encodable for SiafundInputV2 {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.parent.encode(encoder);
+        self.claim_address.encode(encoder);
+        self.satisfied_policy.encode(encoder);
+    }
+
+}
+
 pub enum SiacoinInput {
     V1(SiacoinInputV1),
     V2(SiacoinInputV2),
@@ -155,16 +165,17 @@ pub struct SiacoinInputV1 {
     pub unlock_condition: UnlockCondition,
 }
 
-pub struct SiacoinInputV2 {
-    pub parent: SiacoinElement,
-    pub satisfied_policy: SatisfiedPolicy,
-}
 
 impl Encodable for SiacoinInputV1 {
     fn encode(&self, encoder: &mut Encoder) {
         self.parent_id.encode(encoder);
         self.unlock_condition.encode(encoder);
     }
+}
+
+pub struct SiacoinInputV2 {
+    pub parent: SiacoinElement,
+    pub satisfied_policy: SatisfiedPolicy,
 }
 
 impl Encodable for SiacoinInputV2 {
@@ -185,8 +196,35 @@ impl Encodable for SiacoinInput {
 
 #[derive(Clone)]
 pub struct SiafundOutput {
-    pub value: Currency,
+    pub value: u64,
     pub address: Address,
+}
+
+impl Encodable for SiafundOutput {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u64(self.value);
+        self.address.encode(encoder);
+    }
+}
+
+impl Encodable for SiafundOutputVersion {
+    fn encode(&self, encoder: &mut Encoder) {
+        match self {
+            SiafundOutputVersion::V1(v1) => {
+                v1.encode(encoder);
+            },
+            SiafundOutputVersion::V2(v2) => {
+                CurrencyVersion::V2(v2.value.clone()).encode(encoder);
+                v2.address.encode(encoder);
+            },
+        }
+    }
+}
+
+// SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
+pub enum SiacoinOutputVersion {
+    V1(SiafundOutput),
+    V2(SiafundOutput),
 }
 
 // SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
@@ -726,4 +764,12 @@ fn test_siacoin_input_encode_v2() {
     let hash = Encoder::encode_and_hash(&vin_wrapped);
     let expected = H256::from("a8ab11b91ee19ce68f2d608bd4d19212841842f0c50151ae4ccb8e9db68cd6c4");
     assert_eq!(hash, expected);
+}
+
+
+#[test]
+fn test_print_structure() {
+
+
+
 }
