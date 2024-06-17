@@ -805,9 +805,12 @@ impl EthCoinImpl {
 
         let mut input =
             Vec::with_capacity(funding_timelock_bytes.len() + payment_timelock_bytes.len() + secret_hash.len());
-        input.extend_from_slice(&funding_timelock_bytes);
-        input.extend_from_slice(&payment_timelock_bytes);
-        input.extend_from_slice(secret_hash);
+        input.extend(
+            funding_timelock_bytes
+                .iter()
+                .chain(payment_timelock_bytes.iter())
+                .chain(secret_hash.iter()),
+        );
         sha256(&input).to_vec()
     }
 
