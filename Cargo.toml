@@ -71,3 +71,7 @@ debug-assertions = false
 panic = 'unwind'
 incremental = true
 codegen-units = 256
+
+[patch.crates-io]
+der = { git = "https://github.com/tavakyan/formats.git", branch = "fix/downgrade-zeroize-version" }
+curve25519-dalek = { git = "https://github.com/solana-labs/curve25519-dalek.git", rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464" }
