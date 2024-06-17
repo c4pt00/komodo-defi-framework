@@ -56,6 +56,7 @@ use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinFutSpawner, 
             ValidateWatcherSpendInput, VerificationResult, WaitForHTLCTxSpendArgs, WatcherReward, WatcherRewardError,
             WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput,
             WithdrawError, WithdrawFut, WithdrawRequest, WithdrawResult};
+use solana_swaps::STORAGE_SIZE_ALLOCATED;
 
 pub mod solana_common;
 mod solana_decode_tx_helpers;
@@ -67,9 +68,6 @@ pub mod spl;
 
 pub const SOLANA_DEFAULT_DECIMALS: u64 = 9;
 pub const LAMPORTS_DUMMY_AMOUNT: u64 = 10;
-
-// TODO: this shall be replaced with solana_swaps::STORAGE_SIZE_ALLOCATED when it's accepted.
-const PAYMENT_STORAGE_SPACE: u64 = 41;
 
 #[async_trait]
 pub trait SolanaCommonOps {
@@ -431,7 +429,7 @@ impl SolanaCoin {
         ));
         let secret_hash: [u8; 32] = try_tx_fus!(<[u8; 32]>::try_from(args.secret_hash));
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, rent_exemption_lamports) =
-            try_tx_fus!(self.create_vaults(args.time_lock, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE));
+            try_tx_fus!(self.create_vaults(args.time_lock, secret_hash, swap_program_id, STORAGE_SIZE_ALLOCATED));
         let swap_instruction = AtomicSwapInstruction::LamportsPayment {
             secret_hash,
             lock_time: args.time_lock,
@@ -471,7 +469,7 @@ impl SolanaCoin {
             ));
         }
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
-            try_tx_fus!(self.create_vaults(lock_time, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE));
+            try_tx_fus!(self.create_vaults(lock_time, secret_hash, swap_program_id, STORAGE_SIZE_ALLOCATED));
         let swap_instruction = AtomicSwapInstruction::ReceiverSpend {
             secret,
             lock_time,
@@ -502,7 +500,7 @@ impl SolanaCoin {
         let (lock_time, secret_hash, amount, token_program) =
             try_tx_fus!(self.get_swap_transaction_details(args.payment_tx));
         let (vault_pda, vault_pda_data, vault_bump_seed, vault_bump_seed_data, _rent_exemption_lamports) =
-            try_tx_fus!(self.create_vaults(lock_time, secret_hash, swap_program_id, PAYMENT_STORAGE_SPACE));
+            try_tx_fus!(self.create_vaults(lock_time, secret_hash, swap_program_id, STORAGE_SIZE_ALLOCATED));
         let swap_instruction = AtomicSwapInstruction::SenderRefund {
             secret_hash,
             lock_time,

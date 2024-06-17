@@ -7,10 +7,10 @@ use solana_sdk::{bs58,
 use solana_transaction_status::UiTransactionEncoding;
 use std::{ops::Neg, str::FromStr};
 
+use super::solana_common_tests::{generate_key_pair_from_iguana_seed, generate_key_pair_from_seed,
+                                 solana_coin_for_test, SolanaNet};
+use super::solana_decode_tx_helpers::SolanaConfirmedTransaction;
 use super::*;
-use crate::solana::{solana_common_tests::{generate_key_pair_from_iguana_seed, generate_key_pair_from_seed,
-                                          solana_coin_for_test, SolanaNet},
-                    solana_decode_tx_helpers::SolanaConfirmedTransaction};
 use crate::{MarketCoinOps, SwapTxTypeWithSecretHash};
 
 #[test]
