@@ -93,7 +93,7 @@ rlp = { version = "0.5" }
 rmp-serde = "0.14.3"
 rpc = { path = "../mm2_bitcoin/rpc" }
 rpc_task = { path = "../rpc_task" }
-satomic-swap = { git = "https://github.com/KomodoPlatform/satomic-swap.git", branch = "solana-v1.9.20", optional = true }
+satomic-swap = { git = "https://github.com/KomodoPlatform/satomic-swap.git", rev = "64d18ab", optional = true }
 script = { path = "../mm2_bitcoin/script" }
 secp256k1 = { version = "0.20" }
 ser_error = { path = "../derives/ser_error" }
