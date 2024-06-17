@@ -342,26 +342,19 @@ impl EthCoin {
             ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("spendErc1155MakerPayment")?,
             ContractType::Erc721 => NFT_MAKER_SWAP_V2.function("spendErc721MakerPayment")?,
         };
-
-        let input_tokens = match args.contract_type {
-            ContractType::Erc1155 => vec![
-                htlc_params[0].clone(), // swapId
-                Token::Address(args.maker_payment_tx.sender()),
-                Token::FixedBytes(args.taker_secret_hash.to_vec()),
-                Token::FixedBytes(args.maker_secret.to_vec()),
-                htlc_params[2].clone(), // tokenAddress
-                decoded[2].clone(),     // tokenId
-                decoded[3].clone(),     // amount
-            ],
-            ContractType::Erc721 => vec![
-                htlc_params[0].clone(), // swap_id
-                Token::Address(args.maker_payment_tx.sender()),
-                Token::FixedBytes(args.taker_secret_hash.to_vec()),
-                Token::FixedBytes(args.maker_secret.to_vec()),
-                htlc_params[2].clone(), // tokenAddress
-                decoded[2].clone(),     // tokenId
-            ],
-        };
+        // Initialize tokens with common elements
+        let mut input_tokens = vec![
+            htlc_params[0].clone(), // swapId
+            Token::Address(args.maker_payment_tx.sender()),
+            Token::FixedBytes(args.taker_secret_hash.to_vec()),
+            Token::FixedBytes(args.maker_secret.to_vec()),
+            htlc_params[2].clone(), // tokenAddress
+            decoded[2].clone(),     // tokenId
+        ];
+        // Add specific elements based on contract type
+        if let ContractType::Erc1155 = args.contract_type {
+            input_tokens.push(decoded[3].clone()); // amount
+        }
 
         let data = spend_func.encode_input(&input_tokens)?;
         Ok(data)
@@ -380,26 +373,20 @@ impl EthCoin {
             ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("refundErc1155MakerPaymentTimelock")?,
             ContractType::Erc721 => NFT_MAKER_SWAP_V2.function("refundErc721MakerPaymentTimelock")?,
         };
+        // Initialize tokens with common elements
+        let mut input_tokens = vec![
+            htlc_params[0].clone(), // swapId
+            htlc_params[1].clone(), // takerAddress
+            Token::FixedBytes(args.taker_secret_hash.to_vec()),
+            Token::FixedBytes(args.maker_secret_hash.to_vec()),
+            htlc_params[2].clone(), // tokenAddress
+            decoded[2].clone(),     // tokenId
+        ];
+        // Add specific elements based on contract type
+        if let ContractType::Erc1155 = args.contract_type {
+            input_tokens.push(decoded[3].clone()); // amount
+        }
 
-        let input_tokens = match args.contract_type {
-            ContractType::Erc1155 => vec![
-                htlc_params[0].clone(), // swapId
-                htlc_params[1].clone(), // takerAddress
-                Token::FixedBytes(args.taker_secret_hash.to_vec()),
-                Token::FixedBytes(args.maker_secret_hash.to_vec()),
-                htlc_params[2].clone(), // tokenAddress
-                decoded[2].clone(),     // tokenId
-                decoded[3].clone(),     // amount
-            ],
-            ContractType::Erc721 => vec![
-                htlc_params[0].clone(), // swapId
-                htlc_params[1].clone(), // takerAddress
-                Token::FixedBytes(args.taker_secret_hash.to_vec()),
-                Token::FixedBytes(args.maker_secret_hash.to_vec()),
-                htlc_params[2].clone(), // tokenAddress
-                decoded[2].clone(),     // tokenId
-            ],
-        };
         let data = refund_func.encode_input(&input_tokens)?;
         Ok(data)
     }
@@ -417,26 +404,19 @@ impl EthCoin {
             ContractType::Erc1155 => NFT_MAKER_SWAP_V2.function("refundErc1155MakerPaymentSecret")?,
             ContractType::Erc721 => NFT_MAKER_SWAP_V2.function("refundErc721MakerPaymentSecret")?,
         };
-
-        let input_tokens = match args.contract_type {
-            ContractType::Erc1155 => vec![
-                htlc_params[0].clone(), // swapId
-                htlc_params[1].clone(), // takerAddress
-                Token::FixedBytes(args.taker_secret.to_vec()),
-                Token::FixedBytes(args.maker_secret_hash.to_vec()),
-                htlc_params[2].clone(), // tokenAddress
-                decoded[2].clone(),     // tokenId
-                decoded[3].clone(),     // amount
-            ],
-            ContractType::Erc721 => vec![
-                htlc_params[0].clone(), // swapId
-                htlc_params[1].clone(), // takerAddress
-                Token::FixedBytes(args.taker_secret.to_vec()),
-                Token::FixedBytes(args.maker_secret_hash.to_vec()),
-                htlc_params[2].clone(), // tokenAddress
-                decoded[2].clone(),     // tokenId
-            ],
-        };
+        // Initialize tokens with common elements
+        let mut input_tokens = vec![
+            htlc_params[0].clone(), // swapId
+            htlc_params[1].clone(), // takerAddress
+            Token::FixedBytes(args.taker_secret.to_vec()),
+            Token::FixedBytes(args.maker_secret_hash.to_vec()),
+            htlc_params[2].clone(), // tokenAddress
+            decoded[2].clone(),     // tokenId
+        ];
+        // Add specific elements based on contract type
+        if let ContractType::Erc1155 = args.contract_type {
+            input_tokens.push(decoded[3].clone()); // amount
+        }
         let data = refund_func.encode_input(&input_tokens)?;
         Ok(data)
     }
