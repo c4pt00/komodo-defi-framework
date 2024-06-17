@@ -124,6 +124,13 @@ pub struct SiafundElement {
     pub maturity_height: u64,
 }
 
+impl Encodable for SiafundElement {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.state_element.encode(encoder);
+        SiafundOutputVersion::V2(self.siacoin_output.clone()).encode(encoder);
+        encoder.write_u64(self.maturity_height);
+    }
+}
 
 pub struct SiacoinElement {
     pub state_element: StateElement,
@@ -207,6 +214,12 @@ impl Encodable for SiafundOutput {
     }
 }
 
+// SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
+pub enum SiafundOutputVersion {
+    V1(SiafundOutput),
+    V2(SiafundOutput),
+}
+
 impl Encodable for SiafundOutputVersion {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
@@ -214,17 +227,11 @@ impl Encodable for SiafundOutputVersion {
                 v1.encode(encoder);
             },
             SiafundOutputVersion::V2(v2) => {
-                CurrencyVersion::V2(v2.value.clone()).encode(encoder);
+                encoder.write_u64(v2.value);
                 v2.address.encode(encoder);
             },
         }
     }
-}
-
-// SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
-pub enum SiacoinOutputVersion {
-    V1(SiafundOutput),
-    V2(SiafundOutput),
 }
 
 // SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
