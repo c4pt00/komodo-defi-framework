@@ -1263,9 +1263,9 @@ pub struct SendTakerFundingArgs<'a> {
     pub maker_pub: &'a [u8],
     /// DEX fee
     pub dex_fee: &'a DexFee,
-    /// Additional reward for the maker (premium)
+    /// Additional reward for maker (premium)
     pub premium_amount: BigDecimal,
-    /// Actual volume of the taker's payment
+    /// Actual volume of taker's payment
     pub trading_amount: BigDecimal,
     /// Unique data of specific swap
     pub swap_unique_data: &'a [u8],
