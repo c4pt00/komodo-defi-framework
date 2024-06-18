@@ -840,7 +840,10 @@ fn open_cursor(
 /// Detects the current execution environment (window or worker) and follows the appropriate way
 /// of getting `web_sys::IdbFactory` instance.
 pub(crate) fn get_idb_factory() -> Result<web_sys::IdbFactory, InitDbError> {
-    let global = js_sys::global();
+    // try getting global with type safety and explicit type conversion.
+    let global = js_sys::global()
+        .dyn_into::<js_sys::Object>()
+        .map_err(|err| InitDbError::NotSupported(format!("{err:?}")))?;
 
     let idb_factory = if let Some(window) = global.dyn_ref::<Window>() {
         window.indexed_db()
