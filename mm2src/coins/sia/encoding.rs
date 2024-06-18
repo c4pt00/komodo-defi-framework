@@ -31,6 +31,8 @@ impl Encoder {
 
     pub fn write_u64(&mut self, u: u64) { self.buffer.extend_from_slice(&u.to_le_bytes()); }
 
+    pub fn write_string(&mut self, p: &str) { self.write_len_prefixed_bytes(p.to_string().as_bytes()); }
+
     pub fn write_distinguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
 
     pub fn write_bool(&mut self, b: bool) { self.buffer.push(b as u8) }
