@@ -36,6 +36,7 @@ pub mod http_endpoints;
 pub mod specifier;
 pub mod spend_policy;
 pub mod transaction;
+pub mod types;
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
