@@ -3,6 +3,7 @@ use crate::sia::SiaApiClientError;
 use mm2_number::MmNumber;
 use reqwest::{Method, Request, Url};
 use serde::de::DeserializeOwned;
+use rpc::v1::types::H256;
 
 const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
 
@@ -45,6 +46,7 @@ impl SiaApiRequest for ConsensusTipRequest {
 
 impl SiaApiResponse for ConsensusTipResponse {}
 
+// GET /addresses/:addr/balance
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressBalanceRequest {
     pub address: Address,
@@ -74,3 +76,29 @@ impl SiaApiRequest for AddressBalanceRequest {
 }
 
 impl SiaApiResponse for AddressBalanceResponse {}
+
+// GET /events/:id
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EventsTxidRequest {
+    pub txid: H256,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct EventsTxidResponse(pub Event);
+
+impl SiaApiResponse for EventsTxidResponse {}
+
+// TODO stub
+type Event = String;
+
+impl SiaApiRequest for EventsTxidRequest {
+    type Response = EventsTxidResponse;
+
+    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError> {
+        let endpoint_path = format!("api/events/{}", self.txid);
+        let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
+
+        let request = Request::new(Method::GET, endpoint_url);
+        Ok(request)
+    }
+}
