@@ -1,8 +1,10 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
+use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
+use serde_with::serde_as;
 
 #[cfg(test)]
 use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success, PolicyTypeThreshold};
@@ -11,12 +13,13 @@ use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_ato
 
 type SiacoinOutputID = H256;
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Currency {
     lo: u64,
     hi: u64,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub enum CurrencyVersion {
     V1(Currency),
     V2(Currency),
@@ -58,6 +61,7 @@ impl Encodable for Currency {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SatisfiedPolicy {
     pub policy: SpendPolicy,
     pub signatures: Vec<Signature>,
@@ -102,7 +106,7 @@ impl Encodable for SatisfiedPolicy {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct StateElement {
     pub id: H256,
     pub leaf_index: u64,
@@ -120,6 +124,7 @@ impl Encodable for StateElement {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiafundElement {
     pub state_element: StateElement,
     pub siacoin_output: SiafundOutput,
@@ -134,6 +139,7 @@ impl Encodable for SiafundElement {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiacoinElement {
     pub state_element: StateElement,
     pub siacoin_output: SiacoinOutput,
@@ -148,6 +154,7 @@ impl Encodable for SiacoinElement {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiafundInputV2 {
     pub parent: SiafundElement,
     pub claim_address: Address,
@@ -163,12 +170,14 @@ impl Encodable for SiafundInputV2 {
 
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub enum SiacoinInput {
     V1(SiacoinInputV1),
     V2(SiacoinInputV2),
 }
 
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L197-L198
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiacoinInputV1 {
     pub parent_id: SiacoinOutputID,
     pub unlock_condition: UnlockCondition,
@@ -182,6 +191,7 @@ impl Encodable for SiacoinInputV1 {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiacoinInputV2 {
     pub parent: SiacoinElement,
     pub satisfied_policy: SatisfiedPolicy,
@@ -203,7 +213,7 @@ impl Encodable for SiacoinInput {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiafundOutput {
     pub value: u64,
     pub address: Address,
@@ -217,6 +227,7 @@ impl Encodable for SiafundOutput {
 }
 
 // SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
+#[derive(Clone, Deserialize, Serialize)]
 pub enum SiafundOutputVersion {
     V1(SiafundOutput),
     V2(SiafundOutput),
@@ -237,12 +248,13 @@ impl Encodable for SiafundOutputVersion {
 }
 
 // SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
+#[derive(Clone, Deserialize, Serialize)]
 pub enum SiacoinOutputVersion {
     V1(SiacoinOutput),
     V2(SiacoinOutput),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiacoinOutput {
     pub value: Currency,
     pub address: Address,
@@ -269,6 +281,7 @@ impl Encodable for SiacoinOutputVersion {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct CoveredFields {
     pub whole_transaction: bool,
     pub siacoin_inputs: Vec<u64>,
@@ -283,6 +296,7 @@ pub struct CoveredFields {
     pub signatures: Vec<u64>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct TransactionSignature {
     pub parent_id: H256,
     pub public_key_index: u64,
@@ -291,6 +305,7 @@ pub struct TransactionSignature {
     pub signature: Vec<u8>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct FileContract {
     pub filesize: u64,
     pub file_merkle_root: H256,
@@ -303,7 +318,7 @@ pub struct FileContract {
     pub revision_number: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct FileContractV2 {
     pub filesize: u64,
     pub file_merkle_root: H256,
@@ -338,7 +353,7 @@ impl Encodable for FileContractV2 {
         self.host_signature.encode(encoder);
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct FileContractElementV2 {
     pub state_element: StateElement,
     pub v2_file_contract: FileContractV2,
@@ -351,6 +366,8 @@ impl Encodable for FileContractElementV2 {
     }
 }
 
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct FileContractRevisionV2 {
     pub parent: FileContractElementV2,
     pub revision: FileContractV2,
@@ -363,6 +380,7 @@ impl Encodable for FileContractRevisionV2 {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Attestation {
     pub public_key: PublicKey,
     pub key: String,
@@ -370,15 +388,6 @@ pub struct Attestation {
     pub signature: Signature,
 }
 
-/*
-// EncodeTo implements types.EncoderTo.
-func (a Attestation) EncodeTo(e *Encoder) {
-	a.PublicKey.EncodeTo(e)
-	e.WriteString(a.Key)
-	e.WriteBytes(a.Value)
-	a.Signature.EncodeTo(e)
-}
-*/
 impl Encodable for Attestation {
     fn encode(&self, encoder: &mut Encoder) {
         self.public_key.encode(encoder);
@@ -387,20 +396,25 @@ impl Encodable for Attestation {
         self.signature.encode(encoder);
     }
 }
-
+#[serde_as]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct StorageProof {
     pub parent_id: FileContractID,
+    #[serde_as(as = "[_; 64]")]
     pub leaf: [u8; 64],
     pub proof: Vec<H256>,
 }
 
 type SiafundOutputID = H256;
 type FileContractID = H256;
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct FileContractRevision {
     pub parent_id: FileContractID,
     pub unlock_condition: UnlockCondition,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SiafundInputV1 {
     pub parent_id: SiafundOutputID,
     pub unlock_condition: UnlockCondition,
@@ -408,11 +422,13 @@ pub struct SiafundInputV1 {
 }
 
 // TODO requires unit tests
+#[derive(Clone, Deserialize, Serialize)]
 pub struct FileContractResolutionV2 {
     pub parent: FileContractElementV2,
     pub resolution: FileContractResolutionTypeV2,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub enum FileContractResolutionTypeV2 {
     Finalization(Box<V2FileContractFinalization>),
     Renewal(Box<V2FileContractRenewal>),
@@ -422,15 +438,15 @@ pub enum FileContractResolutionTypeV2 {
 
 // TODO we don't need this for the time being
 impl Encodable for FileContractResolutionV2 {
-    fn encode(&self, encoder: &mut Encoder) {
+    fn encode(&self, _encoder: &mut Encoder) {
         match &self.resolution {
-            FileContractResolutionTypeV2::Finalization(finalization) => {
+            FileContractResolutionTypeV2::Finalization(_) => {
                 todo!();
             },
-            FileContractResolutionTypeV2::Renewal(renewal) => {
+            FileContractResolutionTypeV2::Renewal(_) => {
                 todo!();
             },
-            FileContractResolutionTypeV2::StorageProof(storage_proof) => {
+            FileContractResolutionTypeV2::StorageProof(_) => {
                 todo!();
             },
             FileContractResolutionTypeV2::Expiration(_) => {
@@ -440,6 +456,7 @@ impl Encodable for FileContractResolutionV2 {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct V2FileContractFinalization(pub FileContractV2);
 
 // TODO unit test
@@ -449,6 +466,7 @@ impl Encodable for V2FileContractFinalization {
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct V2FileContractRenewal {
     pub final_revision: FileContractV2,
     pub new_contract: FileContractV2,
@@ -470,9 +488,11 @@ impl Encodable for V2FileContractRenewal{
     }
 
 }
-
+#[serde_as]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct V2StorageProof {
     pub proof_index: ChainIndexElement,
+    #[serde_as(as = "[_; 64]")]
     pub leaf: [u8; 64],
     pub proof: Vec<H256>,
 }
@@ -490,6 +510,7 @@ impl Encodable for V2StorageProof {
 
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct ChainIndexElement {
     pub state_element: StateElement,
     pub chain_index: ChainIndex
@@ -503,30 +524,36 @@ impl Encodable for ChainIndexElement {
     }
 }
 
-pub struct ChainIndex {
-    pub height: u64,
-    pub id: BlockID,
-}
-
-// TODO unit test
-impl Encodable for ChainIndex {
-    fn encode(&self, encoder: &mut Encoder) {
-        encoder.write_u64(self.height);
-        self.id.encode(encoder);
-    }
-}
-
-pub type BlockID = H256;
-
+#[derive(Clone, Deserialize, Serialize)]
 pub struct V2FileContractExpiration;
 
-// TODO unit test
+// TODO
 impl Encodable for V2FileContractExpiration {
-    fn encode(&self, encoder: &mut Encoder) {
-        self.0.encode(encoder);
+    fn encode(&self, _encoder: &mut Encoder) {
+        todo!();
     }
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+pub struct FileContractElementV1 {
+    pub state_element: StateElement,
+    pub file_contract: FileContractV1,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct FileContractV1 {
+    pub filesize: u64,
+    pub file_merkle_root: H256,
+    pub window_start: u64,
+    pub window_end: u64,
+    pub payout: Currency,
+    pub valid_proof_outputs: Vec<SiacoinOutput>,
+    pub missed_proof_outputs: Vec<SiacoinOutput>,
+    pub unlock_hash: H256,
+    pub revision_number: u64,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
 pub struct TransactionV1 {
     pub siacoin_inputs: Vec<SiacoinInput>,
     pub siacoin_outputs: Vec<SiacoinOutput>,
@@ -540,6 +567,7 @@ pub struct TransactionV1 {
     pub signatures: Vec<TransactionSignature>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct TransactionV2 {
     pub siacoin_inputs: Vec<SiacoinInputV2>,
     pub siacoin_outputs: Vec<SiacoinOutput>,

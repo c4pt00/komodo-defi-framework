@@ -10,7 +10,7 @@ use rpc::v1::types::H256;
 
 const POLICY_VERSION: u8 = 1u8;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub enum SpendPolicy {
     Above(u64),
     After(u64),
@@ -165,7 +165,7 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
 }
 
 // FIXME can this type be removed?
-#[derive(Debug, Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct PolicyTypeThreshold {
     pub n: u8,
     pub of: Vec<SpendPolicy>,
@@ -173,7 +173,7 @@ pub struct PolicyTypeThreshold {
 
 // Sia v1 has theoretical support other key types via softforks
 // We only support ed25519 for now. No other type was ever implemented in Sia Go.
-#[derive(Debug, Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct UnlockKey {
     pub algorithm: Specifier,
     pub public_key: PublicKey,
@@ -191,7 +191,7 @@ impl Encodable for UnlockKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct UnlockCondition {
     pub unlock_keys: Vec<UnlockKey>,
     pub timelock: u64,
