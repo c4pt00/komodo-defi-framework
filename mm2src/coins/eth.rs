@@ -153,7 +153,7 @@ use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiC
 use eth_hd_wallet::EthHDWallet;
 use eth_withdraw::{EthWithdraw, InitEthWithdraw, StandardEthWithdraw};
 use nonce::ParityNonce;
-use v2_activation::{build_address_and_priv_key_policy, EthActivationV2Error};
+use v2_activation::{build_address_and_priv_key_policy, eth_account_db_id, eth_shared_db_id, EthActivationV2Error};
 use web3_transport::{http_transport::HttpTransportNode, Web3Transport};
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
@@ -5728,25 +5728,9 @@ impl MmCoin for EthCoin {
         };
     }
 
-    async fn account_db_id(&self) -> Option<String> {
-        if let Some(hd_wallet) = self.derivation_method().hd_wallet() {
-            if let Some(addr) = hd_wallet.get_enabled_address().await {
-                return Some(hex::encode(dhash160(addr.pubkey().as_bytes())));
-            }
-        }
+    async fn account_db_id(&self) -> Option<String> { eth_account_db_id(self).await }
 
-        None
-    }
-
-    async fn tx_history_db_id(&self) -> Option<String> {
-        if let Some(hd_wallet) = self.derivation_method().hd_wallet() {
-            // Use the hd_wallet_rmd160 as the db_id since it's unique to a device and not tied to a single address
-            return Some(hex::encode(hd_wallet.hd_wallet_rmd160.as_slice()));
-        };
-
-        // Fallback to the account db_id for non-HD wallets
-        self.account_db_id().await
-    }
+    async fn tx_history_db_id(&self) -> Option<String> { eth_shared_db_id(self).await.or(self.account_db_id().await) }
 }
 
 pub trait TryToAddress {

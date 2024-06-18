@@ -960,3 +960,23 @@ async fn run_db_migraiton_for_new_eth_pubkey(ctx: &MmArc, pubkey: &KeyPair) -> M
 
     Ok(())
 }
+
+pub(super) async fn eth_shared_db_id(coin: &EthCoin) -> Option<String> {
+    // Use the hd_wallet_rmd160 as the db_id since it's unique to a device and not tied to a single address
+    coin.derivation_method().hd_wallet().and_then(|hd| {
+        shared_db_id_from_seed(&hex::encode(hd.hd_wallet_rmd160.as_slice()))
+            .ok()
+            .map(|id| hex::encode(id.as_slice()))
+    })
+}
+
+pub(super) async fn eth_account_db_id(coin: &EthCoin) -> Option<String> {
+    if let Some(hd_wallet) = coin.derivation_method().hd_wallet() {
+        return hd_wallet
+            .get_enabled_address()
+            .await
+            .map(|addr| hex::encode(dhash160(addr.pubkey().as_bytes())));
+    }
+
+    None
+}
