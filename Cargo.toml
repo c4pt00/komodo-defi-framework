@@ -75,3 +75,4 @@ codegen-units = 256
 [patch.crates-io]
 der = { git = "https://github.com/tavakyan/formats.git", branch = "fix/downgrade-zeroize-version" }
 curve25519-dalek = { git = "https://github.com/solana-labs/curve25519-dalek.git", rev = "b500cdc2a920cd5bff9e2dd974d7b97349d61464" }
+aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }

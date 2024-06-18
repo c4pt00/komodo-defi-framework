@@ -12,6 +12,16 @@ use hw_common::transport::UsbError;
 #[cfg(target_arch = "wasm32")]
 use hw_common::transport::WebUsbError;
 
+use mm2_err_handle::mm_error::MmError;
+
+impl From<MmError<TrezorError>> for MmError<TrezorProcessingError<RpcTaskError>> {
+    fn from(error: MmError<TrezorError>) -> Self {
+        // Implement the conversion logic here
+        // For example, you might want to wrap the TrezorError into TrezorProcessingError
+        MmError::new(TrezorProcessingError::from(error))
+    }
+}
+
 #[derive(Debug, Display)]
 pub enum TrezorError {
     #[display(fmt = "'{}' transport is not available on this platform", transport)]
@@ -33,7 +43,7 @@ pub enum TrezorError {
     UnexpectedInteractionRequest(TrezorUserInteraction),
     Internal(String),
     PongMessageMismatch,
-    #[display("no processor for trezor response")]
+    #[display(fmt = "no processor for trezor response")]
     InternalNoProcessor,
 }
 

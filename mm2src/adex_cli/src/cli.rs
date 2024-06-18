@@ -222,7 +222,7 @@ struct OrderCli {
     #[arg(long, value_enum, default_value_t = OrderTypeCli::GoodTillCancelled, help="The GoodTillCancelled order is automatically converted to a maker order if not matched in 30 seconds, and this maker order stays in the orderbook until explicitly cancelled. On the other hand, a FillOrKill is cancelled if not matched within 30 seconds")]
     order_type: OrderTypeCli,
     #[arg(long,
-          help = "Amount of base coin that will be used as min_volume of GoodTillCancelled order after conversion to maker", 
+          help = "Amount of base coin that will be used as min_volume of GoodTillCancelled order after conversion to maker",
           value_parser=parse_mm_number
     )]
     min_volume: Option<MmNumber>,

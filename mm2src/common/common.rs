@@ -14,7 +14,7 @@
 #![feature(integer_atomics, panic_info_message)]
 #![feature(async_closure)]
 #![feature(hash_raw_entry)]
-#![feature(drain_filter)]
+#![feature(extract_if)]
 
 #[macro_use] extern crate arrayref;
 #[macro_use] extern crate gstuff;
@@ -530,7 +530,7 @@ pub fn double_panic_crash() {
     drop(panicker) // Delays the drop.
 }
 
-/// RPC response, returned by the RPC handlers.  
+/// RPC response, returned by the RPC handlers.
 /// NB: By default the future is executed on the shared asynchronous reactor (`CORE`),
 /// the handler is responsible for spawning the future on another reactor if it doesn't fit the `CORE` well.
 pub type HyRes = Box<dyn Future<Item = Response<Vec<u8>>, Error = String> + Send>;
@@ -696,8 +696,8 @@ pub fn now_sec_i64() -> i64 {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn temp_dir() -> PathBuf { env::temp_dir() }
 
-/// If the `MM_LOG` variable is present then tries to open that file.  
-/// Prints a warning to `stdout` if there's a problem opening the file.  
+/// If the `MM_LOG` variable is present then tries to open that file.
+/// Prints a warning to `stdout` if there's a problem opening the file.
 /// Returns `None` if `MM_LOG` variable is not present or if the specified path can't be opened.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn open_log_file() -> Option<std::fs::File> {
