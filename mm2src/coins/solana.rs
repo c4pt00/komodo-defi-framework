@@ -24,8 +24,8 @@ use mm2_err_handle::prelude::*;
 use mm2_number::{BigDecimal, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::Bytes as BytesJson;
-use serde_json::{self as json, Value as Json};
 pub use satomic_swap::{instruction::AtomicSwapInstruction, STORAGE_SPACE_ALLOCATED};
+use serde_json::{self as json, Value as Json};
 use solana_client::{client_error::{ClientError, ClientErrorKind},
                     rpc_client::RpcClient,
                     rpc_request::TokenAccountsFilter};
@@ -543,7 +543,7 @@ impl SolanaCoin {
                 amount,
                 ..
             } => Ok((lock_time, secret_hash, amount, Pubkey::new_from_array([0; 32]))),
-            AtomicSwapInstruction::SLPTokenPayment {
+            AtomicSwapInstruction::SPLTokenPayment {
                 secret_hash,
                 lock_time,
                 amount,

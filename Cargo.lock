@@ -6579,7 +6579,7 @@ dependencies = [
 [[package]]
 name = "satomic-swap"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/satomic-swap.git?branch=solana-v1.9.20#2b650b9501835474d0556d7084634f12cd184a60"
+source = "git+https://github.com/KomodoPlatform/satomic-swap.git?branch=solana-swaps-for-framework#f23a90ae5d881d39bda8f7f3055074fe8de66e14"
 dependencies = [
  "solana-program",
 ]
