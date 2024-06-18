@@ -413,13 +413,6 @@ pub struct FileContractResolutionV2 {
     pub resolution: FileContractResolutionTypeV2,
 }
 
-// TODO
-impl Encodable for FileContractResolutionV2 {
-    fn encode(&self, encoder: &mut Encoder) {
-        todo!();
-    }
-}
-
 pub enum FileContractResolutionTypeV2 {
     Finalization(Box<V2FileContractFinalization>),
     Renewal(Box<V2FileContractRenewal>),
