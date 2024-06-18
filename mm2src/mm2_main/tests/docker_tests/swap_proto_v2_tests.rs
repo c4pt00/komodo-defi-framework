@@ -298,7 +298,7 @@ fn maker_rejects_funding_low_fee() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
-    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
@@ -347,7 +347,7 @@ fn taker_rejects_taker_payment_preimage_low_fee() {
         swap_unique_data: &[],
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
-    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash());
+    log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
