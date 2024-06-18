@@ -7,6 +7,7 @@ use rpc::v1::types::H256;
 #[cfg(test)]
 use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success, PolicyTypeThreshold};
 #[cfg(test)] use std::str::FromStr;
+#[cfg(test)] use crate::sia::v1_standard_address_from_pubkey;
 
 type SiacoinOutputID = H256;
 
@@ -101,6 +102,7 @@ impl Encodable for SatisfiedPolicy {
     }
 }
 
+#[derive(Clone)]
 pub struct StateElement {
     pub id: H256,
     pub leaf_index: u64,
@@ -301,6 +303,7 @@ pub struct FileContract {
     pub revision_number: u64,
 }
 
+#[derive(Clone)]
 pub struct FileContractV2 {
     pub filesize: u64,
     pub file_merkle_root: H256,
@@ -317,9 +320,35 @@ pub struct FileContractV2 {
     pub host_signature: Signature,
 }
 
+
+impl Encodable for FileContractV2 {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u64(self.filesize);
+        self.file_merkle_root.encode(encoder);
+        encoder.write_u64(self.proof_height);
+        encoder.write_u64(self.expiration_height);
+        SiacoinOutputVersion::V2(self.renter_output.clone()).encode(encoder);
+        SiacoinOutputVersion::V2(self.host_output.clone()).encode(encoder);
+        CurrencyVersion::V2(self.missed_host_value.clone()).encode(encoder);
+        CurrencyVersion::V2(self.total_collateral.clone()).encode(encoder);
+        self.renter_public_key.encode(encoder);
+        self.host_public_key.encode(encoder);
+        encoder.write_u64(self.revision_number);
+        self.renter_signature.encode(encoder);
+        self.host_signature.encode(encoder);
+    }
+}
+#[derive(Clone)]
 pub struct FileContractElementV2 {
     pub state_element: StateElement,
     pub v2_file_contract: FileContractV2,
+}
+
+impl Encodable for FileContractElementV2 {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.state_element.encode(encoder);
+        self.v2_file_contract.encode(encoder);
+    }
 }
 
 pub struct FileContractRevisionV2 {
@@ -327,11 +356,36 @@ pub struct FileContractRevisionV2 {
     pub revision: FileContractV2,
 }
 
+impl Encodable for FileContractRevisionV2 {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.parent.encode(encoder);
+        self.revision.encode(encoder);
+    }
+}
+
 pub struct Attestation {
     pub public_key: PublicKey,
     pub key: String,
     pub value: Vec<u8>,
     pub signature: Signature,
+}
+
+/*
+// EncodeTo implements types.EncoderTo.
+func (a Attestation) EncodeTo(e *Encoder) {
+	a.PublicKey.EncodeTo(e)
+	e.WriteString(a.Key)
+	e.WriteBytes(a.Value)
+	a.Signature.EncodeTo(e)
+}
+*/
+impl Encodable for Attestation {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.public_key.encode(encoder);
+        encoder.write_string(&self.key);
+        encoder.write_len_prefixed_bytes(&self.value);
+        self.signature.encode(encoder);
+    }
 }
 
 pub struct StorageProof {
@@ -353,8 +407,132 @@ pub struct SiafundInputV1 {
     pub claim_address: Address,
 }
 
-// TODO temporary stubs
-type FileContractResolutionV2 = Vec<u8>;
+// TODO requires unit tests
+pub struct FileContractResolutionV2 {
+    pub parent: FileContractElementV2,
+    pub resolution: FileContractResolutionTypeV2,
+}
+
+// TODO
+impl Encodable for FileContractResolutionV2 {
+    fn encode(&self, encoder: &mut Encoder) {
+        todo!();
+    }
+}
+
+pub enum FileContractResolutionTypeV2 {
+    Finalization(Box<V2FileContractFinalization>),
+    Renewal(Box<V2FileContractRenewal>),
+    StorageProof(V2StorageProof),
+    Expiration(V2FileContractExpiration),
+}
+
+// TODO we don't need this for the time being
+impl Encodable for FileContractResolutionV2 {
+    fn encode(&self, encoder: &mut Encoder) {
+        match &self.resolution {
+            FileContractResolutionTypeV2::Finalization(finalization) => {
+                todo!();
+            },
+            FileContractResolutionTypeV2::Renewal(renewal) => {
+                todo!();
+            },
+            FileContractResolutionTypeV2::StorageProof(storage_proof) => {
+                todo!();
+            },
+            FileContractResolutionTypeV2::Expiration(_) => {
+                todo!();
+            },
+        }
+    }
+}
+
+pub struct V2FileContractFinalization(pub FileContractV2);
+
+// TODO unit test
+impl Encodable for V2FileContractFinalization {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.0.encode(encoder);
+    }
+}
+
+pub struct V2FileContractRenewal {
+    pub final_revision: FileContractV2,
+    pub new_contract: FileContractV2,
+    pub renter_rollover: Currency,
+    pub host_rollover: Currency,
+    pub renter_signature: Signature,
+    pub host_signature: Signature,
+}
+
+// TODO unit test
+impl Encodable for V2FileContractRenewal{
+    fn encode(&self, encoder: &mut Encoder) {
+        self.final_revision.encode(encoder);
+        self.new_contract.encode(encoder);
+        CurrencyVersion::V2(self.renter_rollover.clone()).encode(encoder);
+        CurrencyVersion::V2(self.host_rollover.clone()).encode(encoder);
+        self.renter_signature.encode(encoder);
+        self.host_signature.encode(encoder);
+    }
+
+}
+
+pub struct V2StorageProof {
+    pub proof_index: ChainIndexElement,
+    pub leaf: [u8; 64],
+    pub proof: Vec<H256>,
+}
+
+// TODO unit test
+impl Encodable for V2StorageProof {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.proof_index.encode(encoder);
+        encoder.write_slice(&self.leaf);
+        encoder.write_u64(self.proof.len() as u64);
+        for proof in &self.proof {
+            proof.encode(encoder);
+        }
+    }
+
+}
+
+pub struct ChainIndexElement {
+    pub state_element: StateElement,
+    pub chain_index: ChainIndex
+}
+
+// TODO unit test
+impl Encodable for ChainIndexElement {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.state_element.encode(encoder);
+        self.chain_index.encode(encoder);
+    }
+}
+
+pub struct ChainIndex {
+    pub height: u64,
+    pub id: BlockID,
+}
+
+// TODO unit test
+impl Encodable for ChainIndex {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u64(self.height);
+        self.id.encode(encoder);
+    }
+}
+
+pub type BlockID = H256;
+
+pub struct V2FileContractExpiration;
+
+// TODO unit test
+impl Encodable for V2FileContractExpiration {
+    fn encode(&self, encoder: &mut Encoder) {
+        self.0.encode(encoder);
+    }
+}
 
 pub struct TransactionV1 {
     pub siacoin_inputs: Vec<SiacoinInput>,
@@ -773,10 +951,204 @@ fn test_siacoin_input_encode_v2() {
     assert_eq!(hash, expected);
 }
 
+#[test]
+fn test_attestation_encode() {
+    let public_key = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let signature = Signature::from_bytes(
+        &hex::decode("105641BF4AE119CB15617FC9658BEE5D448E2CC27C9BC3369F4BA5D0E1C3D01EBCB21B669A7B7A17CF8457189EAA657C41D4A2E6F9E0F25D0996D3A17170F309").unwrap()).unwrap();
+    
+    let attestation = Attestation {
+        public_key,
+        key: "HostAnnouncement".to_string(),
+        value: vec![1u8, 2u8, 3u8, 4u8],
+        signature,
+    };
+
+    let hash = Encoder::encode_and_hash(&attestation);
+    let expected = H256::from("b28b32c6f91d1b57ab4a9ea9feecca16b35bb8febdee6a0162b22979415f519d");
+    assert_eq!(hash, expected);
+}
 
 #[test]
-fn test_print_structure() {
+fn test_file_contract_v2_encode() {
+    let pubkey0 = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let pubkey1 = PublicKey::from_bytes(
+        &hex::decode("06C87838297B7BB16AB23946C99DFDF77FF834E35DB07D71E9B1D2B01A11E96D").unwrap(),
+    )
+    .unwrap();
+
+    let sig0 = Signature::from_bytes(
+        &hex::decode("105641BF4AE119CB15617FC9658BEE5D448E2CC27C9BC3369F4BA5D0E1C3D01EBCB21B669A7B7A17CF8457189EAA657C41D4A2E6F9E0F25D0996D3A17170F309").unwrap()).unwrap();
+    let sig1 = Signature::from_bytes(
+        &hex::decode("0734761D562958F6A82819474171F05A40163901513E5858BFF9E4BD9CAFB04DEF0D6D345BACE7D14E50C5C523433B411C7D7E1618BE010A63C55C34A2DEE70A").unwrap()).unwrap();
+
+    let address0 = v1_standard_address_from_pubkey(&pubkey0);
+    let address1 = v1_standard_address_from_pubkey(&pubkey1);
+    
+    let vout0 = SiacoinOutput {
+            value: 1.into(),
+            address: address0,
+        };
+    let vout1 = SiacoinOutput {
+            value: 1.into(),
+            address: address1,
+        };
+    
+    let file_contract_v2 = FileContractV2 {
+        filesize: 1,
+        file_merkle_root: H256::default(),
+        proof_height: 1,
+        expiration_height: 1,
+        renter_output: vout0,
+        host_output: vout1,
+        missed_host_value: 1.into(),
+        total_collateral: 1.into(),
+        renter_public_key: pubkey0,
+        host_public_key: pubkey1,
+        revision_number: 1,
+        renter_signature: sig0,
+        host_signature: sig1,
+    };
 
 
+    let hash = Encoder::encode_and_hash(&file_contract_v2);
+    let expected = H256::from("6171a8d8ec31e06f80d46efbd1aecf2c5a7c344b5f2a2d4f660654b0cb84113c");
+    assert_eq!(hash, expected);
+}
 
+#[test]
+fn test_file_contract_element_v2_encode() {
+    let pubkey0 = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let pubkey1 = PublicKey::from_bytes(
+        &hex::decode("06C87838297B7BB16AB23946C99DFDF77FF834E35DB07D71E9B1D2B01A11E96D").unwrap(),
+    )
+    .unwrap();
+
+    let sig0 = Signature::from_bytes(
+        &hex::decode("105641BF4AE119CB15617FC9658BEE5D448E2CC27C9BC3369F4BA5D0E1C3D01EBCB21B669A7B7A17CF8457189EAA657C41D4A2E6F9E0F25D0996D3A17170F309").unwrap()).unwrap();
+    let sig1 = Signature::from_bytes(
+        &hex::decode("0734761D562958F6A82819474171F05A40163901513E5858BFF9E4BD9CAFB04DEF0D6D345BACE7D14E50C5C523433B411C7D7E1618BE010A63C55C34A2DEE70A").unwrap()).unwrap();
+
+    let address0 = v1_standard_address_from_pubkey(&pubkey0);
+    let address1 = v1_standard_address_from_pubkey(&pubkey1);
+    
+    let vout0 = SiacoinOutput {
+            value: 1.into(),
+            address: address0,
+        };
+    let vout1 = SiacoinOutput {
+            value: 1.into(),
+            address: address1,
+        };
+    
+    let file_contract_v2 = FileContractV2 {
+        filesize: 1,
+        file_merkle_root: H256::default(),
+        proof_height: 1,
+        expiration_height: 1,
+        renter_output: vout0,
+        host_output: vout1,
+        missed_host_value: 1.into(),
+        total_collateral: 1.into(),
+        renter_public_key: pubkey0,
+        host_public_key: pubkey1,
+        revision_number: 1,
+        renter_signature: sig0,
+        host_signature: sig1,
+    };
+
+    let state_element = StateElement {
+        id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
+        leaf_index: 1,
+        merkle_proof: vec![
+            H256::from("0405060000000000000000000000000000000000000000000000000000000000"),
+            H256::from("0708090000000000000000000000000000000000000000000000000000000000"),
+        ],
+    };
+
+    let file_contract_element_v2 = FileContractElementV2 {
+        state_element,
+        v2_file_contract: file_contract_v2,
+    };
+
+    let hash = Encoder::encode_and_hash(&file_contract_element_v2);
+    let expected = H256::from("4cde411635118b2b7e1b019c659a2327ada53b303da0e46524e604d228fcd039");
+    assert_eq!(hash, expected);
+}
+
+#[test]
+fn test_file_contract_revision_v2_encode() {
+    let pubkey0 = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let pubkey1 = PublicKey::from_bytes(
+        &hex::decode("06C87838297B7BB16AB23946C99DFDF77FF834E35DB07D71E9B1D2B01A11E96D").unwrap(),
+    )
+    .unwrap();
+
+    let sig0 = Signature::from_bytes(
+        &hex::decode("105641BF4AE119CB15617FC9658BEE5D448E2CC27C9BC3369F4BA5D0E1C3D01EBCB21B669A7B7A17CF8457189EAA657C41D4A2E6F9E0F25D0996D3A17170F309").unwrap()).unwrap();
+    let sig1 = Signature::from_bytes(
+        &hex::decode("0734761D562958F6A82819474171F05A40163901513E5858BFF9E4BD9CAFB04DEF0D6D345BACE7D14E50C5C523433B411C7D7E1618BE010A63C55C34A2DEE70A").unwrap()).unwrap();
+
+    let address0 = v1_standard_address_from_pubkey(&pubkey0);
+    let address1 = v1_standard_address_from_pubkey(&pubkey1);
+    
+    let vout0 = SiacoinOutput {
+            value: 1.into(),
+            address: address0,
+        };
+    let vout1 = SiacoinOutput {
+            value: 1.into(),
+            address: address1,
+        };
+    
+    let file_contract_v2 = FileContractV2 {
+        filesize: 1,
+        file_merkle_root: H256::default(),
+        proof_height: 1,
+        expiration_height: 1,
+        renter_output: vout0,
+        host_output: vout1,
+        missed_host_value: 1.into(),
+        total_collateral: 1.into(),
+        renter_public_key: pubkey0,
+        host_public_key: pubkey1,
+        revision_number: 1,
+        renter_signature: sig0,
+        host_signature: sig1,
+    };
+
+    let state_element = StateElement {
+        id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
+        leaf_index: 1,
+        merkle_proof: vec![
+            H256::from("0405060000000000000000000000000000000000000000000000000000000000"),
+            H256::from("0708090000000000000000000000000000000000000000000000000000000000"),
+        ],
+    };
+
+    let file_contract_element_v2 = FileContractElementV2 {
+        state_element,
+        v2_file_contract: file_contract_v2.clone(),
+    };
+
+    let file_contract_revision_v2 = FileContractRevisionV2 {
+        parent: file_contract_element_v2,
+        revision: file_contract_v2
+    };
+
+    let hash = Encoder::encode_and_hash(&file_contract_revision_v2);
+    let expected = H256::from("22d5d1fd8c2762758f6b6ecf7058d73524ef209ac5a64f160b71ce91677db9a6");
+    assert_eq!(hash, expected);
 }
