@@ -4,15 +4,51 @@ use blake2b_simd::Params;
 use ed25519_dalek::PublicKey;
 use hex::FromHexError;
 use rpc::v1::types::H256;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
 // TODO this could probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Address(pub H256);
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex_str = format!("{}", self);
+        serializer.serialize_str(&hex_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct AddressVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for AddressVisitor {
+            type Value = Address;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string prefixed with 'addr:' and followed by a 64-character hex string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Address::from_str(value).map_err(E::custom)?)
+            }
+        }
+
+        deserializer.deserialize_str(AddressVisitor)
+    }
+}
 
 impl Address {
     pub fn str_without_prefix(&self) -> String {
