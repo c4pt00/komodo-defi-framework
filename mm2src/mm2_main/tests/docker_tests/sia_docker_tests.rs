@@ -1,6 +1,6 @@
 use coins::sia::address::Address;
 use coins::sia::http_client::{SiaApiClient, SiaApiClientError};
-use coins::sia::http_endpoints::{AddressBalanceRequest, ConsensusTipRequest};
+use coins::sia::http_endpoints::{AddressBalanceRequest, AddressesEventsRequest, ConsensusTipRequest};
 use coins::sia::SiaHttpConf;
 use std::process::Command;
 use std::str::FromStr;
@@ -54,7 +54,8 @@ async fn test_sia_client_address_balance() {
     };
     let result = api_client.dispatcher(request).await;
 
-    assert!(matches!(result, Err(SiaApiClientError::ApiInternalError(_))));
+    println!("balance: {:?}", result.unwrap());
+    //assert!(matches!(result, Err(SiaApiClientError::ApiInternalError(_))));
     // TODO investigate why this gives an error on the API?
     // the address should have a balance at this point
 }
@@ -101,5 +102,26 @@ async fn test_sia_mining() {
     );
 
     let consensus_tip_response = api_client.dispatcher(ConsensusTipRequest).await.unwrap();
+    println!("tip resp: {:?}", consensus_tip_response);
     assert_eq!(consensus_tip_response.height, 10);
+}
+
+#[tokio::test]
+async fn test_sia_client_address_events() {
+    let conf = SiaHttpConf {
+        url: Url::parse("http://localhost:9980/").unwrap(),
+        password: "password".to_string(),
+    };
+    let api_client = SiaApiClient::new(conf).await.unwrap();
+
+    mine_blocks(
+        10,
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap(),
+    );
+
+    let request = AddressesEventsRequest {
+        address: Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
+            .unwrap(),
+    };
+    api_client.dispatcher(request).await.unwrap();
 }
