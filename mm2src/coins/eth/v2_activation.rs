@@ -6,7 +6,6 @@ use crate::nft::nft_errors::{GetNftInfoError, ParseChainTypeError};
 use crate::nft::nft_structs::Chain;
 #[cfg(target_arch = "wasm32")] use crate::EthMetamaskPolicy;
 use common::executor::AbortedError;
-#[cfg(not(target_arch = "wasm32"))]
 use crypto::shared_db_id::shared_db_id_from_seed;
 use crypto::{trezor::TrezorError, Bip32Error, CryptoCtxError, HwError};
 use enum_derives::EnumFromTrait;
@@ -545,7 +544,6 @@ pub async fn eth_coin_from_conf_and_request_v2(
         ) => {
             let auth_address = key_pair.address();
             let auth_address_str = display_eth_address(&auth_address);
-            // TODO: send migration request.
             build_web3_instances(ctx, ticker.to_string(), auth_address_str, key_pair, req.nodes.clone()).await?
         },
         (EthRpcMode::Default, EthPrivKeyPolicy::Trezor) => {
@@ -674,7 +672,7 @@ pub(crate) async fn build_address_and_priv_key_policy(
                 .map_to_mm(|e| EthActivationV2Error::InternalError(e.to_string()))?;
             let bip39_secp_priv_key = global_hd_ctx.root_priv_key().clone();
 
-            let hd_wallet_rmd160 = *ctx.rmd160();
+            let hd_wallet_rmd160 = dhash160(activated_key.public().as_bytes());
             let hd_wallet_storage = HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160)
                 .await
                 .mm_err(EthActivationV2Error::from)?;

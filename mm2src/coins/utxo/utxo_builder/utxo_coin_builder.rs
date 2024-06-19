@@ -219,8 +219,7 @@ pub trait UtxoFieldsWithGlobalHDBuilder: UtxoCoinBuilderCommonOps {
         };
 
         let address_format = self.address_format()?;
-        let hd_wallet_rmd160 = *self.ctx().rmd160();
-        // TODO shared_db_id
+        let hd_wallet_rmd160 = activated_key_pair.public().address_hash();
         let hd_wallet_storage =
             HDWalletCoinStorage::init_with_rmd160(self.ctx(), self.ticker().to_owned(), hd_wallet_rmd160).await?;
         let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, path_to_coin)
