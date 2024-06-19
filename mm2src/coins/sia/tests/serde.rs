@@ -1,3 +1,4 @@
+use crate::sia::encoding::SiaHash;
 use crate::sia::types::Event;
 use crate::sia::address::Address;
 use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement};
@@ -18,6 +19,11 @@ macro_rules! test_serde {
 #[test]
 fn test_serde_address() {
     test_serde!(Address, json!("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f"));
+}
+
+#[test]
+fn test_serde_sia_hash() {
+    test_serde!(SiaHash, json!("h:dc07e5bf84fbda867a7ed7ca80c6d1d81db05cef16ff38f6ba80b6bf01e1ddb1"));
 }
 
 #[test]
