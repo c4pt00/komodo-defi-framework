@@ -1,14 +1,15 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder};
+use crate::sia::encoding::{Encodable, Encoder, SiaHash};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
-use serde_with::serde_as;
+use serde_with::{FromInto, serde_as};
+use serde::{Deserialize, Deserializer};
+use std::str::FromStr;
 
 #[cfg(test)]
 use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success, PolicyTypeThreshold};
-#[cfg(test)] use std::str::FromStr;
 #[cfg(test)] use crate::sia::v1_standard_address_from_pubkey;
 
 type SiacoinOutputID = H256;
