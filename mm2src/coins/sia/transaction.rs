@@ -561,6 +561,7 @@ impl Encodable for V2StorageProof {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ChainIndexElement {
+    #[serde(flatten)]
     pub state_element: StateElement,
     pub chain_index: ChainIndex
 }
