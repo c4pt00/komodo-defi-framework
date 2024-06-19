@@ -403,6 +403,7 @@ impl Encodable for FileContractV2 {
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FileContractElementV2 {
+    #[serde(flatten)]
     pub state_element: StateElement,
     pub v2_file_contract: FileContractV2,
 }
