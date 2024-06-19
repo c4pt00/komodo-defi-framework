@@ -35,7 +35,7 @@ impl<'de> Deserialize<'de> for Address {
             type Value = Address;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a string prefixed with 'addr:' and followed by a 64-character hex string")
+                formatter.write_str("a string prefixed with 'addr:' and followed by a 76-character hex string")
             }
 
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
