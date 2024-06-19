@@ -612,7 +612,7 @@ While implementing this, we faced two options.
 We chose the latter as it allows for simpler encoding of this struct.
 It is possible this may need to change in later implementations.
 */
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct TransactionV1 {
     pub siacoin_inputs: Vec<SiacoinInput>,
