@@ -603,8 +603,16 @@ pub struct FileContractV1 {
     pub unlock_hash: H256,
     pub revision_number: u64,
 }
+/*
+While implementing this, we faced two options.
+    1.) Treat every field as an Option<>
+    2.) Always initialize every empty field as a Vec<>
 
-#[derive(Clone, Deserialize, Serialize)]
+We chose the latter as it allows for simpler encoding of this struct.
+It is possible this may need to change in later implementations.
+*/
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct TransactionV1 {
     pub siacoin_inputs: Vec<SiacoinInput>,
     pub siacoin_outputs: Vec<SiacoinOutput>,
