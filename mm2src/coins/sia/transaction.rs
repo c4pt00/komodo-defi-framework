@@ -13,13 +13,44 @@ use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_ato
 
 type SiacoinOutputID = H256;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Currency {
     lo: u64,
     hi: u64,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+// TODO does this also need to be able to deserialize from an integer?
+// walletd API returns this as a string
+impl<'de> Deserialize<'de> for Currency {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct CurrencyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for CurrencyVisitor {
+            type Value = Currency;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a string representing a u128 value")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Currency, E>
+            where
+                E: serde::de::Error,
+            {
+                let u128_value = u128::from_str(value).map_err(E::custom)?;
+                let lo = u128_value as u64;
+                let hi = (u128_value >> 64) as u64;
+                Ok(Currency::new(lo, hi))
+            }
+        }
+
+        deserializer.deserialize_str(CurrencyVisitor)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum CurrencyVersion {
     V1(Currency),
     V2(Currency),
