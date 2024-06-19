@@ -137,20 +137,31 @@ impl Encodable for SatisfiedPolicy {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[serde_as]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateElement {
+    #[serde_as(as = "FromInto<SiaHash>")]
     pub id: H256,
+    #[serde(rename = "leafIndex")]
     pub leaf_index: u64,
-    pub merkle_proof: Vec<H256>,
+    #[serde_as(as = "Option<Vec<FromInto<SiaHash>>>")]
+    #[serde(rename = "merkleProof")]
+    pub merkle_proof: Option<Vec<H256>>,
 }
 
 impl Encodable for StateElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.id.encode(encoder);
         encoder.write_u64(self.leaf_index);
-        encoder.write_u64(self.merkle_proof.len() as u64);
-        for proof in &self.merkle_proof {
-            proof.encode(encoder);
+        
+        match &self.merkle_proof {
+            Some(proof) => {
+                encoder.write_u64(proof.len() as u64);
+                for p in proof {
+                    p.encode(encoder);
+                }
+            },
+            None => {encoder.write_u64(0u64);},
         }
     }
 }
@@ -699,10 +710,10 @@ fn test_siacoin_element_encode() {
     let state_element = StateElement {
         id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
         leaf_index: 1,
-        merkle_proof: vec![
+        merkle_proof: Some(vec![
             H256::from("0405060000000000000000000000000000000000000000000000000000000000"),
             H256::from("0708090000000000000000000000000000000000000000000000000000000000"),
-        ],
+        ]),
     };
     let siacoin_element = SiacoinElement {
         state_element,
@@ -726,10 +737,10 @@ fn test_state_element_encode() {
     let state_element = StateElement {
         id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
         leaf_index: 1,
-        merkle_proof: vec![
+        merkle_proof: Some(vec![
             H256::from("0405060000000000000000000000000000000000000000000000000000000000"),
             H256::from("0708090000000000000000000000000000000000000000000000000000000000"),
-        ],
+        ]),
     };
 
     let hash = Encoder::encode_and_hash(&state_element);
@@ -986,7 +997,7 @@ fn test_siacoin_input_encode_v2() {
             state_element: StateElement {
                 id: H256::default(),
                 leaf_index: 0,
-                merkle_proof: vec![H256::default()],
+                merkle_proof: Some(vec![H256::default()]),
             },
             siacoin_output: SiacoinOutput {
                 value: 1.into(),
@@ -1121,10 +1132,10 @@ fn test_file_contract_element_v2_encode() {
     let state_element = StateElement {
         id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
         leaf_index: 1,
-        merkle_proof: vec![
+        merkle_proof: Some(vec![
             H256::from("0405060000000000000000000000000000000000000000000000000000000000"),
             H256::from("0708090000000000000000000000000000000000000000000000000000000000"),
-        ],
+        ]),
     };
 
     let file_contract_element_v2 = FileContractElementV2 {
@@ -1184,10 +1195,10 @@ fn test_file_contract_revision_v2_encode() {
     let state_element = StateElement {
         id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
         leaf_index: 1,
-        merkle_proof: vec![
+        merkle_proof: Some(vec![
             H256::from("0405060000000000000000000000000000000000000000000000000000000000"),
             H256::from("0708090000000000000000000000000000000000000000000000000000000000"),
-        ],
+        ]),
     };
 
     let file_contract_element_v2 = FileContractElementV2 {
