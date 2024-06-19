@@ -168,8 +168,11 @@ impl Encodable for StateElement {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiafundElement {
+    #[serde(flatten)]
     pub state_element: StateElement,
+    #[serde(rename = "siafundOutput")]
     pub siacoin_output: SiafundOutput,
+    #[serde(rename = "maturityHeight")]
     pub maturity_height: u64,
 }
 
