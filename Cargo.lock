@@ -1026,6 +1026,7 @@ dependencies = [
  "bytes 0.4.12",
  "cfg-if 1.0.0",
  "chain",
+ "chrono",
  "common",
  "cosmrs",
  "crossbeam 0.8.2",
@@ -1100,6 +1101,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_with",
  "serialization",
  "serialization_derive",
  "sha2 0.10.7",
@@ -2017,6 +2019,7 @@ version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9c280362032ea4203659fc489832d0204ef09f247a0506f170dafcac08c369"
 dependencies = [
+ "serde",
  "signature 1.4.0",
 ]
 
@@ -2053,6 +2056,7 @@ dependencies = [
  "ed25519 1.5.2",
  "rand 0.7.3",
  "serde",
+ "serde_bytes",
  "sha2 0.9.9",
  "zeroize",
 ]
