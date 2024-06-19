@@ -37,6 +37,7 @@ pub mod specifier;
 pub mod spend_policy;
 pub mod transaction;
 pub mod types;
+#[cfg(test)] pub mod tests;
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
