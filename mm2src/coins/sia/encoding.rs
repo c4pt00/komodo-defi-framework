@@ -1,5 +1,7 @@
 use crate::sia::blake2b_internal::hash_blake2b_single;
 use rpc::v1::types::H256;
+use serde::{Deserialize, Serialize};
+use std::convert::From;
 
 // https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
 // TODO go implementation limits this to 1024 bytes, should we?
@@ -10,6 +12,34 @@ pub struct Encoder {
 
 pub trait Encodable {
     fn encode(&self, encoder: &mut Encoder);
+}
+
+// This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
+#[derive(Debug, Serialize)]
+pub struct SiaHash(pub H256);
+
+// Implement deserialization for SiaHash
+impl<'de> Deserialize<'de> for SiaHash {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s: String = serde::de::Deserialize::deserialize(deserializer)?;
+        Ok(SiaHash(H256::default()))
+    }
+}
+
+
+impl From<SiaHash> for H256 {
+    fn from(sia_hash: SiaHash) -> Self {
+        sia_hash.0
+    }
+}
+
+impl From<H256> for SiaHash {
+    fn from(h256: H256) -> Self {
+        SiaHash(h256)
+    }
 }
 
 impl Encodable for H256 {
