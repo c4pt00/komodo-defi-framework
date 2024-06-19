@@ -1,7 +1,9 @@
 use crate::sia::blake2b_internal::hash_blake2b_single;
 use rpc::v1::types::H256;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
+use std::fmt;
+use std::str::FromStr;
 
 // https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
 // TODO go implementation limits this to 1024 bytes, should we?
@@ -15,18 +17,51 @@ pub trait Encodable {
 }
 
 // This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct SiaHash(pub H256);
 
-// Implement deserialization for SiaHash
 impl<'de> Deserialize<'de> for SiaHash {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
-        let s: String = serde::de::Deserialize::deserialize(deserializer)?;
-        Ok(SiaHash(H256::default()))
+        struct SiaHashVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SiaHashVisitor {
+            type Value = SiaHash;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string prefixed with 'h:' and followed by a 64-character hex string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if let Some(hex_str) = value.strip_prefix("h:") {
+                    let h256 = H256::from_str(hex_str).map_err(E::custom)?;
+                    Ok(SiaHash(h256))
+                } else {
+                    Err(E::custom("missing 'h:' prefix"))
+                }
+            }
+        }
+
+        deserializer.deserialize_str(SiaHashVisitor)
     }
+}
+
+impl Serialize for SiaHash {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{}", self))
+    }
+}
+
+impl fmt::Display for SiaHash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "h:{}", self.0) }
 }
 
 
