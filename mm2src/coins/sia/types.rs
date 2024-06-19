@@ -31,14 +31,14 @@ pub enum EventDataEnum {
     V1FileContractResolution(EventV1ContractResolution)
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventV1Transaction {
     pub transaction: TransactionV1,
     pub spent_siacoin_elements: Vec<SiacoinElement>,
     pub spent_siafund_elements: Vec<SiafundElement>,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventV1ContractResolution {
     pub file_contract: FileContractElementV1,
     pub siacoin_element: SiacoinElement,
@@ -46,12 +46,12 @@ pub struct EventV1ContractResolution {
 }
 
  // FIXME does this actually need to be wrapped?
- #[derive(Clone, Deserialize, Serialize)]
+ #[derive(Clone, Debug, Deserialize, Serialize)]
  pub struct EventV2Transaction {
     pub transaction: TransactionV2,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventV2ContractResolution {
     pub file_contract: FileContractElementV2,
     pub resolution: String, // TODO stub; should be enum
@@ -59,12 +59,13 @@ pub struct EventV2ContractResolution {
     pub missed: bool,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventPayout {
     pub siacoin_element: SiacoinElement,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize)]
 pub struct Event {
     pub id: H256,
     pub index: ChainIndex,
