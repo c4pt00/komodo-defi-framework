@@ -585,6 +585,7 @@ impl Encodable for V2FileContractExpiration {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FileContractElementV1 {
+    #[serde(flatten)]
     pub state_element: StateElement,
     pub file_contract: FileContractV1,
 }
