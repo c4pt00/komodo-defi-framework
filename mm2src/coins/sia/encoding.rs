@@ -39,10 +39,17 @@ impl<'de> Deserialize<'de> for SiaHash {
                 E: serde::de::Error,
             {
                 if let Some(hex_str) = value.strip_prefix("h:") {
-                    let h256 = H256::from_str(hex_str).map_err(E::custom)?;
-                    Ok(SiaHash(h256))
+                    H256::from_str(hex_str)
+                        .map(SiaHash)
+                        .map_err(|_| E::invalid_value(
+                            serde::de::Unexpected::Str(value),
+                            &self,
+                        ))
                 } else {
-                    Err(E::custom("missing 'h:' prefix"))
+                    Err(E::invalid_value(
+                        serde::de::Unexpected::Str(value),
+                        &self,
+                    ))
                 }
             }
         }
