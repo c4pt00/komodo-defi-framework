@@ -149,10 +149,12 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         let task_method = task_method.to_string();
         return rpc_task_dispatcher(request, ctx, task_method).await;
     }
-    // if let Some(gui_storage_method) = request.method.strip_prefix("gui_storage::") {
-    //     let gui_storage_method = gui_storage_method.to_owned();
-    //     return gui_storage_dispatcher(request, ctx, &gui_storage_method).await;
-    // }
+
+    if let Some(gui_storage_method) = request.method.strip_prefix("gui_storage::") {
+        // let gui_storage_method = gui_storage_method.to_owned();
+        // return gui_storage_dispatcher(request, ctx, &gui_storage_method).await;
+        return MmError::err(DispatcherError::DisabledNameSpace(gui_storage_method.to_string()));
+    }
 
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(lightning_method) = request.method.strip_prefix("lightning::") {

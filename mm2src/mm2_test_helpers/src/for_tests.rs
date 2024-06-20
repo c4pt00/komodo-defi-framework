@@ -2251,7 +2251,7 @@ pub async fn wait_for_swap_status(mm: &MarketMakerIt, uuid: &str, wait_sec: i64)
         if swap_status.is_ok() {
             break;
         }
-        println!("swap_statuss: {swap_status:?}");
+
         if get_utc_timestamp() > wait_until {
             panic!("Timed out waiting for swap {} status", uuid);
         }

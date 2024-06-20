@@ -863,13 +863,9 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
     async fn build(self) -> MmResult<Self::ResultCoin, Self::Error> {
         let utxo = self.build_utxo_fields().await?;
         let utxo_arc = UtxoArc::new(utxo);
-
-        #[cfg(target_arch = "wasm32")]
         let db_id = utxo_common::my_public_key(&utxo_arc)
             .ok()
             .map(|k| k.address_hash().to_string());
-        #[cfg(not(target_arch = "wasm32"))]
-        let db_id: Option<String> = None;
 
         let z_spending_key = match self.z_spending_key {
             Some(ref z_spending_key) => z_spending_key.clone(),
@@ -1793,6 +1789,13 @@ impl MmCoin for ZCoin {
     fn on_disabled(&self) -> Result<(), AbortedError> { AbortableSystem::abort_all(&self.as_ref().abortable_system) }
 
     fn on_token_deactivated(&self, _ticker: &str) {}
+
+    async fn account_db_id(&self) -> Option<String> {
+        self.utxo_arc
+            .priv_key_policy
+            .activated_key()
+            .map(|activated_key| hex::encode(activated_key.public().address_hash().as_slice()))
+    }
 }
 
 #[async_trait]
