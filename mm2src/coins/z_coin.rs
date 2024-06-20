@@ -863,9 +863,10 @@ impl<'a> UtxoCoinBuilder for ZCoinBuilder<'a> {
     async fn build(self) -> MmResult<Self::ResultCoin, Self::Error> {
         let utxo = self.build_utxo_fields().await?;
         let utxo_arc = UtxoArc::new(utxo);
-        let db_id = utxo_common::my_public_key(&utxo_arc)
-            .ok()
-            .map(|k| k.address_hash().to_string());
+        let db_id = utxo_arc
+            .priv_key_policy
+            .activated_key()
+            .map(|activated_key| hex::encode(activated_key.public().address_hash().as_slice()));
 
         let z_spending_key = match self.z_spending_key {
             Some(ref z_spending_key) => z_spending_key.clone(),
