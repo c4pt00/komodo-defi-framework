@@ -5,12 +5,15 @@ use crate::sia::encoding::{Encodable, Encoder};
 use crate::sia::specifier::{Identifier, Specifier};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
+use serde::{Serialize, Deserialize, Deserializer};
+use std::fmt;
+
 
 #[cfg(test)] use std::str::FromStr;
 
 const POLICY_VERSION: u8 = 1u8;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum SpendPolicy {
     Above(u64),
     After(u64),
@@ -21,6 +24,58 @@ pub enum SpendPolicy {
     UnlockConditions(UnlockCondition), // For v1 compatibility
 }
 
+impl<'de> Deserialize<'de> for SpendPolicy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SpendPolicyVisitor;
+
+        fn strip_prefix_suffix<'a>(s: &'a str, prefix: &'a str, suffix: &'a str) -> Option<&'a str> {
+            s.strip_prefix(prefix)?.strip_suffix(suffix)
+        }
+
+        impl<'de> serde::de::Visitor<'de> for SpendPolicyVisitor {
+            type Value = SpendPolicy;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string representing a Sia spend policy")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                // FIXME this is a hack to allow deserializing the pubkey SpendPolicys only
+                if let Some(hex_str) = strip_prefix_suffix(value, "pk(0x", ")") {
+                    let public_key_bytes = hex::decode(hex_str).map_err(|_| E::invalid_value(
+                        serde::de::Unexpected::Str(value),
+                        &self,
+                    ))?;
+                    let public_key = PublicKey::from_bytes(
+                        &public_key_bytes
+                    ).map_err(|_| E::invalid_value(
+                        serde::de::Unexpected::Str(value),
+                        &self,
+                    ))?;
+
+                    Ok(SpendPolicy::PublicKey(public_key))
+                } else {
+                    Err(E::invalid_value(
+                        serde::de::Unexpected::Str(value),
+                        &self,
+                    ))
+                }
+            }
+        }
+
+        deserializer.deserialize_str(SpendPolicyVisitor)
+    }
+}
+
+// Go serializes SpendPolicy with custom logic
+// eg, "policy": "pk(0x8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c)"
+// see `func (p SpendPolicy) String()` in policy.go
 impl Encodable for SpendPolicy {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u8(POLICY_VERSION);
