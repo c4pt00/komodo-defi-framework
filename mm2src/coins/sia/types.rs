@@ -108,12 +108,6 @@ pub struct EventV1ContractResolution {
     pub missed: bool,
 }
 
- // FIXME does this actually need to be wrapped?
- #[derive(Clone, Debug, Deserialize, Serialize)]
- pub struct EventV2Transaction {
-    pub transaction: TransactionV2,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventV2ContractResolution {
     pub file_contract: FileContractElementV2,
@@ -176,6 +170,9 @@ impl<'de> Deserialize<'de> for Event {
             "v1Transaction" => serde_json::from_value::<EventV1Transaction>(helper.data)
                 .map(EventDataWrapper::V1Transaction)
                 .map_err(serde::de::Error::custom),
+            "v2Transaction" => serde_json::from_value::<TransactionV2>(helper.data)
+                .map(EventDataWrapper::V2Transaction)
+                .map_err(serde::de::Error::custom),
             // Add other type mappings here...
             _ => Err(serde::de::Error::unknown_variant(&helper.event_type, &["Payout", "V2Transaction", "V2FileContractResolution", "V1Transaction", "V1FileContractResolution"])),
         }?;
@@ -197,7 +194,7 @@ pub enum EventDataWrapper {
     MinerPayout(EventPayout),
     FoundationPayout(EventPayout),
     ClaimPayout(EventPayout),
-    V2Transaction(EventV2Transaction),
+    V2Transaction(TransactionV2),
     V2FileContractResolution(EventV2ContractResolution),
     V1Transaction(EventV1Transaction),
     V1FileContractResolution(EventV1ContractResolution)
