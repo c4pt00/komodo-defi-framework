@@ -126,12 +126,23 @@ impl Encodable for SatisfiedPolicy {
         fn rec(policy: &SpendPolicy, encoder: &mut Encoder, sigi: &mut usize, prei: &mut usize, sp: &SatisfiedPolicy) {
             match policy {
                 SpendPolicy::PublicKey(_) => {
-                    sp.signatures[*sigi].encode(encoder);
-                    *sigi += 1;
+                    if *sigi < sp.signatures.len() {
+                        sp.signatures[*sigi].encode(encoder);
+                        *sigi += 1;
+                    } else {
+                        // Sia Go code panics here but our code assumes encoding will always be successful
+                        // TODO: check if Sia Go will fix this
+                        encoder.write_string("Broken PublicKey encoding, see SatisfiedPolicy::encode")
+                    }
                 },
                 SpendPolicy::Hash(_) => {
-                    encoder.write_len_prefixed_bytes(&sp.preimages[*prei]);
-                    *prei += 1;
+                    if *prei < sp.preimages.len() {
+                        encoder.write_len_prefixed_bytes(&sp.preimages[*prei]);
+                        *prei += 1;
+                    } else {
+                        // Sia Go code panics here but our code assumes encoding will always be successful
+                        encoder.write_string("Broken Hash encoding, see SatisfiedPolicy::encode")
+                    }
                 },
                 SpendPolicy::Threshold{ n: _, of} => {
                     for p in of {
