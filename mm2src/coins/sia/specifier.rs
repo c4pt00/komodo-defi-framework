@@ -26,7 +26,7 @@ define_byte_array_const!(ENTROPY, 16, "entropy");
 
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L40-L49
 // A Specifier is a fixed-size, 0-padded identifier.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Specifier {
     identifier: Identifier,
 }
@@ -39,7 +39,7 @@ impl Encodable for Specifier {
     fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(self.identifier.as_bytes()); }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum Identifier {
     Ed25519,
     SiacoinOutput,

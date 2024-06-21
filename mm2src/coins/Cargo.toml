@@ -70,6 +70,7 @@ jsonrpc-core = "18.0.0"
 keys = { path = "../mm2_bitcoin/keys" }
 lazy_static = "1.4"
 libc = "0.2"
+nom = "6.1.2"
 mm2_core = { path = "../mm2_core" }
 mm2_err_handle = { path = "../mm2_err_handle" }
 mm2_event_stream = { path = "../mm2_event_stream" }

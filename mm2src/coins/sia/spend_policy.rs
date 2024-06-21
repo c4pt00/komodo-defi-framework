@@ -7,13 +7,44 @@ use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
 use serde::{Serialize, Deserialize, Deserializer};
 use std::fmt;
+use nom::branch::alt;
+use nom::IResult;
+use nom::sequence::{delimited};
+use nom::combinator::{map_res};
+use nom::bytes::complete::{tag};
+use nom::character::complete::{char, digit1};
 
+fn parse_u64(input: &str) -> IResult<&str, u64> {
+    map_res(digit1, |s: &str| s.parse::<u64>())(input)
+}
+
+fn parse_above(input: &str) -> IResult<&str, SpendPolicy> {
+  let (input, value) = delimited(tag("above("), parse_u64, char(')'))(input)?;
+  Ok((input, SpendPolicy::Above(value)))
+}
+
+fn parse_after(input: &str) -> IResult<&str, SpendPolicy> {
+  let (input, value) = delimited(tag("after("), parse_u64, char(')'))(input)?;
+  Ok((input, SpendPolicy::After(value)))
+}
+
+fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
+  alt((
+      parse_above,
+      parse_after,
+      // parse_public_key,
+      // parse_hash,
+      // parse_threshold,
+      // parse_opaque,
+      // parse_unlock_conditions,
+  ))(input)
+}
 
 #[cfg(test)] use std::str::FromStr;
 
 const POLICY_VERSION: u8 = 1u8;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum SpendPolicy {
     Above(u64),
     After(u64),
@@ -26,17 +57,12 @@ pub enum SpendPolicy {
     Opaque(Address),
     UnlockConditions(UnlockCondition), // For v1 compatibility
 }
-
 impl<'de> Deserialize<'de> for SpendPolicy {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         struct SpendPolicyVisitor;
-
-        fn strip_prefix_suffix<'a>(s: &'a str, prefix: &'a str, suffix: &'a str) -> Option<&'a str> {
-            s.strip_prefix(prefix)?.strip_suffix(suffix)
-        }
 
         impl<'de> serde::de::Visitor<'de> for SpendPolicyVisitor {
             type Value = SpendPolicy;
@@ -49,25 +75,9 @@ impl<'de> Deserialize<'de> for SpendPolicy {
             where
                 E: serde::de::Error,
             {
-                // FIXME this is a hack to allow deserializing the pubkey SpendPolicys only
-                if let Some(hex_str) = strip_prefix_suffix(value, "pk(0x", ")") {
-                    let public_key_bytes = hex::decode(hex_str).map_err(|_| E::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    ))?;
-                    let public_key = PublicKey::from_bytes(
-                        &public_key_bytes
-                    ).map_err(|_| E::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    ))?;
-
-                    Ok(SpendPolicy::PublicKey(public_key))
-                } else {
-                    Err(E::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    ))
+                match parse_spend_policy(value.trim()) {
+                    Ok((_, policy)) => Ok(policy),
+                    Err(_) => Err(E::invalid_value(serde::de::Unexpected::Str(value), &self)),
                 }
             }
         }
@@ -228,7 +238,7 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
 
 // Sia v1 has theoretical support other key types via softforks
 // We only support ed25519 for now. No other type was ever implemented in Sia Go.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct UnlockKey {
     pub algorithm: Specifier,
     pub public_key: PublicKey,
@@ -246,7 +256,7 @@ impl Encodable for UnlockKey {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct UnlockCondition {
     pub unlock_keys: Vec<UnlockKey>,
     pub timelock: u64,
