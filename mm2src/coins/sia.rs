@@ -33,6 +33,7 @@ pub mod encoding;
 pub mod http_client;
 use http_client::{SiaApiClient, SiaApiClientError};
 pub mod http_endpoints;
+pub mod signature;
 pub mod specifier;
 pub mod spend_policy;
 pub mod transaction;
