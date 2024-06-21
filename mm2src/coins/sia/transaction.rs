@@ -1,6 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, SiaHash};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
+use crate::sia::signature::SiaSignature;
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
@@ -106,10 +107,15 @@ impl Encodable for Currency {
     }
 }
 
+#[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SatisfiedPolicy {
     pub policy: SpendPolicy,
+    #[serde_as(as = "Vec<FromInto<SiaSignature>>")]
+    #[serde(default)]
     pub signatures: Vec<Signature>,
+    #[serde(default)]
     pub preimages: Vec<Vec<u8>>,
 }
 
@@ -231,6 +237,7 @@ impl Encodable for SiacoinElement {
 pub struct SiafundInputV2 {
     pub parent: SiafundElement,
     pub claim_address: Address,
+    #[serde(rename = "satisfiedPolicy")]
     pub satisfied_policy: SatisfiedPolicy,
 }
 
@@ -267,6 +274,7 @@ impl Encodable for SiacoinInputV1 {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiacoinInputV2 {
     pub parent: SiacoinElement,
+    #[serde(rename = "satisfiedPolicy")]
     pub satisfied_policy: SatisfiedPolicy,
 }
 
@@ -637,25 +645,33 @@ We chose the latter as it allows for simpler encoding of this struct.
 It is possible this may need to change in later implementations.
 */
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct TransactionV1 {
+    #[serde(rename = "siacoinInputs")]
     pub siacoin_inputs: Vec<SiacoinInput>,
+    #[serde(rename = "siacoinOutputs")]
     pub siacoin_outputs: Vec<SiacoinOutput>,
     pub file_contracts: Vec<FileContract>,
     pub file_contract_revisions: Vec<FileContractRevision>,
     pub storage_proofs: Vec<StorageProof>,
     pub siafund_inputs: Vec<SiafundInputV1>,
+    #[serde(rename = "siafundOutputs")]
     pub siafund_outputs: Vec<SiafundOutput>,
     pub miner_fees: Vec<Currency>,
     pub arbitrary_data: Vec<u8>,
     pub signatures: Vec<TransactionSignature>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct TransactionV2 {
+    #[serde(rename = "siacoinInputs")]
     pub siacoin_inputs: Vec<SiacoinInputV2>,
+    #[serde(rename = "siacoinOutputs")]
     pub siacoin_outputs: Vec<SiacoinOutput>,
+    #[serde(rename = "siafundInputs")]
     pub siafund_inputs: Vec<SiafundInputV2>,
+    #[serde(rename = "siafundOutputs")]
     pub siafund_outputs: Vec<SiafundOutput>,
     pub file_contracts: Vec<FileContractV2>,
     pub file_contract_revisions: Vec<FileContractRevisionV2>,
@@ -663,7 +679,8 @@ pub struct TransactionV2 {
     pub attestations: Vec<Attestation>,
     pub arbitrary_data: Vec<u8>,
     pub new_foundation_address: Option<Address>,
-    pub miner_fee: Currency,
+    #[serde(rename = "siafundOutputs")]
+    pub miner_fee: Option<Currency>,
 }
 
 #[test]
