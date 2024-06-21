@@ -120,8 +120,8 @@ impl Encodable for SatisfiedPolicy {
                     encoder.write_len_prefixed_bytes(&sp.preimages[*prei]);
                     *prei += 1;
                 },
-                SpendPolicy::Threshold(threshold) => {
-                    for p in &threshold.of {
+                SpendPolicy::Threshold{ n: _, of} => {
+                    for p in of {
                         rec(p, encoder, sigi, prei, sp);
                     }
                 },
@@ -924,10 +924,10 @@ fn test_satisfied_policy_encode_unlock_condition_complex() {
 #[test]
 fn test_satisfied_policy_encode_threshold_simple() {
     let sub_policy = SpendPolicy::Hash(H256::default());
-    let policy = SpendPolicy::Threshold(PolicyTypeThreshold {
+    let policy = SpendPolicy::Threshold {
         n: 1,
         of: vec![sub_policy],
-    });
+    };
 
     let satisfied_policy = SatisfiedPolicy {
         policy,
@@ -999,10 +999,10 @@ fn test_satisfied_policy_encode_threshold_atomic_swap_refund() {
 #[test]
 fn test_siacoin_input_encode_v2() {
     let sub_policy = SpendPolicy::Hash(H256::default());
-    let policy = SpendPolicy::Threshold(PolicyTypeThreshold {
+    let policy = SpendPolicy::Threshold {
         n: 1,
         of: vec![sub_policy],
-    });
+    };
 
     let satisfied_policy = SatisfiedPolicy {
         policy: policy.clone(),
