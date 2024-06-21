@@ -519,12 +519,9 @@ impl SolanaCoin {
         self.sign_and_send_swap_transaction_fut(swap_program_id, accounts, swap_instruction.pack())
     }
 
-    fn get_swap_transaction_details(
-        &self,
-        tx_hash: &[u8],
-    ) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
-        let transaction: SolTransaction = deserialize(tx_hash)
-            .map_err(|e| Box::new(TransactionErr::Plain(ERRL!("error deserializing tx_hash: {:?}", e))))?;
+    fn get_swap_transaction_details(&self, tx_hex: &[u8]) -> Result<(u64, [u8; 32], u64, Pubkey), Box<TransactionErr>> {
+        let transaction: SolTransaction = deserialize(tx_hex)
+            .map_err(|e| Box::new(TransactionErr::Plain(ERRL!("error deserializing tx_hex: {:?}", e))))?;
 
         let instruction = transaction
             .message
