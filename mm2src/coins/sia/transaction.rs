@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer};
 use std::str::FromStr;
 
 #[cfg(test)]
-use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success, PolicyTypeThreshold};
+use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success};
 #[cfg(test)] use crate::sia::v1_standard_address_from_pubkey;
 
 type SiacoinOutputID = H256;
