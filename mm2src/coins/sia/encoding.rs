@@ -20,6 +20,7 @@ pub trait Encodable {
 #[derive(Debug)]
 pub struct SiaHash(pub H256);
 
+// FIXME this code pattern is reoccuring in many places and should be generalized with helpers or macros
 impl<'de> Deserialize<'de> for SiaHash {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
