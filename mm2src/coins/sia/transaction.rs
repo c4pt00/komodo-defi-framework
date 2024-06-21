@@ -5,7 +5,7 @@ use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
 use serde_with::{FromInto, serde_as};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -14,7 +14,7 @@ use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_ato
 
 type SiacoinOutputID = H256;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Currency {
     lo: u64,
     hi: u64,
@@ -51,6 +51,15 @@ impl<'de> Deserialize<'de> for Currency {
     }
 }
 
+impl Serialize for Currency {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_u128().to_string())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum CurrencyVersion {
     V1(Currency),
@@ -59,6 +68,10 @@ pub enum CurrencyVersion {
 
 impl Currency {
     pub fn new(lo: u64, hi: u64) -> Self { Currency { lo, hi } }
+
+    pub fn to_u128(&self) -> u128 {
+        ((self.hi as u128) << 64) | (self.lo as u128)
+    }
 }
 
 impl From<u64> for Currency {
