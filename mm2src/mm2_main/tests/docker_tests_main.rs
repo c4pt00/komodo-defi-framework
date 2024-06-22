@@ -111,14 +111,14 @@ fn wait_for_geth_node_ready() {
         }
         match block_on(GETH_WEB3.eth().block_number().timeout(Duration::from_secs(6))) {
             Ok(Ok(block_number)) => {
-                println!("Geth node is ready, latest block number: {:?}", block_number);
+                log!("Geth node is ready, latest block number: {:?}", block_number);
                 break;
             },
             Ok(Err(e)) => {
-                println!("Failed to connect to Geth node: {:?}, retrying...", e);
+                log!("Failed to connect to Geth node: {:?}, retrying...", e);
             },
             Err(_) => {
-                println!("Connection to Geth node timed out, retrying...");
+                log!("Connection to Geth node timed out, retrying...");
             },
         }
         attempts += 1;
