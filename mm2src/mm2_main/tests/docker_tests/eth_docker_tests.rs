@@ -478,7 +478,7 @@ fn send_safe_transfer_from(
     )
     .unwrap();
 
-    println!("Transaction sent: {:?}", result);
+    log!("Transaction sent: {:?}", result);
     Ok(result)
 }
 
@@ -879,12 +879,13 @@ fn wait_pending_transactions(wallet_address: Address) {
         let pending_nonce = block_on(web3.eth().transaction_count(wallet_address, Some(BlockNumber::Pending))).unwrap();
 
         if latest_nonce == pending_nonce {
-            println!("All pending transactions have been confirmed.");
+            log!("All pending transactions have been confirmed.");
             break;
         } else {
-            println!(
+            log!(
                 "Waiting for pending transactions to confirm... Current nonce: {}, Pending nonce: {}",
-                latest_nonce, pending_nonce
+                latest_nonce,
+                pending_nonce
             );
             thread::sleep(Duration::from_secs(1));
         }
