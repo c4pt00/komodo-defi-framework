@@ -16,6 +16,20 @@ macro_rules! test_serde {
     };
 }
 
+// FIXME reminder to populate the following tests
+#[test]
+#[ignore]
+fn test_serde_block_id() {
+    test_serde!(
+        BlockID,
+        json!("bid:c67c3b2e57490617a25a9fcb9fd54ab6acbe72fc1e4f1f432cb9334177917667")
+    );
+    test_serde!(BlockID, json!("bid:badc0de"));
+    test_serde!(BlockID, json!("bid:1badc0de"));
+    test_serde!(BlockID, json!("1badc0de"));
+    test_serde!(BlockID, json!(1));
+}
+
 #[test]
 fn test_serde_address() {
     test_serde!(Address, json!("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f"));
