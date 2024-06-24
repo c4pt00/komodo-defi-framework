@@ -29,7 +29,7 @@ cfg_wasm32! {
 
 cfg_native! {
     use db_common::sqlite::rusqlite::Connection;
-    use crate::sql_connection_pool::{AsyncSqliteConnPool, SqliteConnPool, DbMigrationWatcher};
+    use crate::sql_connection_pool::{AsyncSqliteConnPool, SqliteConnPool, DbMigrationWatcher, DbMigrationHandler};
     use rustls::ServerName;
     use mm2_metrics::prometheus;
     use mm2_metrics::MmMetricsError;
@@ -388,7 +388,7 @@ impl MmCtx {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn init_db_migration_watcher(&self) -> Result<Arc<DbMigrationWatcher>, String> {
+    pub async fn init_db_migration_watcher(&self) -> Result<DbMigrationHandler, String> {
         DbMigrationWatcher::init(self).await
     }
 }

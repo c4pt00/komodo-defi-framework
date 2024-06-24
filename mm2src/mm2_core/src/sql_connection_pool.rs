@@ -322,23 +322,19 @@ pub type DbMigrationSender = Arc<AsyncMutex<Sender<DbIds>>>;
 
 pub struct DbMigrationWatcher {
     sender: DbMigrationSender,
-    receiver: DbMigrationHandler,
 }
 
 impl DbMigrationWatcher {
-    pub async fn init(ctx: &MmCtx) -> Result<Arc<Self>, String> {
+    pub async fn init(ctx: &MmCtx) -> Result<DbMigrationHandler, String> {
         let (sender, receiver) = channel(1);
 
         let selfi = Arc::new(Self {
             sender: Arc::new(AsyncMutex::new(sender)),
-            receiver: Arc::new(AsyncMutex::new(receiver)),
         });
-        try_s!(ctx.db_migration_watcher.pin(selfi.clone()));
+        try_s!(ctx.db_migration_watcher.pin(selfi));
 
-        Ok(selfi)
+        Ok(Arc::new(AsyncMutex::new(receiver)))
     }
-
-    pub fn get_receiver(&self) -> DbMigrationHandler { self.receiver.clone() }
 
     pub fn get_sender(&self) -> DbMigrationSender { self.sender.clone() }
 }
