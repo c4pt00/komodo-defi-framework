@@ -433,16 +433,7 @@ fn path_to_db_root(db_root: Option<&str>) -> PathBuf {
 
 /// This function can be used later by an FFI function to open a GUI storage.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn path_to_dbdir(db_root: Option<&str>, db_id: &str) -> PathBuf {
-    const DEFAULT_ROOT: &str = "DB";
-
-    let path = match db_root {
-        Some(dbdir) if !dbdir.is_empty() => Path::new(dbdir),
-        _ => Path::new(DEFAULT_ROOT),
-    };
-
-    path.join(db_id)
-}
+pub fn path_to_dbdir(db_root: Option<&str>, db_id: &str) -> PathBuf { path_to_db_root(db_root).join(db_id) }
 
 // We don't want to send `MmCtx` across threads, it will only obstruct the normal use case
 // (and might result in undefined behaviour if there's a C struct or value in the context that is aliased from the various MM threads).
