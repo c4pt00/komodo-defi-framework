@@ -1,0 +1,40 @@
+FROM rust:1.63-slim
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    libssl-dev \
+    pkg-config \
+    build-essential \
+    libudev-dev \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rustup toolchain install nightly-2022-10-29
+RUN rustup default nightly-2022-10-29
+RUN rustup component add rustfmt clippy
+
+#RUN sh -c "$(curl -sSfL https://release.solana.com/v1.9.20/install)"
+RUN wget -qO- https://github.com/solana-labs/solana/releases/download/v1.9.20/solana-release-x86_64-unknown-linux-gnu.tar.bz2 | tar -xjf - -C /usr/local/bin --strip-components=1 solana-release/bin/solana
+RUN wget -qO- https://github.com/solana-labs/solana/releases/download/v1.9.20/solana-release-x86_64-unknown-linux-gnu.tar.bz2 | tar -xjf - -C /usr/local/bin --strip-components=1 solana-release/bin/solana-install-init
+
+ENV PATH="/usr/local/bin/solana:${PATH}"
+
+WORKDIR /usr/src
+RUN git clone https://github.com/KomodoPlatform/satomic-swap.git
+WORKDIR /usr/src/satomic-swap
+
+RUN solana-install-init
+RUN cargo build-bpf
+RUN mkdir /usr/src/komodo-defi-framework
+WORKDIR /usr/src/komodo-defi-framework
+
+COPY . .
+
+COPY ../scripts/ci/solana-entrypoint.sh /usr/src/satomic-swap/entrypoint.sh
+
+WORKDIR /usr/src/satomic-swap
+
+RUN chmod +x /entrypoint.sh
+CMD ["sleep", "infinity"]
+#ENTRYPOINT ["/entrypoint.sh"]

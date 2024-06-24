@@ -1,0 +1,19 @@
+services:
+  rust-solana:
+    build: # "context" and "dockerfile" fields have to be under "build"
+      context: .
+      dockerfile: .docker/Dockerfile.solana
+    volumes:
+      - .:/usr/src/komodo-defi-framework
+    environment:
+      - RUST_LOG=debug
+    ports:
+      - "8899:8899"  # Solana JSON RPC
+      - "8900:8900"  # Solana Gossip
+      - "8001:8001"  # Solana TPU
+      - "8002:8002"  # Solana TPU Forwarding
+      - "8003:8003"  # Solana TVU
+      - "8004:8004"  # Solana TVU Votes
+      - "8005:8005"  # Solana Repair
+      - "8006:8006"  # Solana Retransmit
+      - "8007:8007"  # Solana RPC
