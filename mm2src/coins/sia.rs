@@ -36,9 +36,9 @@ pub mod http_endpoints;
 pub mod signature;
 pub mod specifier;
 pub mod spend_policy;
+#[cfg(test)] pub mod tests;
 pub mod transaction;
 pub mod types;
-#[cfg(test)] pub mod tests;
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);

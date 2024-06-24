@@ -1,7 +1,7 @@
 use rpc::v1::types::H256;
 
-use crate::sia::spend_policy::SpendPolicy;
 use crate::sia::address::Address;
+use crate::sia::spend_policy::SpendPolicy;
 
 // Helper macro for testing successful deserialization
 macro_rules! test_deser_success {
@@ -35,7 +35,7 @@ fn test_deser_spend_policy_above() {
     let test_cases = [
         ("above(100000)", SpendPolicy::Above(100000)),
         ("above(0)", SpendPolicy::Above(0)),
-        (&format!("above({})", u64::MAX), SpendPolicy::Above(u64::MAX))
+        (&format!("above({})", u64::MAX), SpendPolicy::Above(u64::MAX)),
     ];
 
     for value in test_cases {
@@ -72,7 +72,7 @@ fn test_deser_spend_policy_after() {
     let test_cases = [
         ("after(100000)", SpendPolicy::After(100000)),
         ("after(0)", SpendPolicy::After(0)),
-        (&format!("after({})", u64::MAX), SpendPolicy::After(u64::MAX))
+        (&format!("after({})", u64::MAX), SpendPolicy::After(u64::MAX)),
     ];
 
     for value in test_cases {
@@ -106,9 +106,12 @@ fn test_deser_spend_policy_after_expected_failures() {
 
 #[test]
 fn test_deser_spend_policy_opaque() {
-    let test_cases = [
-        ("opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)", SpendPolicy::Opaque(H256::from("f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d"))),
-    ];
+    let test_cases = [(
+        "opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)",
+        SpendPolicy::Opaque(H256::from(
+            "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+        )),
+    )];
 
     for value in test_cases {
         test_deser_success!(SpendPolicy, value.0, value.1);

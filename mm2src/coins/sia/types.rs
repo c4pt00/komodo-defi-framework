@@ -1,29 +1,25 @@
-use crate::sia::encoding::{Encodable, Encoder, SiaHash};
 use crate::sia::address::Address;
-use crate::sia::transaction::{FileContractElementV1, FileContractElementV2, SiacoinElement, SiafundElement, TransactionV1, TransactionV2};
-use rpc::v1::types::H256;
+use crate::sia::encoding::{Encodable, Encoder, SiaHash};
+use crate::sia::transaction::{FileContractElementV1, FileContractElementV2, SiacoinElement, SiafundElement,
+                              TransactionV1, TransactionV2};
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize, Deserializer, Serializer};
+use rpc::v1::types::H256;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use serde_with::{FromInto, serde_as};
+use serde_with::{serde_as, FromInto};
 use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
-
 
 #[derive(Clone, Debug)]
 pub struct BlockID(pub H256);
 
 impl From<BlockID> for H256 {
-    fn from(sia_hash: BlockID) -> Self {
-        sia_hash.0
-    }
+    fn from(sia_hash: BlockID) -> Self { sia_hash.0 }
 }
 
 impl From<H256> for BlockID {
-    fn from(h256: H256) -> Self {
-        BlockID(h256)
-    }
+    fn from(h256: H256) -> Self { BlockID(h256) }
 }
 
 impl<'de> Deserialize<'de> for BlockID {
@@ -47,15 +43,9 @@ impl<'de> Deserialize<'de> for BlockID {
                 if let Some(hex_str) = value.strip_prefix("bid:") {
                     H256::from_str(hex_str)
                         .map(BlockID)
-                        .map_err(|_| E::invalid_value(
-                            serde::de::Unexpected::Str(value),
-                            &self,
-                        ))
+                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
                 } else {
-                    Err(E::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    ))
+                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
                 }
             }
         }
@@ -174,7 +164,13 @@ impl<'de> Deserialize<'de> for Event {
                 .map(EventDataWrapper::V2Transaction)
                 .map_err(serde::de::Error::custom),
             // Add other type mappings here...
-            _ => Err(serde::de::Error::unknown_variant(&helper.event_type, &["Payout", "V2Transaction", "V2FileContractResolution", "V1Transaction", "V1FileContractResolution"])),
+            _ => Err(serde::de::Error::unknown_variant(&helper.event_type, &[
+                "Payout",
+                "V2Transaction",
+                "V2FileContractResolution",
+                "V1Transaction",
+                "V1FileContractResolution",
+            ])),
         }?;
 
         Ok(Event {
@@ -197,6 +193,5 @@ pub enum EventDataWrapper {
     V2Transaction(TransactionV2),
     V2FileContractResolution(EventV2ContractResolution),
     V1Transaction(EventV1Transaction),
-    V1FileContractResolution(EventV1ContractResolution)
+    V1FileContractResolution(EventV1ContractResolution),
 }
-

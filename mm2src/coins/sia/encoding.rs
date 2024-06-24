@@ -42,15 +42,9 @@ impl<'de> Deserialize<'de> for SiaHash {
                 if let Some(hex_str) = value.strip_prefix("h:") {
                     H256::from_str(hex_str)
                         .map(SiaHash)
-                        .map_err(|_| E::invalid_value(
-                            serde::de::Unexpected::Str(value),
-                            &self,
-                        ))
+                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
                 } else {
-                    Err(E::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    ))
+                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
                 }
             }
         }
@@ -72,17 +66,12 @@ impl fmt::Display for SiaHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "h:{}", self.0) }
 }
 
-
 impl From<SiaHash> for H256 {
-    fn from(sia_hash: SiaHash) -> Self {
-        sia_hash.0
-    }
+    fn from(sia_hash: SiaHash) -> Self { sia_hash.0 }
 }
 
 impl From<H256> for SiaHash {
-    fn from(h256: H256) -> Self {
-        SiaHash(h256)
-    }
+    fn from(h256: H256) -> Self { SiaHash(h256) }
 }
 
 impl Encodable for H256 {

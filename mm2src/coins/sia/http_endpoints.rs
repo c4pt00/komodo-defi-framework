@@ -1,10 +1,10 @@
 use crate::sia::address::Address;
-use crate::sia::SiaApiClientError;
 use crate::sia::types::Event;
+use crate::sia::SiaApiClientError;
 use mm2_number::MmNumber;
 use reqwest::{Method, Request, Url};
-use serde::de::DeserializeOwned;
 use rpc::v1::types::H256;
+use serde::de::DeserializeOwned;
 
 const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
 
@@ -122,4 +122,3 @@ impl SiaApiRequest for AddressesEventsRequest {
 pub type AddressesEventsResponse = Vec<Event>;
 
 impl SiaApiResponse for Vec<Event> {}
-

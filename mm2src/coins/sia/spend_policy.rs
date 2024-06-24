@@ -4,34 +4,29 @@ use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard
 use crate::sia::encoding::{Encodable, Encoder};
 use crate::sia::specifier::{Identifier, Specifier};
 use ed25519_dalek::PublicKey;
-use rpc::v1::types::H256;
-use serde::{Serialize, Deserialize, Deserializer};
-use std::fmt;
-use std::str::FromStr;
 use nom::branch::alt;
-use nom::IResult;
-use nom::sequence::{delimited, };
-use nom::combinator::{map_res};
 use nom::bytes::complete::{tag, take_while_m_n};
 use nom::character::complete::{char, digit1};
+use nom::combinator::map_res;
+use nom::sequence::delimited;
+use nom::IResult;
+use rpc::v1::types::H256;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt;
+use std::str::FromStr;
 
+fn parse_hex(input: &str) -> IResult<&str, &str> { take_while_m_n(64, 64, |c: char| c.is_digit(16))(input) }
 
-fn parse_hex(input: &str) -> IResult<&str, &str> {
-    take_while_m_n(64, 64, |c: char| c.is_digit(16))(input)
-}
-
-fn parse_u64(input: &str) -> IResult<&str, u64> {
-    map_res(digit1, |s: &str| s.parse::<u64>())(input)
-}
+fn parse_u64(input: &str) -> IResult<&str, u64> { map_res(digit1, |s: &str| s.parse::<u64>())(input) }
 
 fn parse_above(input: &str) -> IResult<&str, SpendPolicy> {
-  let (input, value) = delimited(tag("above("), parse_u64, char(')'))(input)?;
-  Ok((input, SpendPolicy::Above(value)))
+    let (input, value) = delimited(tag("above("), parse_u64, char(')'))(input)?;
+    Ok((input, SpendPolicy::Above(value)))
 }
 
 fn parse_after(input: &str) -> IResult<&str, SpendPolicy> {
-  let (input, value) = delimited(tag("after("), parse_u64, char(')'))(input)?;
-  Ok((input, SpendPolicy::After(value)))
+    let (input, value) = delimited(tag("after("), parse_u64, char(')'))(input)?;
+    Ok((input, SpendPolicy::After(value)))
 }
 
 fn parse_opaque(input: &str) -> IResult<&str, SpendPolicy> {
@@ -40,17 +35,16 @@ fn parse_opaque(input: &str) -> IResult<&str, SpendPolicy> {
     Ok((input, SpendPolicy::Opaque(h256)))
 }
 
-
 fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
-  alt((
-      parse_above,
-      parse_after,
-      // parse_public_key,
-      // parse_hash,
-      // parse_threshold,
-      parse_opaque,
-      // parse_unlock_conditions,
-  ))(input)
+    alt((
+        parse_above,
+        parse_after,
+        // parse_public_key,
+        // parse_hash,
+        // parse_threshold,
+        parse_opaque,
+        // parse_unlock_conditions,
+    ))(input)
 }
 
 const POLICY_VERSION: u8 = 1u8;
@@ -61,10 +55,7 @@ pub enum SpendPolicy {
     After(u64),
     PublicKey(PublicKey),
     Hash(H256),
-    Threshold {
-        n: u8,
-        of: Vec<SpendPolicy>,
-    },
+    Threshold { n: u8, of: Vec<SpendPolicy> },
     Opaque(H256),
     UnlockConditions(UnlockCondition), // For v1 compatibility
 }
@@ -115,7 +106,7 @@ impl SpendPolicy {
             SpendPolicy::After(_) => 2,
             SpendPolicy::PublicKey(_) => 3,
             SpendPolicy::Hash(_) => 4,
-            SpendPolicy::Threshold{n: _, of: _} => 5,
+            SpendPolicy::Threshold { n: _, of: _ } => 5,
             SpendPolicy::Opaque(_) => 6,
             SpendPolicy::UnlockConditions(_) => 7,
         }
@@ -140,7 +131,7 @@ impl SpendPolicy {
                 encoder.write_u8(opcode);
                 encoder.write_slice(&hash.0);
             },
-            SpendPolicy::Threshold{ n, of } => {
+            SpendPolicy::Threshold { n, of } => {
                 encoder.write_u8(opcode);
                 encoder.write_u8(*n);
                 encoder.write_u8(of.len() as u8);
@@ -173,11 +164,9 @@ impl SpendPolicy {
 
         // if self is a threshold policy, we need to convert all of its subpolicies to opaque
         let new_policy = match self {
-            SpendPolicy::Threshold { n, of } => {
-                SpendPolicy::Threshold {
-                    n: *n,
-                    of: of.iter().map(SpendPolicy::opaque).collect(),
-                }
+            SpendPolicy::Threshold { n, of } => SpendPolicy::Threshold {
+                n: *n,
+                of: of.iter().map(SpendPolicy::opaque).collect(),
             },
             _ => self.clone(),
         };
@@ -194,7 +183,7 @@ impl SpendPolicy {
 
     pub fn hash(h: H256) -> Self { SpendPolicy::Hash(h) }
 
-    pub fn threshold(n: u8, of: Vec<SpendPolicy>) -> Self { SpendPolicy::Threshold{ n, of } }
+    pub fn threshold(n: u8, of: Vec<SpendPolicy>) -> Self { SpendPolicy::Threshold { n, of } }
 
     pub fn opaque(p: &SpendPolicy) -> Self { SpendPolicy::Opaque(p.address().0) }
 
@@ -207,32 +196,27 @@ pub fn spend_policy_atomic_swap(alice: PublicKey, bob: PublicKey, lock_time: u64
     let policy_after = SpendPolicy::After(lock_time);
     let policy_hash = SpendPolicy::Hash(hash);
 
-    let policy_success = SpendPolicy::Threshold{
+    let policy_success = SpendPolicy::Threshold {
         n: 2,
         of: vec![SpendPolicy::PublicKey(alice), policy_hash],
     };
 
-    let policy_refund = SpendPolicy::Threshold{
+    let policy_refund = SpendPolicy::Threshold {
         n: 2,
         of: vec![SpendPolicy::PublicKey(bob), policy_after],
     };
 
-    SpendPolicy::Threshold{
+    SpendPolicy::Threshold {
         n: 1,
         of: vec![policy_success, policy_refund],
     }
 }
 
-pub fn spend_policy_atomic_swap_success(
-    alice: PublicKey,
-    bob: PublicKey,
-    lock_time: u64,
-    hash: H256,
-) -> SpendPolicy {
+pub fn spend_policy_atomic_swap_success(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
     match spend_policy_atomic_swap(alice, bob, lock_time, hash) {
-        SpendPolicy::Threshold{n, mut of} => {
+        SpendPolicy::Threshold { n, mut of } => {
             of[1] = opacify_policy(&of[1]);
-            SpendPolicy::Threshold{n , of}
+            SpendPolicy::Threshold { n, of }
         },
         _ => unreachable!(),
     }
@@ -240,9 +224,9 @@ pub fn spend_policy_atomic_swap_success(
 
 pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
     match spend_policy_atomic_swap(alice, bob, lock_time, hash) {
-        SpendPolicy::Threshold{n, mut of} => {
+        SpendPolicy::Threshold { n, mut of } => {
             of[0] = opacify_policy(&of[0]);
-            SpendPolicy::Threshold{n , of}
+            SpendPolicy::Threshold { n, of }
         },
         _ => unreachable!(),
     }
@@ -466,7 +450,7 @@ fn test_spend_policy_encode_unlock_condition() {
         Address::from_str("addr:72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515dd64b9a56043a").unwrap();
     assert_eq!(base_address, expected);
 
-    let policy = SpendPolicy::Threshold{
+    let policy = SpendPolicy::Threshold {
         n: 1,
         of: vec![sub_policy],
     };

@@ -28,15 +28,9 @@ impl<'de> Deserialize<'de> for SiaSignature {
                 if let Some(hex_str) = value.strip_prefix("sig:") {
                     Signature::from_str(hex_str)
                         .map(SiaSignature)
-                        .map_err(|_| E::invalid_value(
-                            serde::de::Unexpected::Str(value),
-                            &self,
-                        ))
+                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
                 } else {
-                    Err(E::invalid_value(
-                        serde::de::Unexpected::Str(value),
-                        &self,
-                    ))
+                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
                 }
             }
         }
@@ -58,15 +52,10 @@ impl fmt::Display for SiaSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "h:{}", self.0) }
 }
 
-
 impl From<SiaSignature> for Signature {
-    fn from(sia_hash: SiaSignature) -> Self {
-        sia_hash.0
-    }
+    fn from(sia_hash: SiaSignature) -> Self { sia_hash.0 }
 }
 
 impl From<Signature> for SiaSignature {
-    fn from(signature: Signature) -> Self {
-        SiaSignature(signature)
-    }
+    fn from(signature: Signature) -> Self { SiaSignature(signature) }
 }

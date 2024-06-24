@@ -1,6 +1,6 @@
-use crate::sia::{SiaApiClient, SiaHttpConf};
-use crate::sia::http_endpoints::AddressesEventsRequest;
 use crate::sia::address::Address;
+use crate::sia::http_endpoints::AddressesEventsRequest;
+use crate::sia::{SiaApiClient, SiaHttpConf};
 use reqwest::Url;
 use std::str::FromStr;
 

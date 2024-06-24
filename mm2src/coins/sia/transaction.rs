@@ -1,12 +1,12 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, SiaHash};
-use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
 use crate::sia::signature::SiaSignature;
+use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
-use serde_with::{FromInto, serde_as};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{serde_as, FromInto};
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -70,9 +70,7 @@ pub enum CurrencyVersion {
 impl Currency {
     pub fn new(lo: u64, hi: u64) -> Self { Currency { lo, hi } }
 
-    pub fn to_u128(&self) -> u128 {
-        ((self.hi as u128) << 64) | (self.lo as u128)
-    }
+    pub fn to_u128(&self) -> u128 { ((self.hi as u128) << 64) | (self.lo as u128) }
 }
 
 impl From<u64> for Currency {
@@ -150,7 +148,7 @@ impl Encodable for SatisfiedPolicy {
                         encoder.write_string("Broken Hash encoding, see SatisfiedPolicy::encode")
                     }
                 },
-                SpendPolicy::Threshold{ n: _, of} => {
+                SpendPolicy::Threshold { n: _, of } => {
                     for p in of {
                         rec(p, encoder, sigi, prei, sp);
                     }
@@ -184,7 +182,7 @@ impl Encodable for StateElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.id.encode(encoder);
         encoder.write_u64(self.leaf_index);
-        
+
         match &self.merkle_proof {
             Some(proof) => {
                 encoder.write_u64(proof.len() as u64);
@@ -192,7 +190,9 @@ impl Encodable for StateElement {
                     p.encode(encoder);
                 }
             },
-            None => {encoder.write_u64(0u64);},
+            None => {
+                encoder.write_u64(0u64);
+            },
         }
     }
 }
@@ -247,7 +247,6 @@ impl Encodable for SiafundInputV2 {
         self.claim_address.encode(encoder);
         self.satisfied_policy.encode(encoder);
     }
-
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -262,7 +261,6 @@ pub struct SiacoinInputV1 {
     pub parent_id: SiacoinOutputID,
     pub unlock_condition: UnlockCondition,
 }
-
 
 impl Encodable for SiacoinInputV1 {
     fn encode(&self, encoder: &mut Encoder) {
@@ -416,7 +414,6 @@ pub struct FileContractV2 {
     pub host_signature: Signature,
 }
 
-
 impl Encodable for FileContractV2 {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u64(self.filesize);
@@ -447,7 +444,6 @@ impl Encodable for FileContractElementV2 {
         self.v2_file_contract.encode(encoder);
     }
 }
-
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FileContractRevisionV2 {
@@ -543,9 +539,7 @@ pub struct V2FileContractFinalization(pub FileContractV2);
 
 // TODO unit test
 impl Encodable for V2FileContractFinalization {
-    fn encode(&self, encoder: &mut Encoder) {
-        self.0.encode(encoder);
-    }
+    fn encode(&self, encoder: &mut Encoder) { self.0.encode(encoder); }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -559,7 +553,7 @@ pub struct V2FileContractRenewal {
 }
 
 // TODO unit test
-impl Encodable for V2FileContractRenewal{
+impl Encodable for V2FileContractRenewal {
     fn encode(&self, encoder: &mut Encoder) {
         self.final_revision.encode(encoder);
         self.new_contract.encode(encoder);
@@ -568,7 +562,6 @@ impl Encodable for V2FileContractRenewal{
         self.renter_signature.encode(encoder);
         self.host_signature.encode(encoder);
     }
-
 }
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -589,14 +582,13 @@ impl Encodable for V2StorageProof {
             proof.encode(encoder);
         }
     }
-
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ChainIndexElement {
     #[serde(flatten)]
     pub state_element: StateElement,
-    pub chain_index: ChainIndex
+    pub chain_index: ChainIndex,
 }
 
 // TODO unit test
@@ -1081,7 +1073,7 @@ fn test_attestation_encode() {
     .unwrap();
     let signature = Signature::from_bytes(
         &hex::decode("105641BF4AE119CB15617FC9658BEE5D448E2CC27C9BC3369F4BA5D0E1C3D01EBCB21B669A7B7A17CF8457189EAA657C41D4A2E6F9E0F25D0996D3A17170F309").unwrap()).unwrap();
-    
+
     let attestation = Attestation {
         public_key,
         key: "HostAnnouncement".to_string(),
@@ -1112,16 +1104,16 @@ fn test_file_contract_v2_encode() {
 
     let address0 = v1_standard_address_from_pubkey(&pubkey0);
     let address1 = v1_standard_address_from_pubkey(&pubkey1);
-    
+
     let vout0 = SiacoinOutput {
-            value: 1.into(),
-            address: address0,
-        };
+        value: 1.into(),
+        address: address0,
+    };
     let vout1 = SiacoinOutput {
-            value: 1.into(),
-            address: address1,
-        };
-    
+        value: 1.into(),
+        address: address1,
+    };
+
     let file_contract_v2 = FileContractV2 {
         filesize: 1,
         file_merkle_root: H256::default(),
@@ -1137,7 +1129,6 @@ fn test_file_contract_v2_encode() {
         renter_signature: sig0,
         host_signature: sig1,
     };
-
 
     let hash = Encoder::encode_and_hash(&file_contract_v2);
     let expected = H256::from("6171a8d8ec31e06f80d46efbd1aecf2c5a7c344b5f2a2d4f660654b0cb84113c");
@@ -1162,16 +1153,16 @@ fn test_file_contract_element_v2_encode() {
 
     let address0 = v1_standard_address_from_pubkey(&pubkey0);
     let address1 = v1_standard_address_from_pubkey(&pubkey1);
-    
+
     let vout0 = SiacoinOutput {
-            value: 1.into(),
-            address: address0,
-        };
+        value: 1.into(),
+        address: address0,
+    };
     let vout1 = SiacoinOutput {
-            value: 1.into(),
-            address: address1,
-        };
-    
+        value: 1.into(),
+        address: address1,
+    };
+
     let file_contract_v2 = FileContractV2 {
         filesize: 1,
         file_merkle_root: H256::default(),
@@ -1225,16 +1216,16 @@ fn test_file_contract_revision_v2_encode() {
 
     let address0 = v1_standard_address_from_pubkey(&pubkey0);
     let address1 = v1_standard_address_from_pubkey(&pubkey1);
-    
+
     let vout0 = SiacoinOutput {
-            value: 1.into(),
-            address: address0,
-        };
+        value: 1.into(),
+        address: address0,
+    };
     let vout1 = SiacoinOutput {
-            value: 1.into(),
-            address: address1,
-        };
-    
+        value: 1.into(),
+        address: address1,
+    };
+
     let file_contract_v2 = FileContractV2 {
         filesize: 1,
         file_merkle_root: H256::default(),
@@ -1267,7 +1258,7 @@ fn test_file_contract_revision_v2_encode() {
 
     let file_contract_revision_v2 = FileContractRevisionV2 {
         parent: file_contract_element_v2,
-        revision: file_contract_v2
+        revision: file_contract_v2,
     };
 
     let hash = Encoder::encode_and_hash(&file_contract_revision_v2);

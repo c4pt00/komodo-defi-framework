@@ -42,10 +42,7 @@ impl<'de> Deserialize<'de> for Address {
             where
                 E: serde::de::Error,
             {
-                Ok(Address::from_str(value).map_err(|_| E::invalid_value(
-                    serde::de::Unexpected::Str(value),
-                    &self,
-                ))?)
+                Ok(Address::from_str(value).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?)
             }
         }
 

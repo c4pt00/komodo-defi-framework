@@ -68,18 +68,30 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Resu
         },
     }
     let response_text = fetched.text().await.map_err(|e| {
-        SiaApiClientError::ReqwestParseInvalidEncodingError(ReqwestErrorWithUrl {
-            error: e,
-            url: url.clone(),
-        }.to_string())
+        SiaApiClientError::ReqwestParseInvalidEncodingError(
+            ReqwestErrorWithUrl {
+                error: e,
+                url: url.clone(),
+            }
+            .to_string(),
+        )
     })?;
 
     let json: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
-        SiaApiClientError::ReqwestParseInvalidJsonError(format!("Response text: {} is not JSON as expected. {}", response_text, e.to_string()))
+        SiaApiClientError::ReqwestParseInvalidJsonError(format!(
+            "Response text: {} is not JSON as expected. {}",
+            response_text,
+            e.to_string()
+        ))
     })?;
 
     let parsed: T = serde_json::from_value(json.clone()).map_err(|e| {
-        SiaApiClientError::ReqwestParseUnexpectedTypeError(format!("Response text: {} is not the expected type {:?} . {}", json.to_string(), std::any::type_name::<T>(), e.to_string()))
+        SiaApiClientError::ReqwestParseUnexpectedTypeError(format!(
+            "Response text: {} is not the expected type {:?} . {}",
+            json.to_string(),
+            std::any::type_name::<T>(),
+            e.to_string()
+        ))
     })?;
 
     Ok(parsed)
