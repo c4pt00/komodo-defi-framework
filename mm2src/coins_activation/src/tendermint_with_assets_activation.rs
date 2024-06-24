@@ -412,8 +412,7 @@ async fn run_db_migraiton_for_new_tendermint_pubkey(
         .db_migration_watcher
         .as_option()
         .expect("Db migration watcher isn't intialized yet!")
-        .get_sender()
-        .await;
+        .get_sender();
     let mut db_migration_sender = db_migration_sender.lock().await;
     db_migration_sender
         .send(DbIds {

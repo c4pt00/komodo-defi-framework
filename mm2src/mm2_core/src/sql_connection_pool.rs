@@ -359,7 +359,7 @@ impl DbMigrationWatcher {
         true
     }
 
-    pub async fn get_receiver(&self) -> DbMigrationHandler { self.receiver.clone() }
+    pub fn get_receiver(&self) -> DbMigrationHandler { self.receiver.clone() }
 
-    pub async fn get_sender(&self) -> DbMigrationSender { self.sender.clone() }
+    pub fn get_sender(&self) -> DbMigrationSender { self.sender.clone() }
 }

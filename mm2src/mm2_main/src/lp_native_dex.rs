@@ -462,7 +462,7 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
         .expect("db_migration_watcher initialization failed");
 
     let watcher_clone = db_migration_watcher.clone();
-    let receiver = db_migration_watcher.get_receiver().await;
+    let receiver = db_migration_watcher.get_receiver();
     let mut guard = receiver.lock().await;
 
     while let Some(ids) = guard.next().await {
