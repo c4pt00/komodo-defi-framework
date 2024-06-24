@@ -456,25 +456,31 @@ fn init_wasm_event_streaming(ctx: &MmArc) {
 
 #[cfg(not(target_arch = "wasm32"))]
 async fn init_db_migration_watcher_loop(ctx: MmArc) {
+    use std::collections::HashSet;
+
+    let mut migrations = HashSet::new();
     let db_migration_watcher = &ctx
         .init_db_migration_watcher()
         .await
-        .expect("db_migration_watcher initialization failed");
+        .expect("db_m igration_watcher initialization failed");
 
-    let watcher_clone = db_migration_watcher.clone();
     let receiver = db_migration_watcher.get_receiver();
     let mut guard = receiver.lock().await;
 
     while let Some(ids) = guard.next().await {
-        if watcher_clone.check_db_id_is_migrated(Some(&ids.db_id)).await {
+        if migrations.contains(&ids.db_id) {
             debug!("{} migrated, skipping migration..", ids.db_id);
             continue;
         }
+
         // run db migration for db_id if new activated pubkey is unique.
         if let Err(err) = run_db_migration_impl(&ctx, Some(&ids.db_id), Some(&ids.shared_db_id)).await {
             error!("{err:?}");
             continue;
         };
+
+        // insert new db_id to migration list
+        migrations.insert(ids.db_id.clone());
         // Fetch and extend ctx.coins_needed_for_kick_start from new intialized db.
         if let Err(err) = kick_start(ctx.clone(), Some(&ids.db_id)).await {
             error!("{err:?}");

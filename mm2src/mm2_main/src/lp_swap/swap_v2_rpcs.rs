@@ -22,7 +22,7 @@ cfg_native!(
     use crate::mm2::database::my_swaps::SELECT_MY_SWAP_V2_FOR_RPC_BY_UUID;
     use common::async_blocking;
     use db_common::sqlite::query_single_row;
-    use db_common::sqlite::rusqlite::{Result as SqlResult, Connection, Row, Error as SqlError};
+    use db_common::sqlite::rusqlite::{Result as SqlResult, Row, Error as SqlError};
     use db_common::sqlite::rusqlite::types::Type as SqlType;
 );
 
@@ -168,19 +168,6 @@ pub(super) async fn get_taker_swap_data_for_rpc(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn get_swap_data_for_rpc_impl_inner<T: DeserializeOwned + Send + 'static>(
-    conn: &Connection,
-    uuid: String,
-) -> SqlResult<Option<MySwapForRpc<T>>> {
-    query_single_row(
-        conn,
-        SELECT_MY_SWAP_V2_FOR_RPC_BY_UUID,
-        &[(":uuid", uuid.as_str())],
-        MySwapForRpc::from_row,
-    )
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 async fn get_swap_data_for_rpc_impl<T: DeserializeOwned + Send + 'static>(
     ctx: &MmArc,
     uuid: &Uuid,
@@ -192,7 +179,12 @@ async fn get_swap_data_for_rpc_impl<T: DeserializeOwned + Send + 'static>(
 
     async_blocking(move || {
         Ok(ctx.run_sql_query(db_id.as_deref(), move |conn| {
-            get_swap_data_for_rpc_impl_inner(&conn, uuid)
+            query_single_row(
+                &conn,
+                SELECT_MY_SWAP_V2_FOR_RPC_BY_UUID,
+                &[(":uuid", uuid.as_str())],
+                MySwapForRpc::from_row,
+            )
         })?)
     })
     .await
