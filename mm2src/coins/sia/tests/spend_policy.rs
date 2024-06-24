@@ -1,4 +1,7 @@
+use rpc::v1::types::H256;
+
 use crate::sia::spend_policy::SpendPolicy;
+use crate::sia::address::Address;
 
 // Helper macro for testing successful deserialization
 macro_rules! test_deser_success {
@@ -98,5 +101,16 @@ fn test_deser_spend_policy_after_expected_failures() {
 
     for &value in &test_cases {
         test_deser_err!(SpendPolicy, value, &expected(value));
+    }
+}
+
+#[test]
+fn test_deser_spend_policy_opaque() {
+    let test_cases = [
+        ("opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)", SpendPolicy::Opaque(H256::from("f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d"))),
+    ];
+
+    for value in test_cases {
+        test_deser_success!(SpendPolicy, value.0, value.1);
     }
 }

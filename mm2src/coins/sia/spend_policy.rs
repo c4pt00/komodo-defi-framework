@@ -7,12 +7,18 @@ use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
 use serde::{Serialize, Deserialize, Deserializer};
 use std::fmt;
+use std::str::FromStr;
 use nom::branch::alt;
 use nom::IResult;
-use nom::sequence::{delimited};
+use nom::sequence::{delimited, };
 use nom::combinator::{map_res};
-use nom::bytes::complete::{tag};
+use nom::bytes::complete::{tag, take_while_m_n};
 use nom::character::complete::{char, digit1};
+
+
+fn parse_hex(input: &str) -> IResult<&str, &str> {
+    take_while_m_n(64, 64, |c: char| c.is_digit(16))(input)
+}
 
 fn parse_u64(input: &str) -> IResult<&str, u64> {
     map_res(digit1, |s: &str| s.parse::<u64>())(input)
@@ -28,6 +34,13 @@ fn parse_after(input: &str) -> IResult<&str, SpendPolicy> {
   Ok((input, SpendPolicy::After(value)))
 }
 
+fn parse_opaque(input: &str) -> IResult<&str, SpendPolicy> {
+    let parse_address = map_res(parse_hex, H256::from_str);
+    let (input, h256) = delimited(tag("opaque(0x"), parse_address, tag(")"))(input)?;
+    Ok((input, SpendPolicy::Opaque(h256)))
+}
+
+
 fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
   alt((
       parse_above,
@@ -35,12 +48,10 @@ fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
       // parse_public_key,
       // parse_hash,
       // parse_threshold,
-      // parse_opaque,
+      parse_opaque,
       // parse_unlock_conditions,
   ))(input)
 }
-
-#[cfg(test)] use std::str::FromStr;
 
 const POLICY_VERSION: u8 = 1u8;
 
@@ -54,9 +65,10 @@ pub enum SpendPolicy {
         n: u8,
         of: Vec<SpendPolicy>,
     },
-    Opaque(Address),
+    Opaque(H256),
     UnlockConditions(UnlockCondition), // For v1 compatibility
 }
+
 impl<'de> Deserialize<'de> for SpendPolicy {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -138,7 +150,7 @@ impl SpendPolicy {
             },
             SpendPolicy::Opaque(address) => {
                 encoder.write_u8(opcode);
-                encoder.write_slice(&address.0 .0);
+                encoder.write_slice(&address.0);
             },
             SpendPolicy::UnlockConditions(unlock_condition) => {
                 encoder.write_u8(opcode);
@@ -184,12 +196,12 @@ impl SpendPolicy {
 
     pub fn threshold(n: u8, of: Vec<SpendPolicy>) -> Self { SpendPolicy::Threshold{ n, of } }
 
-    pub fn opaque(p: &SpendPolicy) -> Self { SpendPolicy::Opaque(p.address()) }
+    pub fn opaque(p: &SpendPolicy) -> Self { SpendPolicy::Opaque(p.address().0) }
 
     pub fn anyone_can_spend() -> Self { SpendPolicy::threshold(0, vec![]) }
 }
 
-pub fn opacify_policy(p: &SpendPolicy) -> SpendPolicy { SpendPolicy::Opaque(p.address()) }
+pub fn opacify_policy(p: &SpendPolicy) -> SpendPolicy { SpendPolicy::Opaque(p.address().0) }
 
 pub fn spend_policy_atomic_swap(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
     let policy_after = SpendPolicy::After(lock_time);
