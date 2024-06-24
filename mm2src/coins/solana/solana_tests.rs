@@ -342,7 +342,7 @@ fn solana_test_tx_history() {
 fn solana_coin_send_and_refund_maker_payment() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
-    let solana_program_id = "AEwou7VU9bahWRSN2zzgMGqozNY2G27U9fbbdLF9myZx";
+    let solana_program_id = "3fystoi7pB1cnDEbRRpSjFJA4fG3W2vQQZ21jSrBc11B";
     let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
         Vec::new()
@@ -389,7 +389,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 fn solana_coin_send_and_spend_maker_payment() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Devnet);
-    let solana_program_id = "AEwou7VU9bahWRSN2zzgMGqozNY2G27U9fbbdLF9myZx";
+    let solana_program_id = "3fystoi7pB1cnDEbRRpSjFJA4fG3W2vQQZ21jSrBc11B";
     let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
         Vec::new()
