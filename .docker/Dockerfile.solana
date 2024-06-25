@@ -1,40 +1,37 @@
 FROM rust:1.63-slim
 
+# Installing system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    libudev-dev \
     libssl-dev \
     pkg-config \
     build-essential \
     libudev-dev \
     git \
     wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN rustup toolchain install nightly-2022-10-29
-RUN rustup default nightly-2022-10-29
-RUN rustup component add rustfmt clippy
+# Configuring rust
+RUN rustup toolchain install nightly-2022-10-29 && \
+    rustup default nightly-2022-10-29 && \
+    rustup component add rustfmt clippy
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.20.1/protoc-3.20.1-linux-x86_64.zip
+RUN unzip protoc-3.20.1-linux-x86_64.zip && mkdir /usr/bin/include && mv ./include/google /usr/bin/include/google && mv ./bin/protoc /usr/bin/protoc
 
-#RUN sh -c "$(curl -sSfL https://release.solana.com/v1.9.20/install)"
-RUN wget -qO- https://github.com/solana-labs/solana/releases/download/v1.9.20/solana-release-x86_64-unknown-linux-gnu.tar.bz2 | tar -xjf - -C /usr/local/bin --strip-components=1 solana-release/bin/solana
-RUN wget -qO- https://github.com/solana-labs/solana/releases/download/v1.9.20/solana-release-x86_64-unknown-linux-gnu.tar.bz2 | tar -xjf - -C /usr/local/bin --strip-components=1 solana-release/bin/solana-install-init
+# Installing Solana
+#RUN wget -qO- https://github.com/solana-labs/solana/releases/download/v1.9.20/solana-release-x86_64-unknown-linux-gnu.tar.bz2 | tar -xvj --strip-components=2 -C /usr/local/bin solana-release/bin/solana solana-release/bin/solana-install-init
+RUN sh -c "$(curl -sSfL https://release.solana.com/v1.18.17/install)"
+ENV PATH="/root/.local/share/solana/install/active_release/bin:$PATH"
+ENV NETWORK Local
 
-ENV PATH="/usr/local/bin/solana:${PATH}"
+# Building the program so
+RUN git clone --branch dev https://github.com/KomodoPlatform/satomic-swap.git /usr/src/satomic-swap && \
+    cd /usr/src/satomic-swap && cargo build-bpf && \
+    cp target/sbf-solana-solana/release/satomic_swap.so /tmp/program.so && rm -rf /usr/src/solana-swap
 
-WORKDIR /usr/src
-RUN git clone https://github.com/KomodoPlatform/satomic-swap.git
-WORKDIR /usr/src/satomic-swap
-
-RUN solana-install-init
-RUN cargo build-bpf
-RUN mkdir /usr/src/komodo-defi-framework
-WORKDIR /usr/src/komodo-defi-framework
-
-COPY . .
-
-COPY ../scripts/ci/solana-entrypoint.sh /usr/src/satomic-swap/entrypoint.sh
-
-WORKDIR /usr/src/satomic-swap
-
-RUN chmod +x /entrypoint.sh
-CMD ["sleep", "infinity"]
-#ENTRYPOINT ["/entrypoint.sh"]
+# Entrypoint. Starts solana local node with deployed program and running tests.
+COPY . /usr/src/komodo-defi-framework/
+RUN chmod +x /usr/src/komodo-defi-framework/scripts/ci/solana-entrypoint.sh
+ENTRYPOINT ["/usr/src/komodo-defi-framework/scripts/ci/solana-entrypoint.sh"]
