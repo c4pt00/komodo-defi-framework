@@ -325,7 +325,7 @@ pub struct DbMigrationWatcher {
 }
 
 impl DbMigrationWatcher {
-    pub async fn init(ctx: &MmCtx) -> Result<DbMigrationHandler, String> {
+    pub fn init(ctx: &MmCtx) -> Result<DbMigrationHandler, String> {
         let (sender, receiver) = channel(1);
 
         let selfi = Arc::new(Self {

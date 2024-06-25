@@ -461,7 +461,6 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
     let mut migrations = HashSet::new();
     let receiver = &ctx
         .init_db_migration_watcher()
-        .await
         .expect("db_m igration_watcher initialization failed");
     let mut guard = receiver.lock().await;
 

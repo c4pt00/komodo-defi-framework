@@ -388,9 +388,7 @@ impl MmCtx {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn init_db_migration_watcher(&self) -> Result<DbMigrationHandler, String> {
-        DbMigrationWatcher::init(self).await
-    }
+    pub fn init_db_migration_watcher(&self) -> Result<DbMigrationHandler, String> { DbMigrationWatcher::init(self) }
 }
 
 impl Default for MmCtx {

@@ -2976,14 +2976,11 @@ pub fn tendermint_priv_key_policy(
                     kind: TendermintInitErrorKind::InvalidPrivKey(e.to_string()),
                 })?;
             let bip39_secp_priv_key = global_hd.root_priv_key().clone();
-            let pubkey = Public::from_slice(&bip39_secp_priv_key.public_key().to_bytes()).map_to_mm(|e| {
-                TendermintInitError {
-                    ticker: ticker.to_string(),
-                    kind: TendermintInitErrorKind::Internal(e.to_string()),
-                }
+            let keypair = key_pair_from_secret(activated_priv_key.as_ref()).mm_err(|e| TendermintInitError {
+                ticker: ticker.to_string(),
+                kind: TendermintInitErrorKind::Internal(e.to_string()),
             })?;
-
-            let tendermint_pair = TendermintKeyPair::new(activated_priv_key, pubkey);
+            let tendermint_pair = TendermintKeyPair::new(activated_priv_key, *keypair.public());
 
             Ok(TendermintPrivKeyPolicy::HDWallet {
                 path_to_coin: path_to_coin.clone(),
