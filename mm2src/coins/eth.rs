@@ -7102,22 +7102,29 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
+    /// Eth doesnt have preimages
     async fn gen_taker_funding_spend_preimage(
         &self,
-        _args: &GenTakerFundingSpendArgs<'_, Self>,
+        args: &GenTakerFundingSpendArgs<'_, Self>,
         _swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
-        todo!()
+        let result = TxPreimageWithSig {
+            preimage: args.funding_tx.clone(),
+            signature: args.funding_tx.signature(),
+        };
+        Ok(result)
     }
 
+    /// Eth doesnt have preimages
     async fn validate_taker_funding_spend_preimage(
         &self,
         _gen_args: &GenTakerFundingSpendArgs<'_, Self>,
         _preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerFundingSpendPreimageResult {
-        todo!()
+        Ok(())
     }
 
+    /// Generates and signs a preimage spending funding tx to the combined taker payment
     async fn sign_and_send_taker_funding_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
@@ -7131,20 +7138,26 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
+    /// Eth doesnt have preimages
     async fn gen_taker_payment_spend_preimage(
         &self,
-        _args: &GenTakerPaymentSpendArgs<'_, Self>,
+        args: &GenTakerPaymentSpendArgs<'_, Self>,
         _swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
-        todo!()
+        let result = TxPreimageWithSig {
+            preimage: args.taker_tx.clone(),
+            signature: args.taker_tx.signature(),
+        };
+        Ok(result)
     }
 
+    /// Eth doesnt have preimages
     async fn validate_taker_payment_spend_preimage(
         &self,
         _gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
         _preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerPaymentSpendPreimageResult {
-        todo!()
+        Ok(())
     }
 
     async fn sign_and_broadcast_taker_payment_spend(
@@ -7166,5 +7179,6 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
+    // TODO still use HtlcPubKey or it would be better to move to Public from ethkey
     fn derive_htlc_pubkey_v2(&self, _swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
 }
