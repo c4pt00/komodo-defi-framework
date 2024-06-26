@@ -25,6 +25,7 @@ use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
+pub use ed25519_dalek::{PublicKey, Keypair, SecretKey};
 
 pub mod address;
 use address::v1_standard_address_from_pubkey;
@@ -99,7 +100,7 @@ impl<'a> SiaConfBuilder<'a> {
 pub struct SiaCoinFields {
     /// SIA coin config
     pub conf: SiaCoinConf,
-    pub priv_key_policy: PrivKeyPolicy<ed25519_dalek::Keypair>,
+    pub priv_key_policy: PrivKeyPolicy<Keypair>,
     /// HTTP(s) client
     pub http_client: SiaApiClient,
 }
@@ -124,7 +125,7 @@ pub struct SiaCoinBuilder<'a> {
     ctx: &'a MmArc,
     ticker: &'a str,
     conf: &'a Json,
-    key_pair: ed25519_dalek::Keypair,
+    key_pair: Keypair,
     params: &'a SiaCoinActivationParams,
 }
 
@@ -133,7 +134,7 @@ impl<'a> SiaCoinBuilder<'a> {
         ctx: &'a MmArc,
         ticker: &'a str,
         conf: &'a Json,
-        key_pair: ed25519_dalek::Keypair,
+        key_pair: Keypair,
         params: &'a SiaCoinActivationParams,
     ) -> Self {
         SiaCoinBuilder {
@@ -146,10 +147,10 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 }
 
-fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<ed25519_dalek::Keypair, SiaCoinBuildError> {
-    let secret_key = ed25519_dalek::SecretKey::from_bytes(priv_key).map_err(SiaCoinBuildError::EllipticCurveError)?;
-    let public_key = ed25519_dalek::PublicKey::from(&secret_key);
-    Ok(ed25519_dalek::Keypair {
+fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<Keypair, SiaCoinBuildError> {
+    let secret_key = SecretKey::from_bytes(priv_key).map_err(SiaCoinBuildError::EllipticCurveError)?;
+    let public_key = PublicKey::from(&secret_key);
+    Ok(Keypair {
         secret: secret_key,
         public: public_key,
     })
