@@ -312,6 +312,7 @@ fn test_deser_spend_policy_public_key_expected_failures() {
 }
 
 #[test]
+#[ignore] // FIXME Sia devs just changed this encoding https://github.com/SiaFoundation/core/pull/173
 fn test_deser_spend_policy_unlock_condition() {
     let public_key = PublicKey::from_bytes(
         &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
