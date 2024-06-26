@@ -306,7 +306,6 @@ impl MmCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn dbdir(&self, db_id: Option<&str>) -> PathBuf {
         let db_id = db_id.map(|t| t.to_owned()).unwrap_or_else(|| self.rmd160_hex());
-
         path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
     }
 

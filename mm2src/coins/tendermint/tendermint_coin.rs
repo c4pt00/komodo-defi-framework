@@ -230,7 +230,7 @@ impl TendermintActivationPolicy {
         }
     }
 
-    fn public_key(&self) -> Result<PublicKey, io::Error> {
+    pub fn public_key(&self) -> Result<PublicKey, io::Error> {
         match self {
             Self::PrivateKey(private_key_policy) => match private_key_policy {
                 PrivKeyPolicy::Iguana(pair) => PublicKey::from_raw_secp256k1(&pair.public_key.to_bytes())
@@ -2317,6 +2317,14 @@ impl MmCoin for TendermintCoin {
         };
 
         None
+    }
+
+    async fn tx_history_db_id(&self) -> Option<String> {
+        self.activation_policy
+            .public_key()
+            .ok()
+            .map(|k| hex::encode(dhash160(&k.to_bytes())))
+            .or(self.account_db_id().await) // Fallback to the account db_id for non-HD wallets
     }
 }
 

@@ -260,11 +260,27 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                     ticker: ticker.clone(),
                     kind: TendermintInitErrorKind::Internal(e.to_string()),
                 })?;
+            if let PrivKeyBuildPolicy::GlobalHDAccount(_) = private_key_policy {
+                let tendermint_private_key_policy = tendermint_priv_key_policy(
+                    &conf,
+                    &ticker,
+                    private_key_policy.clone(),
+                    activation_request.path_to_address,
+                )?;
 
-            let tendermint_private_key_policy =
-                tendermint_priv_key_policy(&conf, &ticker, private_key_policy, activation_request.path_to_address)?;
+                let result = TendermintActivationPolicy::with_private_key_policy(tendermint_private_key_policy);
+                let pubkey = result.public_key().map_to_mm(|e| TendermintInitError {
+                    ticker: ticker.clone(),
+                    kind: TendermintInitErrorKind::Internal(e.to_string()),
+                })?;
+                run_db_migraiton_for_new_tendermint_pubkey(&ctx, pubkey, ticker.clone()).await?;
 
-            TendermintActivationPolicy::with_private_key_policy(tendermint_private_key_policy)
+                result
+            } else {
+                let tendermint_private_key_policy =
+                    tendermint_priv_key_policy(&conf, &ticker, private_key_policy, activation_request.path_to_address)?;
+                TendermintActivationPolicy::with_private_key_policy(tendermint_private_key_policy)
+            }
         };
 
         TendermintCoin::init(
@@ -428,5 +444,14 @@ async fn run_db_migraiton_for_new_tendermint_pubkey(
     debug!("Public key hash: {db_id}");
     debug!("Shared Database ID: {shared_db_id}");
 
+    Ok(())
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn run_db_migraiton_for_new_tendermint_pubkey(
+    _ctx: &MmArc,
+    _pubkey: TendermintPublicKey,
+    _ticker: String,
+) -> MmResult<(), TendermintInitError> {
     Ok(())
 }

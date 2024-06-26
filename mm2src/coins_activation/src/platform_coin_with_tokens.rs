@@ -476,7 +476,7 @@ where
     if req.request.tx_history() {
         platform_coin.start_history_background_fetching(
             ctx.clone(),
-            TxHistoryStorageBuilder::new(&ctx, platform_coin.clone().into().account_db_id().await).build()?,
+            TxHistoryStorageBuilder::new(&ctx, platform_coin.clone().into().tx_history_db_id().await).build()?,
             activation_result.get_platform_balance(),
         );
     }

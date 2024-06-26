@@ -8,7 +8,6 @@ use crate::utxo::{generate_and_send_tx, FeePolicy, GetUtxoListOps, UtxoArc, Utxo
                   UtxoWeak};
 use crate::{DerivationMethod, PrivKeyBuildPolicy, UtxoActivationParams};
 use async_trait::async_trait;
-#[cfg(not(target_arch = "wasm32"))] use bitcrypto::dhash160;
 use chain::{BlockHeader, TransactionOutput};
 use common::executor::{AbortSettings, SpawnAbortable, Timer};
 use common::log::{debug, error, info, warn};
@@ -134,17 +133,16 @@ where
             }
 
             if let EventInitStatus::Failed(err) =
-                EventBehaviour::spawn_if_active(UtxoStandardCoin::from(utxo_arc), stream_config).await
+                EventBehaviour::spawn_if_active(UtxoStandardCoin::from(utxo_arc.clone()), stream_config).await
             {
                 return MmError::err(UtxoCoinBuildError::FailedSpawningBalanceEvents(err));
             }
         }
 
         #[cfg(not(target_arch = "wasm32"))]
-        if let PrivKeyBuildPolicy::GlobalHDAccount(hd) = self.priv_key_policy() {
-            let rmd = dhash160(&hd.root_priv_key().public_key().to_bytes());
-            run_db_migraiton_for_new_eth_pubkey(self.ctx, rmd).await?
-        };
+        if let Some(hd) = utxo_arc.derivation_method.hd_wallet() {
+            run_db_migraiton_for_new_utxo_pubkey(self.ctx, hd.inner.hd_wallet_rmd160).await?
+        }
 
         Ok(result_coin)
     }
@@ -712,7 +710,7 @@ fn spawn_block_header_utxo_loop(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migraiton_for_new_eth_pubkey(ctx: &MmArc, pubkey: H160) -> MmResult<(), UtxoCoinBuildError> {
+async fn run_db_migraiton_for_new_utxo_pubkey(ctx: &MmArc, pubkey: H160) -> MmResult<(), UtxoCoinBuildError> {
     let db_id = hex::encode(pubkey.as_slice());
     let shared_db_id = shared_db_id_from_seed(&db_id)
         .mm_err(|err| UtxoCoinBuildError::Internal(err.to_string()))?

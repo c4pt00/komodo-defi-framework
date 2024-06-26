@@ -45,7 +45,6 @@ impl SqliteConnPool {
     /// Internal implementation to initialize a database connection.
     fn init_impl(ctx: &MmCtx, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
         let db_id = Self::db_id_from_ctx(ctx, db_id, &kind);
-
         let sqlite_file_path = match kind {
             DbIdConnKind::Shared => ctx.shared_dbdir(Some(&db_id)).join(SQLITE_SHARED_DB_ID),
             DbIdConnKind::Single => ctx.dbdir(Some(&db_id)).join(SYNC_SQLITE_DB_ID),
@@ -124,10 +123,7 @@ impl SqliteConnPool {
         drop(connections);
 
         let mut connections = self.connections.write().unwrap();
-        let sqlite_file_path = self.db_dir(&db_id).join(match kind {
-            DbIdConnKind::Shared => SQLITE_SHARED_DB_ID,
-            DbIdConnKind::Single => SYNC_SQLITE_DB_ID,
-        });
+        let sqlite_file_path = self.sqlite_file_path(&db_id, &kind);
         let connection = Self::open_connection(sqlite_file_path);
         connections.insert(db_id, Arc::clone(&connection));
 
@@ -166,11 +162,8 @@ impl SqliteConnPool {
         }
         drop(connections);
 
-        let sqlite_file_path = self.db_dir(&db_id).join(match kind {
-            DbIdConnKind::Shared => SQLITE_SHARED_DB_ID,
-            DbIdConnKind::Single => SYNC_SQLITE_DB_ID,
-        });
         let mut connections = self.connections.write().unwrap();
+        let sqlite_file_path = self.sqlite_file_path(&db_id, &kind);
         let connection = Self::open_connection(sqlite_file_path);
         connections.insert(db_id, Arc::clone(&connection));
 
@@ -183,18 +176,11 @@ impl SqliteConnPool {
     }
 
     /// Opens a database connection based on the database ID and connection kind.
-    #[cfg(not(test))]
     fn open_connection(sqlite_file_path: PathBuf) -> Arc<Mutex<Connection>> {
         log_sqlite_file_open_attempt(&sqlite_file_path);
         Arc::new(Mutex::new(
             Connection::open(sqlite_file_path).expect("failed to open db"),
         ))
-    }
-
-    /// Opens a database connection based on the database ID and connection kind.
-    #[cfg(test)]
-    fn open_connection(_sqlite_file_path: PathBuf) -> Arc<Mutex<Connection>> {
-        Arc::new(Mutex::new(Connection::open_in_memory().unwrap()))
     }
 
     fn db_dir(&self, db_id: &str) -> PathBuf { path_to_dbdir(self.db_root.as_deref(), db_id) }
@@ -215,6 +201,12 @@ impl SqliteConnPool {
                 .unwrap_or_else(|| hex::encode(ctx.shared_db_id().as_slice())),
             DbIdConnKind::Single => db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex()),
         }
+    }
+    fn sqlite_file_path(&self, db_id: &str, kind: &DbIdConnKind) -> PathBuf {
+        self.db_dir(&db_id).join(match kind {
+            DbIdConnKind::Shared => SQLITE_SHARED_DB_ID,
+            DbIdConnKind::Single => SYNC_SQLITE_DB_ID,
+        })
     }
 }
 

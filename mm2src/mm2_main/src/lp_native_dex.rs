@@ -335,7 +335,6 @@ fn default_seednodes(netid: u16) -> Vec<RelayAddress> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>, shared_db_id: Option<&str>) -> MmInitResult<()> {
     fix_shared_dbdir(ctx, shared_db_id)?;
-
     let dbdir = ctx.dbdir(db_id);
     fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
         path: dbdir.clone(),
@@ -541,12 +540,6 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
 pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitResult<()> {
     info!("Version: {} DT {}", version, datetime);
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fs::create_dir_all(ctx.dbdir(None)).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
-        path: ctx.dbdir(None),
-        error: e.to_string(),
-    })?;
 
     // This either initializes the cryptographic context or sets up the context for "no login mode".
     initialize_wallet_passphrase(&ctx).await?;
