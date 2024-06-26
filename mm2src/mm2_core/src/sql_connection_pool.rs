@@ -203,7 +203,7 @@ impl SqliteConnPool {
         }
     }
     fn sqlite_file_path(&self, db_id: &str, kind: &DbIdConnKind) -> PathBuf {
-        self.db_dir(&db_id).join(match kind {
+        self.db_dir(db_id).join(match kind {
             DbIdConnKind::Shared => SQLITE_SHARED_DB_ID,
             DbIdConnKind::Single => SYNC_SQLITE_DB_ID,
         })

@@ -249,8 +249,6 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                     kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
                 });
             }
-
-            #[cfg(not(target_arch = "wasm32"))]
             run_db_migraiton_for_new_tendermint_pubkey(&ctx, pubkey, ticker.clone()).await?;
 
             TendermintActivationPolicy::with_public_key(pubkey)
