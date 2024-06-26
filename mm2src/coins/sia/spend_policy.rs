@@ -2,20 +2,26 @@ use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator};
 use crate::sia::encoding::{Encodable, Encoder};
-use crate::sia::specifier::{Identifier, Specifier};
+use crate::sia::specifier::{Specifier};
 use ed25519_dalek::PublicKey;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while_m_n};
-use nom::character::complete::{char, digit1};
+use nom::character::complete::{char, digit1, space0};
 use nom::combinator::map_res;
-use nom::sequence::delimited;
+use nom::sequence::{delimited, preceded, tuple};
+use nom::multi::separated_list0;
 use nom::IResult;
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-fn parse_hex(input: &str) -> IResult<&str, &str> { take_while_m_n(64, 64, |c: char| c.is_digit(16))(input) }
+// parse 32 bytes of hex to &str
+fn parse_hex_str(input: &str) -> IResult<&str, &str> { take_while_m_n(64, 64, |c: char| c.is_digit(16))(input) }
+
+fn parse_hex(input: &str) -> IResult<&str, Vec<u8>> {
+    map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode)(input)
+}
 
 fn parse_u64(input: &str) -> IResult<&str, u64> { map_res(digit1, |s: &str| s.parse::<u64>())(input) }
 
@@ -30,20 +36,61 @@ fn parse_after(input: &str) -> IResult<&str, SpendPolicy> {
 }
 
 fn parse_opaque(input: &str) -> IResult<&str, SpendPolicy> {
-    let parse_address = map_res(parse_hex, H256::from_str);
-    let (input, h256) = delimited(tag("opaque(0x"), parse_address, tag(")"))(input)?;
+    let parse_hash = map_res(parse_hex_str, H256::from_str);
+    let (input, h256) = delimited(tag("opaque(0x"), parse_hash, tag(")"))(input)?;
     Ok((input, SpendPolicy::Opaque(h256)))
 }
+
+fn parse_hash(input: &str) -> IResult<&str, SpendPolicy> {
+    let parse_hash = map_res(parse_hex_str, H256::from_str);
+    let (input, h256) = delimited(tag("h(0x"), parse_hash, tag(")"))(input)?;
+    Ok((input, SpendPolicy::Hash(h256)))
+}
+
+fn parse_public_key(input: &str) -> IResult<&str, SpendPolicy> {
+    let parse_public_key = map_res(parse_hex, |bytes: Vec<u8>| {
+        PublicKey::from_bytes(&bytes)
+    });
+    let (input, public_key) = delimited(tag("pk(0x"), parse_public_key, char(')'))(input)?;
+    Ok((input, SpendPolicy::PublicKey(public_key)))
+}
+
+fn parse_unlock_key(input: &str) -> IResult<&str, UnlockKey> {
+    let parse_public_key = map_res(parse_hex, |bytes: Vec<u8>| {
+        PublicKey::from_bytes(&bytes)
+    });
+    let (input, public_key) = preceded(tag("0x"), parse_public_key)(input)?;
+    Ok((input, UnlockKey::Ed25519(public_key)))
+}
+
+fn parse_unlock_condition(input: &str) -> IResult<&str, SpendPolicy> {
+    let (input, (timelock, unlock_keys, sigs_required)) = delimited(
+        tag("uc("),
+        tuple((
+            parse_u64,
+            preceded(tuple((char(','), char('['), space0)), separated_list0(tuple((char(','), space0)), parse_unlock_key)),
+            preceded(tuple((char(']'), char(','), space0)), parse_u64)
+        )),
+        char(')')
+    )(input)?;
+
+    Ok((input, SpendPolicy::UnlockConditions(UnlockCondition {
+        timelock,
+        unlock_keys,
+        sigs_required,
+    })))
+}
+
 
 fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
     alt((
         parse_above,
         parse_after,
-        // parse_public_key,
-        // parse_hash,
+        parse_public_key,
+        parse_hash,
         // parse_threshold,
         parse_opaque,
-        // parse_unlock_conditions,
+        // parse_unlock_condition,
     ))(input)
 }
 
@@ -232,12 +279,16 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
     }
 }
 
-// Sia v1 has theoretical support other key types via softforks
-// We only support ed25519 for now. No other type was ever implemented in Sia Go.
+// Sia Go v1 technically supports arbitrary length public keys
+// We only support ed25519 but must be able to deserialize others
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct UnlockKey {
-    pub algorithm: Specifier,
-    pub public_key: PublicKey,
+pub enum UnlockKey 
+{ 
+    Ed25519(PublicKey),
+    Unknown {
+        algorithm: Specifier,
+        public_key: Vec<u8>,
+   }
 }
 
 impl Encodable for PublicKey {
@@ -246,9 +297,18 @@ impl Encodable for PublicKey {
 
 impl Encodable for UnlockKey {
     fn encode(&self, encoder: &mut Encoder) {
-        self.algorithm.encode(encoder);
-        encoder.write_u64(self.public_key.as_ref().len() as u64);
-        self.public_key.encode(encoder);
+        match self {
+            UnlockKey::Ed25519(public_key) => {
+                Specifier::Ed25519.encode(encoder);
+                encoder.write_u64(32); // ed25519 public key length
+                public_key.encode(encoder);
+            },
+            UnlockKey::Unknown { algorithm, public_key } => {
+                algorithm.encode(encoder);
+                encoder.write_u64(public_key.len() as u64);
+                encoder.write_slice(public_key);
+            },
+        }
     }
 }
 
@@ -273,12 +333,10 @@ impl Encodable for UnlockCondition {
 impl UnlockCondition {
     pub fn new(pubkeys: Vec<PublicKey>, timelock: u64, sigs_required: u64) -> Self {
         // TODO check go implementation to see if there should be limitations or checks imposed here
+        // eg, max number of keys, max sigs_required, etc
         let unlock_keys = pubkeys
             .into_iter()
-            .map(|pk| UnlockKey {
-                algorithm: Specifier::new(Identifier::Ed25519),
-                public_key: pk,
-            })
+            .map(|public_key| UnlockKey::Ed25519(public_key))
             .collect();
 
         UnlockCondition {
@@ -288,10 +346,20 @@ impl UnlockCondition {
         }
     }
 
+    pub fn standard_unlock(public_key: PublicKey) -> Self { 
+        UnlockCondition {
+            unlock_keys: vec!(UnlockKey::Ed25519(public_key)),
+            timelock: 0,
+            sigs_required: 1,
+        } 
+    }
+
     pub fn unlock_hash(&self) -> H256 {
         // almost all UnlockConditions are standard, so optimize for that case
-        if self.timelock == 0 && self.unlock_keys.len() == 1 && self.sigs_required == 1 {
-            return standard_unlock_hash(&self.unlock_keys[0].public_key);
+        if let UnlockKey::Ed25519(public_key) = &self.unlock_keys[0] {
+            if self.timelock == 0 && self.unlock_keys.len() == 1 && self.sigs_required == 1 {
+                return standard_unlock_hash(&public_key);
+            }
         }
 
         let mut accumulator = Accumulator::default();
@@ -299,7 +367,7 @@ impl UnlockCondition {
         accumulator.add_leaf(timelock_leaf(self.timelock));
 
         for unlock_key in &self.unlock_keys {
-            accumulator.add_leaf(public_key_leaf(&unlock_key.public_key));
+            accumulator.add_leaf(public_key_leaf(&unlock_key));
         }
 
         accumulator.add_leaf(sigs_required_leaf(self.sigs_required));

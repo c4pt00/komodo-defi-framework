@@ -23,24 +23,14 @@ define_byte_array_const!(FILE_CONTRACT, 16, "file contract");
 define_byte_array_const!(STORAGE_PROOF, 16, "storage proof");
 define_byte_array_const!(FOUNDATION, 16, "foundation");
 define_byte_array_const!(ENTROPY, 16, "entropy");
+// Sia Go technically supports arbitrary Specifiers
+// we will use "unknown" as a catch all in serde and encoding
+ define_byte_array_const!(UNKNOWN, 16, "unknown");
 
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L40-L49
 // A Specifier is a fixed-size, 0-padded identifier.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct Specifier {
-    identifier: Identifier,
-}
-
-impl Specifier {
-    pub fn new(identifier: Identifier) -> Self { Specifier { identifier } }
-}
-
-impl Encodable for Specifier {
-    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(self.identifier.as_bytes()); }
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub enum Identifier {
+pub enum Specifier {
     Ed25519,
     SiacoinOutput,
     SiafundOutput,
@@ -48,18 +38,24 @@ pub enum Identifier {
     StorageProof,
     Foundation,
     Entropy,
+    Unknown,
 }
 
-impl Identifier {
+impl Encodable for Specifier {
+    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(self.as_bytes()); }
+}
+
+impl Specifier {
     pub fn as_bytes(&self) -> &'static [u8; 16] {
         match self {
-            Identifier::Ed25519 => &ED25519,
-            Identifier::SiacoinOutput => &SIACOIN_OUTPUT,
-            Identifier::SiafundOutput => &SIAFUND_OUTPUT,
-            Identifier::FileContract => &FILE_CONTRACT,
-            Identifier::StorageProof => &STORAGE_PROOF,
-            Identifier::Foundation => &FOUNDATION,
-            Identifier::Entropy => &ENTROPY,
+            Specifier::Ed25519 => &ED25519,
+            Specifier::SiacoinOutput => &SIACOIN_OUTPUT,
+            Specifier::SiafundOutput => &SIAFUND_OUTPUT,
+            Specifier::FileContract => &FILE_CONTRACT,
+            Specifier::StorageProof => &STORAGE_PROOF,
+            Specifier::Foundation => &FOUNDATION,
+            Specifier::Entropy => &ENTROPY,
+            Specifier::Unknown => &UNKNOWN,
         }
     }
 }

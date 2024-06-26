@@ -1,7 +1,7 @@
 use rpc::v1::types::H256;
-
-use crate::sia::address::Address;
-use crate::sia::spend_policy::SpendPolicy;
+use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
+use crate::sia::PublicKey;
+use crate::sia::specifier::{Specifier};
 
 // Helper macro for testing successful deserialization
 macro_rules! test_deser_success {
@@ -111,6 +111,216 @@ fn test_deser_spend_policy_opaque() {
         SpendPolicy::Opaque(H256::from(
             "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
         )),
+        (
+            "opaque( 0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)",
+            SpendPolicy::Opaque(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+        (
+            r"opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d) 
+        ",
+            SpendPolicy::Opaque(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+        (
+            r"opaque(
+            0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d
+        )",
+            SpendPolicy::Opaque(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+        (
+            "opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d\t)",
+            SpendPolicy::Opaque(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+    )];
+
+    for value in test_cases {
+        test_deser_success!(SpendPolicy, value.0, value.1);
+    }
+}
+
+#[test]
+fn test_deser_spend_policy_opaque_expected_failures() {
+    fn expected(value: &str) -> String {
+        format!(
+            "invalid value: string \"{}\", expected a string representing a Sia spend policy",
+            value
+        )
+    }
+
+    let test_cases = [
+        "opaque()",
+        "opaque(",
+        "opaque",
+        "opaque(0x10)",
+        "opaque(-1)",
+        "opaque(0xbadhex)",
+        "opaque(f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)", // no 0x
+        "opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0)", // too short
+        "opaque(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0eeff)", // too long
+    ];
+
+    for &value in &test_cases {
+        test_deser_err!(SpendPolicy, value, &expected(value));
+    }
+}
+
+#[test]
+fn test_deser_spend_policy_hash() {
+    let test_cases = [(
+        "h(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)",
+        SpendPolicy::Hash(H256::from(
+            "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+        )),
+        (
+            "h( 0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)",
+            SpendPolicy::Hash(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+        (
+            r"h(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d) 
+        ",
+            SpendPolicy::Hash(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+        (
+            r"h(
+            0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d
+        )",
+            SpendPolicy::Hash(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+        (
+            "h(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d\t)",
+            SpendPolicy::Hash(H256::from(
+                "f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d",
+            )),
+        ),
+    )];
+
+    for value in test_cases {
+        test_deser_success!(SpendPolicy, value.0, value.1);
+    }
+}
+
+#[test]
+fn test_deser_spend_policy_hash_expected_failures() {
+    fn expected(value: &str) -> String {
+        format!(
+            "invalid value: string \"{}\", expected a string representing a Sia spend policy",
+            value
+        )
+    }
+
+    let test_cases = [
+        "h()",
+        "h(",
+        "h",
+        "h(0x10)",
+        "h(-1)",
+        "h(0xbadhex)",
+        "h(f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d)", // no 0x
+        "h(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0)", // too short
+        "h(0xf72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0eeff)", // too long
+    ];
+
+    for &value in &test_cases {
+        test_deser_err!(SpendPolicy, value, &expected(value));
+    }
+}
+
+
+#[test]
+fn test_deser_spend_policy_public_key() {
+    let test_cases = [(
+        "pk(0x0102030000000000000000000000000000000000000000000000000000000000)",
+        SpendPolicy::PublicKey(PublicKey::from_bytes(
+            &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+        )
+        .unwrap()),
+        (
+            "h( 0x0102030000000000000000000000000000000000000000000000000000000000)",
+            SpendPolicy::PublicKey(PublicKey::from_bytes(
+                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+            )
+            .unwrap()),
+        ),
+        (
+            r"h(0x0102030000000000000000000000000000000000000000000000000000000000) 
+        ",
+            SpendPolicy::PublicKey(PublicKey::from_bytes(
+                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+            )
+            .unwrap()),
+        ),
+        (
+            r"h(
+            0x0102030000000000000000000000000000000000000000000000000000000000
+        )",
+            SpendPolicy::PublicKey(PublicKey::from_bytes(
+                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+            )
+            .unwrap()),
+        ),
+        (
+            "h(0x0102030000000000000000000000000000000000000000000000000000000000\t)",
+            SpendPolicy::PublicKey(PublicKey::from_bytes(
+                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+            )
+            .unwrap()),
+        ),
+    )];
+
+    for value in test_cases {
+        test_deser_success!(SpendPolicy, value.0, value.1);
+    }
+}
+
+#[test]
+fn test_deser_spend_policy_public_key_expected_failures() {
+    fn expected(value: &str) -> String {
+        format!(
+            "invalid value: string \"{}\", expected a string representing a Sia spend policy",
+            value
+        )
+    }
+
+    let test_cases = [
+        "pk()",
+        "pk(",
+        "pk",
+        "pk(0x10)",
+        "pk(-1)",
+        "pk(0xbadhex)",
+        "pk(0102030000000000000000000000000000000000000000000000000000000000)", // no 0x
+        "pk(0x01020300000000000000000000000000000000000000000000000000000000)", // too short
+        "pk(0x0102030000000000000000000000000000000000000000000000000000000000ff)", // too long
+    ];
+
+    for &value in &test_cases {
+        test_deser_err!(SpendPolicy, value, &expected(value));
+    }
+}
+
+#[test]
+fn test_deser_spend_policy_unlock_condition() {
+    let public_key = PublicKey::from_bytes(
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+
+    let test_cases = [(
+        "uc(0,[0x0102030000000000000000000000000000000000000000000000000000000000],1)",
+        SpendPolicy::UnlockConditions(UnlockCondition::standard_unlock(public_key))
     )];
 
     for value in test_cases {

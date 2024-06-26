@@ -18,6 +18,7 @@ macro_rules! test_serde {
 #[test]
 #[ignore]
 fn test_serde_block_id() {
+    use crate::sia::types::BlockID;
     test_serde!(
         BlockID,
         json!("bid:c67c3b2e57490617a25a9fcb9fd54ab6acbe72fc1e4f1f432cb9334177917667")

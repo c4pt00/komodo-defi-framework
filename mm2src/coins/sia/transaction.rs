@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, SiaHash};
 use crate::sia::signature::SiaSignature;
-use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
+use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
@@ -145,6 +145,7 @@ impl Encodable for SatisfiedPolicy {
                         *prei += 1;
                     } else {
                         // Sia Go code panics here but our code assumes encoding will always be successful
+                        // consider changing the signature of encode() to return a Result
                         encoder.write_string("Broken Hash encoding, see SatisfiedPolicy::encode")
                     }
                 },
@@ -155,7 +156,10 @@ impl Encodable for SatisfiedPolicy {
                 },
                 SpendPolicy::UnlockConditions(uc) => {
                     for unlock_key in &uc.unlock_keys {
-                        rec(&SpendPolicy::PublicKey(unlock_key.public_key), encoder, sigi, prei, sp);
+                        if let UnlockKey::Ed25519(public_key) = unlock_key {
+                            rec(&SpendPolicy::PublicKey(*public_key), encoder, sigi, prei, sp);
+                        }
+                        // else FIXME consider when this is possible, is it always developer error or could it be forced maliciously?
                     }
                 },
                 _ => {},
