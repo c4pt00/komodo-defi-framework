@@ -110,7 +110,7 @@ impl SavedSwap {
         };
         match self {
             SavedSwap::Maker(saved) => {
-                let (maker_swap, _) = try_s!(MakerSwap::load_from_saved(ctx, maker_coin, taker_coin, saved));
+                let (maker_swap, _) = try_s!(MakerSwap::load_from_saved(ctx, maker_coin, taker_coin, saved).await);
                 Ok(try_s!(maker_swap.recover_funds().await))
             },
             SavedSwap::Taker(saved) => {

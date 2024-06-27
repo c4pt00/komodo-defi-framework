@@ -77,7 +77,6 @@ enum UnbanPubkeysReq {
 
 pub async fn unban_pubkeys_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
     let req: UnbanPubkeysReq = try_s!(json::from_value(req["unban_by"].clone()));
-    // TODO: db_id
     let ctx = try_s!(SwapsContext::from_ctx(&ctx));
     let mut banned_pubs = try_s!(ctx.banned_pubkeys.lock());
     let mut unbanned = HashMap::new();

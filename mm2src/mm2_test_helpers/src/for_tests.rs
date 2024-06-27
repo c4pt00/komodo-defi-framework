@@ -3014,8 +3014,8 @@ pub async fn init_utxo_electrum(
             "rpc": "Electrum",
             "rpc_data": {
                 "servers": servers,
-                "path_to_address": path_to_address,
-            }
+            },
+            "path_to_address": path_to_address
         }
     });
     if let Some(priv_key_policy) = priv_key_policy {

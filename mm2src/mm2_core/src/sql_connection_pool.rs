@@ -14,7 +14,7 @@ pub const ASYNC_SQLITE_DB_ID: &str = "KOMODEFI.db";
 const SYNC_SQLITE_DB_ID: &str = "MM2.db";
 const SQLITE_SHARED_DB_ID: &str = "MM2-shared.db";
 
-/// Represents the kind of database connection ID: either shared or single-user.
+/// Represents the kind of database connection ID: either shared or single-db.
 enum DbIdConnKind {
     Shared,
     Single,

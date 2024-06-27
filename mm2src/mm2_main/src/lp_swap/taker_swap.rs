@@ -898,7 +898,7 @@ impl TakerSwap {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub async fn new(
         ctx: MmArc,
         maker: bits256,
         maker_amount: MmNumber,
@@ -913,6 +913,7 @@ impl TakerSwap {
         p2p_privkey: Option<KeyPair>,
         #[cfg(any(test, feature = "run-docker-tests"))] fail_at: Option<FailAt>,
     ) -> Self {
+        let db_id = taker_coin.account_db_id().await;
         TakerSwap {
             maker_coin,
             taker_coin,
@@ -930,7 +931,10 @@ impl TakerSwap {
             payment_locktime,
             p2p_privkey,
             mutable: RwLock::new(TakerSwapMut {
-                data: TakerSwapData::default(),
+                data: TakerSwapData {
+                    db_id,
+                    ..TakerSwapData::default()
+                },
                 other_maker_coin_htlc_pub: H264::default(),
                 other_taker_coin_htlc_pub: H264::default(),
                 taker_fee: None,
@@ -2055,7 +2059,8 @@ impl TakerSwap {
             data.p2p_privkey.map(SerializableSecp256k1Keypair::into_inner),
             #[cfg(any(test, feature = "run-docker-tests"))]
             fail_at,
-        );
+        )
+        .await;
 
         for saved_event in &saved.events {
             swap.apply_event(saved_event.event.clone());

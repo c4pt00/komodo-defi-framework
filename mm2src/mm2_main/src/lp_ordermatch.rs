@@ -3052,7 +3052,8 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
                 lock_time,
                 maker_order.p2p_privkey.map(SerializableSecp256k1Keypair::into_inner),
                 secret,
-            );
+            )
+            .await;
             run_maker_swap(RunMakerSwapInput::StartNew(maker_swap), ctx).await;
         }
     };
@@ -3218,7 +3219,8 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
                 taker_order.p2p_privkey.map(SerializableSecp256k1Keypair::into_inner),
                 #[cfg(any(test, feature = "run-docker-tests"))]
                 fail_at,
-            );
+            )
+            .await;
             run_taker_swap(RunTakerSwapInput::StartNew(taker_swap), ctx).await
         }
     };

@@ -337,8 +337,7 @@ pub async fn process_swap_msg(ctx: MmArc, topic: &str, msg: &[u8]) -> P2PRequest
             return match json::from_slice::<SwapStatus>(msg) {
                 Ok(mut status) => {
                     status.data.fetch_and_set_usd_prices().await;
-                    let account_id = status.data.account_db_id().await;
-                    if let Err(e) = save_stats_swap(&ctx, &status.data, account_id.as_deref()).await {
+                    if let Err(e) = save_stats_swap(&ctx, &status.data).await {
                         error!("Error saving the swap {} status: {}", status.data.uuid(), e);
                     }
                     Ok(())
@@ -1034,9 +1033,10 @@ fn add_swap_to_db_index(ctx: &MmArc, swap: &SavedSwap, db_id: Option<&str>) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn save_stats_swap(ctx: &MmArc, swap: &SavedSwap, db_id: Option<&str>) -> Result<(), String> {
-    try_s!(swap.save_to_stats_db(ctx, db_id).await);
-    add_swap_to_db_index(ctx, swap, db_id);
+async fn save_stats_swap(ctx: &MmArc, swap: &SavedSwap) -> Result<(), String> {
+    let db_id = swap.account_db_id().await;
+    try_s!(swap.save_to_stats_db(ctx, db_id.as_deref()).await);
+    add_swap_to_db_index(ctx, swap, db_id.as_deref());
     Ok(())
 }
 
@@ -1226,7 +1226,7 @@ async fn broadcast_my_swap_status(ctx: &MmArc, uuid: Uuid, db_id: Option<&str>) 
     status.hide_secrets();
 
     #[cfg(not(target_arch = "wasm32"))]
-    try_s!(save_stats_swap(ctx, &status, db_id).await);
+    try_s!(save_stats_swap(ctx, &status).await);
 
     let status = SwapStatus {
         method: "swapstatus".into(),
@@ -2438,7 +2438,7 @@ mod lp_swap_tests {
             taker_coin_nota: false,
         };
 
-        let mut maker_swap = MakerSwap::new(
+        let mut maker_swap = block_on(MakerSwap::new(
             maker_ctx.clone(),
             taker_key_pair.public().compressed_unprefixed().unwrap().into(),
             maker_amount.clone(),
@@ -2452,14 +2452,14 @@ mod lp_swap_tests {
             lock_duration,
             None,
             Default::default(),
-        );
+        ));
 
         maker_swap.fail_at = maker_fail_at;
 
         #[cfg(any(test, feature = "run-docker-tests"))]
         let fail_at = std::env::var("TAKER_FAIL_AT").map(taker_swap::FailAt::from).ok();
 
-        let taker_swap = TakerSwap::new(
+        let taker_swap = block_on(TakerSwap::new(
             taker_ctx.clone(),
             maker_key_pair.public().compressed_unprefixed().unwrap().into(),
             maker_amount.into(),
@@ -2474,7 +2474,7 @@ mod lp_swap_tests {
             None,
             #[cfg(any(test, feature = "run-docker-tests"))]
             fail_at,
-        );
+        ));
 
         block_on(futures::future::join(
             run_maker_swap(RunMakerSwapInput::StartNew(maker_swap), maker_ctx.clone()),

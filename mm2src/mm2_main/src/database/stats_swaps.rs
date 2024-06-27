@@ -48,8 +48,8 @@ const INSERT_STATS_SWAP: &str = "INSERT INTO stats_swaps (
     taker_coin_usd_price,
     maker_pubkey,
     taker_pubkey
-) VALUES (:maker_coin, :maker_coin_ticker, :maker_coin_platform, :taker_coin, :taker_coin_ticker, 
-:taker_coin_platform, :uuid, :started_at, :finished_at, :maker_amount, :taker_amount, :is_success, 
+) VALUES (:maker_coin, :maker_coin_ticker, :maker_coin_platform, :taker_coin, :taker_coin_ticker,
+:taker_coin_platform, :uuid, :started_at, :finished_at, :maker_amount, :taker_amount, :is_success,
 :maker_coin_usd_price, :taker_coin_usd_price, :maker_pubkey, :taker_pubkey)";
 
 pub const ADD_STARTED_AT_INDEX: &str = "CREATE INDEX timestamp_index ON stats_swaps (started_at);";
