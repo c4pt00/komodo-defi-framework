@@ -492,7 +492,7 @@ async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>, shared_db_id: O
         .await
         .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
     SqliteConnPool::init(ctx, db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-    SqliteConnPool::init_shared(ctx, db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+    SqliteConnPool::init_shared(ctx, shared_db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
     init_and_migrate_sql_db(ctx, db_id).await?;
     migrate_db(ctx, db_id)?;
 
