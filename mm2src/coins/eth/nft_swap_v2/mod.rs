@@ -2,6 +2,7 @@ use crate::coin_errors::{ValidatePaymentError, ValidatePaymentResult};
 use ethabi::{Contract, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, U256};
+use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use mm2_number::BigDecimal;
@@ -14,8 +15,8 @@ mod structs;
 use structs::{ExpectedHtlcParams, PaymentType, ValidationParams};
 
 use super::ContractType;
-use crate::eth::{addr_from_raw_pubkey, decode_contract_call, gas_limit::ETH_MAX_TRADE_GAS, EthCoin, EthCoinType,
-                 MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT, ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
+use crate::eth::{decode_contract_call, gas_limit::ETH_MAX_TRADE_GAS, EthCoin, EthCoinType, MakerPaymentStateV2,
+                 SignedEthTx, ERC1155_CONTRACT, ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
             TransactionErr, ValidateNftMakerPaymentArgs};
 
@@ -66,8 +67,7 @@ impl EthCoin {
                 .map_err(ValidatePaymentError::InternalError)?;
                 let etomic_swap_contract = args.nft_swap_info.swap_contract_address;
                 let token_address = args.nft_swap_info.token_address;
-                let maker_address =
-                    addr_from_raw_pubkey(args.maker_pub).map_to_mm(ValidatePaymentError::InternalError)?;
+                let maker_address = public_to_address(args.maker_pub);
                 let time_lock_u32 = args
                     .time_lock
                     .try_into()
@@ -108,8 +108,7 @@ impl EthCoin {
                 };
                 validate_decoded_data(&decoded, &validation_params)?;
 
-                let taker_address =
-                    addr_from_raw_pubkey(args.taker_pub).map_to_mm(ValidatePaymentError::InternalError)?;
+                let taker_address = public_to_address(args.taker_pub);
                 let htlc_params = ExpectedHtlcParams {
                     swap_id,
                     taker_address,
@@ -283,8 +282,7 @@ impl EthCoin {
     }
 
     fn prepare_htlc_data(&self, args: &SendNftMakerPaymentArgs<'_, Self>) -> Result<Vec<u8>, PrepareTxDataError> {
-        let taker_address =
-            addr_from_raw_pubkey(args.taker_pub).map_err(|e| PrepareTxDataError::Internal(ERRL!("{}", e)))?;
+        let taker_address = public_to_address(args.taker_pub);
         let time_lock_u32 = args
             .time_lock
             .try_into()

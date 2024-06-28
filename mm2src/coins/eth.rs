@@ -76,7 +76,6 @@ use futures::future::{join, join_all, select_ok, try_join_all, Either, FutureExt
 use futures01::Future;
 use http::Uri;
 use instant::Instant;
-use keys::Public as HtlcPubKey;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
 use mm2_net::transport::{KomodefiProxyAuthValidation, ProxyAuthValidationGenerator};
@@ -6798,20 +6797,14 @@ impl ToBytes for SignedEthTx {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum EthAssocTypesError {
     InvalidHexString(String),
+    #[from_stringify("DecoderError")]
     TxParseError(String),
     ParseSignatureError(String),
-    KeysError(keys::Error),
-}
-
-impl From<DecoderError> for EthAssocTypesError {
-    fn from(e: DecoderError) -> Self { EthAssocTypesError::TxParseError(e.to_string()) }
-}
-
-impl From<keys::Error> for EthAssocTypesError {
-    fn from(e: keys::Error) -> Self { EthAssocTypesError::KeysError(e) }
+    #[from_stringify("secp256k1::Error")]
+    ParsePublicKeyError(String),
 }
 
 #[derive(Debug, Display)]
@@ -6829,7 +6822,7 @@ impl From<ParseContractTypeError> for EthNftAssocTypesError {
 impl ParseCoinAssocTypes for EthCoin {
     type Address = Address;
     type AddressParseError = MmError<EthAssocTypesError>;
-    type Pubkey = HtlcPubKey;
+    type Pubkey = Public;
     type PubkeyParseError = MmError<EthAssocTypesError>;
     type Tx = SignedEthTx;
     type TxParseError = MmError<EthAssocTypesError>;
@@ -6855,7 +6848,8 @@ impl ParseCoinAssocTypes for EthCoin {
     }
 
     fn parse_pubkey(&self, pubkey: &[u8]) -> Result<Self::Pubkey, Self::PubkeyParseError> {
-        HtlcPubKey::from_slice(pubkey).map_to_mm(EthAssocTypesError::from)
+        let pubkey = PublicKey::from_slice(pubkey)?;
+        Ok(Public::from_slice(&pubkey.serialize_uncompressed()[1..65]))
     }
 
     fn parse_tx(&self, tx: &[u8]) -> Result<Self::Tx, Self::TxParseError> {
@@ -6888,6 +6882,10 @@ impl ToBytes for BigUint {
 
 impl ToBytes for ContractType {
     fn to_bytes(&self) -> Vec<u8> { self.to_string().into_bytes() }
+}
+
+impl ToBytes for Public {
+    fn to_bytes(&self) -> Vec<u8> { self.0.to_vec() }
 }
 
 impl ParseNftAssocTypes for EthCoin {
@@ -7179,6 +7177,24 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
-    // TODO still use HtlcPubKey or it would be better to move to Public from ethkey
-    fn derive_htlc_pubkey_v2(&self, _swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
+    #[inline(always)]
+    fn derive_htlc_pubkey_v2(&self, _swap_unique_data: &[u8]) -> Self::Pubkey {
+        match self.priv_key_policy {
+            EthPrivKeyPolicy::Iguana(ref key_pair)
+            | EthPrivKeyPolicy::HDWallet {
+                activated_key: ref key_pair,
+                ..
+            } => *key_pair.public(),
+            EthPrivKeyPolicy::Trezor => todo!(),
+            #[cfg(target_arch = "wasm32")]
+            EthPrivKeyPolicy::Metamask(ref metamask_policy) => {
+                // The metamask public key should be uncompressed
+                // Remove the first byte (0x04) from the uncompressed public key
+                let pubkey_bytes: [u8; 64] = metamask_policy.public_key_uncompressed[1..65]
+                    .try_into()
+                    .expect("slice with incorrect length");
+                Public::from_slice(&pubkey_bytes)
+            },
+        }
+    }
 }
