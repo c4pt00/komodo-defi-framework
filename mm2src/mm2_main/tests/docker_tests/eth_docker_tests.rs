@@ -851,7 +851,7 @@ fn send_and_refund_erc20_maker_payment_priority_fee() {
 }
 
 fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
-    thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_secs(7));
     let maker_erc20_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
     let taker_erc20_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
 
@@ -983,7 +983,7 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
 
 #[test]
 fn send_and_spend_erc721_maker_payment() {
-    thread::sleep(Duration::from_secs(13));
+    thread::sleep(Duration::from_secs(11));
     let token_id = 1u32;
     let time_lock = now_sec() + 1000;
     let setup = setup_test(
@@ -1009,8 +1009,6 @@ fn send_and_spend_erc721_maker_payment() {
         "Taker spent ERC721 NFT Maker payment, tx hash: {:02x}",
         spend_tx.tx_hash()
     );
-
-    thread::sleep(Duration::from_secs(2));
 
     wait_for_confirmations(&setup.taker_global_nft, &spend_tx, 200);
     let new_owner = geth_erc712_owner(U256::from(token_id));
@@ -1096,7 +1094,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(25));
+    thread::sleep(Duration::from_secs(31));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let setup = setup_test(
