@@ -6,16 +6,13 @@ pub mod event_dispatcher;
 pub mod mm_ctx;
 #[cfg(not(target_arch = "wasm32"))] pub mod sql_connection_pool;
 
-#[derive(Clone, Copy, Display, PartialEq)]
+#[derive(Clone, Copy, Display, PartialEq, Default)]
 pub enum DbNamespaceId {
     #[display(fmt = "MAIN")]
+    #[default]
     Main,
     #[display(fmt = "TEST_{}", _0)]
     Test(u64),
-}
-
-impl Default for DbNamespaceId {
-    fn default() -> Self { DbNamespaceId::Main }
 }
 
 impl DbNamespaceId {

@@ -21,8 +21,8 @@
 
 // `mockable` implementation uses these
 #![allow(
-    clippy::forget_ref,
-    clippy::forget_copy,
+    forgetting_references,
+    forgetting_copy_types,
     clippy::swap_ptr_to_ref,
     clippy::forget_non_drop
 )]
@@ -86,7 +86,6 @@ use std::time::Duration;
 use std::{fmt, iter};
 use utxo_signer::with_key_pair::UtxoSignWithKeyPairError;
 use zcash_primitives::transaction::Transaction as ZTransaction;
-
 cfg_native! {
     use crate::lightning::LightningCoin;
     use crate::lightning::ln_conf::PlatformCoinConfirmationTargets;
@@ -125,6 +124,29 @@ macro_rules! try_f {
     };
 }
 
+#[cfg(feature = "enable-solana")]
+macro_rules! try_tx_fus_err {
+    ($err: expr) => {
+        return Box::new(futures01::future::err(crate::TransactionErr::Plain(ERRL!(
+            "{:?}", $err
+        ))))
+    };
+}
+
+#[cfg(feature = "enable-solana")]
+macro_rules! try_tx_fus_opt {
+    ($e: expr, $err: expr) => {
+        match $e {
+            Some(ok) => ok,
+            None => {
+                return Box::new(futures01::future::err(crate::TransactionErr::Plain(ERRL!(
+                    "{:?}", $err
+                ))))
+            },
+        }
+    };
+}
+
 /// `TransactionErr` compatible `try_fus` macro.
 macro_rules! try_tx_fus {
     ($e: expr) => {
@@ -140,7 +162,7 @@ macro_rules! try_tx_fus {
                 return Box::new(futures01::future::err(crate::TransactionErr::TxRecoverable(
                     TransactionEnum::from($tx),
                     ERRL!("{:?}", err),
-                )));
+                )))
             },
         }
     };
@@ -157,7 +179,7 @@ macro_rules! try_tx_s {
                     file!(),
                     line!(),
                     err
-                )));
+                )))
             },
         }
     };
@@ -168,7 +190,7 @@ macro_rules! try_tx_s {
                 return Err(crate::TransactionErr::TxRecoverable(
                     TransactionEnum::from($tx),
                     format!("{}:{}] {:?}", file!(), line!(), err),
-                ));
+                ))
             },
         }
     };
@@ -250,7 +272,7 @@ pub use solana::spl::SplToken;
     not(target_os = "android"),
     not(target_arch = "wasm32")
 ))]
-pub use solana::{SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
+pub use solana::{SolTransaction, SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
 pub use test_coin::TestCoin;
 
 use coin_balance::{AddressBalanceStatus, BalanceObjectOps, HDAddressBalance, HDWalletBalanceObject, HDWalletBalanceOps};
@@ -593,6 +615,8 @@ pub trait Transaction: fmt::Debug + 'static {
 pub enum TransactionEnum {
     UtxoTx(UtxoTx),
     SignedEthTx(SignedEthTx),
+    #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+    SolTransaction(SolTransaction),
     ZTransaction(ZTransaction),
     CosmosTransaction(CosmosTransaction),
     #[cfg(not(target_arch = "wasm32"))]
@@ -601,6 +625,8 @@ pub enum TransactionEnum {
 
 ifrom!(TransactionEnum, UtxoTx);
 ifrom!(TransactionEnum, SignedEthTx);
+#[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+ifrom!(TransactionEnum, SolTransaction);
 ifrom!(TransactionEnum, ZTransaction);
 #[cfg(not(target_arch = "wasm32"))]
 ifrom!(TransactionEnum, LightningPayment);
@@ -624,6 +650,8 @@ impl Deref for TransactionEnum {
             TransactionEnum::CosmosTransaction(ref t) => t,
             #[cfg(not(target_arch = "wasm32"))]
             TransactionEnum::LightningPayment(ref p) => p,
+            #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+            TransactionEnum::SolTransaction(ref s) => s,
         }
     }
 }
@@ -2392,17 +2420,14 @@ pub enum TradePreimageValue {
     UpperBound(BigDecimal),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub enum SwapTxFeePolicy {
+    #[default]
     Unsupported,
     Internal,
     Low,
     Medium,
     High,
-}
-
-impl Default for SwapTxFeePolicy {
-    fn default() -> Self { SwapTxFeePolicy::Unsupported }
 }
 
 #[derive(Debug, Deserialize)]
@@ -3817,14 +3842,11 @@ impl CoinsContext {
 }
 
 /// This enum is used in coin activation requests.
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize, Default)]
 pub enum PrivKeyActivationPolicy {
+    #[default]
     ContextPrivKey,
     Trezor,
-}
-
-impl Default for PrivKeyActivationPolicy {
-    fn default() -> Self { PrivKeyActivationPolicy::ContextPrivKey }
 }
 
 impl PrivKeyActivationPolicy {
@@ -4538,7 +4560,7 @@ pub async fn lp_register_coin(
     let mut coins = cctx.coins.lock().await;
     match coins.raw_entry_mut().from_key(&ticker) {
         RawEntryMut::Occupied(_oe) => {
-            return MmError::err(RegisterCoinError::CoinIsInitializedAlready { coin: ticker.clone() });
+            return MmError::err(RegisterCoinError::CoinIsInitializedAlready { coin: ticker.clone() })
         },
         RawEntryMut::Vacant(ve) => ve.insert(ticker.clone(), MmCoinStruct::new(coin.clone())),
     };
@@ -4747,7 +4769,7 @@ pub async fn remove_delegation(ctx: MmArc, req: RemoveDelegateRequest) -> Delega
         _ => {
             return MmError::err(DelegationError::CoinDoesntSupportDelegation {
                 coin: coin.ticker().to_string(),
-            });
+            })
         },
     }
 }
@@ -4759,7 +4781,7 @@ pub async fn get_staking_infos(ctx: MmArc, req: GetStakingInfosRequest) -> Staki
         _ => {
             return MmError::err(StakingInfosError::CoinDoesntSupportStakingInfos {
                 coin: coin.ticker().to_string(),
-            });
+            })
         },
     }
 }
@@ -4772,7 +4794,7 @@ pub async fn add_delegation(ctx: MmArc, req: AddDelegateRequest) -> DelegationRe
         _ => {
             return MmError::err(DelegationError::CoinDoesntSupportDelegation {
                 coin: coin.ticker().to_string(),
-            });
+            })
         },
     };
     match req.staking_details {
@@ -5480,7 +5502,6 @@ where
 
                 // First, derive all empty addresses and put it into `balances` with default balance.
                 let address_ids = (last_non_empty_address_id..checking_address_id)
-                    .into_iter()
                     .map(|address_id| HDAddressId { chain, address_id });
                 let empty_addresses =
                     coin.derive_addresses(hd_account, address_ids)
