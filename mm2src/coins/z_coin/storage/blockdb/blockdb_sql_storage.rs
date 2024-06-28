@@ -69,7 +69,7 @@ impl BlockDbImpl {
                 db_id,
             })
         })
-            .await
+        .await
     }
 
     #[cfg(test)]
@@ -101,7 +101,7 @@ impl BlockDbImpl {
                 db_id,
             })
         })
-            .await
+        .await
     }
 
     pub(crate) async fn get_latest_block(&self) -> ZcoinStorageRes<u32> {
@@ -114,9 +114,9 @@ impl BlockDbImpl {
                 |row| row.get(0),
             )
         })
-            .await
-            .map_to_mm(|err| ZcoinStorageError::DbError(err.to_string()))?
-            .unwrap_or(0))
+        .await
+        .map_to_mm(|err| ZcoinStorageError::DbError(err.to_string()))?
+        .unwrap_or(0))
     }
 
     pub(crate) async fn insert_block(&self, height: u32, cb_bytes: Vec<u8>) -> ZcoinStorageRes<usize> {
@@ -131,7 +131,7 @@ impl BlockDbImpl {
 
             Ok(insert)
         })
-            .await
+        .await
     }
 
     pub(crate) async fn rewind_to_height(&self, height: BlockHeight) -> ZcoinStorageRes<usize> {
@@ -142,7 +142,7 @@ impl BlockDbImpl {
                 .execute("DELETE from compactblocks WHERE height > ?1", [u32::from(height)])
                 .map_to_mm(|err| ZcoinStorageError::RemoveFromStorageErr(err.to_string()))
         })
-            .await
+        .await
     }
 
     pub(crate) async fn get_earliest_block(&self) -> ZcoinStorageRes<u32> {
@@ -155,10 +155,10 @@ impl BlockDbImpl {
                 |row| row.get::<_, Option<u32>>(0),
             )
         })
-            .await
-            .map_to_mm(|err| ZcoinStorageError::GetFromStorageError(err.to_string()))?
-            .flatten()
-            .unwrap_or(0))
+        .await
+        .map_to_mm(|err| ZcoinStorageError::GetFromStorageError(err.to_string()))?
+        .flatten()
+        .unwrap_or(0))
     }
 
     pub(crate) async fn query_blocks_by_limit(
@@ -191,7 +191,7 @@ impl BlockDbImpl {
 
             Ok(rows.collect_vec())
         })
-            .await
+        .await
     }
 
     pub(crate) async fn process_blocks_with_mode(
@@ -212,7 +212,7 @@ impl BlockDbImpl {
                     opt.map(|(_, max)| max)
                         .unwrap_or(BlockHeight::from_u32(params.sapling_activation_height) - 1)
                 })?
-            }
+            },
         };
 
         let rows = self.query_blocks_by_limit(from_height, limit).await?;
@@ -236,7 +236,7 @@ impl BlockDbImpl {
             match &mode.clone() {
                 BlockProcessingMode::Validate => {
                     validate_chain(block, &mut prev_height, &mut prev_hash).await?;
-                }
+                },
                 BlockProcessingMode::Scan(data, z_balance_change_sender) => {
                     let tx_size = scan_cached_block(data, &params, &block, &mut from_height).await?;
                     // If there are transactions present in the current scanned block,
@@ -246,7 +246,7 @@ impl BlockDbImpl {
                             sender.send(()).await.expect("No receiver is available/dropped");
                         };
                     };
-                }
+                },
             }
         }
         Ok(())
