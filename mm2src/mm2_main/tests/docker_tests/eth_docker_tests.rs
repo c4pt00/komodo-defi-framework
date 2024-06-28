@@ -1135,7 +1135,7 @@ fn send_and_refund_erc721_maker_payment_timelock() {
 
 #[test]
 fn send_and_refund_erc1155_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(20));
+    thread::sleep(Duration::from_secs(29));
     let token_id = 2u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() - 1000;
