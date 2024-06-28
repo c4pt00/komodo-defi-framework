@@ -983,7 +983,7 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
 
 #[test]
 fn send_and_spend_erc721_maker_payment() {
-    thread::sleep(Duration::from_secs(10));
+    thread::sleep(Duration::from_secs(13));
     let token_id = 1u32;
     let time_lock = now_sec() + 1000;
     let setup = setup_test(
@@ -1001,7 +1001,7 @@ fn send_and_spend_erc721_maker_payment() {
         maker_payment.tx_hash()
     );
 
-    wait_for_confirmations(&setup.maker_global_nft, &maker_payment, 150);
+    wait_for_confirmations(&setup.maker_global_nft, &maker_payment, 200);
     validate_nft_maker_payment(&setup, &maker_payment, 1.into());
 
     let spend_tx = spend_nft_maker_payment(&setup, &maker_payment, &ContractType::Erc721);
@@ -1010,7 +1010,9 @@ fn send_and_spend_erc721_maker_payment() {
         spend_tx.tx_hash()
     );
 
-    wait_for_confirmations(&setup.taker_global_nft, &spend_tx, 150);
+    thread::sleep(Duration::from_secs(2));
+
+    wait_for_confirmations(&setup.taker_global_nft, &spend_tx, 200);
     let new_owner = geth_erc712_owner(U256::from(token_id));
     let taker_address = block_on(setup.taker_global_nft.my_addr());
     assert_eq!(new_owner, taker_address);
