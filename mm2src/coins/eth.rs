@@ -613,9 +613,7 @@ pub struct EthCoinImpl {
     derivation_method: Arc<EthDerivationMethod>,
     sign_message_prefix: Option<String>,
     swap_contract_address: Address,
-    maker_swap_v2_contract: Address,
-    taker_swap_v2_contract: Address,
-    nft_maker_swap_v2_contract: Option<Address>,
+    swap_v2_contracts: Option<SwapV2Contracts>,
     fallback_swap_contract: Option<Address>,
     contract_supports_watchers: bool,
     web3_instances: AsyncMutex<Vec<Web3Instance>>,
@@ -664,6 +662,13 @@ pub struct Erc20TokenInfo {
     /// The number of decimal places the token uses.
     /// This represents the smallest unit that the token can be divided into.
     pub decimals: u8,
+}
+
+#[derive(Copy, Clone, Deserialize)]
+pub struct SwapV2Contracts {
+    pub maker_swap_v2_contract: Address,
+    pub taker_swap_v2_contract: Address,
+    pub nft_maker_swap_v2_contract: Address,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -6232,21 +6237,6 @@ pub async fn eth_coin_from_conf_and_request(
     if swap_contract_address == Address::default() {
         return ERR!("swap_contract_address can't be zero address");
     }
-    let maker_swap_v2_contract: Address = try_s!(json::from_value(req["maker_swap_v2_contract"].clone()));
-    if maker_swap_v2_contract == Address::default() {
-        return ERR!("maker_swap_v2_contract can't be zero address");
-    }
-    let taker_swap_v2_contract: Address = try_s!(json::from_value(req["taker_swap_v2_contract"].clone()));
-    if taker_swap_v2_contract == Address::default() {
-        return ERR!("taker_swap_v2_contract can't be zero address");
-    }
-    let nft_maker_swap_v2_contract: Option<Address> =
-        try_s!(json::from_value(req["nft_maker_swap_v2_contract"].clone()));
-    if let Some(nft_maker_swap_v2) = nft_maker_swap_v2_contract {
-        if nft_maker_swap_v2 == Address::default() {
-            return ERR!("nft_maker_swap_v2_contract can't be zero address");
-        }
-    }
     let fallback_swap_contract: Option<Address> = try_s!(json::from_value(req["fallback_swap_contract"].clone()));
     if let Some(fallback) = fallback_swap_contract {
         if fallback == Address::default() {
@@ -6400,9 +6390,7 @@ pub async fn eth_coin_from_conf_and_request(
         coin_type,
         sign_message_prefix,
         swap_contract_address,
-        maker_swap_v2_contract,
-        taker_swap_v2_contract,
-        nft_maker_swap_v2_contract,
+        swap_v2_contracts: None,
         fallback_swap_contract,
         contract_supports_watchers,
         decimals,

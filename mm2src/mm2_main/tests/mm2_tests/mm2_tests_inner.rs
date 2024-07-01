@@ -3573,8 +3573,6 @@ fn test_get_raw_transaction() {
         "urls": &[ETH_MAINNET_NODE],
         // Dev chain swap contract address
         "swap_contract_address": ETH_MAINNET_SWAP_CONTRACT,
-        "maker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
-        "taker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
         "mm2": 1,
     })))
     .unwrap();
@@ -6034,8 +6032,6 @@ mod trezor_tests {
             "coin": "ETH",
             "urls": ETH_SEPOLIA_NODES,
             "swap_contract_address": ETH_SEPOLIA_SWAP_CONTRACT,
-            "maker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
-            "taker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
             "priv_key_policy": "Trezor",
         });
 
@@ -6284,8 +6280,6 @@ mod trezor_tests {
                     {"url": "https://rpc.sepolia.org/"}
                 ],
                 "swap_contract_address": ETH_SEPOLIA_SWAP_CONTRACT,
-                "maker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
-                "taker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
                 "erc20_tokens_requests": [{"ticker": ticker_token}],
                 "priv_key_policy": "Trezor"
             }))
@@ -6404,8 +6398,6 @@ mod trezor_tests {
                     {"url": ETH_SEPOLIA_NODES[0]}
                 ],
                 "swap_contract_address": ETH_SEPOLIA_SWAP_CONTRACT,
-                "maker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
-                "taker_swap_v2_contract": ETH_SEPOLIA_SWAP_CONTRACT,
                 "erc20_tokens_requests": [],
                 "priv_key_policy": "Trezor"
             }))

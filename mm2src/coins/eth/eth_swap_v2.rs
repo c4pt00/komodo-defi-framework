@@ -24,6 +24,11 @@ impl EthCoin {
         &self,
         args: SendTakerFundingArgs<'_>,
     ) -> Result<SignedEthTx, TransactionErr> {
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
         let dex_fee = try_tx_s!(wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals));
 
         let payment_amount = try_tx_s!(wei_from_big_decimal(
@@ -49,7 +54,7 @@ impl EthCoin {
                 let data = try_tx_s!(self.prepare_taker_eth_funding_data(&funding_args).await);
                 self.sign_and_send_transaction(
                     payment_amount,
-                    Action::Call(self.taker_swap_v2_contract),
+                    Action::Call(taker_swap_v2_contract),
                     data,
                     U256::from(gas_limit::ETH_PAYMENT),
                 )

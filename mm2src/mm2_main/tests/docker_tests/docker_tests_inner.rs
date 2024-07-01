@@ -1,7 +1,6 @@
 use crate::docker_tests::docker_tests_common::{generate_utxo_coin_with_privkey, trade_base_rel, GETH_RPC_URL, MM_CTX};
 use crate::docker_tests::eth_docker_tests::{erc20_coin_with_random_privkey, erc20_contract_checksum,
-                                            fill_eth_erc20_with_private_key, init_swap_contract_addresses,
-                                            swap_contract};
+                                            fill_eth_erc20_with_private_key, swap_contract};
 use crate::integration_tests_common::*;
 use crate::{fill_address, generate_utxo_coin_with_random_privkey, random_secp256k1_secret, rmd160_from_priv,
             utxo_coin_from_privkey};
@@ -3590,8 +3589,6 @@ async fn enable_eth_with_tokens(
                 "ticker": platform_coin,
                 "erc20_tokens_requests": erc20_tokens_requests,
                 "swap_contract_address": swap_contract_address,
-                "maker_swap_v2_contract": swap_contract_address,
-                "taker_swap_v2_contract": swap_contract_address,
                 "nodes": nodes,
                 "tx_history": true,
                 "get_balances": balance,
@@ -3610,7 +3607,7 @@ async fn enable_eth_with_tokens(
 
 #[test]
 fn test_enable_eth_coin_with_token_then_disable() {
-    let coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let coin = erc20_coin_with_random_privkey(swap_contract());
 
     let priv_key = coin.display_priv_key().unwrap();
     let coins = json!([eth_dev_conf(), erc20_dev_conf(&erc20_contract_checksum())]);
@@ -3669,7 +3666,7 @@ fn test_enable_eth_coin_with_token_then_disable() {
 
 #[test]
 fn test_enable_eth_coin_with_token_without_balance() {
-    let coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let coin = erc20_coin_with_random_privkey(swap_contract());
 
     let priv_key = coin.display_priv_key().unwrap();
     let coins = json!([eth_dev_conf(), erc20_dev_conf(&erc20_contract_checksum())]);
@@ -3718,8 +3715,8 @@ fn test_enable_eth_coin_with_token_without_balance() {
 
 #[test]
 fn test_eth_swap_contract_addr_negotiation_same_fallback() {
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let bob_coin = erc20_coin_with_random_privkey(swap_contract());
+    let alice_coin = erc20_coin_with_random_privkey(swap_contract());
 
     let bob_priv_key = bob_coin.display_priv_key().unwrap();
     let alice_priv_key = alice_coin.display_priv_key().unwrap();
@@ -3811,8 +3808,8 @@ fn test_eth_swap_contract_addr_negotiation_same_fallback() {
 
 #[test]
 fn test_eth_swap_negotiation_fails_maker_no_fallback() {
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let bob_coin = erc20_coin_with_random_privkey(swap_contract());
+    let alice_coin = erc20_coin_with_random_privkey(swap_contract());
 
     let bob_priv_key = bob_coin.display_priv_key().unwrap();
     let alice_priv_key = alice_coin.display_priv_key().unwrap();
@@ -4376,7 +4373,7 @@ fn test_gtc_taker_order_should_transform_to_maker() {
 
 #[test]
 fn test_set_price_must_save_order_to_db() {
-    let private_key_str = erc20_coin_with_random_privkey(init_swap_contract_addresses())
+    let private_key_str = erc20_coin_with_random_privkey(swap_contract())
         .display_priv_key()
         .unwrap();
     let coins = json!([eth_dev_conf(), erc20_dev_conf(&erc20_contract_checksum())]);
@@ -4537,7 +4534,7 @@ fn test_sell_response_format() {
 
 #[test]
 fn test_set_price_conf_settings() {
-    let private_key_str = erc20_coin_with_random_privkey(init_swap_contract_addresses())
+    let private_key_str = erc20_coin_with_random_privkey(swap_contract())
         .display_priv_key()
         .unwrap();
 
@@ -4610,7 +4607,7 @@ fn test_set_price_conf_settings() {
 
 #[test]
 fn test_buy_conf_settings() {
-    let private_key_str = erc20_coin_with_random_privkey(init_swap_contract_addresses())
+    let private_key_str = erc20_coin_with_random_privkey(swap_contract())
         .display_priv_key()
         .unwrap();
 
@@ -4683,7 +4680,7 @@ fn test_buy_conf_settings() {
 
 #[test]
 fn test_sell_conf_settings() {
-    let private_key_str = erc20_coin_with_random_privkey(init_swap_contract_addresses())
+    let private_key_str = erc20_coin_with_random_privkey(swap_contract())
         .display_priv_key()
         .unwrap();
 
@@ -4817,8 +4814,8 @@ fn test_my_orders_response_format() {
 
 #[test]
 fn test_my_orders_after_matched() {
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let bob_coin = erc20_coin_with_random_privkey(swap_contract());
+    let alice_coin = erc20_coin_with_random_privkey(swap_contract());
 
     let coins = json!([eth_dev_conf(), erc20_dev_conf(&erc20_contract_checksum())]);
 
@@ -4913,8 +4910,8 @@ fn test_my_orders_after_matched() {
 
 #[test]
 fn test_update_maker_order_after_matched() {
-    let bob_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
-    let alice_coin = erc20_coin_with_random_privkey(init_swap_contract_addresses());
+    let bob_coin = erc20_coin_with_random_privkey(swap_contract());
+    let alice_coin = erc20_coin_with_random_privkey(swap_contract());
 
     let coins = json!([eth_dev_conf(), erc20_dev_conf(&erc20_contract_checksum())]);
 

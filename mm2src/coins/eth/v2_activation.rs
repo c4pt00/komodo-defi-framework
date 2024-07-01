@@ -175,9 +175,8 @@ pub struct EthActivationV2Request {
     #[serde(default)]
     pub rpc_mode: EthRpcMode,
     pub swap_contract_address: Address,
-    pub maker_swap_v2_contract: Address,
-    pub taker_swap_v2_contract: Address,
-    pub nft_maker_swap_v2_contract: Option<Address>,
+    #[serde(default)]
+    pub swap_v2_contracts: Option<SwapV2Contracts>,
     pub fallback_swap_contract: Option<Address>,
     #[serde(default)]
     pub contract_supports_watchers: bool,
@@ -443,9 +442,7 @@ impl EthCoin {
             coin_type,
             sign_message_prefix: self.sign_message_prefix.clone(),
             swap_contract_address: self.swap_contract_address,
-            maker_swap_v2_contract: self.maker_swap_v2_contract,
-            taker_swap_v2_contract: self.taker_swap_v2_contract,
-            nft_maker_swap_v2_contract: self.nft_maker_swap_v2_contract,
+            swap_v2_contracts: self.swap_v2_contracts,
             fallback_swap_contract: self.fallback_swap_contract,
             contract_supports_watchers: self.contract_supports_watchers,
             decimals,
@@ -539,9 +536,7 @@ impl EthCoin {
             derivation_method: self.derivation_method.clone(),
             sign_message_prefix: self.sign_message_prefix.clone(),
             swap_contract_address: self.swap_contract_address,
-            maker_swap_v2_contract: self.maker_swap_v2_contract,
-            taker_swap_v2_contract: self.taker_swap_v2_contract,
-            nft_maker_swap_v2_contract: self.nft_maker_swap_v2_contract,
+            swap_v2_contracts: self.swap_v2_contracts,
             fallback_swap_contract: self.fallback_swap_contract,
             contract_supports_watchers: self.contract_supports_watchers,
             web3_instances: AsyncMutex::new(web3_instances),
@@ -600,6 +595,23 @@ pub async fn eth_coin_from_conf_and_request_v2(
             "swap_contract_address can't be zero address".to_string(),
         )
         .into());
+    }
+
+    if ctx.use_trading_proto_v2() {
+        let contracts = req.swap_v2_contracts.as_ref().ok_or_else(|| {
+            EthActivationV2Error::InvalidPayload(
+                "swap_v2_contracts must be provided when using trading protocol v2".to_string(),
+            )
+        })?;
+        if contracts.maker_swap_v2_contract == Address::default()
+            || contracts.taker_swap_v2_contract == Address::default()
+            || contracts.nft_maker_swap_v2_contract == Address::default()
+        {
+            return Err(EthActivationV2Error::InvalidSwapContractAddr(
+                "All swap_v2_contracts addresses must be non-zero".to_string(),
+            )
+            .into());
+        }
     }
 
     if let Some(fallback) = req.fallback_swap_contract {
@@ -699,9 +711,7 @@ pub async fn eth_coin_from_conf_and_request_v2(
         coin_type,
         sign_message_prefix,
         swap_contract_address: req.swap_contract_address,
-        maker_swap_v2_contract: req.maker_swap_v2_contract,
-        taker_swap_v2_contract: req.taker_swap_v2_contract,
-        nft_maker_swap_v2_contract: req.nft_maker_swap_v2_contract,
+        swap_v2_contracts: req.swap_v2_contracts,
         fallback_swap_contract: req.fallback_swap_contract,
         contract_supports_watchers: req.contract_supports_watchers,
         decimals: ETH_DECIMALS,
