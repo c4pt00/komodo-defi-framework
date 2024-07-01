@@ -4619,7 +4619,7 @@ pub async fn find_unique_account_ids_active(ctx: &MmArc) -> Result<HashSet<Strin
 async fn find_unique_account_ids(ctx: &MmArc, active_only: bool) -> Result<HashSet<String>, String> {
     // Using a HashSet to ensure uniqueness efficiently
     // Initialize with default wallet pubkey as coin.account_db_id() will return None by default.
-    let mut account_ids = HashSet::from([ctx.rmd160_hex()]);
+    let mut account_ids = HashSet::from([ctx.rmd160.to_string()]);
 
     let coin_ctx = try_s!(CoinsContext::from_ctx(ctx));
     let coins = coin_ctx.coins.lock().await;

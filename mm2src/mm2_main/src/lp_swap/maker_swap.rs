@@ -108,8 +108,8 @@ async fn save_my_maker_swap_event(
             events: vec![],
             success_events: MAKER_SUCCESS_EVENTS.iter().map(|event| event.to_string()).collect(),
             error_events: MAKER_ERROR_EVENTS.iter().map(|event| event.to_string()).collect(),
-            maker_db_id: swap.maker_coin.account_db_id().await,
-            taker_db_id: swap.taker_coin.account_db_id().await,
+            maker_coin_db_id: swap.maker_coin.account_db_id().await,
+            taker_coin_db_id: swap.taker_coin.account_db_id().await,
         }),
         Err(e) => return ERR!("{}", e),
     };
@@ -1823,9 +1823,9 @@ pub struct MakerSavedSwap {
     pub success_events: Vec<String>,
     pub error_events: Vec<String>,
     /// needed to validate if pending maker coin is activated with the correct `db_id` in `kickstart_thread_handler`
-    pub maker_db_id: Option<String>,
+    pub maker_coin_db_id: Option<String>,
     /// needed to validate if pending taker coin is activated with the correct `db_id` in `kickstart_thread_handler`
-    pub taker_db_id: Option<String>,
+    pub taker_coin_db_id: Option<String>,
 }
 
 #[cfg(test)]
@@ -1883,8 +1883,8 @@ impl MakerSavedSwap {
             mm_version: None,
             success_events: vec![],
             error_events: vec![],
-            maker_db_id: None,
-            taker_db_id: None,
+            maker_coin_db_id: None,
+            taker_coin_db_id: None,
         }
     }
 }

@@ -27,16 +27,16 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// Creates a new uninitialized `Db` instance from other Iguana and/or HD accounts.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new(ctx: &MmArc, db_id: Option<&str>) -> Self {
-        let db_id_ = hex::encode(ctx.rmd160().as_slice());
-        let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
+        let default_db_id = ctx.rmd160().to_string();
+        let shared_db_id = ctx.shared_db_id().to_string();
 
-        let db_id = db_id.unwrap_or(&db_id_);
+        let db_id = db_id.unwrap_or(&default_db_id).to_string();
         let conns = HashMap::from([(db_id.to_owned(), Arc::new(AsyncMutex::new(None)))]);
 
         ConstructibleDb {
             locks: Arc::new(RwLock::new(conns)),
             db_namespace: ctx.db_namespace,
-            db_id: db_id.to_string(),
+            db_id,
             shared_db_id,
         }
     }
@@ -46,7 +46,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_shared_db(ctx: &MmArc) -> Self {
         let db_id = hex::encode(ctx.rmd160().as_slice());
-        let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
+        let shared_db_id = ctx.shared_db_id().to_string();
         let conns = HashMap::from([(shared_db_id.clone(), Arc::new(AsyncMutex::new(None)))]);
         ConstructibleDb {
             locks: Arc::new(RwLock::new(conns)),
@@ -59,8 +59,8 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// Creates a new uninitialized `Db` instance shared between all wallets/seed.
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_global_db(ctx: &MmArc) -> Self {
-        let db_id = hex::encode(ctx.rmd160().as_slice());
-        let shared_db_id = hex::encode(ctx.shared_db_id().as_slice());
+        let db_id = ctx.rmd160().to_string();
+        let shared_db_id = ctx.shared_db_id().to_string();
         ConstructibleDb {
             locks: Arc::new(RwLock::new(HashMap::default())),
             db_namespace: ctx.db_namespace,

@@ -69,11 +69,10 @@ pub async fn init_persister(
 }
 
 pub async fn init_db(ctx: &MmArc, ticker: String, db_id: Option<&str>) -> EnableLightningResult<SqliteLightningDB> {
-    let shared = ctx.sqlite_conn_opt(db_id).or_mm_err(|| {
+    let db = ctx.sqlite_conn_opt(db_id).or_mm_err(|| {
         EnableLightningError::DbError("'MmCtx::sqlite_connection' is not found or initialized".to_owned())
     })?;
-
-    let db = SqliteLightningDB::new(ticker, shared)?;
+    let db = SqliteLightningDB::new(ticker, db)?;
 
     if !db.is_db_initialized().await? {
         db.init_db().await?;
@@ -145,7 +144,7 @@ pub async fn init_channel_manager(
             return MmError::err(EnableLightningError::UnsupportedMode(
                 "Lightning network".into(),
                 "electrum".into(),
-            ));
+            ))
         },
     };
     let best_header = get_best_header(&rpc_client).await?;

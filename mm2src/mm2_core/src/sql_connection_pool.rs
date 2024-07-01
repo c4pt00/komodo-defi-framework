@@ -65,8 +65,8 @@ impl SqliteConnPool {
         let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
-            rmd160_hex: ctx.rmd160_hex(),
-            shared_db_id: hex::encode(*ctx.shared_db_id()),
+            rmd160_hex: ctx.rmd160.to_string(),
+            shared_db_id: ctx.shared_db_id().to_string(),
             db_root: db_root.map(|d| d.to_owned())
         }));
 
@@ -95,8 +95,8 @@ impl SqliteConnPool {
         let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
-            rmd160_hex: ctx.rmd160_hex(),
-            shared_db_id: hex::encode(*ctx.shared_db_id()),
+            rmd160_hex: ctx.rmd160.to_string(),
+            shared_db_id: ctx.shared_db_id().to_string(),
             db_root: db_root.map(|d| d.to_owned())
         }));
 
@@ -130,44 +130,22 @@ impl SqliteConnPool {
         connection
     }
 
-    /// Retrieves a single-user connection from the pool.
+    /// Run a sql query for db.
     pub fn run_sql_query<F, R>(&self, db_id: Option<&str>, f: F) -> R
     where
         F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
         R: Send + 'static,
     {
-        self.run_sql_query_impl(db_id, DbIdConnKind::Single, f)
+        f(self.sqlite_conn_impl(db_id, DbIdConnKind::Single).lock().unwrap())
     }
 
-    /// Retrieves a shared connection from the pool.
+    /// Run a sql query for shared_db.
     pub fn run_sql_query_shared<F, R>(&self, db_id: Option<&str>, f: F) -> R
     where
         F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
         R: Send + 'static,
     {
-        self.run_sql_query_impl(db_id, DbIdConnKind::Shared, f)
-    }
-
-    /// Internal run a sql query.
-    fn run_sql_query_impl<F, R>(&self, db_id: Option<&str>, kind: DbIdConnKind, f: F) -> R
-    where
-        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        let db_id = self.db_id(db_id, &kind);
-        let connections = self.connections.read().unwrap();
-        if let Some(connection) = connections.get(&db_id) {
-            let conn = connection.lock().unwrap();
-            return f(conn);
-        }
-        drop(connections);
-
-        let mut connections = self.connections.write().unwrap();
-        let sqlite_file_path = self.sqlite_file_path(&db_id, &kind);
-        let connection = Self::open_connection(sqlite_file_path);
-        connections.insert(db_id, Arc::clone(&connection));
-
-        f(connection.lock().unwrap())
+        f(self.sqlite_conn_impl(db_id, DbIdConnKind::Shared).lock().unwrap())
     }
 
     pub fn add_test_db(&self, db_id: String) {
@@ -198,8 +176,8 @@ impl SqliteConnPool {
         match kind {
             DbIdConnKind::Shared => db_id
                 .map(|e| e.to_owned())
-                .unwrap_or_else(|| hex::encode(ctx.shared_db_id().as_slice())),
-            DbIdConnKind::Single => db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex()),
+                .unwrap_or_else(|| ctx.shared_db_id().to_string()),
+            DbIdConnKind::Single => db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string()),
         }
     }
     fn sqlite_file_path(&self, db_id: &str, kind: &DbIdConnKind) -> PathBuf {
@@ -221,7 +199,7 @@ pub struct AsyncSqliteConnPool {
 impl AsyncSqliteConnPool {
     /// Initialize a database connection.
     pub async fn init(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex());
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
             let conn = Self::open_connection(&pool.sqlite_file_path).await;
@@ -237,7 +215,7 @@ impl AsyncSqliteConnPool {
         try_s!(ctx.async_sqlite_conn_pool.pin(Self {
             connections,
             sqlite_file_path,
-            rmd160_hex: ctx.rmd160_hex(),
+            rmd160_hex: ctx.rmd160.to_string(),
         }));
 
         Ok(())
@@ -245,7 +223,7 @@ impl AsyncSqliteConnPool {
 
     /// Initialize a database connection.
     pub async fn init_test(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160_hex());
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
             let mut pool = pool.connections.write().await;
@@ -263,7 +241,7 @@ impl AsyncSqliteConnPool {
         try_s!(ctx.async_sqlite_conn_pool.pin(Self {
             connections,
             sqlite_file_path: PathBuf::new(),
-            rmd160_hex: ctx.rmd160_hex(),
+            rmd160_hex: ctx.rmd160.to_string(),
         }));
         Ok(())
     }

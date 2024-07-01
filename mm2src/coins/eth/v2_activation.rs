@@ -665,7 +665,7 @@ pub(crate) async fn build_address_and_priv_key_policy(
             let activated_key = KeyPair::from_secret_slice(raw_priv_key.as_slice())
                 .map_to_mm(|e| EthActivationV2Error::InternalError(e.to_string()))?;
             #[cfg(not(target_arch = "wasm32"))]
-            run_db_migraiton_for_new_eth_pubkey(ctx, &activated_key).await?;
+            run_db_migration_for_new_eth_pubkey(ctx, &activated_key).await?;
 
             let bip39_secp_priv_key = global_hd_ctx.root_priv_key().clone();
 
@@ -926,7 +926,7 @@ fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Erro
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migraiton_for_new_eth_pubkey(ctx: &MmArc, keypair: &KeyPair) -> MmResult<(), EthActivationV2Error> {
+async fn run_db_migration_for_new_eth_pubkey(ctx: &MmArc, keypair: &KeyPair) -> MmResult<(), EthActivationV2Error> {
     let db_id = hex::encode(dhash160(keypair.public().as_bytes()));
     let shared_db_id = shared_db_id_from_seed(&db_id)
         .mm_err(|err| EthActivationV2Error::InternalError(err.to_string()))?
