@@ -1538,9 +1538,24 @@ pub async fn swap_kick_starts(ctx: MmArc, db_id: Option<&str>) -> Result<HashSet
 }
 
 async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker: String, taker_coin_ticker: String) {
+    let (maker_db_id, taker_db_id) = match &swap {
+        SavedSwap::Maker(swap) => (swap.maker_db_id.as_deref(), swap.taker_db_id.as_deref()),
+        SavedSwap::Taker(swap) => (swap.maker_db_id.as_deref(), swap.taker_db_id.as_deref()),
+    };
     let taker_coin = loop {
         match lp_coinfind(&ctx, &taker_coin_ticker).await {
-            Ok(Some(c)) => break c,
+            Ok(Some(c)) => {
+                if taker_db_id == c.account_db_id().await.as_deref() {
+                    break c;
+                };
+                info!(
+                    "Can't kickstart the swap {} until the coin {} is activated with pubkey: {}",
+                    swap.uuid(),
+                    taker_coin_ticker,
+                    taker_db_id.unwrap_or(&ctx.rmd160_hex())
+                );
+                Timer::sleep(5.).await;
+            },
             Ok(None) => {
                 info!(
                     "Can't kickstart the swap {} until the coin {} is activated",
@@ -1558,7 +1573,18 @@ async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker
 
     let maker_coin = loop {
         match lp_coinfind(&ctx, &maker_coin_ticker).await {
-            Ok(Some(c)) => break c,
+            Ok(Some(c)) => {
+                if maker_db_id == c.account_db_id().await.as_deref() {
+                    break c;
+                };
+                info!(
+                    "Can't kickstart the swap {} until the coin {} is activated with pubkey: {}",
+                    swap.uuid(),
+                    maker_coin_ticker,
+                    maker_db_id.unwrap_or(&ctx.rmd160_hex())
+                );
+                Timer::sleep(5.).await;
+            },
             Ok(None) => {
                 info!(
                     "Can't kickstart the swap {} until the coin {} is activated",
