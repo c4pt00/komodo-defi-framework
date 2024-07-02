@@ -1892,13 +1892,6 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     ///    Chain B:            maker payment -> maker payment spend (aka claiming) (to the taker)
     async fn get_funding_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
 
-    /// Get the fee to be paid for the processing of the funding-spend transaction aka taker payment transaction.
-    ///
-    /// Don't use this method, use [TakerCoinSwapOpsV2::get_taker_payment_fee] instead.
-    async fn get_funding_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> {
-        self.get_taker_payment_fee(stage).await
-    }
-
     /// Get the fee to be paid for the processing of the taker payment transaction.
     async fn get_taker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
 
