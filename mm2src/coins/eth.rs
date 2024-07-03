@@ -7095,7 +7095,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// Generates and signs a preimage spending funding tx to the combined taker payment
+    /// Eth doesnt use multisig
     async fn sign_and_send_taker_funding_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,

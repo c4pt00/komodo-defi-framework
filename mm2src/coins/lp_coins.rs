@@ -1879,7 +1879,7 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
         preimage: &TxPreimageWithSig<Self>,
     ) -> ValidateTakerFundingSpendPreimageResult;
 
-    /// Generates and signs a preimage spending funding tx to the combined taker payment
+    /// Sign and send a spending funding tx to the combined taker payment
     async fn sign_and_send_taker_funding_spend(
         &self,
         preimage: &TxPreimageWithSig<Self>,
