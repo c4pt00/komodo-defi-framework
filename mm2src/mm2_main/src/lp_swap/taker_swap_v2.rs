@@ -1230,6 +1230,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             premium_amount: state_machine.taker_premium.to_decimal(),
             trading_amount: state_machine.taker_volume.to_decimal(),
             swap_unique_data: &state_machine.unique_data(),
+            // TODO impl wait_for_taker_payment_conf_until
+            wait_for_confirmation_until: 0,
         };
 
         let taker_funding = match state_machine.taker_coin.send_taker_funding(args).await {

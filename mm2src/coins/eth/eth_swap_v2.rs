@@ -1,6 +1,6 @@
-use crate::eth::{addr_from_raw_pubkey, gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx,
+use super::eth::{addr_from_raw_pubkey, gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx,
                  TAKER_SWAP_V2};
-use crate::{SendTakerFundingArgs, TransactionErr};
+use super::{SendTakerFundingArgs, Transaction, TransactionErr};
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;
@@ -8,7 +8,6 @@ use ethereum_types::{Address, U256};
 use futures::compat::Future01CompatExt;
 use std::convert::TryInto;
 
-#[allow(dead_code)]
 struct TakerFundingArgs<'a> {
     dex_fee: U256,
     payment_amount: U256,
@@ -61,8 +60,50 @@ impl EthCoin {
                 .compat()
                 .await
             },
-            EthCoinType::Erc20 { .. } => {
-                todo!()
+            EthCoinType::Erc20 {
+                platform: _,
+                token_addr,
+            } => {
+                let allowed = self
+                    .allowance(taker_swap_v2_contract)
+                    .compat()
+                    .await
+                    .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
+                let data = try_tx_s!(self.prepare_taker_erc20_funding_data(&funding_args, *token_addr).await);
+                if allowed < payment_amount {
+                    let approved_tx = self.approve(taker_swap_v2_contract, U256::max_value()).compat().await?;
+                    self.wait_for_required_allowance(
+                        taker_swap_v2_contract,
+                        payment_amount,
+                        args.wait_for_confirmation_until,
+                    )
+                    .compat()
+                    .await
+                    .map_err(|e| {
+                        TransactionErr::Plain(ERRL!(
+                            "Allowed value was not updated in time after sending approve transaction {:02x}: {}",
+                            approved_tx.tx_hash_as_bytes(),
+                            e
+                        ))
+                    })?;
+                    self.sign_and_send_transaction(
+                        U256::from(0),
+                        Action::Call(taker_swap_v2_contract),
+                        data,
+                        U256::from(gas_limit::ERC20_PAYMENT),
+                    )
+                    .compat()
+                    .await
+                } else {
+                    self.sign_and_send_transaction(
+                        U256::from(0),
+                        Action::Call(taker_swap_v2_contract),
+                        data,
+                        U256::from(gas_limit::ERC20_PAYMENT),
+                    )
+                    .compat()
+                    .await
+                }
             },
             EthCoinType::Nft { .. } => Err(TransactionErr::ProtocolNotSupported(
                 "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
@@ -76,6 +117,27 @@ impl EthCoin {
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.dex_fee),
+            Token::Address(args.maker_address),
+            Token::FixedBytes(args.taker_secret_hash.to_vec()),
+            Token::FixedBytes(args.maker_secret_hash.to_vec()),
+            Token::Uint(args.funding_time_lock.into()),
+            Token::Uint(args.payment_time_lock.into()),
+        ])?;
+        Ok(data)
+    }
+
+    async fn prepare_taker_erc20_funding_data(
+        &self,
+        args: &TakerFundingArgs<'_>,
+        token_addr: Address,
+    ) -> Result<Vec<u8>, PrepareTxDataError> {
+        let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
+        let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret_hash);
+        let data = function.encode_input(&[
+            Token::FixedBytes(id),
+            Token::Uint(args.payment_amount),
+            Token::Uint(args.dex_fee),
+            Token::Address(token_addr),
             Token::Address(args.maker_address),
             Token::FixedBytes(args.taker_secret_hash.to_vec()),
             Token::FixedBytes(args.maker_secret_hash.to_vec()),

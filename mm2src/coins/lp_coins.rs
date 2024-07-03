@@ -1297,6 +1297,8 @@ pub struct SendTakerFundingArgs<'a> {
     pub trading_amount: BigDecimal,
     /// Unique data of specific swap
     pub swap_unique_data: &'a [u8],
+    /// As of now, this field is specifically used to wait for confirmations of ERC20 approval transaction.
+    pub wait_for_confirmation_until: u64,
 }
 
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::refund_taker_funding_secret]
