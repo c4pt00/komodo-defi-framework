@@ -1046,7 +1046,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(45));
+    thread::sleep(Duration::from_secs(39));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let setup = setup_test(
