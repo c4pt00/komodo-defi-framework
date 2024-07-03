@@ -401,7 +401,7 @@ impl TransactionInputSigner {
         stream.append(&self.inputs[input_index].sequence);
         stream.append(&hash_outputs);
         stream.append(&self.lock_time);
-        // FIXME: Serialize as u8 or u32? Also, 24-bit fork id?
+        // TODO: This is missing the fork id.
         stream.append(&(sighashtype as u32)); // this also includes 24-bit fork id. which is 0 for BitcoinCash
         let out = stream.out();
         dhash256(&out)
