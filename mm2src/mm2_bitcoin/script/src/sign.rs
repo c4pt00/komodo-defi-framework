@@ -371,7 +371,6 @@ impl TransactionInputSigner {
 
         let mut stream = Stream::default();
         stream.append(&tx);
-        // FIXME: Serialize as u8 or u32?
         stream.append(&(sighashtype as u32));
         let out = stream.out();
         match self.hash_algo {
@@ -552,7 +551,6 @@ impl TransactionInputSigner {
         sig_hash_stream.append(&self.lock_time);
         sig_hash_stream.append(&self.expiry_height);
         sig_hash_stream.append(&self.value_balance);
-        // FIXME: Serialize as u8 or u32?
         sig_hash_stream.append(&(sighashtype as u32));
 
         sig_hash_stream.append(&self.inputs[input_index].previous_output);
