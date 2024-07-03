@@ -164,10 +164,9 @@ impl UtxoRpcClientEnum {
         wait_until: u64,
         check_every: u64,
     ) -> Box<dyn Future<Item = (), Error = String> + Send> {
-        let selfi = self.clone();
-        let mut tx_not_found_retries = TX_NOT_FOUND_RETRIES;
-        let fut = async move {
-            loop {
+        macro_rules! sleep_then_check_timeout {
+            () => {
+                Timer::sleep(check_every as f64).await;
                 if now_sec() > wait_until {
                     return ERR!(
                         "Waited too long until {} for transaction {:?} to be confirmed {} times",
@@ -176,7 +175,13 @@ impl UtxoRpcClientEnum {
                         confirmations
                     );
                 }
+            };
+        }
 
+        let selfi = self.clone();
+        let mut tx_not_found_retries = TX_NOT_FOUND_RETRIES;
+        let fut = async move {
+            loop {
                 match selfi.get_verbose_transaction(&tx_hash).compat().await {
                     Ok(t) => {
                         let tx_confirmations = if requires_notarization {
@@ -208,7 +213,7 @@ impl UtxoRpcClientEnum {
                                 tx_hash, e, check_every, tx_not_found_retries
                             );
                             tx_not_found_retries -= 1;
-                            Timer::sleep(check_every as f64).await;
+                            sleep_then_check_timeout!();
                             continue;
                         };
 
@@ -217,7 +222,7 @@ impl UtxoRpcClientEnum {
                                 Ok(b) => b,
                                 Err(e) => {
                                     error!("Error {} getting block number, retrying in {} seconds", e, check_every);
-                                    Timer::sleep(check_every as f64).await;
+                                    sleep_then_check_timeout!();
                                     continue;
                                 },
                             };
@@ -233,7 +238,7 @@ impl UtxoRpcClientEnum {
                     },
                 }
 
-                Timer::sleep(check_every as f64).await;
+                sleep_then_check_timeout!();
             }
         };
         Box::new(fut.boxed().compat())

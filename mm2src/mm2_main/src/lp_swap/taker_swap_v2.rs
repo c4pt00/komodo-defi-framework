@@ -16,7 +16,7 @@ use coins::{CanRefundHtlc, ConfirmPaymentInput, DexFee, FeeApproxStage, GenTaker
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, Timer};
 use common::log::{debug, error, info, warn};
-use common::{Future01CompatExt, DEX_FEE_ADDR_RAW_PUBKEY};
+use common::{Future01CompatExt, DEX_FEE_ADDR_RAW_PUBKEY, now_sec};
 use crypto::privkey::SerializableSecp256k1Keypair;
 use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
@@ -1963,6 +1963,23 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     type StateMachine = TakerSwapStateMachine<MakerCoin, TakerCoin>;
 
     async fn on_changed(self: Box<Self>, state_machine: &mut Self::StateMachine) -> StateResult<Self::StateMachine> {
+        // This block is added due to a fix where we check for confirmation once before doing timeout checks in wait_for_confirmations
+        let timeout = state_machine.maker_payment_conf_timeout();
+        let now = now_sec();
+        if now > timeout {
+            let next_state = TakerFundingRefundRequired {
+                maker_coin_start_block: self.maker_coin_start_block,
+                taker_coin_start_block: self.taker_coin_start_block,
+                taker_funding: self.taker_funding,
+                negotiation_data: self.negotiation_data,
+                reason: TakerFundingRefundReason::MakerPaymentNotConfirmedInTime(format!(
+                    "Maker payment confirmation stage exceeded expected timeout due to restart: {}",
+                    timeout
+                )),
+            };
+            return Self::change_state(next_state, state_machine).await;
+        }
+
         let unique_data = state_machine.unique_data();
 
         let args = GenTakerFundingSpendArgs {
