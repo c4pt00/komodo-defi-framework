@@ -968,7 +968,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             &actual_taker_payment_fee / &expected_taker_payment_fee
         };
 
-        if ratio < "0.95".parse().expect("0.95 is a valid decimal") {
+        // TODO: Possible abuse vector is that the taker can always send the fee to be just above 90% of the
+        // expected fee knowing that the maker will always accept incurring the difference.
+        if ratio < "0.9".parse().expect("0.9 is a valid decimal") {
             let diff = &expected_taker_payment_fee - &actual_taker_payment_fee;
             let reason = AbortReason::TakerPaymentSpentFeeTooLow(diff);
             return Self::change_state(Aborted::new(reason), state_machine).await;

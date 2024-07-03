@@ -1072,8 +1072,6 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
             // If calculated fee is less than instructed fee, use instructed fee because it was never intended
             // to be deposited to us (maker). If the calculated fee is larger, we will incur the fee difference
             // just to make sure the transaction is confirmed quickly.
-            // FIXME: Possible abuse vector is that the taker can always send the fee to be just above 90% of the
-            // expected fee knowing that the maker will always accept incurring the difference.
             calculated_fee.max(taker_instructed_fee)
         },
         FundingSpendFeeSetting::UseExact(f) => f,
