@@ -19,8 +19,8 @@ use crate::{scan_for_new_addresses_impl, CanRefundHtlc, CoinBalance, CoinWithDer
             SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
             SendTakerFundingArgs, SignRawTransactionEnum, SignRawTransactionRequest, SignUtxoTransactionParams,
             SignatureError, SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs, SwapOps,
-            SwapTxTypeWithSecretHash, TradePreimageValue, TransactionData, TransactionFut, TransactionResult,
-            TxFeeDetails, TxGenError, TxMarshalingErr, TxPreimageWithSig, ValidateAddressResult,
+            SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, TradePreimageValue, TransactionData, TransactionFut,
+            TransactionResult, TxFeeDetails, TxGenError, TxMarshalingErr, TxPreimageWithSig, ValidateAddressResult,
             ValidateOtherPubKeyErr, ValidatePaymentFut, ValidatePaymentInput, ValidateSwapV2TxError,
             ValidateSwapV2TxResult, ValidateTakerFundingArgs, ValidateTakerFundingSpendPreimageError,
             ValidateTakerFundingSpendPreimageResult, ValidateTakerPaymentSpendPreimageError,
@@ -1184,7 +1184,7 @@ pub async fn p2sh_spending_tx<T: UtxoCommonOps>(coin: &T, input: P2SHSpendingTxI
 type GenPreimageResInner = MmResult<TransactionInputSigner, TxGenError>;
 
 async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
-    coin: &T,
+    coin: &(impl UtxoCommonOps + TakerCoinSwapOpsV2),
     args: &GenTakerPaymentPreimageArgs<'_, T>,
     n_time: NTimeSetting,
     fee: FundingSpendFeeSetting,
@@ -1210,8 +1210,12 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
     let fee = match fee {
         FundingSpendFeeSetting::GetFromCoin => {
             let calculated_fee = coin
-                .get_htlc_spend_fee(DEFAULT_SWAP_TX_SPEND_SIZE, &FeeApproxStage::WithoutApprox)
-                .await?;
+                .get_taker_payment_fee(&FeeApproxStage::WithoutApprox)
+                .await
+                .unwrap()
+                .amount
+                .to_decimal();
+            let calculated_fee = sat_from_big_decimal(&calculated_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
             let taker_instructed_fee =
                 sat_from_big_decimal(&args.taker_payment_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
             // Cap the paid fee to the taker instructed fee.
@@ -1247,7 +1251,7 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
 }
 
 pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
-    coin: &T,
+    coin: &(impl UtxoCommonOps + TakerCoinSwapOpsV2),
     args: &GenTakerPaymentPreimageArgs<'_, T>,
     htlc_keypair: &KeyPair,
 ) -> GenPreimageResult<T> {
@@ -1282,8 +1286,8 @@ pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
 
 /// Common implementation of taker funding spend preimage validation for UTXO coins.
 /// Checks maker's signature and compares received preimage with the expected tx.
-pub async fn validate_taker_payment_preimage<T: UtxoCommonOps + SwapOps>(
-    coin: &T,
+pub async fn validate_taker_payment_preimage<T: UtxoCommonOps>(
+    coin: &(impl UtxoCommonOps + TakerCoinSwapOpsV2),
     gen_args: &GenTakerPaymentPreimageArgs<'_, T>,
     preimage: &TxPreimageWithSig<T>,
 ) -> ValidateTakerFundingSpendPreimageResult {
