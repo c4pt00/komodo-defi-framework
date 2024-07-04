@@ -1069,10 +1069,9 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
                 .await?;
             let taker_instructed_fee =
                 sat_from_big_decimal(&args.taker_payment_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
-            // If calculated fee is less than instructed fee, use instructed fee because it was never intended
-            // to be deposited to us (maker). If the calculated fee is larger, we will incur the fee difference
-            // just to make sure the transaction is confirmed quickly.
-            calculated_fee.max(taker_instructed_fee)
+            // Cap the paid fee to the taker instructed fee.
+            // Since any fee above that will be paid from our (maker) trading volume.
+            calculated_fee.min(taker_instructed_fee)
         },
         FundingSpendFeeSetting::UseExact(f) => f,
     };
@@ -1166,9 +1165,11 @@ pub async fn validate_taker_payment_preimage<T: UtxoCommonOps + SwapOps>(
     let instructed_fee =
         sat_from_big_decimal(&gen_args.taker_payment_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
 
-    if actual_fee < instructed_fee {
+    if actual_fee > instructed_fee {
+        // Reject a high fee. Such fee will typically be paid from the maker's trading volume,
+        // but the maker might fail the swap later and this would make us incur this fee instead.
         return MmError::err(ValidateTakerFundingSpendPreimageError::UnexpectedPreimageFee(format!(
-            "A fee of {} was used, less than the agreed upon fee of {}",
+            "A fee of {} was used, more than the agreed upon fee of {}.",
             actual_fee, instructed_fee
         )));
     }
