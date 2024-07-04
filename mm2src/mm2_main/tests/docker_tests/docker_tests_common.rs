@@ -1,14 +1,30 @@
-pub use common::{block_on, now_ms, now_sec, wait_until_ms, wait_until_sec};
-pub use mm2_number::MmNumber;
-use mm2_rpc::data::legacy::BalanceResponse;
-pub use mm2_test_helpers::for_tests::{check_my_swap_status, check_recent_swaps, enable_eth_coin, enable_native,
-                                      enable_native_bch, erc20_dev_conf, eth_dev_conf, eth_sepolia_conf,
-                                      jst_sepolia_conf, mm_dump, wait_check_stats_swap_status, MarketMakerIt,
-                                      MAKER_ERROR_EVENTS, MAKER_SUCCESS_EVENTS, TAKER_ERROR_EVENTS,
-                                      TAKER_SUCCESS_EVENTS};
+pub use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::Mutex;
+pub use std::thread;
+use std::time::Duration;
 
-use super::eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key, geth_account,
-                              swap_contract};
+use ethabi::Token;
+use ethereum_types::{H160 as H160Eth, U256};
+use futures::TryFutureExt;
+use futures01::Future;
+use http::StatusCode;
+use mm2_test_helpers::for_tests::{check_my_swap_status, check_recent_swaps, enable_eth_coin, enable_native,
+                                  enable_native_bch, erc20_dev_conf, eth_dev_conf, mm_dump,
+                                  wait_check_stats_swap_status, MarketMakerIt};
+use mm2_test_helpers::get_passphrase;
+use mm2_test_helpers::structs::TransactionDetails;
+use secp256k1::Secp256k1;
+pub use secp256k1::{PublicKey, SecretKey};
+use serde_json::{self as json, Value as Json};
+use testcontainers::clients::Cli;
+use testcontainers::core::WaitFor;
+use testcontainers::{Container, GenericImage, RunnableImage};
+use web3::transports::Http;
+use web3::types::{BlockId, BlockNumber, TransactionRequest};
+use web3::Web3;
+
 use bitcrypto::{dhash160, ChecksumType};
 use chain::TransactionOutput;
 use coins::eth::addr_from_raw_pubkey;
@@ -23,36 +39,19 @@ use coins::utxo::utxo_standard::{utxo_standard_coin_with_priv_key, UtxoStandardC
 use coins::utxo::{coin_daemon_data_dir, sat_from_big_decimal, zcash_params_path, UtxoActivationParams,
                   UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps};
 use coins::{ConfirmPaymentInput, MarketCoinOps, Transaction};
+pub use common::{block_on, now_ms, now_sec, wait_until_ms, wait_until_sec};
 use crypto::privkey::key_pair_from_seed;
 use crypto::Secp256k1Secret;
-use ethabi::Token;
-use ethereum_types::{H160 as H160Eth, U256};
-use futures::TryFutureExt;
-use futures01::Future;
-use http::StatusCode;
 use keys::{Address, AddressBuilder, AddressHashEnum, AddressPrefix, KeyPair, NetworkAddressPrefixes,
            NetworkPrefix as CashAddrPrefix};
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
 use mm2_number::BigDecimal;
-use mm2_test_helpers::get_passphrase;
-use mm2_test_helpers::structs::TransactionDetails;
+use mm2_rpc::data::legacy::BalanceResponse;
 use primitives::hash::{H160, H256};
 use script::Builder;
-use secp256k1::Secp256k1;
-pub use secp256k1::{PublicKey, SecretKey};
-use serde_json::{self as json, Value as Json};
-pub use std::env;
-use std::path::PathBuf;
-use std::process::Command;
-use std::sync::Mutex;
-pub use std::thread;
-use std::time::Duration;
-use testcontainers::clients::Cli;
-use testcontainers::core::WaitFor;
-use testcontainers::{Container, GenericImage, RunnableImage};
-use web3::transports::Http;
-use web3::types::{BlockId, BlockNumber, TransactionRequest};
-use web3::Web3;
+
+use super::eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key, geth_account,
+                              swap_contract};
 
 lazy_static! {
     static ref MY_COIN_LOCK: Mutex<()> = Mutex::new(());
@@ -94,6 +93,10 @@ pub const UTXO_ASSET_DOCKER_IMAGE: &str = "docker.io/artempikulin/testblockchain
 pub const UTXO_ASSET_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/artempikulin/testblockchain:multiarch";
 pub const GETH_DOCKER_IMAGE: &str = "docker.io/ethereum/client-go";
 pub const GETH_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/ethereum/client-go:stable";
+
+pub const SOLANA_CLUSTER_DOCKER_IMAGE: &str = "docker.io/0xmmbd/solana-node-test";
+
+pub const QTUM_REGTEST_DOCKER_IMAGE: &str = "docker.io/sergeyboyko/qtumregtest";
 
 pub const QTUM_ADDRESS_LABEL: &str = "MM2_ADDRESS_LABEL";
 
@@ -339,6 +342,19 @@ pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) ->
     let image = GenericImage::new(GETH_DOCKER_IMAGE, "stable");
     let args = vec!["--dev".into(), "--http".into(), "--http.addr=0.0.0.0".into()];
     let image = RunnableImage::from((image, args)).with_mapped_port((port, port));
+    let container = docker.run(image);
+    DockerNode {
+        container,
+        ticker: ticker.into(),
+        port,
+    }
+}
+
+pub fn sol_asset_docker_node<'a>(docker: &'a Cli, ticker: &'static str) -> DockerNode<'a> {
+    let port = 8899;
+
+    let image = GenericImage::new(SOLANA_CLUSTER_DOCKER_IMAGE, "latest");
+    let image = RunnableImage::from((image, vec![])).with_mapped_port((port, port));
     let container = docker.run(image);
     DockerNode {
         container,
