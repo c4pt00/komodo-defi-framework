@@ -664,12 +664,16 @@ pub(crate) async fn build_address_and_priv_key_policy(
                 .mm_err(|e| EthActivationV2Error::InternalError(e.to_string()))?;
             let activated_key = KeyPair::from_secret_slice(raw_priv_key.as_slice())
                 .map_to_mm(|e| EthActivationV2Error::InternalError(e.to_string()))?;
+            let hd_wallet_rmd160 = global_hd_ctx.derive_rmd160();
             #[cfg(not(target_arch = "wasm32"))]
-            run_db_migration_for_new_eth_pubkey(ctx, &activated_key).await?;
+            {
+                let db_id = dhash160(activated_key.public().as_bytes());
+                run_db_migration_for_new_eth_pubkey(ctx, Some(db_id.to_string()), Some(hd_wallet_rmd160.to_string()))
+                    .await?;
+            }
 
             let bip39_secp_priv_key = global_hd_ctx.root_priv_key().clone();
 
-            let hd_wallet_rmd160 = dhash160(activated_key.public().as_bytes());
             let hd_wallet_storage = HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160)
                 .await
                 .mm_err(EthActivationV2Error::from)?;
@@ -926,11 +930,13 @@ fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Erro
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migration_for_new_eth_pubkey(ctx: &MmArc, keypair: &KeyPair) -> MmResult<(), EthActivationV2Error> {
-    let db_id = hex::encode(dhash160(keypair.public().as_bytes()));
-    let shared_db_id = shared_db_id_from_seed(&db_id)
-        .mm_err(|err| EthActivationV2Error::InternalError(err.to_string()))?
-        .to_string();
+async fn run_db_migration_for_new_eth_pubkey(
+    ctx: &MmArc,
+    db_id: Option<String>,
+    shared_db_id: Option<String>,
+) -> MmResult<(), EthActivationV2Error> {
+    info!("Public key hash: {db_id:?}");
+    info!("Shared Database ID: {shared_db_id:?}");
 
     let db_migration_sender = ctx
         .db_migration_watcher
@@ -939,15 +945,9 @@ async fn run_db_migration_for_new_eth_pubkey(ctx: &MmArc, keypair: &KeyPair) -> 
         .get_sender();
     let mut db_migration_sender = db_migration_sender.lock().await;
     db_migration_sender
-        .send(DbIds {
-            db_id: db_id.clone(),
-            shared_db_id: shared_db_id.clone(),
-        })
+        .send(DbIds { db_id, shared_db_id })
         .await
         .map_to_mm(|err| EthActivationV2Error::InternalError(err.to_string()))?;
-
-    debug!("Public key hash: {db_id}");
-    debug!("Shared Database ID: {shared_db_id}");
 
     Ok(())
 }

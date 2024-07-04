@@ -57,7 +57,7 @@ pub struct GetSharedDbIdResponse {
 }
 
 pub async fn get_shared_db_id(ctx: MmArc, _req: Json) -> GetSharedDbIdResult<GetSharedDbIdResponse> {
-    let shared_db_id = ctx.shared_db_id().to_owned().into();
+    let shared_db_id = ctx.default_shared_db_id().to_owned().into();
     Ok(GetSharedDbIdResponse { shared_db_id })
 }
 

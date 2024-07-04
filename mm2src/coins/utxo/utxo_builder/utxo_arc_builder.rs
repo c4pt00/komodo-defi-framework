@@ -11,14 +11,8 @@ use async_trait::async_trait;
 use chain::{BlockHeader, TransactionOutput};
 use common::executor::{AbortSettings, SpawnAbortable, Timer};
 use common::log::{debug, error, info, warn};
-#[cfg(not(target_arch = "wasm32"))]
-use crypto::shared_db_id::shared_db_id_from_seed;
 use futures::compat::Future01CompatExt;
-#[cfg(not(target_arch = "wasm32"))] use futures::SinkExt;
-#[cfg(not(target_arch = "wasm32"))] use keys::hash::H160;
 use mm2_core::mm_ctx::MmArc;
-#[cfg(not(target_arch = "wasm32"))]
-use mm2_core::sql_connection_pool::DbIds;
 use mm2_err_handle::prelude::*;
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
 #[cfg(test)] use mocktopus::macros::*;
@@ -137,11 +131,6 @@ where
             {
                 return MmError::err(UtxoCoinBuildError::FailedSpawningBalanceEvents(err));
             }
-        }
-
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(hd) = utxo_arc.derivation_method.hd_wallet() {
-            run_db_migraiton_for_new_utxo_pubkey(self.ctx, hd.inner.hd_wallet_rmd160).await?
         }
 
         Ok(result_coin)
@@ -707,31 +696,4 @@ fn spawn_block_header_utxo_loop(
         .abortable_system
         .weak_spawner()
         .spawn_with_settings(fut, settings);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migraiton_for_new_utxo_pubkey(ctx: &MmArc, pubkey: H160) -> MmResult<(), UtxoCoinBuildError> {
-    let db_id = hex::encode(pubkey.as_slice());
-    let shared_db_id = shared_db_id_from_seed(&db_id)
-        .mm_err(|err| UtxoCoinBuildError::Internal(err.to_string()))?
-        .to_string();
-
-    let db_migration_sender = ctx
-        .db_migration_watcher
-        .as_option()
-        .expect("Db migration watcher isn't intialized yet!")
-        .get_sender();
-    let mut db_migration_sender = db_migration_sender.lock().await;
-    db_migration_sender
-        .send(DbIds {
-            db_id: db_id.clone(),
-            shared_db_id: shared_db_id.clone(),
-        })
-        .await
-        .map_to_mm(|err| UtxoCoinBuildError::Internal(err.to_string()))?;
-
-    debug!("Public key hash: {db_id}");
-    debug!("Shared Database ID: {shared_db_id}");
-
-    Ok(())
 }

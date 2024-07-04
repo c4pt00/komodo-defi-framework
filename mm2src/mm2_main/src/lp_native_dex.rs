@@ -464,21 +464,26 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
     let mut guard = receiver.lock().await;
 
     while let Some(ids) = guard.next().await {
-        if migrations.contains(&ids.db_id) {
-            debug!("{} migrated, skipping migration..", ids.db_id);
-            continue;
+        if let Some(db_id) = &ids.db_id {
+            if migrations.contains(db_id) {
+                debug!("{} migrated, skipping migration..", db_id);
+                continue;
+            }
         }
 
         // run db migration for db_id if new activated pubkey is unique.
-        if let Err(err) = run_db_migration_impl(&ctx, Some(&ids.db_id), Some(&ids.shared_db_id)).await {
+        if let Err(err) = run_db_migration_impl(&ctx, ids.db_id.as_deref(), ids.shared_db_id.as_deref()).await {
             error!("{err:?}");
             continue;
         };
 
-        // insert new db_id to migration list
-        migrations.insert(ids.db_id.clone());
+        if let Some(db_id) = &ids.db_id {
+            // insert new db_id to migration list
+            migrations.insert(db_id.to_owned());
+        };
+
         // Fetch and extend ctx.coins_needed_for_kick_start from new intialized db.
-        if let Err(err) = kick_start(ctx.clone(), Some(&ids.db_id)).await {
+        if let Err(err) = kick_start(ctx.clone(), ids.db_id.as_deref()).await {
             error!("{err:?}");
             continue;
         };
@@ -576,7 +581,6 @@ pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitRes
 }
 
 async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
-    println!("kick_start: {db_id:?}");
     let mut coins_needed_for_kick_start = swap_kick_starts(ctx.clone(), db_id)
         .await
         .map_to_mm(MmInitError::SwapsKickStartError)?;

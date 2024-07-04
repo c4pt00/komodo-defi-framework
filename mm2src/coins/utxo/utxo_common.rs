@@ -5147,10 +5147,13 @@ where
 {
     if let Some(hd_wallet) = coin.derivation_method().hd_wallet() {
         // we can use hd_wallet_rmd160 as our shared_db_id since it's unique to a device
-        return hd_wallet
+        let db_id = hd_wallet
             .get_enabled_address()
             .await
             .map(|addr| hex::encode(addr.pubkey().address_hash().as_slice()));
+        println!("enable_address: {:?}", db_id);
+
+        return db_id;
     }
 
     None

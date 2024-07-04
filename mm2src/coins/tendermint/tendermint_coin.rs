@@ -109,6 +109,7 @@ const ACCOUNT_SEQUENCE_ERR: &str = "incorrect account sequence";
 
 type TendermintPrivKeyPolicy = PrivKeyPolicy<TendermintKeyPair>;
 
+#[derive(Clone)]
 pub struct TendermintKeyPair {
     private_key_secret: Secp256k1Secret,
     public_key: Public,
@@ -2953,7 +2954,7 @@ impl WatcherOps for TendermintCoin {
 pub fn tendermint_priv_key_policy(
     conf: &TendermintConf,
     ticker: &str,
-    priv_key_build_policy: PrivKeyBuildPolicy,
+    priv_key_build_policy: &PrivKeyBuildPolicy,
     path_to_address: HDPathAccountToAddressId,
 ) -> MmResult<TendermintPrivKeyPolicy, TendermintInitError> {
     match priv_key_build_policy {
@@ -2963,7 +2964,7 @@ pub fn tendermint_priv_key_policy(
                 kind: TendermintInitErrorKind::Internal(e.to_string()),
             })?;
 
-            let tendermint_pair = TendermintKeyPair::new(iguana, *mm2_internal_key_pair.public());
+            let tendermint_pair = TendermintKeyPair::new(*iguana, *mm2_internal_key_pair.public());
 
             Ok(TendermintPrivKeyPolicy::Iguana(tendermint_pair))
         },

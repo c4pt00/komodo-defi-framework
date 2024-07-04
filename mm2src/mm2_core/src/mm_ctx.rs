@@ -201,7 +201,11 @@ impl MmCtx {
         self.rmd160.or(&|| &*DEFAULT)
     }
 
-    pub fn shared_db_id(&self) -> &H160 {
+    pub fn default_db_id(&self) -> String { self.rmd160().to_string() }
+
+    pub fn db_id_or_default(&self, db_id: Option<&str>) -> String { db_id.unwrap_or(&self.default_db_id()).to_owned() }
+
+    pub fn default_shared_db_id(&self) -> &H160 {
         lazy_static! {
             static ref DEFAULT: H160 = [0; 20].into();
         }
@@ -303,8 +307,7 @@ impl MmCtx {
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn dbdir(&self, db_id: Option<&str>) -> PathBuf {
-        let db_id = db_id.map(|t| t.to_owned()).unwrap_or_else(|| self.rmd160.to_string());
-        path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
+        path_to_dbdir(self.conf["dbdir"].as_str(), &self.db_id_or_default(db_id))
     }
 
     /// MM shared database path.
@@ -319,7 +322,7 @@ impl MmCtx {
     pub fn shared_dbdir(&self, db_id: Option<&str>) -> PathBuf {
         let db_id = db_id
             .map(|d| d.to_owned())
-            .unwrap_or_else(|| hex::encode(self.shared_db_id().as_slice()));
+            .unwrap_or_else(|| hex::encode(self.default_shared_db_id().as_slice()));
         path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
     }
 

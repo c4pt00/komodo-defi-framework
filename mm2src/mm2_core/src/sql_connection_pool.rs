@@ -25,7 +25,7 @@ enum DbIdConnKind {
 pub struct SqliteConnPool {
     connections: Arc<RwLock<HashMap<String, Arc<Mutex<Connection>>>>>,
     // default db_id
-    rmd160_hex: String,
+    default_db_id: String,
     // default shared_db_id
     shared_db_id: String,
     db_root: Option<String>,
@@ -65,8 +65,8 @@ impl SqliteConnPool {
         let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
-            rmd160_hex: ctx.rmd160.to_string(),
-            shared_db_id: ctx.shared_db_id().to_string(),
+            default_db_id: ctx.rmd160.to_string(),
+            shared_db_id: ctx.default_shared_db_id().to_string(),
             db_root: db_root.map(|d| d.to_owned())
         }));
 
@@ -95,8 +95,8 @@ impl SqliteConnPool {
         let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
-            rmd160_hex: ctx.rmd160.to_string(),
-            shared_db_id: ctx.shared_db_id().to_string(),
+            default_db_id: ctx.rmd160.to_string(),
+            shared_db_id: ctx.default_shared_db_id().to_string(),
             db_root: db_root.map(|d| d.to_owned())
         }));
 
@@ -139,15 +139,6 @@ impl SqliteConnPool {
         f(self.sqlite_conn_impl(db_id, DbIdConnKind::Single).lock().unwrap())
     }
 
-    /// Run a sql query for shared_db.
-    pub fn run_sql_query_shared<F, R>(&self, db_id: Option<&str>, f: F) -> R
-    where
-        F: FnOnce(MutexGuard<Connection>) -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        f(self.sqlite_conn_impl(db_id, DbIdConnKind::Shared).lock().unwrap())
-    }
-
     pub fn add_test_db(&self, db_id: String) {
         let mut connections = self.connections.write().unwrap();
         connections.insert(db_id, Arc::new(Mutex::new(Connection::open_in_memory().unwrap())));
@@ -169,14 +160,14 @@ impl SqliteConnPool {
                 .unwrap_or_else(|| self.shared_db_id.to_owned()),
             DbIdConnKind::Single => db_id
                 .map(|e| e.to_owned())
-                .unwrap_or_else(|| self.rmd160_hex.to_owned()),
+                .unwrap_or_else(|| self.default_db_id.to_owned()),
         }
     }
     fn db_id_from_ctx(ctx: &MmCtx, db_id: Option<&str>, kind: &DbIdConnKind) -> String {
         match kind {
             DbIdConnKind::Shared => db_id
                 .map(|e| e.to_owned())
-                .unwrap_or_else(|| ctx.shared_db_id().to_string()),
+                .unwrap_or_else(|| ctx.default_shared_db_id().to_string()),
             DbIdConnKind::Single => db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string()),
         }
     }
@@ -193,7 +184,7 @@ impl SqliteConnPool {
 pub struct AsyncSqliteConnPool {
     connections: Arc<AsyncRwLock<HashMap<String, Arc<AsyncMutex<AsyncConnection>>>>>,
     sqlite_file_path: PathBuf,
-    rmd160_hex: String,
+    default_db_id: String,
 }
 
 impl AsyncSqliteConnPool {
@@ -215,7 +206,7 @@ impl AsyncSqliteConnPool {
         try_s!(ctx.async_sqlite_conn_pool.pin(Self {
             connections,
             sqlite_file_path,
-            rmd160_hex: ctx.rmd160.to_string(),
+            default_db_id: ctx.rmd160.to_string(),
         }));
 
         Ok(())
@@ -241,14 +232,14 @@ impl AsyncSqliteConnPool {
         try_s!(ctx.async_sqlite_conn_pool.pin(Self {
             connections,
             sqlite_file_path: PathBuf::new(),
-            rmd160_hex: ctx.rmd160.to_string(),
+            default_db_id: ctx.rmd160.to_string(),
         }));
         Ok(())
     }
 
     /// Retrieve or create a connection.
     pub async fn async_sqlite_conn(&self, db_id: Option<&str>) -> Arc<AsyncMutex<AsyncConnection>> {
-        let db_id = db_id.unwrap_or(&self.rmd160_hex);
+        let db_id = db_id.unwrap_or(&self.default_db_id);
 
         let connections = self.connections.read().await;
         if let Some(connection) = connections.get(db_id) {
@@ -283,8 +274,8 @@ impl AsyncSqliteConnPool {
 }
 
 pub struct DbIds {
-    pub db_id: String,
-    pub shared_db_id: String,
+    pub db_id: Option<String>,
+    pub shared_db_id: Option<String>,
 }
 
 pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<DbIds>>>;
