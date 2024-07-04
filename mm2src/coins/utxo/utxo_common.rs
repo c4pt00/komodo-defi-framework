@@ -881,59 +881,204 @@ enum FundingSpendFeeSetting {
     UseExact(u64),
 }
 
-/// Returns the taker payment transaction size in vbytes.
-pub async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
-    let preimage = TransactionInputSigner {
-        lock_time: 0,
-        version: coin.as_ref().conf.tx_version,
-        n_time: None,
-        overwintered: coin.as_ref().conf.overwintered,
-        inputs: vec![UnsignedTransactionInput {
-            sequence: SEQUENCE_FINAL,
-            previous_output: OutPoint {
-                hash: H256::default(),
-                index: DEFAULT_SWAP_VOUT as u32,
-            },
-            prev_script: Vec::new().into(),
-            amount: 0,
-        }],
-        outputs: vec![TransactionOutput {
-            value: 0,
-            script_pubkey: Builder::build_p2sh(&AddressHashEnum::default_address_hash()).to_bytes(),
-        }],
-        expiry_height: 0,
-        join_splits: vec![],
-        shielded_spends: vec![],
-        shielded_outputs: vec![],
-        value_balance: 0,
-        version_group_id: coin.as_ref().conf.version_group_id,
-        consensus_branch_id: coin.as_ref().conf.consensus_branch_id,
-        zcash: coin.as_ref().conf.zcash,
-        posv: coin.as_ref().conf.is_posv,
-        str_d_zeel: None,
-        hash_algo: coin.as_ref().tx_hash_algo.into(),
-    };
+pub mod tx_sizes {
+    use super::*;
 
-    let redeem_script = swap_proto_v2_scripts::taker_funding_script(
-        0,
-        H160::default().as_slice(),
-        &Public::default(),
-        &Public::default(),
-    );
+    /// Returns the taker funding transaction size in vbytes.
+    pub async fn get_funding_tx_size(_coin: &impl UtxoCommonOps) -> usize {
+        // This depends on what coins being spent so might be a bit clumsy.
+        // Since this is the first tx anyway, we won't need a utxo locking mechanism
+        // to prevent certain utxos from being spent in other swaps happening in parallel.
+        // We just need to make sure that we deliver the correct trading volume and not less.
 
-    let mut final_tx: UtxoTx = preimage.into();
-    final_tx.inputs[0].script_sig = Builder::default()
-        // Maximum of 72 byte maker signature + a sighash byte.
-        .push_data(&[0; 72 + 1])
-        // Maximum of 72 byte taker signature + a sighash byte.
-        .push_data(&[0; 72 + 1])
-        .push_opcode(Opcode::OP_1)
-        .push_opcode(Opcode::OP_0)
-        .push_data(&redeem_script)
-        .into_bytes();
+        // Inspect `get_sender_trade_fee`, but I don't think it nails it correctly.
+        todo!()
+    }
 
-    // We aren't spending from the segwit address, we are spending from a P2SH address.
-    tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &final_tx)
+    /// Returns the maker payment transaction size in vbytes.
+    pub async fn get_maker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
+        // Maker payment is similar to funding tx in that it spends coins directly from the user's
+        // wallet and sends them to P2SH address.
+        get_funding_tx_size(coin).await
+    }
+
+    /// Returns the taker payment transaction size in vbytes.
+    pub async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
+        let preimage = TransactionInputSigner {
+            lock_time: 0,
+            version: coin.as_ref().conf.tx_version,
+            n_time: None,
+            overwintered: coin.as_ref().conf.overwintered,
+            inputs: vec![UnsignedTransactionInput {
+                sequence: SEQUENCE_FINAL,
+                previous_output: OutPoint {
+                    hash: H256::default(),
+                    index: DEFAULT_SWAP_VOUT as u32,
+                },
+                prev_script: Vec::new().into(),
+                amount: 0,
+            }],
+            outputs: vec![
+                // This output is used in taker payment spent tx.
+                TransactionOutput {
+                    value: 0,
+                    script_pubkey: Builder::build_p2sh(&AddressHashEnum::default_address_hash()).to_bytes(),
+                },
+            ],
+            expiry_height: 0,
+            join_splits: vec![],
+            shielded_spends: vec![],
+            shielded_outputs: vec![],
+            value_balance: 0,
+            version_group_id: coin.as_ref().conf.version_group_id,
+            consensus_branch_id: coin.as_ref().conf.consensus_branch_id,
+            zcash: coin.as_ref().conf.zcash,
+            posv: coin.as_ref().conf.is_posv,
+            str_d_zeel: None,
+            hash_algo: coin.as_ref().tx_hash_algo.into(),
+        };
+
+        let redeem_script = swap_proto_v2_scripts::taker_funding_script(
+            0,
+            H160::default().as_slice(),
+            &Public::default(),
+            &Public::default(),
+        );
+
+        let mut final_tx: UtxoTx = preimage.into();
+        final_tx.inputs[0].script_sig = Builder::default()
+            // Maximum of 72 byte maker signature + a sighash byte.
+            .push_data(&[0; 72 + 1])
+            // Maximum of 72 byte taker signature + a sighash byte.
+            .push_data(&[0; 72 + 1])
+            .push_opcode(Opcode::OP_1)
+            .push_opcode(Opcode::OP_0)
+            .push_data(&redeem_script)
+            .into_bytes();
+
+        // We aren't spending from the segwit address, we are spending from a P2SH address.
+        tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &final_tx)
+    }
+
+    /// Returns the taker payment spend transaction size in vbytes.
+    pub async fn get_taker_payment_spend_tx_size(coin: &impl UtxoCommonOps) -> usize {
+        let preimage = TransactionInputSigner {
+            lock_time: 0,
+            version: coin.as_ref().conf.tx_version,
+            n_time: None,
+            overwintered: coin.as_ref().conf.overwintered,
+            inputs: vec![UnsignedTransactionInput {
+                sequence: SEQUENCE_FINAL,
+                previous_output: OutPoint {
+                    hash: H256::default(),
+                    index: DEFAULT_SWAP_VOUT as u32,
+                },
+                prev_script: Vec::new().into(),
+                amount: 0,
+            }],
+            outputs: vec![
+                // An output for the dex.
+                TransactionOutput {
+                    value: 0,
+                    script_pubkey: Builder::build_p2sh(&AddressHashEnum::default_address_hash()).to_bytes(),
+                };
+                // And another for the maker.
+                2
+            ],
+            expiry_height: 0,
+            join_splits: vec![],
+            shielded_spends: vec![],
+            shielded_outputs: vec![],
+            value_balance: 0,
+            version_group_id: coin.as_ref().conf.version_group_id,
+            consensus_branch_id: coin.as_ref().conf.consensus_branch_id,
+            zcash: coin.as_ref().conf.zcash,
+            posv: coin.as_ref().conf.is_posv,
+            str_d_zeel: None,
+            hash_algo: coin.as_ref().tx_hash_algo.into(),
+        };
+
+        let redeem_script = swap_proto_v2_scripts::taker_payment_script(
+            0,
+            H160::default().as_slice(),
+            &Public::default(),
+            &Public::default(),
+        );
+
+        let mut final_tx: UtxoTx = preimage.into();
+        final_tx.inputs[0].script_sig = Builder::default()
+            // Maximum of 72 byte maker signature + a sighash byte.
+            .push_data(&[0; 72 + 1])
+            // Maximum of 72 byte taker signature + a sighash byte.
+            .push_data(&[0; 72 + 1])
+            // Maker's secret hash.
+            .push_data(&[0; 32])
+            .push_opcode(Opcode::OP_0)
+            .push_data(&redeem_script)
+            .into_bytes();
+
+        // We aren't spending from the segwit address, we are spending from a P2SH address.
+        tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &final_tx)
+    }
+
+    /// Returns the maker payment spend transaction size in vbytes.
+    pub async fn get_maker_payment_spend_tx_size(coin: &impl UtxoCommonOps) -> usize {
+        let preimage = TransactionInputSigner {
+            lock_time: 0,
+            version: coin.as_ref().conf.tx_version,
+            n_time: None,
+            overwintered: coin.as_ref().conf.overwintered,
+            inputs: vec![UnsignedTransactionInput {
+                sequence: SEQUENCE_FINAL,
+                previous_output: OutPoint {
+                    hash: H256::default(),
+                    index: DEFAULT_SWAP_VOUT as u32,
+                },
+                prev_script: Vec::new().into(),
+                amount: 0,
+            }],
+            outputs: vec![
+                // An output for the taker
+                TransactionOutput {
+                    value: 0,
+                    script_pubkey: Builder::build_p2sh(&AddressHashEnum::default_address_hash()).to_bytes(),
+                },
+            ],
+            expiry_height: 0,
+            join_splits: vec![],
+            shielded_spends: vec![],
+            shielded_outputs: vec![],
+            value_balance: 0,
+            version_group_id: coin.as_ref().conf.version_group_id,
+            consensus_branch_id: coin.as_ref().conf.consensus_branch_id,
+            zcash: coin.as_ref().conf.zcash,
+            posv: coin.as_ref().conf.is_posv,
+            str_d_zeel: None,
+            hash_algo: coin.as_ref().tx_hash_algo.into(),
+        };
+
+        let redeem_script = swap_proto_v2_scripts::maker_payment_script(
+            0,
+            H160::default().as_slice(),
+            H160::default().as_slice(),
+            &Public::default(),
+            &Public::default(),
+        );
+
+        let mut final_tx: UtxoTx = preimage.into();
+        final_tx.inputs[0].script_sig = Builder::default()
+            // Maximum of 72 byte taker signature + a sighash byte.
+            .push_data(&[0; 72 + 1])
+            // Maker's secret hash.
+            .push_data(&[0; 32])
+            .push_opcode(Opcode::OP_1)
+            .push_opcode(Opcode::OP_0)
+            .push_data(&redeem_script)
+            .into_bytes();
+
+        // We aren't spending from the segwit address, we are spending from a P2SH address.
+        tx_size_in_v_bytes(&UtxoAddressFormat::Standard, &final_tx)
+    }
 }
 
 async fn p2sh_spending_tx_preimage<T: UtxoCommonOps>(

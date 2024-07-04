@@ -969,7 +969,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        let maker_payment_spend_fee = match state_machine.maker_coin.get_receiver_trade_fee(stage).compat().await {
+        let maker_payment_spend_fee = match state_machine.maker_coin.get_maker_payment_spend_fee(&stage).await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetMakerPaymentSpendFee(e.to_string());
@@ -980,7 +980,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         let prepared_params = TakerSwapPreparedParams {
             // We set the dex fee to zero since it is already included in the total trading volume
             dex_fee: 0.into(),
-            // There is no fee to send the DEX fee that we need to account for now, this will happen in the taker payment spend tx.
+            // There is no fee to send the DEX fee since the DEX fee is no longer sent in its own tx.
             fee_to_send_dex_fee: TradeFee {
                 coin: state_machine.taker_coin.ticker().into(),
                 amount: 0.into(),
@@ -989,7 +989,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             // The fee to send the funding transaction.
             funding_fee: funding_fee.clone(),
             // The fee to claim the maker payment (maker payment spend tx fee) on the other chain.
-            maker_payment_spend_fee: maker_payment_spend_fee.clone(),
+            maker_payment_spend_fee,
         };
 
         if let Err(e) = check_balance_for_taker_swap(
