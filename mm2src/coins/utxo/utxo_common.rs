@@ -1183,12 +1183,16 @@ pub async fn p2sh_spending_tx<T: UtxoCommonOps>(coin: &T, input: P2SHSpendingTxI
 
 type GenPreimageResInner = MmResult<TransactionInputSigner, TxGenError>;
 
-async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
-    coin: &(impl UtxoCommonOps + TakerCoinSwapOpsV2),
+async fn gen_taker_funding_spend_preimage<T, Coin>(
+    coin: &Coin,
     args: &GenTakerPaymentPreimageArgs<'_, T>,
     n_time: NTimeSetting,
     fee: FundingSpendFeeSetting,
-) -> GenPreimageResInner {
+) -> GenPreimageResInner
+where
+    T: UtxoCommonOps,
+    Coin: UtxoCommonOps + TakerCoinSwapOpsV2,
+{
     let payment_time_lock = args
         .taker_payment_time_lock
         .try_into()
@@ -1250,11 +1254,15 @@ async fn gen_taker_funding_spend_preimage<T: UtxoCommonOps>(
     .map_to_mm(TxGenError::Legacy)
 }
 
-pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
-    coin: &(impl UtxoCommonOps + TakerCoinSwapOpsV2),
+pub async fn gen_and_sign_taker_payment_preimage<T, Coin>(
+    coin: &Coin,
     args: &GenTakerPaymentPreimageArgs<'_, T>,
     htlc_keypair: &KeyPair,
-) -> GenPreimageResult<T> {
+) -> GenPreimageResult<T>
+where
+    T: UtxoCommonOps,
+    Coin: UtxoCommonOps + TakerCoinSwapOpsV2,
+{
     let funding_time_lock = args
         .funding_time_lock
         .try_into()
@@ -1286,11 +1294,15 @@ pub async fn gen_and_sign_taker_payment_preimage<T: UtxoCommonOps>(
 
 /// Common implementation of taker funding spend preimage validation for UTXO coins.
 /// Checks maker's signature and compares received preimage with the expected tx.
-pub async fn validate_taker_payment_preimage<T: UtxoCommonOps>(
-    coin: &(impl UtxoCommonOps + TakerCoinSwapOpsV2),
+pub async fn validate_taker_payment_preimage<T, Coin>(
+    coin: &Coin,
     gen_args: &GenTakerPaymentPreimageArgs<'_, T>,
     preimage: &TxPreimageWithSig<T>,
-) -> ValidateTakerFundingSpendPreimageResult {
+) -> ValidateTakerFundingSpendPreimageResult
+where
+    T: UtxoCommonOps,
+    Coin: UtxoCommonOps + TakerCoinSwapOpsV2,
+{
     let funding_amount = gen_args
         .funding_tx
         .first_output()
