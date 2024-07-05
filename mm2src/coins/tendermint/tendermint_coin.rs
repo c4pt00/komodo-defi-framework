@@ -2424,12 +2424,13 @@ impl MmCoin for TendermintCoin {
         None
     }
 
-    async fn tx_history_db_id(&self) -> Option<String> {
-        self.activation_policy
-            .public_key()
-            .ok()
-            .map(|k| hex::encode(dhash160(&k.to_bytes())))
-            .or(self.account_db_id().await) // Fallback to the account db_id for non-HD wallets
+    async fn shared_db_id(&self, ctx: &MmArc) -> Option<String> {
+        if let TendermintActivationPolicy::PrivateKey(PrivKeyPolicy::HDWallet { .. }) = self.activation_policy {
+            return Some(ctx.default_shared_db_id().to_string());
+        };
+
+        // Fallback to the account db_id for non-HD wallets
+        self.account_db_id().await
     }
 }
 

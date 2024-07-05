@@ -463,27 +463,23 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
         .expect("db_m igration_watcher initialization failed");
     let mut guard = receiver.lock().await;
 
-    while let Some(ids) = guard.next().await {
-        if let Some(db_id) = &ids.db_id {
-            if migrations.contains(db_id) {
-                debug!("{} migrated, skipping migration..", db_id);
-                continue;
-            }
+    while let Some(db_id) = guard.next().await {
+        if migrations.contains(&db_id) {
+            debug!("{} migrated, skipping migration..", db_id);
+            continue;
         }
 
         // run db migration for db_id if new activated pubkey is unique.
-        if let Err(err) = run_db_migration_impl(&ctx, ids.db_id.as_deref(), ids.shared_db_id.as_deref()).await {
+        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id), None).await {
             error!("{err:?}");
             continue;
         };
 
-        if let Some(db_id) = &ids.db_id {
-            // insert new db_id to migration list
-            migrations.insert(db_id.to_owned());
-        };
+        // insert new db_id to migration list
+        migrations.insert(db_id.to_owned());
 
         // Fetch and extend ctx.coins_needed_for_kick_start from new intialized db.
-        if let Err(err) = kick_start(ctx.clone(), ids.db_id.as_deref()).await {
+        if let Err(err) = kick_start(ctx.clone(), Some(&db_id)).await {
             error!("{err:?}");
             continue;
         };

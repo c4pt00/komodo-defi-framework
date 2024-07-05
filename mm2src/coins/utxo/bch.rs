@@ -1361,7 +1361,7 @@ impl MmCoin for BchCoin {
 
     async fn account_db_id(&self) -> Option<String> { utxo_common::account_db_id(self).await }
 
-    async fn tx_history_db_id(&self) -> Option<String> { utxo_common::tx_history_db_id(self).await }
+    async fn shared_db_id(&self, _ctx: &MmArc) -> Option<String> { utxo_common::shared_db_id(self).await }
 }
 
 #[async_trait]

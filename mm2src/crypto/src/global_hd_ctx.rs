@@ -1,11 +1,9 @@
 use crate::privkey::{bip39_seed_from_passphrase, key_pair_from_secret, PrivKeyError};
 use crate::{mm2_internal_der_path, Bip32Error, CryptoInitError, CryptoInitResult};
 use bip32::{DerivationPath, ExtendedPrivateKey};
-use bitcrypto::dhash160;
 use common::drop_mutability;
 use keys::{KeyPair, Secret as Secp256k1Secret};
 use mm2_err_handle::prelude::*;
-use primitives::hash::{H160, H256};
 use std::ops::Deref;
 use std::sync::Arc;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -76,9 +74,6 @@ impl GlobalHDAccountCtx {
     pub fn derive_secp256k1_secret(&self, derivation_path: &DerivationPath) -> MmResult<Secp256k1Secret, Bip32Error> {
         derive_secp256k1_secret(self.bip39_secp_priv_key.clone(), derivation_path)
     }
-
-    /// Derives a unique identifier (RMD160 hash of the root public key) for the device.
-    pub fn derive_rmd160(&self) -> H160 { dhash160(H256::from(self.root_seed_bytes()).as_slice()) }
 }
 
 pub fn derive_secp256k1_secret(

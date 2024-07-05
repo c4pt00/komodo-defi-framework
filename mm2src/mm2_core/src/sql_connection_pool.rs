@@ -273,13 +273,8 @@ impl AsyncSqliteConnPool {
     }
 }
 
-pub struct DbIds {
-    pub db_id: Option<String>,
-    pub shared_db_id: Option<String>,
-}
-
-pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<DbIds>>>;
-pub type DbMigrationSender = Arc<AsyncMutex<Sender<DbIds>>>;
+pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<String>>>;
+pub type DbMigrationSender = Arc<AsyncMutex<Sender<String>>>;
 
 pub struct DbMigrationWatcher {
     sender: DbMigrationSender,

@@ -85,7 +85,7 @@ pub struct HDAccountStorageItem {
 #[async_trait]
 #[cfg_attr(test, mockable)]
 pub(crate) trait HDWalletStorageInternalOps {
-    async fn init(ctx: &MmArc, db_id: Option<&str>) -> HDWalletStorageResult<Self>
+    async fn init(ctx: &MmArc) -> HDWalletStorageResult<Self>
     where
         Self: Sized;
 
@@ -225,7 +225,7 @@ impl HDWalletCoinStorage {
         let hd_wallet_rmd160 = crypto_ctx
             .hw_wallet_rmd160()
             .or_mm_err(|| HDWalletStorageError::HDWalletUnavailable)?;
-        let inner = Box::new(HDWalletStorageInstance::init(ctx, None).await?);
+        let inner = Box::new(HDWalletStorageInstance::init(ctx).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,
@@ -238,7 +238,7 @@ impl HDWalletCoinStorage {
         coin: String,
         hd_wallet_rmd160: H160,
     ) -> HDWalletStorageResult<HDWalletCoinStorage> {
-        let inner = Box::new(HDWalletStorageInstance::init(ctx, None).await?);
+        let inner = Box::new(HDWalletStorageInstance::init(ctx).await?);
         Ok(HDWalletCoinStorage {
             coin,
             hd_wallet_rmd160,

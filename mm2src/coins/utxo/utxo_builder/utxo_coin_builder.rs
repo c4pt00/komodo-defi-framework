@@ -219,8 +219,15 @@ pub trait UtxoFieldsWithGlobalHDBuilder: UtxoCoinBuilderCommonOps {
             bip39_secp_priv_key: global_hd_ctx.root_priv_key().clone(),
         };
 
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            // db_id should be the current activated key for this hd wallet
+            run_db_migration_for_new_utxo_pubkey(self.ctx(), activated_key_pair.public().address_hash().to_string())
+                .await?
+        }
+
         let address_format = self.address_format()?;
-        let hd_wallet_rmd160 = global_hd_ctx.derive_rmd160();
+        let hd_wallet_rmd160 = *self.ctx().rmd160();
         let hd_wallet_storage =
             HDWalletCoinStorage::init_with_rmd160(self.ctx(), self.ticker().to_owned(), hd_wallet_rmd160).await?;
         let accounts = load_hd_accounts_from_storage(&hd_wallet_storage, path_to_coin)
@@ -238,14 +245,6 @@ pub trait UtxoFieldsWithGlobalHDBuilder: UtxoCoinBuilderCommonOps {
             },
             address_format,
         };
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            // db_id should be the current activated key for this hd wallet
-            let db_id = Some(activated_key_pair.public().address_hash());
-            // device_rmd_160 is unqiue to a device, hence it can bs used as shared_db_id.
-            let shared_db_id = Some(hd_wallet_rmd160);
-            run_db_migration_for_new_utxo_pubkey(self.ctx(), db_id, shared_db_id).await?
-        }
         let derivation_method = DerivationMethod::HDWallet(hd_wallet);
         build_utxo_coin_fields_with_conf_and_policy(self, conf, priv_key_policy, derivation_method).await
     }
@@ -1022,17 +1021,8 @@ async fn wait_for_protocol_version_checked(client: &ElectrumClientImpl) -> Resul
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn run_db_migration_for_new_utxo_pubkey(
-    ctx: &MmArc,
-    db_id: Option<H160>,
-    shared_db_id: Option<H160>,
-) -> MmResult<(), UtxoCoinBuildError> {
-    use mm2_core::sql_connection_pool::DbIds;
-
-    let db_id = db_id.map(|id| id.to_string());
-    let shared_db_id = shared_db_id.map(|id| id.to_string());
+pub async fn run_db_migration_for_new_utxo_pubkey(ctx: &MmArc, db_id: String) -> MmResult<(), UtxoCoinBuildError> {
     info!("Public key hash: {db_id:?}");
-    info!("Shared Database ID: {shared_db_id:?}");
 
     let db_migration_sender = ctx
         .db_migration_watcher
@@ -1041,7 +1031,7 @@ pub async fn run_db_migration_for_new_utxo_pubkey(
         .get_sender();
     let mut db_migration_sender = db_migration_sender.lock().await;
     db_migration_sender
-        .send(DbIds { db_id, shared_db_id })
+        .send(db_id)
         .await
         .map_to_mm(|err| UtxoCoinBuildError::Internal(err.to_string()))?;
 

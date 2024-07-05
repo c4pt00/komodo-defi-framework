@@ -285,7 +285,6 @@ use hd_wallet::{AccountUpdatingError, AddressDerivingError, HDAccountOps, HDAddr
                 HDCoinHDAccount, HDExtractPubkeyError, HDPathAccountToAddressId, HDWalletAddress, HDWalletCoinOps,
                 HDWalletOps, HDWithdrawError, HDXPubExtractor, WithdrawFrom, WithdrawSenderAddress};
 use nft::nft_errors::GetNftInfoError;
-use primitives::hash::H160;
 use qrc20::{qrc20_coin_with_policy, Qrc20ActivationParams, Qrc20Coin, Qrc20FeeDetails};
 use rpc_command::{get_new_address::{GetNewAddressTaskManager, GetNewAddressTaskManagerShared},
                   init_account_balance::{AccountBalanceTaskManager, AccountBalanceTaskManagerShared},
@@ -3237,13 +3236,9 @@ pub trait MmCoin:
     /// If the coin is not derived from an HD wallet, it returns `None`.
     async fn account_db_id(&self) -> Option<String> { None }
 
-    // Retrieves a unique identifier for the account that is shared across different contexts,
-    /// such as different derivation methods (HD wallet vs. non-HD wallet)
-    async fn shared_db_id(&self) -> Option<H160> { None }
-
-    /// In normal wallet mode, this function returns the regular `db_id`, which is the RMD160 hash of the public key.
-    /// In HD wallet mode, it returns `hd_wallet_rmd160`, which is the RMD160 hash unique to the HD wallet/device.
-    async fn tx_history_db_id(&self) -> Option<String> { None }
+    // Retrieves db_id for derivation methods (HD wallet vs. non-HD wallet)
+    // NOTE: this function only needs special handling for coins that supports HD wallet
+    async fn shared_db_id(&self, _ctx: &MmArc) -> Option<String> { None }
 
     /// Path to tx history file
     #[cfg(not(target_arch = "wasm32"))]

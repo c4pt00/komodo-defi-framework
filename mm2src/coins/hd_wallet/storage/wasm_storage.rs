@@ -156,26 +156,22 @@ impl DbInstance for HDWalletDb {
 /// The wrapper over the [`CoinsContext::hd_wallet_db`] weak pointer.
 pub(super) struct HDWalletIndexedDbStorage {
     db: WeakDb<HDWalletDb>,
-    db_id: Option<String>,
 }
 
 #[async_trait]
 impl HDWalletStorageInternalOps for HDWalletIndexedDbStorage {
-    async fn init(ctx: &MmArc, db_id: Option<&str>) -> HDWalletStorageResult<Self>
+    async fn init(ctx: &MmArc) -> HDWalletStorageResult<Self>
     where
         Self: Sized,
     {
         let coins_ctx = CoinsContext::from_ctx(ctx).map_to_mm(HDWalletStorageError::Internal)?;
         let db = SharedDb::downgrade(&coins_ctx.hd_wallet_db);
-        Ok(HDWalletIndexedDbStorage {
-            db,
-            db_id: db_id.map(String::from),
-        })
+        Ok(HDWalletIndexedDbStorage { db })
     }
 
     async fn load_accounts(&self, wallet_id: HDWalletId) -> HDWalletStorageResult<Vec<HDAccountStorageItem>> {
         let shared_db = self.get_shared_db()?;
-        let locked_db = Self::lock_db_mutex(&shared_db, self.db_id.as_deref()).await?;
+        let locked_db = Self::lock_db_mutex(&shared_db).await?;
 
         let transaction = locked_db.inner.transaction().await?;
         let table = transaction.table::<HDAccountTable>().await?;
@@ -197,7 +193,7 @@ impl HDWalletStorageInternalOps for HDWalletIndexedDbStorage {
         account_id: u32,
     ) -> HDWalletStorageResult<Option<HDAccountStorageItem>> {
         let shared_db = self.get_shared_db()?;
-        let locked_db = Self::lock_db_mutex(&shared_db, self.db_id.as_deref()).await?;
+        let locked_db = Self::lock_db_mutex(&shared_db).await?;
 
         let transaction = locked_db.inner.transaction().await?;
         let table = transaction.table::<HDAccountTable>().await?;
@@ -239,7 +235,7 @@ impl HDWalletStorageInternalOps for HDWalletIndexedDbStorage {
         account: HDAccountStorageItem,
     ) -> HDWalletStorageResult<()> {
         let shared_db = self.get_shared_db()?;
-        let locked_db = Self::lock_db_mutex(&shared_db, self.db_id.as_deref()).await?;
+        let locked_db = Self::lock_db_mutex(&shared_db).await?;
 
         let transaction = locked_db.inner.transaction().await?;
         let table = transaction.table::<HDAccountTable>().await?;
@@ -254,7 +250,7 @@ impl HDWalletStorageInternalOps for HDWalletIndexedDbStorage {
 
     async fn clear_accounts(&self, wallet_id: HDWalletId) -> HDWalletStorageResult<()> {
         let shared_db = self.get_shared_db()?;
-        let locked_db = Self::lock_db_mutex(&shared_db, self.db_id.as_deref()).await?;
+        let locked_db = Self::lock_db_mutex(&shared_db).await?;
 
         let transaction = locked_db.inner.transaction().await?;
         let table = transaction.table::<HDAccountTable>().await?;
@@ -274,8 +270,8 @@ impl HDWalletIndexedDbStorage {
             .or_mm_err(|| HDWalletStorageError::Internal("'HDWalletIndexedDbStorage::db' doesn't exist".to_owned()))
     }
 
-    async fn lock_db_mutex(db: &SharedDb<HDWalletDb>, db_id: Option<&str>) -> HDWalletStorageResult<HDWalletDbLocked> {
-        db.get_or_initialize_shared(db_id)
+    async fn lock_db_mutex(db: &SharedDb<HDWalletDb>) -> HDWalletStorageResult<HDWalletDbLocked> {
+        db.get_or_initialize_shared(None)
             .await
             .mm_err(HDWalletStorageError::from)
     }
@@ -300,7 +296,7 @@ impl HDWalletIndexedDbStorage {
         F: FnOnce(&mut HDAccountTable),
     {
         let shared_db = self.get_shared_db()?;
-        let locked_db = Self::lock_db_mutex(&shared_db, self.db_id.as_deref()).await?;
+        let locked_db = Self::lock_db_mutex(&shared_db).await?;
 
         let transaction = locked_db.inner.transaction().await?;
         let table = transaction.table::<HDAccountTable>().await?;
@@ -323,7 +319,7 @@ impl HDWalletIndexedDbStorage {
 #[cfg(any(test, target_arch = "wasm32"))]
 pub(super) async fn get_all_storage_items(ctx: &MmArc) -> Vec<HDAccountStorageItem> {
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
-    let db = coins_ctx.hd_wallet_db.get_or_initialize(None).await.unwrap();
+    let db = coins_ctx.hd_wallet_db.get_or_initialize_shared(None).await.unwrap();
     let transaction = db.inner.transaction().await.unwrap();
     let table = transaction.table::<HDAccountTable>().await.unwrap();
     table

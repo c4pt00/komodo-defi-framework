@@ -8,7 +8,7 @@ pub(crate) struct HDWalletMockStorage;
 #[async_trait]
 #[cfg_attr(test, mockable)]
 impl HDWalletStorageInternalOps for HDWalletMockStorage {
-    async fn init(_ctx: &MmArc, _db_id: Option<&str>) -> HDWalletStorageResult<Self>
+    async fn init(_ctx: &MmArc) -> HDWalletStorageResult<Self>
     where
         Self: Sized,
     {

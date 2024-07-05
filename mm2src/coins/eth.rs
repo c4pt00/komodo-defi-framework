@@ -5715,7 +5715,9 @@ impl MmCoin for EthCoin {
 
     async fn account_db_id(&self) -> Option<String> { eth_account_db_id(self).await }
 
-    async fn tx_history_db_id(&self) -> Option<String> { eth_shared_db_id(self).await.or(self.account_db_id().await) }
+    async fn shared_db_id(&self, ctx: &MmArc) -> Option<String> {
+        eth_shared_db_id(self, ctx).await.or(eth_account_db_id(self).await)
+    }
 }
 
 pub trait TryToAddress {

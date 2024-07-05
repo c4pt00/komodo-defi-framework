@@ -358,11 +358,11 @@ impl MmCtx {
     /// Retrieves an optional shared connection from the pool for the specified database ID.
     /// Returns `None` if the connection pool is not initialized.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn shared_sqlite_conn_opt(&self, db_id: Option<&str>) -> Option<Arc<Mutex<Connection>>> {
+    pub fn shared_sqlite_conn_opt(&self) -> Option<Arc<Mutex<Connection>>> {
         self.sqlite_conn_pool
             .as_option()
             .cloned()
-            .map(|pool| pool.sqlite_conn_shared(db_id))
+            .map(|pool| pool.sqlite_conn_shared(Some(&self.default_db_id())))
     }
 
     /// Retrieves an optional connection from the pool for the specified database ID.
