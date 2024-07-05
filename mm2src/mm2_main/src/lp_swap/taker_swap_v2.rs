@@ -1339,9 +1339,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             state_machine.ctx.clone(),
             state_machine.p2p_topic.clone(),
             swap_msg,
-            // FIXME: This number is greater than `NEGOTIATION_TIMEOUT_SEC`, is this intentional to send the message only one time?
-            // We can use `NEGOTIATION_TIMEOUT_SEC + x` then to make it clear (and error-proof).
-            600.,
+            NEGOTIATION_TIMEOUT_SEC as f64 / 3.0,
             state_machine.p2p_keypair,
         );
 
