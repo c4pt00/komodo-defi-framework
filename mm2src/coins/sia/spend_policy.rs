@@ -19,6 +19,7 @@ use std::str::FromStr;
 // parse 32 bytes of hex to &str
 fn parse_hex_str(input: &str) -> IResult<&str, &str> { take_while_m_n(64, 64, |c: char| c.is_digit(16))(input) }
 
+// parse 32 bytes of hex to Vec<u8>
 fn parse_hex(input: &str) -> IResult<&str, Vec<u8>> {
     map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode)(input)
 }
@@ -26,24 +27,30 @@ fn parse_hex(input: &str) -> IResult<&str, Vec<u8>> {
 fn parse_u64(input: &str) -> IResult<&str, u64> { map_res(digit1, |s: &str| s.parse::<u64>())(input) }
 
 fn parse_above(input: &str) -> IResult<&str, SpendPolicy> {
-    let (input, value) = delimited(tag("above("), parse_u64, char(')'))(input)?;
+    let parse_whitespace = delimited(multispace0, parse_u64, multispace0);
+    let (input, value) = delimited(tag("above("), parse_whitespace, char(')'))(input)?;
     Ok((input, SpendPolicy::Above(value)))
 }
 
 fn parse_after(input: &str) -> IResult<&str, SpendPolicy> {
-    let (input, value) = delimited(tag("after("), parse_u64, char(')'))(input)?;
+    let parse_whitespace = delimited(multispace0, parse_u64, multispace0);
+    let (input, value) = delimited(tag("after("), parse_whitespace, char(')'))(input)?;
     Ok((input, SpendPolicy::After(value)))
 }
 
 fn parse_opaque(input: &str) -> IResult<&str, SpendPolicy> {
     let parse_hash = map_res(parse_hex_str, H256::from_str);
-    let (input, h256) = delimited(tag("opaque(0x"), parse_hash, tag(")"))(input)?;
+    let parse_prefix = preceded(tag("0x"), parse_hash);
+    let parse_whitespace = delimited(multispace0, parse_prefix, multispace0);
+    let (input, h256) = delimited(tag("opaque("), parse_whitespace, tag(")"))(input)?;
     Ok((input, SpendPolicy::Opaque(h256)))
 }
 
 fn parse_hash(input: &str) -> IResult<&str, SpendPolicy> {
     let parse_hash = map_res(parse_hex_str, H256::from_str);
-    let (input, h256) = delimited(tag("h(0x"), parse_hash, tag(")"))(input)?;
+    let parse_prefix = preceded(tag("0x"), parse_hash);
+    let parse_whitespace = delimited(multispace0, parse_prefix, multispace0);
+    let (input, h256) = delimited(tag("h("), parse_whitespace, tag(")"))(input)?;
     Ok((input, SpendPolicy::Hash(h256)))
 }
 
