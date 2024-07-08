@@ -1,10 +1,12 @@
 use crate::sia::address::Address;
 use crate::sia::types::Event;
+use crate::sia::transaction::SiacoinElement;
 use crate::sia::SiaApiClientError;
 use mm2_number::MmNumber;
 use reqwest::{Method, Request, Url};
 use rpc::v1::types::H256;
 use serde::de::DeserializeOwned;
+
 
 const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
 
@@ -122,3 +124,25 @@ impl SiaApiRequest for AddressesEventsRequest {
 pub type AddressesEventsResponse = Vec<Event>;
 
 impl SiaApiResponse for Vec<Event> {}
+
+// GET /addresses/:addr/outputs/siacoin
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AddressUtxosRequest {
+    pub address: Address,
+}
+
+pub type AddressUtxosResponse = Vec<SiacoinElement>;
+
+impl SiaApiResponse for AddressUtxosResponse {}
+
+impl SiaApiRequest for AddressUtxosRequest {
+    type Response = AddressUtxosResponse;
+
+    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError> {
+        let endpoint_path = format!("api/addresses/{}/outputs/siacoin", self.address);
+        let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
+
+        let request = Request::new(Method::GET, endpoint_url);
+        Ok(request)
+    }
+}
