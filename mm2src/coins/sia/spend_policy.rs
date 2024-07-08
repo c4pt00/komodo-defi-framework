@@ -2,14 +2,15 @@ use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator};
 use crate::sia::encoding::{Encodable, Encoder};
-use crate::sia::specifier::{Specifier};
+use crate::sia::specifier::Specifier;
 use ed25519_dalek::PublicKey;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while_m_n};
-use nom::character::complete::{char, digit1, space0};
+use nom::character::complete::{char, digit1, multispace0, space0};
+use nom::combinator::all_consuming;
 use nom::combinator::map_res;
-use nom::sequence::{delimited, preceded, tuple};
 use nom::multi::separated_list0;
+use nom::sequence::{delimited, preceded, separated_pair, tuple};
 use nom::IResult;
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -55,50 +56,43 @@ fn parse_hash(input: &str) -> IResult<&str, SpendPolicy> {
 }
 
 fn parse_public_key(input: &str) -> IResult<&str, SpendPolicy> {
-    let parse_public_key = map_res(parse_hex, |bytes: Vec<u8>| {
-        PublicKey::from_bytes(&bytes)
-    });
-    let (input, public_key) = delimited(tag("pk(0x"), parse_public_key, char(')'))(input)?;
+    let parse_public_key = map_res(parse_hex, |bytes: Vec<u8>| PublicKey::from_bytes(&bytes));
+    let parse_prefix = preceded(tag("0x"), parse_public_key);
+    let (input, public_key) = delimited(tag("pk("), parse_prefix, char(')'))(input)?;
     Ok((input, SpendPolicy::PublicKey(public_key)))
 }
 
-fn parse_unlock_key(input: &str) -> IResult<&str, UnlockKey> {
-    let parse_public_key = map_res(parse_hex, |bytes: Vec<u8>| {
-        PublicKey::from_bytes(&bytes)
-    });
-    let (input, public_key) = preceded(tag("0x"), parse_public_key)(input)?;
-    Ok((input, UnlockKey::Ed25519(public_key)))
+fn parse_threshold(input: &str) -> IResult<&str, SpendPolicy> {
+    let parse_threshold = separated_pair(
+        map_res(digit1, |s: &str| s.parse::<u8>()),
+        char(','),
+        delimited(tag("["), separated_list0(char(','), parse_spend_policy), tag("]")),
+    );
+    let (input, (n, of)) = delimited(tag("thresh("), parse_threshold, tag(")"))(input)?;
+    Ok((input, SpendPolicy::Threshold { n, of }))
 }
-
-fn parse_unlock_condition(input: &str) -> IResult<&str, SpendPolicy> {
-    let (input, (timelock, unlock_keys, sigs_required)) = delimited(
-        tag("uc("),
-        tuple((
-            parse_u64,
-            preceded(tuple((char(','), char('['), space0)), separated_list0(tuple((char(','), space0)), parse_unlock_key)),
-            preceded(tuple((char(']'), char(','), space0)), parse_u64)
-        )),
-        char(')')
-    )(input)?;
-
-    Ok((input, SpendPolicy::UnlockConditions(UnlockCondition {
-        timelock,
-        unlock_keys,
-        sigs_required,
-    })))
-}
-
 
 fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
-    alt((
+    let parse_policy = alt((
         parse_above,
         parse_after,
         parse_public_key,
         parse_hash,
-        // parse_threshold,
+        parse_threshold,
         parse_opaque,
-        // parse_unlock_condition,
-    ))(input)
+        // parse_unlock_condition, // TODO we won't encounter this in SatisfiedPolicy deserialization
+    ));
+    // drop whitespace characters before and after the policy
+    delimited(multispace0, parse_policy, multispace0)(input)
+}
+
+impl SpendPolicy {
+    pub fn from_str(input: &str) -> Result<SpendPolicy, nom::Err<nom::error::Error<&str>>> {
+        match all_consuming(parse_spend_policy)(input) {
+            Ok((_, policy)) => Ok(policy),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 const POLICY_VERSION: u8 = 1u8;

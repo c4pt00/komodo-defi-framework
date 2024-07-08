@@ -1,7 +1,7 @@
-use rpc::v1::types::H256;
-use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
+use crate::sia::specifier::Specifier;
+use crate::sia::spend_policy::{spend_policy_atomic_swap, SpendPolicy, UnlockCondition};
 use crate::sia::PublicKey;
-use crate::sia::specifier::{Specifier};
+use rpc::v1::types::H256;
 
 // Helper macro for testing successful deserialization
 macro_rules! test_deser_success {
@@ -238,47 +238,28 @@ fn test_deser_spend_policy_hash_expected_failures() {
     }
 }
 
-
 #[test]
 fn test_deser_spend_policy_public_key() {
-    let test_cases = [(
-        "pk(0x0102030000000000000000000000000000000000000000000000000000000000)",
-        SpendPolicy::PublicKey(PublicKey::from_bytes(
+    let spend_policy = SpendPolicy::PublicKey(
+        PublicKey::from_bytes(
             &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
         )
-        .unwrap()),
+        .unwrap(),
+    );
+
+    let test_cases = [
         (
-            "h( 0x0102030000000000000000000000000000000000000000000000000000000000)",
-            SpendPolicy::PublicKey(PublicKey::from_bytes(
-                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
-            )
-            .unwrap()),
+            "pk(0x0102030000000000000000000000000000000000000000000000000000000000)",
+            spend_policy.clone()),
+        (
+            "pk( 0x0102030000000000000000000000000000000000000000000000000000000000)",
+            spend_policy.clone(),
         ),
         (
-            r"h(0x0102030000000000000000000000000000000000000000000000000000000000) 
-        ",
-            SpendPolicy::PublicKey(PublicKey::from_bytes(
-                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
-            )
-            .unwrap()),
+            "pk(0x0102030000000000000000000000000000000000000000000000000000000000)\n",
+            spend_policy.clone(),
         ),
-        (
-            r"h(
-            0x0102030000000000000000000000000000000000000000000000000000000000
-        )",
-            SpendPolicy::PublicKey(PublicKey::from_bytes(
-                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
-            )
-            .unwrap()),
-        ),
-        (
-            "h(0x0102030000000000000000000000000000000000000000000000000000000000\t)",
-            SpendPolicy::PublicKey(PublicKey::from_bytes(
-                &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
-            )
-            .unwrap()),
-        ),
-    )];
+    ];
 
     for value in test_cases {
         test_deser_success!(SpendPolicy, value.0, value.1);
@@ -321,7 +302,7 @@ fn test_deser_spend_policy_unlock_condition() {
 
     let test_cases = [(
         "uc(0,[0x0102030000000000000000000000000000000000000000000000000000000000],1)",
-        SpendPolicy::UnlockConditions(UnlockCondition::standard_unlock(public_key))
+        SpendPolicy::UnlockConditions(UnlockCondition::standard_unlock(public_key)),
     )];
 
     for value in test_cases {
