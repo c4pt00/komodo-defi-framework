@@ -4,8 +4,8 @@ use crate::tx_history_storage::{CreateTxHistoryStorageError, FilteringAddresses,
                                 TxHistoryStorageBuilder, WalletId};
 use crate::utxo::utxo_common::big_decimal_from_sat_unsigned;
 use crate::{coin_conf, lp_coinfind_or_err, BlockHeightAndTime, CoinFindError, HDPathAccountToAddressId,
-            HistorySyncState, MmCoin, MmCoinEnum, MyAddressError, Transaction, TransactionDetails, TransactionType,
-            TxFeeDetails, UtxoRpcError};
+            HistorySyncState, MmCoin, MmCoinEnum, MyAddressError, Transaction, TransactionData, TransactionDetails,
+            TransactionType, TxFeeDetails, UtxoRpcError};
 use async_trait::async_trait;
 use bitcrypto::sha256;
 use common::{calc_total_pages, ten, HttpStatusCode, PagingOptionsEnum, StatusCode};
@@ -216,7 +216,7 @@ impl<'a, Addr: Clone + DisplayAddress + Eq + std::hash::Hash, Tx: Transaction> T
         let mut to: Vec<_> = self.to_addresses.iter().map(DisplayAddress::display_address).collect();
         to.sort();
 
-        let tx_hash = self.tx.tx_hash();
+        let tx_hash = self.tx.tx_hash_as_bytes();
         let internal_id = match &self.transaction_type {
             TransactionType::TokenTransfer(token_id) => {
                 let mut bytes_for_hash = tx_hash.0.clone();
@@ -236,13 +236,13 @@ impl<'a, Addr: Clone + DisplayAddress + Eq + std::hash::Hash, Tx: Transaction> T
             | TransactionType::RemoveDelegation
             | TransactionType::FeeForTokenTx
             | TransactionType::StandardTransfer
-            | TransactionType::NftTransfer => tx_hash.clone(),
+            | TransactionType::NftTransfer
+            | TransactionType::TendermintIBCTransfer => tx_hash.clone(),
         };
 
         TransactionDetails {
             coin: self.coin,
-            tx_hex: self.tx.tx_hex().into(),
-            tx_hash: tx_hash.to_tx_hash(),
+            tx: TransactionData::new_signed(self.tx.tx_hex().into(), tx_hash.to_tx_hash()),
             from,
             to,
             total_amount: self.total_amount,
@@ -263,15 +263,15 @@ impl<'a, Addr: Clone + DisplayAddress + Eq + std::hash::Hash, Tx: Transaction> T
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum MyTxHistoryTarget {
+    #[default]
     Iguana,
-    AccountId { account_id: u32 },
+    AccountId {
+        account_id: u32,
+    },
     AddressId(HDPathAccountToAddressId),
     AddressDerivationPath(StandardHDPath),
-}
-
-impl Default for MyTxHistoryTarget {
-    fn default() -> Self { MyTxHistoryTarget::Iguana }
 }
 
 #[derive(Clone, Deserialize)]

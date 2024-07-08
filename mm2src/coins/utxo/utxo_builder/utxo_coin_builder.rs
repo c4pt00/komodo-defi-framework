@@ -152,12 +152,11 @@ pub trait UtxoFieldsWithIguanaSecretBuilder: UtxoCoinBuilderCommonOps {
         let addr_format = self.address_format()?;
         let my_address = AddressBuilder::new(
             addr_format,
-            AddressHashEnum::AddressHash(key_pair.public().address_hash()),
             conf.checksum_type,
             conf.address_prefixes.clone(),
             conf.bech32_hrp.clone(),
         )
-        .as_pkh()
+        .as_pkh_from_pk(*key_pair.public())
         .build()
         .map_to_mm(UtxoCoinBuildError::Internal)?;
         let derivation_method = DerivationMethod::SingleAddress(my_address);
@@ -257,12 +256,11 @@ where
     let addr_format = builder.address_format()?;
     let my_address = AddressBuilder::new(
         addr_format,
-        AddressHashEnum::AddressHash(key_pair.public().address_hash()),
         conf.checksum_type,
         conf.address_prefixes.clone(),
         conf.bech32_hrp.clone(),
     )
-    .as_pkh()
+    .as_pkh_from_pk(*key_pair.public())
     .build()
     .map_to_mm(UtxoCoinBuildError::Internal)?;
 
@@ -739,6 +737,7 @@ pub trait UtxoCoinBuilderCommonOps {
 
     #[cfg(target_arch = "wasm32")]
     fn tx_cache(&self) -> UtxoVerboseCacheShared {
+        #[allow(clippy::default_constructed_unit_structs)] // This is a false-possitive bug from clippy
         crate::utxo::tx_cache::wasm_tx_cache::WasmVerboseCache::default().into_shared()
     }
 

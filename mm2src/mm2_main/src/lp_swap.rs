@@ -37,7 +37,7 @@
 //!
 
 /******************************************************************************
- * Copyright © 2023 Pampex LTD and TillyHK LTD              *
+ * Copyright © 2023 Pampex LTD and TillyHK LTD                                *
  *                                                                            *
  * See the CONTRIBUTOR-LICENSE-AGREEMENT, COPYING, LICENSE-COPYRIGHT-NOTICE   *
  * and DEVELOPER-CERTIFICATE-OF-ORIGIN files in the LEGAL directory in        *
@@ -1527,7 +1527,7 @@ pub async fn recover_funds_of_swap(ctx: MmArc, req: Json) -> Result<Response<Vec
         "result": {
             "action": recover_data.action,
             "coin": recover_data.coin,
-            "tx_hash": recover_data.transaction.tx_hash(),
+            "tx_hash": recover_data.transaction.tx_hash_as_bytes(),
             "tx_hex": BytesJson::from(recover_data.transaction.tx_hex()),
         }
     })));
@@ -1625,16 +1625,13 @@ pub async fn active_swaps_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>
 }
 
 /// Algorithm used to hash swap secret.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default)]
 pub enum SecretHashAlgo {
     /// ripemd160(sha256(secret))
+    #[default]
     DHASH160 = 1,
     /// sha256(secret)
     SHA256 = 2,
-}
-
-impl Default for SecretHashAlgo {
-    fn default() -> Self { SecretHashAlgo::DHASH160 }
 }
 
 #[derive(Debug, Display)]
@@ -1671,8 +1668,12 @@ pub fn detect_secret_hash_algo(maker_coin: &MmCoinEnum, taker_coin: &MmCoinEnum)
         (MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_) | MmCoinEnum::LightningCoin(_), _) => {
             SecretHashAlgo::SHA256
         },
+        #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+        (MmCoinEnum::SolanaCoin(_), _) => SecretHashAlgo::SHA256,
         // If taker is lightning coin the SHA256 of the secret will be sent as part of the maker signed invoice
         (_, MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_)) => SecretHashAlgo::SHA256,
+        #[cfg(all(feature = "enable-solana", not(target_arch = "wasm32")))]
+        (_, MmCoinEnum::SolanaCoin(_)) => SecretHashAlgo::SHA256,
         (_, _) => SecretHashAlgo::DHASH160,
     }
 }
@@ -1830,6 +1831,11 @@ pub fn generate_secret() -> Result<[u8; 32], rand::Error> {
     common::os_rng(&mut sec)?;
     Ok(sec)
 }
+
+/// Add refund fee to calculate maximum available balance for a swap (including possible refund)
+pub(crate) const INCLUDE_REFUND_FEE: bool = true;
+/// Do not add refund fee to calculate fee needed only to make a successful swap
+pub(crate) const NO_REFUND_FEE: bool = false;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod lp_swap_tests {
