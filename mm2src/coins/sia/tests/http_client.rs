@@ -8,6 +8,7 @@ use std::str::FromStr;
 // They are likely to be removed in the future in favor of Docker based tests but are useful for now
 
 #[tokio::test]
+#[ignore]
 async fn test_sia_client_address_events() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:9980/").unwrap(),

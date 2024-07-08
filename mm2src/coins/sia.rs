@@ -14,6 +14,7 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
             WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::AbortedError;
+pub use ed25519_dalek::{Keypair, PublicKey, SecretKey};
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
 use keys::KeyPair;
@@ -25,7 +26,6 @@ use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
-pub use ed25519_dalek::{PublicKey, Keypair, SecretKey};
 
 pub mod address;
 use address::v1_standard_address_from_pubkey;

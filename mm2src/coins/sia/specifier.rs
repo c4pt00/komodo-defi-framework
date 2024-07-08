@@ -25,7 +25,7 @@ define_byte_array_const!(FOUNDATION, 16, "foundation");
 define_byte_array_const!(ENTROPY, 16, "entropy");
 // Sia Go technically supports arbitrary Specifiers
 // we will use "unknown" as a catch all in serde and encoding
- define_byte_array_const!(UNKNOWN, 16, "unknown");
+define_byte_array_const!(UNKNOWN, 16, "unknown");
 
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L40-L49
 // A Specifier is a fixed-size, 0-padded identifier.

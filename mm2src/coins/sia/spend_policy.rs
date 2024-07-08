@@ -289,13 +289,9 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
 // Sia Go v1 technically supports arbitrary length public keys
 // We only support ed25519 but must be able to deserialize others
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub enum UnlockKey 
-{ 
+pub enum UnlockKey {
     Ed25519(PublicKey),
-    Unknown {
-        algorithm: Specifier,
-        public_key: Vec<u8>,
-   }
+    Unknown { algorithm: Specifier, public_key: Vec<u8> },
 }
 
 impl Encodable for PublicKey {
@@ -353,12 +349,12 @@ impl UnlockCondition {
         }
     }
 
-    pub fn standard_unlock(public_key: PublicKey) -> Self { 
+    pub fn standard_unlock(public_key: PublicKey) -> Self {
         UnlockCondition {
-            unlock_keys: vec!(UnlockKey::Ed25519(public_key)),
+            unlock_keys: vec![UnlockKey::Ed25519(public_key)],
             timelock: 0,
             sigs_required: 1,
-        } 
+        }
     }
 
     pub fn unlock_hash(&self) -> H256 {
