@@ -250,7 +250,8 @@ fn test_deser_spend_policy_public_key() {
     let test_cases = [
         (
             "pk(0x0102030000000000000000000000000000000000000000000000000000000000)",
-            spend_policy.clone()),
+            spend_policy.clone(),
+        ),
         (
             "pk( 0x0102030000000000000000000000000000000000000000000000000000000000)",
             spend_policy.clone(),
