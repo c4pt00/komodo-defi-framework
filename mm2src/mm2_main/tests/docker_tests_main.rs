@@ -22,8 +22,8 @@ extern crate serde_json;
 #[cfg(test)] extern crate ser_error_derive;
 #[cfg(test)] extern crate test;
 
-use std::env;
 use common::custom_futures::timeout::FutureTimerExt;
+use std::env;
 use std::io::{BufRead, BufReader};
 use std::process::Command;
 use std::time::Duration;
