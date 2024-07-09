@@ -458,12 +458,11 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
     use std::collections::HashSet;
 
     let mut migrations = HashSet::new();
-    let receiver = &ctx
+    let mut receiver = ctx
         .init_db_migration_watcher()
         .expect("db_m igration_watcher initialization failed");
-    let mut guard = receiver.lock().await;
 
-    while let Some(db_id) = guard.next().await {
+    while let Some(db_id) = receiver.next().await {
         if migrations.contains(&db_id) {
             debug!("{} migrated, skipping migration..", db_id);
             continue;

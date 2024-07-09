@@ -52,6 +52,11 @@ impl SqliteConnPool {
 
         // Connection pool is already initialized, insert new connection.
         if let Some(pool) = ctx.sqlite_conn_pool.as_option() {
+            let conns = pool.connections.read().await;
+            if conns.get(&db_id).is_some() {
+                return Ok(());
+            }
+
             let conn = Self::open_connection(sqlite_file_path);
             let mut pool = pool.connections.write().unwrap();
             pool.insert(db_id, conn);
@@ -193,6 +198,11 @@ impl AsyncSqliteConnPool {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
+            let conns = pool.connections.read().await;
+            if conns.get(&db_id).is_some() {
+                return Ok(());
+            }
+
             let conn = Self::open_connection(&pool.sqlite_file_path).await;
             let mut pool = pool.connections.write().await;
             pool.insert(db_id, conn);
@@ -217,6 +227,12 @@ impl AsyncSqliteConnPool {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
+            let conns = pool.connections.read().await;
+            if conns.get(&db_id).is_some() {
+                return Ok(());
+            }
+            drop(conns);
+
             let mut pool = pool.connections.write().await;
             let conn = Arc::new(AsyncMutex::new(AsyncConnection::open_in_memory().await.unwrap()));
             pool.insert(db_id, conn);
@@ -273,8 +289,8 @@ impl AsyncSqliteConnPool {
     }
 }
 
-pub type DbMigrationHandler = Arc<AsyncMutex<Receiver<String>>>;
-pub type DbMigrationSender = Arc<AsyncMutex<Sender<String>>>;
+pub type DbMigrationHandler = Receiver<String>;
+pub type DbMigrationSender = Sender<String>;
 
 pub struct DbMigrationWatcher {
     sender: DbMigrationSender,
@@ -284,12 +300,10 @@ impl DbMigrationWatcher {
     pub fn init(ctx: &MmCtx) -> Result<DbMigrationHandler, String> {
         let (sender, receiver) = channel(1);
 
-        let selfi = Arc::new(Self {
-            sender: Arc::new(AsyncMutex::new(sender)),
-        });
+        let selfi = Arc::new(Self { sender });
         try_s!(ctx.db_migration_watcher.pin(selfi));
 
-        Ok(Arc::new(AsyncMutex::new(receiver)))
+        Ok(receiver)
     }
 
     pub fn get_sender(&self) -> DbMigrationSender { self.sender.clone() }

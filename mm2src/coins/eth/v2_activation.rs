@@ -926,12 +926,11 @@ fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Erro
 async fn run_db_migration_for_new_eth_pubkey(ctx: &MmArc, db_id: String) -> MmResult<(), EthActivationV2Error> {
     info!("Public key hash: {db_id:?}");
 
-    let db_migration_sender = ctx
+    let mut db_migration_sender = ctx
         .db_migration_watcher
         .as_option()
         .expect("Db migration watcher isn't intialized yet!")
         .get_sender();
-    let mut db_migration_sender = db_migration_sender.lock().await;
     db_migration_sender
         .send(db_id)
         .await

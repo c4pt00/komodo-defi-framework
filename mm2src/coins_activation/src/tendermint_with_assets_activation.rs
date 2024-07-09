@@ -416,13 +416,11 @@ async fn run_db_migration_for_new_tendermint_pubkey(
     ticker: String,
 ) -> MmResult<(), TendermintInitError> {
     info!("Public key hash: {db_id:?}");
-
-    let db_migration_sender = ctx
+    let mut db_migration_sender = ctx
         .db_migration_watcher
         .as_option()
         .expect("Db migration watcher isn't intialized yet!")
         .get_sender();
-    let mut db_migration_sender = db_migration_sender.lock().await;
     db_migration_sender
         .send(db_id)
         .await
