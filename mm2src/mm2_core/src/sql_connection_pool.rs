@@ -52,10 +52,11 @@ impl SqliteConnPool {
 
         // Connection pool is already initialized, insert new connection.
         if let Some(pool) = ctx.sqlite_conn_pool.as_option() {
-            let conns = pool.connections.read().await;
+            let conns = pool.connections.read().unwrap();
             if conns.get(&db_id).is_some() {
                 return Ok(());
             }
+            drop(conns);
 
             let conn = Self::open_connection(sqlite_file_path);
             let mut pool = pool.connections.write().unwrap();
