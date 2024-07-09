@@ -28,11 +28,10 @@ use test::{test_main, StaticBenchFn, StaticTestFn, TestDescAndFn};
 
 use testcontainers::clients::Cli;
 
-mod docker_tests;
 use docker_tests::docker_tests_common::*;
-// use docker_tests::qrc20_tests::{qtum_docker_node, QtumDockerOps, QTUM_REGTEST_DOCKER_IMAGE_WITH_TAG};
+use docker_tests::qrc20_tests::{qtum_docker_node, QtumDockerOps};
 
-
+mod docker_tests;
 #[allow(dead_code)] mod integration_tests_common;
 
 // AP: custom test runner is intended to initialize the required environment (e.g. coin daemons in the docker containers)
@@ -58,33 +57,31 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         remove_docker_containers(SOLANA_CLUSTER_DOCKER_IMAGE);
         remove_docker_containers(GETH_DOCKER_IMAGE_WITH_TAG);
 
-        //@FIXME - Tests for MYCOIN, MYCOIN1 and FORSLP are failing
-        // let utxo_node = utxo_asset_docker_node(&docker, "MYCOIN", 7000);
-        // let utxo_node1 = utxo_asset_docker_node(&docker, "MYCOIN1", 8000);
-        // let qtum_node = qtum_docker_node(&docker, 9000);
-        // let for_slp_node = utxo_asset_docker_node(&docker, "FORSLP", 10000);
+        let utxo_node = utxo_asset_docker_node(&docker, "MYCOIN", 7000);
+        let utxo_node1 = utxo_asset_docker_node(&docker, "MYCOIN1", 8000);
+        let qtum_node = qtum_docker_node(&docker, 9000);
+        let for_slp_node = utxo_asset_docker_node(&docker, "FORSLP", 10000);
         let geth_node = geth_docker_node(&docker, "ETH", 8545);
         let sol_node = sol_asset_docker_node(&docker, "SOLCLUSTER");
 
-        // let utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
-        // let utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
-        // let qtum_ops = QtumDockerOps::new();
-        // let for_slp_ops = BchDockerOps::from_ticker("FORSLP");
+        let utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
+        let utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
+        let qtum_ops = QtumDockerOps::new();
+        let for_slp_ops = BchDockerOps::from_ticker("FORSLP");
 
-
-        // utxo_ops.wait_ready(4);
-        // utxo_ops1.wait_ready(4);
-        // qtum_ops.wait_ready(2);
-        // qtum_ops.initialize_contracts();
-        // for_slp_ops.wait_ready(4);
-        // for_slp_ops.initialize_slp();
+        utxo_ops.wait_ready(4);
+        utxo_ops1.wait_ready(4);
+        qtum_ops.wait_ready(2);
+        qtum_ops.initialize_contracts();
+        for_slp_ops.wait_ready(4);
+        for_slp_ops.initialize_slp();
 
         init_geth_node();
 
-        // containers.push(utxo_node);
-        // containers.push(utxo_node1);
-        // containers.push(qtum_node);
-        // containers.push(for_slp_node);
+        containers.push(utxo_node);
+        containers.push(utxo_node1);
+        containers.push(qtum_node);
+        containers.push(for_slp_node);
         containers.push(geth_node);
         containers.push(sol_node);
     }

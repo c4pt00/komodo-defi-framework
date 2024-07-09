@@ -120,7 +120,6 @@ fn test_sign_verify_message_spl() {
     assert!(response.is_valid);
 }
 
-#[ignore]//@FIXME test fails because of issues with other test containers
 #[test]
 fn test_disable_solana_platform_coin_with_tokens() {
     let mm = _solana_supplied_node();
