@@ -1,6 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder, SiaHash};
-use crate::sia::signature::SiaSignature;
+use crate::sia::encoding::{Encodable, Encoder, SiaHash, SiaPublicKey, SiaSignature};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
@@ -401,9 +400,12 @@ pub struct FileContract {
     pub revision_number: u64,
 }
 
+#[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct V2FileContract {
     pub filesize: u64,
+    #[serde_as(as = "FromInto<SiaHash>")]
     pub file_merkle_root: H256,
     pub proof_height: u64,
     pub expiration_height: u64,
@@ -411,10 +413,14 @@ pub struct V2FileContract {
     pub host_output: SiacoinOutput,
     pub missed_host_value: Currency,
     pub total_collateral: Currency,
+    #[serde_as(as = "FromInto<SiaPublicKey>")]
     pub renter_public_key: PublicKey,
+    #[serde_as(as = "FromInto<SiaPublicKey>")]
     pub host_public_key: PublicKey,
     pub revision_number: u64,
+    #[serde_as(as = "FromInto<SiaSignature>")]
     pub renter_signature: Signature,
+    #[serde_as(as = "FromInto<SiaSignature>")]
     pub host_signature: Signature,
 }
 
@@ -439,6 +445,7 @@ impl Encodable for V2FileContract {
 pub struct V2FileContractElement {
     #[serde(flatten)]
     pub state_element: StateElement,
+    #[serde(rename = "v2FileContract")]
     pub v2_file_contract: V2FileContract,
 }
 
