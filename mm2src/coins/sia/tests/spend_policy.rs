@@ -1,5 +1,4 @@
-use crate::sia::specifier::Specifier;
-use crate::sia::spend_policy::{spend_policy_atomic_swap, SpendPolicy, UnlockCondition};
+use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
 use crate::sia::PublicKey;
 use rpc::v1::types::H256;
 
