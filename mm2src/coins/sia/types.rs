@@ -251,7 +251,8 @@ pub enum V2FileContractResolutionWrapper {
 
 type V2FileContractFinalization = V2FileContract;
 
-#[derive(Clone, Debug, Serialize)]
+ // FIXME this may need custom serde to handle it as "{}"
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct V2FileContractExpiration;
 
 #[serde_as]

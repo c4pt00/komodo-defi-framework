@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::SiaHash;
 use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement};
-use crate::sia::types::{Event, EventDataWrapper};
+use crate::sia::types::Event;
 
 // Ensure the original value matches the value after round-trip (serialize -> deserialize -> serialize)
 macro_rules! test_serde {
