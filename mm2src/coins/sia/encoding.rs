@@ -1,9 +1,26 @@
 use crate::sia::blake2b_internal::hash_blake2b_single;
+use crate::sia::{PublicKey, Signature};
 use rpc::v1::types::H256;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
+
+fn deserialize_hex_to_array<'de, D>(deserializer: D) -> Result<[u8; 64], D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+    let bytes = hex::decode(s).map_err(serde::de::Error::custom)?;
+
+    if bytes.len() != 64 {
+        return Err(serde::de::Error::custom("invalid length for [u8; 64]"));
+    }
+
+    let mut array = [0u8; 64];
+    array.copy_from_slice(&bytes);
+    Ok(array)
+}
 
 // https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
 // TODO go implementation limits this to 1024 bytes, should we?
@@ -14,6 +31,103 @@ pub struct Encoder {
 
 pub trait Encodable {
     fn encode(&self, encoder: &mut Encoder);
+}
+
+// This wrapper allows us to use Signature internally but still serde as "sig:" prefixed string
+#[derive(Debug, Serialize)]
+pub struct SiaSignature(pub Signature);
+
+impl<'de> Deserialize<'de> for SiaSignature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SiaSignatureVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SiaSignatureVisitor {
+            type Value = SiaSignature;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string prefixed with 'sig:' and followed by a 128-character hex string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if let Some(hex_str) = value.strip_prefix("sig:") {
+                    Signature::from_str(hex_str)
+                        .map(SiaSignature)
+                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                } else {
+                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                }
+            }
+        }
+
+        deserializer.deserialize_str(SiaSignatureVisitor)
+    }
+}
+
+impl fmt::Display for SiaSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "h:{}", self.0) }
+}
+
+impl From<SiaSignature> for Signature {
+    fn from(sia_hash: SiaSignature) -> Self { sia_hash.0 }
+}
+
+impl From<Signature> for SiaSignature {
+    fn from(signature: Signature) -> Self { SiaSignature(signature) }
+}
+
+// This wrapper allows us to use PublicKey internally but still serde as "ed25519:" prefixed string
+#[derive(Debug, Serialize)]
+pub struct SiaPublicKey(pub PublicKey);
+
+impl<'de> Deserialize<'de> for SiaPublicKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SiaPublicKeyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SiaPublicKeyVisitor {
+            type Value = SiaPublicKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string prefixed with 'ed25519:' and followed by a 64-character hex string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if let Some(hex_str) = value.strip_prefix("ed25519:") {
+                    let bytes = hex::decode(hex_str).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?;
+                    PublicKey::from_bytes(&bytes)
+                        .map(SiaPublicKey)
+                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                } else {
+                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                }
+            }
+        }
+
+        deserializer.deserialize_str(SiaPublicKeyVisitor)
+    }
+}
+
+impl From<SiaPublicKey> for PublicKey {
+    fn from(sia_public_key: SiaPublicKey) -> Self {
+        sia_public_key.0
+    }
+}
+
+impl From<PublicKey> for SiaPublicKey {
+    fn from(public_key: PublicKey) -> Self {
+        SiaPublicKey(public_key)
+    }
 }
 
 // This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
