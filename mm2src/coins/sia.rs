@@ -14,7 +14,7 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
             WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::AbortedError;
-pub use ed25519_dalek::{Keypair, PublicKey, SecretKey};
+pub use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature};
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
 use keys::KeyPair;
