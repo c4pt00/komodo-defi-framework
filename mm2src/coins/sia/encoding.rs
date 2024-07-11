@@ -17,7 +17,7 @@ pub trait Encodable {
 }
 
 // This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct SiaHash(pub H256);
 
 // FIXME this code pattern is reoccuring in many places and should be generalized with helpers or macros
@@ -50,15 +50,6 @@ impl<'de> Deserialize<'de> for SiaHash {
         }
 
         deserializer.deserialize_str(SiaHashVisitor)
-    }
-}
-
-impl Serialize for SiaHash {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", self))
     }
 }
 
