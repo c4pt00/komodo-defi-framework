@@ -402,7 +402,7 @@ pub struct FileContract {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FileContractV2 {
+pub struct V2FileContract {
     pub filesize: u64,
     pub file_merkle_root: H256,
     pub proof_height: u64,
@@ -418,7 +418,7 @@ pub struct FileContractV2 {
     pub host_signature: Signature,
 }
 
-impl Encodable for FileContractV2 {
+impl Encodable for V2FileContract {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u64(self.filesize);
         self.file_merkle_root.encode(encoder);
@@ -436,13 +436,13 @@ impl Encodable for FileContractV2 {
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FileContractElementV2 {
+pub struct V2FileContractElement {
     #[serde(flatten)]
     pub state_element: StateElement,
-    pub v2_file_contract: FileContractV2,
+    pub v2_file_contract: V2FileContract,
 }
 
-impl Encodable for FileContractElementV2 {
+impl Encodable for V2FileContractElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.state_element.encode(encoder);
         self.v2_file_contract.encode(encoder);
@@ -451,8 +451,8 @@ impl Encodable for FileContractElementV2 {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FileContractRevisionV2 {
-    pub parent: FileContractElementV2,
-    pub revision: FileContractV2,
+    pub parent: V2FileContractElement,
+    pub revision: V2FileContract,
 }
 
 impl Encodable for FileContractRevisionV2 {
@@ -506,7 +506,7 @@ pub struct SiafundInputV1 {
 // TODO requires unit tests
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FileContractResolutionV2 {
-    pub parent: FileContractElementV2,
+    pub parent: V2FileContractElement,
     pub resolution: FileContractResolutionTypeV2,
 }
 
@@ -539,7 +539,7 @@ impl Encodable for FileContractResolutionV2 {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct V2FileContractFinalization(pub FileContractV2);
+pub struct V2FileContractFinalization(pub V2FileContract);
 
 // TODO unit test
 impl Encodable for V2FileContractFinalization {
@@ -548,8 +548,8 @@ impl Encodable for V2FileContractFinalization {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct V2FileContractRenewal {
-    pub final_revision: FileContractV2,
-    pub new_contract: FileContractV2,
+    pub final_revision: V2FileContract,
+    pub new_contract: V2FileContract,
     pub renter_rollover: Currency,
     pub host_rollover: Currency,
     pub renter_signature: Signature,
@@ -669,7 +669,7 @@ pub struct TransactionV2 {
     pub siafund_inputs: Vec<SiafundInputV2>,
     #[serde(rename = "siafundOutputs")]
     pub siafund_outputs: Vec<SiafundOutput>,
-    pub file_contracts: Vec<FileContractV2>,
+    pub file_contracts: Vec<V2FileContract>,
     pub file_contract_revisions: Vec<FileContractRevisionV2>,
     pub file_contract_resolutions: Vec<FileContractResolutionV2>, // TODO
     pub attestations: Vec<Attestation>,
@@ -1118,7 +1118,7 @@ fn test_file_contract_v2_encode() {
         address: address1,
     };
 
-    let file_contract_v2 = FileContractV2 {
+    let file_contract_v2 = V2FileContract {
         filesize: 1,
         file_merkle_root: H256::default(),
         proof_height: 1,
@@ -1167,7 +1167,7 @@ fn test_file_contract_element_v2_encode() {
         address: address1,
     };
 
-    let file_contract_v2 = FileContractV2 {
+    let file_contract_v2 = V2FileContract {
         filesize: 1,
         file_merkle_root: H256::default(),
         proof_height: 1,
@@ -1192,7 +1192,7 @@ fn test_file_contract_element_v2_encode() {
         ]),
     };
 
-    let file_contract_element_v2 = FileContractElementV2 {
+    let file_contract_element_v2 = V2FileContractElement {
         state_element,
         v2_file_contract: file_contract_v2,
     };
@@ -1230,7 +1230,7 @@ fn test_file_contract_revision_v2_encode() {
         address: address1,
     };
 
-    let file_contract_v2 = FileContractV2 {
+    let file_contract_v2 = V2FileContract {
         filesize: 1,
         file_merkle_root: H256::default(),
         proof_height: 1,
@@ -1255,7 +1255,7 @@ fn test_file_contract_revision_v2_encode() {
         ]),
     };
 
-    let file_contract_element_v2 = FileContractElementV2 {
+    let file_contract_element_v2 = V2FileContractElement {
         state_element,
         v2_file_contract: file_contract_v2.clone(),
     };
