@@ -1,5 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::SiaHash;
+use crate::sia::encoding::PrefixedH256;
 use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement};
 use crate::sia::types::Event;
 
@@ -40,7 +40,7 @@ fn test_serde_address() {
 #[test]
 fn test_serde_sia_hash() {
     test_serde!(
-        SiaHash,
+        PrefixedH256,
         json!("h:dc07e5bf84fbda867a7ed7ca80c6d1d81db05cef16ff38f6ba80b6bf01e1ddb1")
     );
 }
@@ -316,4 +316,16 @@ fn test_serde_event_v2_contract_resolution_expiration() {
     let _event = serde_json::from_value::<Event>(j).unwrap();
   
     // FIXME this should deserialize from a JSON object generated from walletd and recalcuate the txid to check encoding/serde
+}
+
+#[test]
+fn test_public_key_display() {
+    use crate::sia::encoding::PrefixedPublicKey;
+    use crate::sia::PublicKey;
+    let pk = serde_json::from_value::<PrefixedPublicKey>("ed25519:999594db47cc792d408d26bb05f193b23ad020cb019113c0084a732673752a40".into()).unwrap();
+
+    println!("pk {}", serde_json::to_string(&pk).unwrap());
+    let pk1 : PublicKey = pk.into();
+
+    println!("pk1 {}", hex::encode(pk1.as_bytes()));
 }

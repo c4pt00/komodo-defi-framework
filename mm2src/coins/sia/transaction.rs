@@ -1,5 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder, SiaHash, SiaPublicKey, SiaSignature};
+use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey, PrefixedSignature};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
@@ -109,7 +109,7 @@ impl Encodable for Currency {
 #[serde(deny_unknown_fields)]
 pub struct SatisfiedPolicy {
     pub policy: SpendPolicy,
-    #[serde_as(as = "Vec<FromInto<SiaSignature>>")]
+    #[serde_as(as = "Vec<FromInto<PrefixedSignature>>")]
     #[serde(default)]
     pub signatures: Vec<Signature>,
     #[serde(default)]
@@ -172,11 +172,11 @@ impl Encodable for SatisfiedPolicy {
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StateElement {
-    #[serde_as(as = "FromInto<SiaHash>")]
+    #[serde_as(as = "FromInto<PrefixedH256>")]
     pub id: H256,
     #[serde(rename = "leafIndex")]
     pub leaf_index: u64,
-    #[serde_as(as = "Option<Vec<FromInto<SiaHash>>>")]
+    #[serde_as(as = "Option<Vec<FromInto<PrefixedH256>>>")]
     #[serde(rename = "merkleProof")]
     pub merkle_proof: Option<Vec<H256>>,
 }
@@ -405,7 +405,7 @@ pub struct FileContract {
 #[serde(rename_all = "camelCase")]
 pub struct V2FileContract {
     pub filesize: u64,
-    #[serde_as(as = "FromInto<SiaHash>")]
+    #[serde_as(as = "FromInto<PrefixedH256>")]
     pub file_merkle_root: H256,
     pub proof_height: u64,
     pub expiration_height: u64,
@@ -413,14 +413,14 @@ pub struct V2FileContract {
     pub host_output: SiacoinOutput,
     pub missed_host_value: Currency,
     pub total_collateral: Currency,
-    #[serde_as(as = "FromInto<SiaPublicKey>")]
+    #[serde_as(as = "FromInto<PrefixedPublicKey>")]
     pub renter_public_key: PublicKey,
-    #[serde_as(as = "FromInto<SiaPublicKey>")]
+    #[serde_as(as = "FromInto<PrefixedPublicKey>")]
     pub host_public_key: PublicKey,
     pub revision_number: u64,
-    #[serde_as(as = "FromInto<SiaSignature>")]
+    #[serde_as(as = "FromInto<PrefixedSignature>")]
     pub renter_signature: Signature,
-    #[serde_as(as = "FromInto<SiaSignature>")]
+    #[serde_as(as = "FromInto<PrefixedSignature>")]
     pub host_signature: Signature,
 }
 

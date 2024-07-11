@@ -1,6 +1,6 @@
 use crate::sia::address::Address;
 use crate::sia::{Signature};
-use crate::sia::encoding::{Encodable, Encoder, SiaHash, SiaSignature};
+use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedSignature};
 use crate::sia::transaction::{FileContractElementV1, V2FileContractElement, SiacoinElement, SiafundElement,
                               TransactionV1, TransactionV2, Currency, V2FileContract, StateElement};
 use chrono::{DateTime, Utc};
@@ -109,7 +109,7 @@ pub struct EventPayout {
 #[serde_as]
 #[derive(Clone, Debug, Serialize)]
 pub struct Event {
-    #[serde_as(as = "FromInto<SiaHash>")]
+    #[serde_as(as = "FromInto<PrefixedH256>")]
     pub id: H256,
     pub index: ChainIndex,
     pub timestamp: DateTime<Utc>,
@@ -128,7 +128,7 @@ impl<'de> Deserialize<'de> for Event {
     {
         #[derive(Deserialize, Debug)]
         struct EventHelper {
-            id: SiaHash,
+            id: PrefixedH256,
             index: ChainIndex,
             timestamp: DateTime<Utc>,
             #[serde(rename = "maturityHeight")]
@@ -263,9 +263,9 @@ pub struct V2FileContractRenewal {
     new_contract: V2FileContract,
     renter_rollover: Currency,
     host_rollover: Currency,
-    #[serde_as(as = "FromInto<SiaSignature>")]
+    #[serde_as(as = "FromInto<PrefixedSignature>")]
     renter_signature: Signature,
-    #[serde_as(as = "FromInto<SiaSignature>")]
+    #[serde_as(as = "FromInto<PrefixedSignature>")]
     host_signature: Signature,
 }
 
