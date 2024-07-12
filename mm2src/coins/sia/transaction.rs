@@ -1,5 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey, PrefixedSignature, HexArray64};
+use crate::sia::encoding::{Encodable, Encoder, HexArray64, PrefixedH256, PrefixedPublicKey, PrefixedSignature};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};

@@ -3,9 +3,9 @@ use crate::sia::{PublicKey, Signature};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
+use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
-use std::convert::TryInto;
 
 #[derive(Clone, Debug)]
 pub struct HexArray64(pub [u8; 64]);
@@ -131,7 +131,8 @@ impl<'de> Deserialize<'de> for PrefixedPublicKey {
                 E: serde::de::Error,
             {
                 if let Some(hex_str) = value.strip_prefix("ed25519:") {
-                    let bytes = hex::decode(hex_str).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?;
+                    let bytes =
+                        hex::decode(hex_str).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?;
                     PublicKey::from_bytes(&bytes)
                         .map(PrefixedPublicKey)
                         .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
@@ -155,15 +156,11 @@ impl Serialize for PrefixedPublicKey {
 }
 
 impl From<PrefixedPublicKey> for PublicKey {
-    fn from(sia_public_key: PrefixedPublicKey) -> Self {
-        sia_public_key.0
-    }
+    fn from(sia_public_key: PrefixedPublicKey) -> Self { sia_public_key.0 }
 }
 
 impl From<PublicKey> for PrefixedPublicKey {
-    fn from(public_key: PublicKey) -> Self {
-        PrefixedPublicKey(public_key)
-    }
+    fn from(public_key: PublicKey) -> Self { PrefixedPublicKey(public_key) }
 }
 
 // This wrapper allows us to use H256 internally but still serde as "h:" prefixed string

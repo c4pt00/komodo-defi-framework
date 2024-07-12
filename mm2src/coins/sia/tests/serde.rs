@@ -158,7 +158,7 @@ fn test_serde_event_v2_contract_resolution_storage_proof() {
     });
 
     let _event = serde_json::from_value::<Event>(j).unwrap();
-  
+
     // FIXME this should deserialize from a JSON object generated from walletd and recalcuate the txid to check encoding/serde
 }
 
@@ -258,7 +258,7 @@ fn test_serde_event_v2_contract_resolution_renewal() {
     });
 
     let _event = serde_json::from_value::<Event>(j).unwrap();
-  
+
     // FIXME this should deserialize from a JSON object generated from walletd and recalcuate the txid to check encoding/serde
 }
 
@@ -314,7 +314,7 @@ fn test_serde_event_v2_contract_resolution_expiration() {
     });
 
     let _event = serde_json::from_value::<Event>(j).unwrap();
-  
+
     // FIXME this should deserialize from a JSON object generated from walletd and recalcuate the txid to check encoding/serde
 }
 
