@@ -2,7 +2,7 @@ use crate::sia::address::Address;
 use crate::sia::{Signature};
 use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedSignature};
 use crate::sia::transaction::{FileContractElementV1, V2FileContractElement, SiacoinElement, SiafundElement,
-                              TransactionV1, TransactionV2, Currency, V2FileContract, StateElement};
+                              TransactionV1, TransactionV2, Currency, V2FileContract, StateElement, V2StorageProof};
 use chrono::{DateTime, Utc};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -84,11 +84,10 @@ impl Encodable for ChainIndex {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EventV1Transaction {
     pub transaction: TransactionV1,
-    #[serde(rename = "spentSiacoinElements")]
     pub spent_siacoin_elements: Vec<SiacoinElement>,
-    #[serde(rename = "spentSiafundElements")]
     pub spent_siafund_elements: Vec<SiafundElement>,
 }
 
@@ -96,13 +95,13 @@ pub struct EventV1Transaction {
 pub struct EventV1ContractResolution {
     pub file_contract: FileContractElementV1,
     pub siacoin_element: SiacoinElement,
-    pub missed: bool,
+    pub missed: Option<bool>,
 }
 
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EventPayout {
-    #[serde(rename = "siacoinElement")]
     pub siacoin_element: SiacoinElement,
 }
 
@@ -223,7 +222,10 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
             "storage proof" => serde_json::from_value::<V2StorageProof>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::StorageProof)
                 .map_err(serde::de::Error::custom),
-            // expiration is a special case because it has no data. It is just an empty map.
+            "finalization" => serde_json::from_value::<V2FileContractFinalization>(helper.resolution)
+                .map(V2FileContractResolutionWrapper::Finalization)
+                .map_err(serde::de::Error::custom),
+            // expiration is a special case because it has no data. It is just an empty object, "{}".
             "expiration" => match &helper.resolution {
                 Value::Object(map) if map.is_empty() => Ok(V2FileContractResolutionWrapper::Expiration(V2FileContractExpiration)),
                 _ => Err(serde::de::Error::custom("expected an empty map for expiration")),
@@ -231,6 +233,9 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
             // "finalization"
             _ => Err(serde::de::Error::unknown_variant(&helper.resolution_type, &[
                 "renewal",
+                "storage proof",
+                "expiration",
+                "finalization"
             ])),
         }?;
 
@@ -277,12 +282,3 @@ pub struct ChainIndexElement {
     chain_index: ChainIndex,
 }
 
-#[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct V2StorageProof {
-    proof_index: ChainIndexElement,
-    #[serde_as(as = "[_; 64]")] // FIXME placeholder serde impl
-    leaf: [u8; 64],
-    proof: Vec<H256>,
-}

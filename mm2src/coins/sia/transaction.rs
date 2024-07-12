@@ -1,5 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey, PrefixedSignature};
+use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey, PrefixedSignature, HexArray64};
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
@@ -171,13 +171,12 @@ impl Encodable for SatisfiedPolicy {
 
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StateElement {
     #[serde_as(as = "FromInto<PrefixedH256>")]
     pub id: H256,
-    #[serde(rename = "leafIndex")]
     pub leaf_index: u64,
     #[serde_as(as = "Option<Vec<FromInto<PrefixedH256>>>")]
-    #[serde(rename = "merkleProof")]
     pub merkle_proof: Option<Vec<H256>>,
 }
 
@@ -201,30 +200,28 @@ impl Encodable for StateElement {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SiafundElement {
     #[serde(flatten)]
     pub state_element: StateElement,
-    #[serde(rename = "siafundOutput")]
-    pub siacoin_output: SiafundOutput,
-    #[serde(rename = "maturityHeight")]
-    pub maturity_height: u64,
+    pub siafund_output: SiafundOutput,
+    pub claim_start: Currency,
 }
 
 impl Encodable for SiafundElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.state_element.encode(encoder);
-        SiafundOutputVersion::V2(self.siacoin_output.clone()).encode(encoder);
-        encoder.write_u64(self.maturity_height);
+        SiafundOutputVersion::V2(self.siafund_output.clone()).encode(encoder);
+        self.claim_start.encode(encoder);
     }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SiacoinElement {
     #[serde(flatten)]
     pub state_element: StateElement,
-    #[serde(rename = "siacoinOutput")]
     pub siacoin_output: SiacoinOutput,
-    #[serde(rename = "maturityHeight")]
     pub maturity_height: u64,
 }
 
@@ -237,10 +234,10 @@ impl Encodable for SiacoinElement {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SiafundInputV2 {
     pub parent: SiafundElement,
     pub claim_address: Address,
-    #[serde(rename = "satisfiedPolicy")]
     pub satisfied_policy: SatisfiedPolicy,
 }
 
@@ -273,9 +270,9 @@ impl Encodable for SiacoinInputV1 {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SiacoinInputV2 {
     pub parent: SiacoinElement,
-    #[serde(rename = "satisfiedPolicy")]
     pub satisfied_policy: SatisfiedPolicy,
 }
 
@@ -442,10 +439,10 @@ impl Encodable for V2FileContract {
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct V2FileContractElement {
     #[serde(flatten)]
     pub state_element: StateElement,
-    #[serde(rename = "v2FileContract")]
     pub v2_file_contract: V2FileContract,
 }
 
@@ -470,6 +467,7 @@ impl Encodable for FileContractRevisionV2 {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Attestation {
     pub public_key: PublicKey,
     pub key: String,
@@ -489,8 +487,7 @@ impl Encodable for Attestation {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct StorageProof {
     pub parent_id: FileContractID,
-    #[serde_as(as = "[_; 64]")]
-    pub leaf: [u8; 64],
+    pub leaf: HexArray64,
     pub proof: Vec<H256>,
 }
 
@@ -574,20 +571,19 @@ impl Encodable for V2FileContractRenewal {
         self.host_signature.encode(encoder);
     }
 }
-#[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct V2StorageProof {
-    pub proof_index: ChainIndexElement,
-    #[serde_as(as = "[_; 64]")]
-    pub leaf: [u8; 64],
-    pub proof: Vec<H256>,
+    proof_index: ChainIndexElement,
+    leaf: HexArray64,
+    proof: Vec<H256>,
 }
 
 // TODO unit test
 impl Encodable for V2StorageProof {
     fn encode(&self, encoder: &mut Encoder) {
         self.proof_index.encode(encoder);
-        encoder.write_slice(&self.leaf);
+        encoder.write_slice(&self.leaf.0);
         encoder.write_u64(self.proof.len() as u64);
         for proof in &self.proof {
             proof.encode(encoder);
@@ -596,6 +592,7 @@ impl Encodable for V2StorageProof {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChainIndexElement {
     #[serde(flatten)]
     pub state_element: StateElement,
@@ -648,17 +645,14 @@ We chose the latter as it allows for simpler encoding of this struct.
 It is possible this may need to change in later implementations.
 */
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 pub struct TransactionV1 {
-    #[serde(rename = "siacoinInputs")]
     pub siacoin_inputs: Vec<SiacoinInput>,
-    #[serde(rename = "siacoinOutputs")]
     pub siacoin_outputs: Vec<SiacoinOutput>,
     pub file_contracts: Vec<FileContract>,
     pub file_contract_revisions: Vec<FileContractRevision>,
     pub storage_proofs: Vec<StorageProof>,
     pub siafund_inputs: Vec<SiafundInputV1>,
-    #[serde(rename = "siafundOutputs")]
     pub siafund_outputs: Vec<SiafundOutput>,
     pub miner_fees: Vec<Currency>,
     pub arbitrary_data: Vec<u8>,
@@ -666,15 +660,11 @@ pub struct TransactionV1 {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 pub struct TransactionV2 {
-    #[serde(rename = "siacoinInputs")]
     pub siacoin_inputs: Vec<SiacoinInputV2>,
-    #[serde(rename = "siacoinOutputs")]
     pub siacoin_outputs: Vec<SiacoinOutput>,
-    #[serde(rename = "siafundInputs")]
     pub siafund_inputs: Vec<SiafundInputV2>,
-    #[serde(rename = "siafundOutputs")]
     pub siafund_outputs: Vec<SiafundOutput>,
     pub file_contracts: Vec<V2FileContract>,
     pub file_contract_revisions: Vec<FileContractRevisionV2>,
@@ -682,7 +672,6 @@ pub struct TransactionV2 {
     pub attestations: Vec<Attestation>,
     pub arbitrary_data: Vec<u8>,
     pub new_foundation_address: Option<Address>,
-    #[serde(rename = "siafundOutputs")]
     pub miner_fee: Option<Currency>,
 }
 
@@ -807,6 +796,19 @@ fn test_state_element_encode() {
 
     let hash = Encoder::encode_and_hash(&state_element);
     let expected = H256::from("bf6d7b74fb1e15ec4e86332b628a450e387c45b54ea98e57a6da8c9af317e468");
+    assert_eq!(hash, expected);
+}
+
+#[test]
+fn test_state_element_encode_null_merkle_proof() {
+    let state_element = StateElement {
+        id: H256::from("0102030000000000000000000000000000000000000000000000000000000000"),
+        leaf_index: 1,
+        merkle_proof: None,
+    };
+
+    let hash = Encoder::encode_and_hash(&state_element);
+    let expected = H256::from("d69bc48bc797aff93050447aff0a3f7c4d489705378c122cd123841fe7778a3e");
     assert_eq!(hash, expected);
 }
 

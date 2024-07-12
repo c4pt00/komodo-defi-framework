@@ -5,21 +5,39 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
+use std::convert::TryInto;
 
-fn deserialize_hex_to_array<'de, D>(deserializer: D) -> Result<[u8; 64], D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: &str = Deserialize::deserialize(deserializer)?;
-    let bytes = hex::decode(s).map_err(serde::de::Error::custom)?;
+#[derive(Clone, Debug)]
+pub struct HexArray64(pub [u8; 64]);
 
-    if bytes.len() != 64 {
-        return Err(serde::de::Error::custom("invalid length for [u8; 64]"));
+impl<'de> Deserialize<'de> for HexArray64 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex_str: String = Deserialize::deserialize(deserializer)?;
+        let decoded_vec = hex::decode(&hex_str).map_err(serde::de::Error::custom)?;
+
+        if decoded_vec.len() != 64 {
+            return Err(serde::de::Error::custom("Invalid length: expected 64 byte hex string"));
+        }
+
+        let array: [u8; 64] = decoded_vec
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("Failed to convert Vec<u8> to [u8; 64]"))?;
+
+        Ok(HexArray64(array))
     }
+}
 
-    let mut array = [0u8; 64];
-    array.copy_from_slice(&bytes);
-    Ok(array)
+impl Serialize for HexArray64 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex_str = hex::encode(self.0);
+        serializer.serialize_str(&hex_str)
+    }
 }
 
 // https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
