@@ -18,11 +18,13 @@ use std::fmt;
 use std::str::FromStr;
 
 // parse 32 bytes of hex to &str
-fn parse_hex_str(input: &str) -> IResult<&str, &str> { take_while_m_n(64, 64, |c: char| c.is_digit(16))(input) }
+fn parse_hex_str(input: &str) -> IResult<&str, &str> {
+    all_consuming(take_while_m_n(64, 64, |c: char| c.is_digit(16)))(input)
+}
 
 // parse 32 bytes of hex to Vec<u8>
 fn parse_hex(input: &str) -> IResult<&str, Vec<u8>> {
-    map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode)(input)
+    all_consuming(map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode))(input)
 }
 
 fn parse_u64(input: &str) -> IResult<&str, u64> { map_res(digit1, |s: &str| s.parse::<u64>())(input) }
