@@ -7,7 +7,9 @@ use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC7
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
 use coins::eth::gas_limit::ETH_MAX_TRADE_GAS;
-use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, EthCoin, SignedEthTx, ERC20_ABI};
+use coins::eth::v2_activation::{eth_coin_from_conf_and_request_v2, EthActivationV2Request, EthNode};
+use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, EthCoin, EthCoinType,
+                 EthPrivKeyBuildPolicy, SignedEthTx, SwapV2Contracts, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
             Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
@@ -20,7 +22,7 @@ use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
 use ethereum_types::U256;
 use futures01::Future;
-use mm2_core::mm_ctx::MmArc;
+use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, nft_dev_conf, nft_sepolia_conf};
 use std::thread;
@@ -45,13 +47,11 @@ pub fn geth_account() -> Address { unsafe { GETH_ACCOUNT } }
 /// GETH_SWAP_CONTRACT is set once during initialization before tests start
 pub fn swap_contract() -> Address { unsafe { GETH_SWAP_CONTRACT } }
 
-#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_MAKER_SWAP_V2 is set once during initialization before tests start
 pub fn maker_swap_v2() -> Address { unsafe { GETH_MAKER_SWAP_V2 } }
 
-#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_TAKER_SWAP_V2 is set once during initialization before tests start
@@ -358,26 +358,54 @@ pub enum TestNftType {
 /// Generates a global NFT coin instance with a random private key and an initial 100 ETH balance.
 /// Optionally mints a specified NFT (either ERC721 or ERC1155) to the global NFT address,
 /// with details recorded in the `nfts_infos` field based on the provided `nft_type`.
-pub fn global_nft_with_random_privkey(swap_contract_address: Address, nft_type: Option<TestNftType>) -> EthCoin {
-    let nft_conf = nft_dev_conf();
-    let req = json!({
-        "method": "enable",
-        "coin": "NFT_ETH",
-        "urls": [GETH_RPC_URL],
-        "swap_contract_address": swap_contract_address,
+pub fn global_nft_with_random_privkey(
+    swap_v2_contracts: SwapV2Contracts,
+    swap_contract_address: Address,
+    fallback_swap_contract_address: Address,
+    nft_type: Option<TestNftType>,
+    nft_ticker: String,
+    platform_ticker: String,
+) -> EthCoin {
+    let coins = json!([eth_dev_conf(), nft_dev_conf()]);
+    let conf = json!({
+        "coins": coins,
+        "use_trading_proto_v2": true,
     });
+    let ctx = MmCtxBuilder::new().with_conf(conf).into_mm_arc();
+    let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret());
+    let node = EthNode {
+        url: GETH_RPC_URL.to_string(),
+        gui_auth: false,
+    };
+    let platform_request = EthActivationV2Request {
+        nodes: vec![node],
+        rpc_mode: Default::default(),
+        swap_contract_address,
+        swap_v2_contracts: Some(swap_v2_contracts),
+        fallback_swap_contract: Some(fallback_swap_contract_address),
+        contract_supports_watchers: false,
+        mm2: None,
+        required_confirmations: None,
+        priv_key_policy: Default::default(),
+        enable_params: Default::default(),
+        path_to_address: Default::default(),
+        gap_limit: None,
+    };
 
-    let global_nft = block_on(eth_coin_from_conf_and_request(
-        &MM_CTX,
-        "NFT_ETH",
-        &nft_conf,
-        &req,
-        CoinProtocol::NFT {
-            platform: "ETH".to_string(),
-        },
-        PrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret()),
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
+        &ctx,
+        nft_ticker.as_str(),
+        &nft_dev_conf(),
+        platform_request,
+        build_policy,
     ))
     .unwrap();
+
+    let coin_type = EthCoinType::Nft {
+        platform: platform_ticker,
+    };
+
+    let global_nft = block_on(coin.set_coin_type(&ctx, coin_type));
 
     let my_address = block_on(global_nft.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));
@@ -939,13 +967,14 @@ fn send_and_spend_erc721_maker_payment() {
     thread::sleep(Duration::from_secs(11));
     let token_id = 1u32;
     let time_lock = now_sec() + 1000;
+    let activation = NftActivationV2Args::init();
     let setup = setup_test(
         token_id,
         None,
         ContractType::Erc721,
-        geth_nft_maker_swap_v2(),
         geth_erc721_contract(),
         time_lock,
+        activation,
     );
 
     let maker_payment = send_nft_maker_payment(&setup, 1.into());
@@ -975,13 +1004,14 @@ fn send_and_spend_erc1155_maker_payment() {
     let token_id = 1u32;
     let amount = 3u32;
     let time_lock = now_sec() + 1000;
+    let activation = NftActivationV2Args::init();
     let setup = setup_test(
         token_id,
         Some(amount),
         ContractType::Erc1155,
-        geth_nft_maker_swap_v2(),
         geth_erc1155_contract(),
         time_lock,
+        activation,
     );
 
     let maker_address = block_on(setup.maker_global_nft.my_addr());
@@ -1049,13 +1079,14 @@ fn send_and_refund_erc721_maker_payment_timelock() {
     thread::sleep(Duration::from_secs(39));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
+    let activation = NftActivationV2Args::init();
     let setup = setup_test(
         token_id,
         None,
         ContractType::Erc721,
-        geth_nft_maker_swap_v2(),
         geth_erc721_contract(),
         time_lock_to_refund,
+        activation,
     );
 
     let maker_payment_to_refund = send_nft_maker_payment(&setup, 1.into());
@@ -1091,13 +1122,14 @@ fn send_and_refund_erc1155_maker_payment_timelock() {
     let token_id = 2u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() - 1000;
+    let activation = NftActivationV2Args::init();
     let setup = setup_test(
         token_id,
         Some(amount),
         ContractType::Erc1155,
-        geth_nft_maker_swap_v2(),
         geth_erc1155_contract(),
         time_lock_to_refund,
+        activation,
     );
 
     let maker_address = block_on(setup.maker_global_nft.my_addr());
@@ -1140,14 +1172,14 @@ fn send_and_refund_erc721_maker_payment_secret() {
     thread::sleep(Duration::from_secs(5));
     let token_id = 3u32;
     let time_lock_to_refund = now_sec() + 1000;
-
+    let activation = NftActivationV2Args::init();
     let setup = setup_test(
         token_id,
         None,
         ContractType::Erc721,
-        geth_nft_maker_swap_v2(),
         geth_erc721_contract(),
         time_lock_to_refund,
+        activation,
     );
 
     let maker_payment_to_refund = send_nft_maker_payment(&setup, 1.into());
@@ -1183,13 +1215,14 @@ fn send_and_refund_erc1155_maker_payment_secret() {
     let token_id = 3u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() + 1000;
+    let activation = NftActivationV2Args::init();
     let setup = setup_test(
         token_id,
         Some(amount),
         ContractType::Erc1155,
-        geth_nft_maker_swap_v2(),
         geth_erc1155_contract(),
         time_lock_to_refund,
+        activation,
     );
 
     let maker_address = block_on(setup.maker_global_nft.my_addr());
@@ -1249,14 +1282,37 @@ pub struct TestNftSwapInfo<Coin: ParseNftAssocTypes + ?Sized> {
     /// Etomic swap contract address
     pub swap_contract_address: Coin::ContractAddress,
 }
+struct NftActivationV2Args {
+    swap_contract_address: Address,
+    fallback_swap_contract_address: Address,
+    swap_v2_contracts: SwapV2Contracts,
+    nft_ticker: String,
+    platform_ticker: String,
+}
+
+impl NftActivationV2Args {
+    fn init() -> Self {
+        Self {
+            swap_contract_address: swap_contract(),
+            fallback_swap_contract_address: swap_contract(),
+            swap_v2_contracts: SwapV2Contracts {
+                maker_swap_v2_contract: maker_swap_v2(),
+                taker_swap_v2_contract: taker_swap_v2(),
+                nft_maker_swap_v2_contract: geth_nft_maker_swap_v2(),
+            },
+            nft_ticker: "NFT_ETH".to_string(),
+            platform_ticker: "ETH".to_string(),
+        }
+    }
+}
 
 fn setup_test(
     token_id: u32,
     amount: Option<u32>,
     contract_type: ContractType,
-    swap_contract_address: Address,
     token_contract: Address,
     time_lock: u64,
+    activation: NftActivationV2Args,
 ) -> NftTestSetup {
     let nft_type = match contract_type {
         ContractType::Erc721 => TestNftType::Erc721 { token_id },
@@ -1266,8 +1322,22 @@ fn setup_test(
         },
     };
 
-    let maker_global_nft = global_nft_with_random_privkey(swap_contract_address, Some(nft_type));
-    let taker_global_nft = global_nft_with_random_privkey(swap_contract_address, None);
+    let maker_global_nft = global_nft_with_random_privkey(
+        activation.swap_v2_contracts,
+        activation.swap_contract_address,
+        activation.fallback_swap_contract_address,
+        Some(nft_type),
+        activation.nft_ticker.clone(),
+        activation.platform_ticker.clone(),
+    );
+    let taker_global_nft = global_nft_with_random_privkey(
+        activation.swap_v2_contracts,
+        activation.swap_contract_address,
+        activation.fallback_swap_contract_address,
+        None,
+        activation.nft_ticker,
+        activation.platform_ticker,
+    );
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
     let taker_secret = vec![0; 32];
@@ -1279,7 +1349,7 @@ fn setup_test(
         token_address: token_contract,
         token_id,
         contract_type,
-        swap_contract_address,
+        swap_contract_address: activation.swap_v2_contracts.nft_maker_swap_v2_contract,
     };
 
     NftTestSetup {
