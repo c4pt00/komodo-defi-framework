@@ -58,4 +58,17 @@ impl Specifier {
             Specifier::Unknown => &UNKNOWN,
         }
     }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "ed25519" => Specifier::Ed25519,
+            "siacoin output" => Specifier::SiacoinOutput,
+            "siafund output" => Specifier::SiafundOutput,
+            "file contract" => Specifier::FileContract,
+            "storage proof" => Specifier::StorageProof,
+            "foundation" => Specifier::Foundation,
+            "entropy" => Specifier::Entropy,
+            _ => Specifier::Unknown,
+        }
+    }
 }
