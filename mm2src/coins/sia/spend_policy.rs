@@ -82,7 +82,7 @@ fn parse_spend_policy(input: &str) -> IResult<&str, SpendPolicy> {
         parse_hash,
         parse_threshold,
         parse_opaque,
-        // parse_unlock_condition, // TODO we won't encounter this in SatisfiedPolicy deserialization
+        // parse_unlock_condition, // TODO this may still be in flux from Sia devs
     ));
     // drop whitespace characters before and after the policy
     delimited(multispace0, parse_policy, multispace0)(input)
