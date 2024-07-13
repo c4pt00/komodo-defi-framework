@@ -287,7 +287,7 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum UnlockKey {
     Ed25519(PublicKey),
-    Unknown { algorithm: Specifier, public_key: Vec<u8> },
+    Unsupported { algorithm: Specifier, public_key: Vec<u8> },
 }
 
 impl Encodable for PublicKey {
@@ -302,7 +302,7 @@ impl Encodable for UnlockKey {
                 encoder.write_u64(32); // ed25519 public key length
                 public_key.encode(encoder);
             },
-            UnlockKey::Unknown { algorithm, public_key } => {
+            UnlockKey::Unsupported { algorithm, public_key } => {
                 algorithm.encode(encoder);
                 encoder.write_u64(public_key.len() as u64);
                 encoder.write_slice(public_key);
