@@ -319,13 +319,77 @@ fn test_serde_event_v2_contract_resolution_expiration() {
 }
 
 #[test]
-fn test_public_key_display() {
-    use crate::sia::encoding::PrefixedPublicKey;
-    use crate::sia::PublicKey;
-    let pk = serde_json::from_value::<PrefixedPublicKey>("ed25519:999594db47cc792d408d26bb05f193b23ad020cb019113c0084a732673752a40".into()).unwrap();
+fn test_serde_event_v2_contract_resolution_finalization() {
+    let j = json!(
+      {
+        "id": "h:4057e021e1d6dec8d4e4ef9d6e9fa2e4491c559144848b9af5765e03b39bb69d",
+        "index": {
+          "height": 0,
+          "id": "bid:0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "timestamp": "2024-07-12T10:04:18.564506-07:00",
+        "maturityHeight": 0,
+        "type": "v2ContractResolution",
+        "data": {
+          "parent": {
+            "id": "h:ee87ab83f9d16c9377d6154c477ac40d2ee70619de2ba146fcfe36fd0de86bf5",
+            "leafIndex": 6680213938505633000u64,
+            "merkleProof": [
+              "h:0000000000000000000000000000000000000000000000000000000000000000",
+              "h:0000000000000000000000000000000000000000000000000000000000000000",
+              "h:0000000000000000000000000000000000000000000000000000000000000000",
+              "h:0000000000000000000000000000000000000000000000000000000000000000",
+              "h:0000000000000000000000000000000000000000000000000000000000000000"
+            ],
+            "v2FileContract": {
+              "filesize": 0,
+              "fileMerkleRoot": "h:0000000000000000000000000000000000000000000000000000000000000000",
+              "proofHeight": 10,
+              "expirationHeight": 20,
+              "renterOutput": {
+                "value": "10000000000000000000000000000",
+                "address": "addr:c899f7795bb20c94e57c764f06699e09e6ad071ad95539eef4fb505e79ab22e8be4d64067ccc"
+              },
+              "hostOutput": {
+                "value": "0",
+                "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+              },
+              "missedHostValue": "0",
+              "totalCollateral": "0",
+              "renterPublicKey": "ed25519:65ea9701c409d4457a830b6fe7a2513d6f466ab4e424b3941de9f34a4a2d6170",
+              "hostPublicKey": "ed25519:65ea9701c409d4457a830b6fe7a2513d6f466ab4e424b3941de9f34a4a2d6170",
+              "revisionNumber": 0,
+              "renterSignature": "sig:bd1794b9266fa0de94aea0f0ffb6550efd7e8874133963022413c8ccfe1a0e31c14690d3a5bbd343b160ed59219bd67f79103c45aee07f519d72b5ab4319440f",
+              "hostSignature": "sig:bd1794b9266fa0de94aea0f0ffb6550efd7e8874133963022413c8ccfe1a0e31c14690d3a5bbd343b160ed59219bd67f79103c45aee07f519d72b5ab4319440f"
+            }
+          },
+          "type": "finalization",
+          "resolution": {
+            "filesize": 0,
+            "fileMerkleRoot": "h:0000000000000000000000000000000000000000000000000000000000000000",
+            "proofHeight": 10,
+            "expirationHeight": 20,
+            "renterOutput": {
+              "value": "10000000000000000000000000000",
+              "address": "addr:c899f7795bb20c94e57c764f06699e09e6ad071ad95539eef4fb505e79ab22e8be4d64067ccc"
+            },
+            "hostOutput": {
+              "value": "0",
+              "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+            },
+            "missedHostValue": "0",
+            "totalCollateral": "0",
+            "renterPublicKey": "ed25519:65ea9701c409d4457a830b6fe7a2513d6f466ab4e424b3941de9f34a4a2d6170",
+            "hostPublicKey": "ed25519:65ea9701c409d4457a830b6fe7a2513d6f466ab4e424b3941de9f34a4a2d6170",
+            "revisionNumber": 1,
+            "renterSignature": "sig:bd1794b9266fa0de94aea0f0ffb6550efd7e8874133963022413c8ccfe1a0e31c14690d3a5bbd343b160ed59219bd67f79103c45aee07f519d72b5ab4319440f",
+            "hostSignature": "sig:bd1794b9266fa0de94aea0f0ffb6550efd7e8874133963022413c8ccfe1a0e31c14690d3a5bbd343b160ed59219bd67f79103c45aee07f519d72b5ab4319440f"
+          }
+        }
+      }
+    );
 
-    println!("pk {}", serde_json::to_string(&pk).unwrap());
-    let pk1 : PublicKey = pk.into();
+    let _event = serde_json::from_value::<Event>(j).unwrap();
 
-    println!("pk1 {}", hex::encode(pk1.as_bytes()));
+    // FIXME this should deserialize from a JSON object generated from walletd and recalcuate the txid to check encoding/serde
 }
