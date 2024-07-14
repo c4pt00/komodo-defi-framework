@@ -1294,7 +1294,7 @@ impl NftActivationV2Args {
                 taker_swap_v2_contract: taker_swap_v2(),
                 nft_maker_swap_v2_contract: geth_nft_maker_swap_v2(),
             },
-            nft_ticker: "NFT_ETH".to_string(),
+            nft_ticker: NFT_ETH.to_string(),
             platform_ticker: "ETH".to_string(),
         }
     }

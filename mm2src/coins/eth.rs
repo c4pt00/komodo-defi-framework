@@ -7059,9 +7059,9 @@ impl TakerCoinSwapOpsV2 for EthCoin {
 
     async fn refund_taker_funding_secret(
         &self,
-        _args: RefundFundingSecretArgs<'_, Self>,
+        args: RefundFundingSecretArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr> {
-        todo!()
+        self.refund_taker_funding_secret_impl(args).await
     }
 
     async fn search_for_taker_funding_spend(
