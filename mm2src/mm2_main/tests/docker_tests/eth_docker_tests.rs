@@ -22,7 +22,7 @@ use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
 use ethereum_types::U256;
 use futures01::Future;
-use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
+use mm2_core::mm_ctx::MmArc;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, nft_dev_conf, nft_sepolia_conf};
 use std::thread;
@@ -1070,7 +1070,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(39));
+    thread::sleep(Duration::from_secs(33));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let activation = NftActivationV2Args::init();
@@ -1205,7 +1205,7 @@ fn send_and_refund_erc721_maker_payment_secret() {
 
 #[test]
 fn send_and_refund_erc1155_maker_payment_secret() {
-    thread::sleep(Duration::from_secs(2));
+    thread::sleep(Duration::from_secs(4));
     let token_id = 3u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() + 1000;
