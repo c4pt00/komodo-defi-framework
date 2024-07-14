@@ -405,7 +405,7 @@ pub fn global_nft_with_random_privkey(
         platform: platform_ticker,
     };
 
-    let global_nft = block_on(coin.set_coin_type(&ctx, coin_type));
+    let global_nft = block_on(coin.set_coin_type(&MM_CTX, coin_type));
 
     let my_address = block_on(global_nft.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));
