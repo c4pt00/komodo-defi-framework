@@ -2,7 +2,7 @@ use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC7
                                  GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT, GETH_MAKER_SWAP_V2,
                                  GETH_NFT_MAKER_SWAP_V2, GETH_NFT_SWAP_CONTRACT, GETH_NONCE_LOCK, GETH_RPC_URL,
                                  GETH_SWAP_CONTRACT, GETH_TAKER_SWAP_V2, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3,
-                                 MM_CTX, SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT,
+                                 MM_CTX, MM_CTX1, SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT,
                                  SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2, SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
@@ -366,12 +366,6 @@ pub fn global_nft_with_random_privkey(
     nft_ticker: String,
     platform_ticker: String,
 ) -> EthCoin {
-    let coins = json!([eth_dev_conf(), nft_dev_conf()]);
-    let conf = json!({
-        "coins": coins,
-        "use_trading_proto_v2": true,
-    });
-    let ctx = MmCtxBuilder::new().with_conf(conf).into_mm_arc();
     let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret());
     let node = EthNode {
         url: GETH_RPC_URL.to_string(),
@@ -393,7 +387,7 @@ pub fn global_nft_with_random_privkey(
     };
 
     let coin = block_on(eth_coin_from_conf_and_request_v2(
-        &ctx,
+        &MM_CTX1,
         nft_ticker.as_str(),
         &nft_dev_conf(),
         platform_request,
@@ -405,7 +399,7 @@ pub fn global_nft_with_random_privkey(
         platform: platform_ticker,
     };
 
-    let global_nft = block_on(coin.set_coin_type(&MM_CTX, coin_type));
+    let global_nft = block_on(coin.set_coin_type(coin_type));
 
     let my_address = block_on(global_nft.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));

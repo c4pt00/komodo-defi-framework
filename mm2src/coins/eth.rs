@@ -7174,7 +7174,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
 
 #[cfg(all(feature = "for-tests", not(target_arch = "wasm32")))]
 impl EthCoin {
-    pub async fn set_coin_type(&self, ctx: &MmArc, new_coin_type: EthCoinType) -> EthCoin {
+    pub async fn set_coin_type(&self, new_coin_type: EthCoinType) -> EthCoin {
         let coin = EthCoinImpl {
             ticker: self.ticker.clone(),
             coin_type: new_coin_type,
@@ -7193,7 +7193,7 @@ impl EthCoin {
             ),
             swap_txfee_policy: Mutex::new(self.swap_txfee_policy.lock().unwrap().clone()),
             max_eth_tx_type: self.max_eth_tx_type,
-            ctx: ctx.weak(),
+            ctx: self.ctx.clone(),
             chain_id: self.chain_id,
             trezor_coin: self.trezor_coin.clone(),
             logs_block_range: self.logs_block_range,
