@@ -109,7 +109,7 @@ impl From<Signature> for PrefixedSignature {
 }
 
 // This wrapper allows us to use PublicKey internally but still serde as "ed25519:" prefixed string
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PrefixedPublicKey(pub PublicKey);
 
 impl<'de> Deserialize<'de> for PrefixedPublicKey {
@@ -164,7 +164,7 @@ impl From<PublicKey> for PrefixedPublicKey {
 }
 
 // This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PrefixedH256(pub H256);
 
 // FIXME this code pattern is reoccuring in many places and should be generalized with helpers or macros
