@@ -153,21 +153,35 @@ impl EthCoin {
         };
         match &self.coin_type {
             EthCoinType::Eth => {
-                let data = try_tx_s!(self.prepare_taker_refund_eth_secret_data(&refund_args).await);
+                let data = try_tx_s!(
+                    self.prepare_taker_refund_payment_secret_data(&refund_args, Address::default())
+                        .await
+                );
                 self.sign_and_send_transaction(
                     payment_amount,
                     Action::Call(taker_swap_v2_contract),
                     data,
-                    U256::from(gas_limit::ETH_PAYMENT),
+                    U256::from(gas_limit::ETH_SENDER_REFUND),
                 )
                 .compat()
                 .await
             },
             EthCoinType::Erc20 {
                 platform: _,
-                token_addr: _,
+                token_addr,
             } => {
-                todo!()
+                let data = try_tx_s!(
+                    self.prepare_taker_refund_payment_secret_data(&refund_args, *token_addr)
+                        .await
+                );
+                self.sign_and_send_transaction(
+                    payment_amount,
+                    Action::Call(taker_swap_v2_contract),
+                    data,
+                    U256::from(gas_limit::ERC20_SENDER_REFUND),
+                )
+                .compat()
+                .await
             },
             EthCoinType::Nft { .. } => Err(TransactionErr::ProtocolNotSupported(
                 "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
@@ -175,6 +189,15 @@ impl EthCoin {
         }
     }
 
+    /// Prepares data for EtomicSwapTakerV2 contract `ethTakerPayment` method
+    ///     function ethTakerPayment(
+    ///         bytes32 id,
+    ///         uint256 dexFee,
+    ///         address receiver,
+    ///         bytes32 takerSecretHash,
+    ///         bytes32 makerSecretHash,
+    ///         uint32 preApproveLockTime,
+    ///         uint32 paymentLockTime
     async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs<'_>) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("ethTakerPayment")?;
         let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret_hash);
@@ -190,10 +213,21 @@ impl EthCoin {
         Ok(data)
     }
 
+    /// Prepares data for EtomicSwapTakerV2 contract `erc20TakerPayment` method
+    ///     function erc20TakerPayment(
+    ///         bytes32 id,
+    ///         uint256 amount,
+    ///         uint256 dexFee,
+    ///         address tokenAddress,
+    ///         address receiver,
+    ///         bytes32 takerSecretHash,
+    ///         bytes32 makerSecretHash,
+    ///         uint32 preApproveLockTime,
+    ///         uint32 paymentLockTime
     async fn prepare_taker_erc20_funding_data(
         &self,
         args: &TakerFundingArgs<'_>,
-        token_addr: Address,
+        token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
         let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret_hash);
@@ -201,7 +235,7 @@ impl EthCoin {
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
             Token::Uint(args.dex_fee),
-            Token::Address(token_addr),
+            Token::Address(token_address),
             Token::Address(args.maker_address),
             Token::FixedBytes(args.taker_secret_hash.to_vec()),
             Token::FixedBytes(args.maker_secret_hash.to_vec()),
@@ -211,9 +245,19 @@ impl EthCoin {
         Ok(data)
     }
 
-    async fn prepare_taker_refund_eth_secret_data(
+    /// Prepares data for EtomicSwapTakerV2 contract `refundTakerPaymentSecret` method
+    /// function refundTakerPaymentSecret(
+    ///         bytes32 id,
+    ///         uint256 amount,
+    ///         uint256 dexFee,
+    ///         address maker,
+    ///         bytes32 takerSecret,
+    ///         bytes32 makerSecretHash,
+    ///         address tokenAddress
+    async fn prepare_taker_refund_payment_secret_data(
         &self,
         args: &TakerRefundSecretArgs<'_>,
+        token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentSecret")?;
         let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret);
@@ -224,18 +268,18 @@ impl EthCoin {
             Token::Address(args.maker_address),
             Token::FixedBytes(args.taker_secret.to_vec()),
             Token::FixedBytes(args.maker_secret_hash.to_vec()),
-            Token::Address(Address::default()),
+            Token::Address(token_address),
         ])?;
         Ok(data)
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Display, EnumFromStringify)]
 enum PrepareTxDataError {
     #[from_stringify("ethabi::Error")]
     #[display(fmt = "Abi error: {}", _0)]
     AbiError(String),
+    #[allow(dead_code)]
     #[display(fmt = "Internal error: {}", _0)]
     Internal(String),
 }
