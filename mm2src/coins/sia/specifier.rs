@@ -1,4 +1,6 @@
 use crate::sia::encoding::{Encodable, Encoder};
+use std::fmt::Display;
+
 
 // this macro allows us to define the byte arrays as constants at compile time
 macro_rules! define_byte_array_const {
@@ -71,4 +73,21 @@ impl Specifier {
             _ => Specifier::Unknown,
         }
     }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Specifier::Ed25519 => "ed25519",
+            Specifier::SiacoinOutput => "siacoin output",
+            Specifier::SiafundOutput => "siafund output",
+            Specifier::FileContract => "file contract",
+            Specifier::StorageProof => "storage proof",
+            Specifier::Foundation => "foundation",
+            Specifier::Entropy => "entropy",
+            Specifier::Unknown => "unknown",
+        }
+    }
+}
+
+impl Display for Specifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "{}", self.to_str()) }
 }
