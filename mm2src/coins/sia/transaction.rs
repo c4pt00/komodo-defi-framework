@@ -668,7 +668,7 @@ pub struct TransactionV2 {
     pub siafund_outputs: Vec<SiafundOutput>,
     pub file_contracts: Vec<V2FileContract>,
     pub file_contract_revisions: Vec<FileContractRevisionV2>,
-    pub file_contract_resolutions: Vec<FileContractResolutionV2>, // TODO
+    pub file_contract_resolutions: Vec<FileContractResolutionV2>, // TODO needs Encodable trait
     pub attestations: Vec<Attestation>,
     pub arbitrary_data: Vec<u8>,
     pub new_foundation_address: Option<Address>,
