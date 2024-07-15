@@ -661,7 +661,7 @@ pub struct TransactionV1 {
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
-pub struct TransactionV2 {
+pub struct V2Transaction {
     pub siacoin_inputs: Vec<SiacoinInputV2>,
     pub siacoin_outputs: Vec<SiacoinOutput>,
     pub siafund_inputs: Vec<SiafundInputV2>,

@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedSignature};
 use crate::sia::transaction::{Currency, FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
-                              TransactionV1, TransactionV2, V2FileContract, V2FileContractElement, V2StorageProof};
+                              TransactionV1, V2Transaction, V2FileContract, V2FileContractElement, V2StorageProof};
 use crate::sia::Signature;
 use chrono::{DateTime, Utc};
 use rpc::v1::types::H256;
@@ -151,7 +151,7 @@ impl<'de> Deserialize<'de> for Event {
             "v1Transaction" => serde_json::from_value::<EventV1Transaction>(helper.data)
                 .map(EventDataWrapper::V1Transaction)
                 .map_err(serde::de::Error::custom),
-            "v2Transaction" => serde_json::from_value::<TransactionV2>(helper.data)
+            "v2Transaction" => serde_json::from_value::<V2Transaction>(helper.data)
                 .map(EventDataWrapper::V2Transaction)
                 .map_err(serde::de::Error::custom),
             // "v1ContractResolution" => serde_json::from_value::<EventV1ContractResolution>(helper.data)
@@ -187,7 +187,7 @@ pub enum EventDataWrapper {
     MinerPayout(EventPayout),
     FoundationPayout(EventPayout),
     ClaimPayout(EventPayout),
-    V2Transaction(TransactionV2),
+    V2Transaction(V2Transaction),
     V2FileContractResolution(V2FileContractResolution),
     V1Transaction(EventV1Transaction),
     EventV1ContractResolution(EventV1ContractResolution),
