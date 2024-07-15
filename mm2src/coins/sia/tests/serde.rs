@@ -1,7 +1,9 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::PrefixedH256;
-use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement};
+use crate::sia::spend_policy::{SpendPolicyHelper, SpendPolicy};
+use crate::sia::transaction::{V2Transaction, SiacoinElement, SiacoinOutput, StateElement};
 use crate::sia::types::Event;
+use crate::sia::PublicKey;
 
 // Ensure the original value matches the value after round-trip (serialize -> deserialize -> serialize)
 macro_rules! test_serde {
@@ -392,4 +394,109 @@ fn test_serde_event_v2_contract_resolution_finalization() {
     let _event = serde_json::from_value::<Event>(j).unwrap();
 
     // FIXME this should deserialize from a JSON object generated from walletd and recalcuate the txid to check encoding/serde
+}
+
+#[test]
+fn test_serde_simple_v2_transaction() {
+    let j = json!(
+      {
+        "siacoinInputs": [
+            {
+                "parent": {
+                    "id": "h:b49cba94064a92a75bf8c6f9d32ab18f38bfb14a2252e3e117d04da89d536f29",
+                    "leafIndex": 302,
+                    "merkleProof": [
+                        "h:6f41d366712e9dfa423160b5388f3faf673addf43566d7b3562106d15b833f46",
+                        "h:eb7df5e13eccd812a47f29a233bbf3212b7379ca6dd20ba9981524bfd5eadce6",
+                        "h:04104cbada51333f8f37a6eb71f1e8cb287da2d62469568a8a36dc8c76602c80",
+                        "h:16aac5c671d49d8cfc5493cb4c6f34889e30a0d283745c6473406bd60ab5e754",
+                        "h:1b9ccf2b6f555687b1384091faa9ed1c154f41aaff81dcf393295383ca99f518",
+                        "h:31337c9db5cdd181f5ff142bd490f779eedb1485e5dd905743280aeac3cd7ac9"
+                    ],
+                    "siacoinOutput": {
+                        "value": "288594172736732570239334030000",
+                        "address": "addr:2757c80b7ec2e493a138fed45b906f9f5735a992b68dcbd2069fbdf418c8b25158f3ac7a816b"
+                    },
+                    "maturityHeight": 0
+                },
+                "satisfiedPolicy": {
+                    "policy": {
+                        "type": "uc",
+                        "policy": {
+                            "timelock": 0,
+                            "publicKeys": [
+                                "ed25519:7931b69fe8888e354d601a778e31bfa97fa89dc6f625cd01cc8aa28046e557e7"
+                            ],
+                            "signaturesRequired": 1
+                        }
+                    },
+                    "signatures": [
+                        "sig:f43380794a6384e3d24d9908143c05dd37aaac8959efb65d986feb70fe289a5e26b84e0ac712af01a2f85f8727da18aae13a599a51fb066d098591e40cb26902"
+                    ]
+                }
+            }
+        ],
+        "siacoinOutputs": [
+            {
+                "value": "1000000000000000000000000000",
+                "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+            },
+            {
+                "value": "287594172736732570239334030000",
+                "address": "addr:2757c80b7ec2e493a138fed45b906f9f5735a992b68dcbd2069fbdf418c8b25158f3ac7a816b"
+            }
+        ],
+        "minerFee": "0"
+    }
+    );
+
+    let _event = serde_json::from_value::<V2Transaction>(j).unwrap();
+}
+
+#[test]
+fn test_serde_spend_policy_above() {
+    let j = json!(
+      {
+        "type": "above",
+        "policy": 100
+      }
+    );
+
+    let spend_policy_deser = serde_json::from_value::<SpendPolicy>(j).unwrap();
+    let spend_policy = SpendPolicy::Above(100);
+
+    assert_eq!(spend_policy, spend_policy_deser);
+}
+
+#[test]
+fn test_serde_spend_policy_after() {
+    let j = json!(
+      {
+        "type": "after",
+        "policy": 200
+      }
+    );
+
+    let spend_policy_deser = serde_json::from_value::<SpendPolicy>(j).unwrap();
+    let spend_policy = SpendPolicy::After(200);
+
+    assert_eq!(spend_policy, spend_policy_deser);
+}
+
+#[test]
+fn test_serde_spend_policy_public_key() {
+    let j = json!(
+      {
+        "type": "pk",
+        "policy": "ed25519:0102030000000000000000000000000000000000000000000000000000000000"
+      }
+    );
+    let pubkey = PublicKey::from_bytes(
+      &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+  )
+  .unwrap();
+    let spend_policy_deser : SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
+    let spend_policy = SpendPolicy::PublicKey(pubkey.into());
+
+    assert_eq!(spend_policy, spend_policy_deser);
 }

@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
                                    Accumulator};
-use crate::sia::encoding::{Encodable, Encoder};
+use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey};
 use crate::sia::specifier::Specifier;
 use ed25519_dalek::PublicKey;
 use nom::branch::alt;
@@ -13,8 +13,8 @@ use nom::multi::separated_list0;
 use nom::sequence::{delimited, preceded, separated_pair};
 use nom::IResult;
 use rpc::v1::types::H256;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt;
+use serde::{Deserialize, Serialize};
+use serde_with::{serde_as};
 use std::str::FromStr;
 
 // parse 32 bytes of hex to &str
@@ -99,7 +99,7 @@ impl SpendPolicy {
 
 const POLICY_VERSION: u8 = 1u8;
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum SpendPolicy {
     Above(u64),
     After(u64),
@@ -110,32 +110,30 @@ pub enum SpendPolicy {
     UnlockConditions(UnlockCondition), // For v1 compatibility
 }
 
-impl<'de> Deserialize<'de> for SpendPolicy {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct SpendPolicyVisitor;
+// serde_with is used to serialize/deserialize SpendPolicy with prefixed PublicKey and H256
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "type", content = "policy", rename_all = "camelCase")]
+pub enum SpendPolicyHelper {
+    Above(u64),
+    After(u64),
+    Pk(PrefixedPublicKey),
+    H(PrefixedH256),
+    Thresh { n: u8, of: Vec<SpendPolicy> },
+    Opaque(PrefixedH256),
+    Uc(UnlockCondition), // For v1 compatibility
+}
 
-        impl<'de> serde::de::Visitor<'de> for SpendPolicyVisitor {
-            type Value = SpendPolicy;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a string representing a Sia spend policy")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                match parse_spend_policy(value.trim()) {
-                    Ok((_, policy)) => Ok(policy),
-                    Err(_) => Err(E::invalid_value(serde::de::Unexpected::Str(value), &self)),
-                }
-            }
+impl From<SpendPolicyHelper> for SpendPolicy {
+    fn from(helper: SpendPolicyHelper) -> Self {
+        match helper {
+            SpendPolicyHelper::Above(height) => SpendPolicy::Above(height),
+            SpendPolicyHelper::After(time) => SpendPolicy::After(time),
+            SpendPolicyHelper::Pk(pk) => SpendPolicy::PublicKey(pk.0),
+            SpendPolicyHelper::H(hash) => SpendPolicy::Hash(hash.0),
+            SpendPolicyHelper::Thresh { n, of } => SpendPolicy::Threshold { n, of },
+            SpendPolicyHelper::Opaque(hash) => SpendPolicy::Opaque(hash.0),
+            SpendPolicyHelper::Uc(uc) => SpendPolicy::UnlockConditions(uc),
         }
-
-        deserializer.deserialize_str(SpendPolicyVisitor)
     }
 }
 
@@ -551,3 +549,4 @@ fn test_public_key_encode() {
     let expected = H256::from("d487326614f066416308bf6aa4e5041d1949928e4b26ede98e3cebb36a3b1726");
     assert_eq!(hash, expected);
 }
+
