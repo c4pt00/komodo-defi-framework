@@ -1,5 +1,6 @@
 use crate::sia::address::Address;
-use crate::sia::spend_policy::{SpendPolicy, SpendPolicyHelper, UnlockCondition, spend_policy_atomic_swap_success, UnlockKey};
+use crate::sia::spend_policy::{spend_policy_atomic_swap_success, SpendPolicy, SpendPolicyHelper, UnlockCondition,
+                               UnlockKey};
 use crate::sia::PublicKey;
 use rpc::v1::types::H256;
 use std::str::FromStr;
@@ -75,7 +76,8 @@ fn test_serde_spend_policy_opaque() {
         "policy": "addr:f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d71791b277a3a"
     }
     );
-    let address = Address::from_str("addr:f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d71791b277a3a").unwrap();
+    let address =
+        Address::from_str("addr:f72e84ee9e344e424a6764068ffd7fdce4b4e50609892c6801bc1ead79d3ae0d71791b277a3a").unwrap();
     let spend_policy_deser: SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
     let spend_policy = SpendPolicy::Opaque(address);
 
@@ -158,10 +160,8 @@ fn test_serde_spend_policy_unlock_conditions_standard() {
         signatures_required: 1,
     };
 
-
     let spend_policy_deser: SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
     let spend_policy = SpendPolicy::UnlockConditions(uc);
 
     assert_eq!(spend_policy, spend_policy_deser);
 }
-

@@ -1,5 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encoder};
+use crate::sia::encoding::Encoder;
 use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
@@ -180,4 +180,3 @@ fn test_unlock_condition_unlock_hash_standard() {
     let hash = standard_unlock_hash(&pubkey);
     assert_eq!(hash, expected);
 }
-

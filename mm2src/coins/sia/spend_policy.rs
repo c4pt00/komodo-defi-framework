@@ -4,15 +4,15 @@ use crate::sia::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard
 use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey};
 use crate::sia::specifier::Specifier;
 use ed25519_dalek::PublicKey;
-use nom::bytes::complete::{take_while_m_n, take_until, take_while};
-use nom::character::complete::{char};
+use nom::bytes::complete::{take_until, take_while, take_while_m_n};
+use nom::character::complete::char;
 use nom::combinator::all_consuming;
 use nom::combinator::map_res;
 use nom::IResult;
 use rpc::v1::types::H256;
-use serde::{Deserialize, Serialize, Deserializer, Serializer};
-use std::str::FromStr;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+use std::str::FromStr;
 
 const POLICY_VERSION: u8 = 1u8;
 
@@ -47,8 +47,9 @@ impl From<SpendPolicyHelper> for SpendPolicy {
             SpendPolicyHelper::After(time) => SpendPolicy::After(time),
             SpendPolicyHelper::Pk(pk) => SpendPolicy::PublicKey(pk.0),
             SpendPolicyHelper::H(hash) => SpendPolicy::Hash(hash.0),
-            SpendPolicyHelper::Thresh { n, of } => {
-                SpendPolicy::Threshold { n, of: of.into_iter().map(SpendPolicy::from).collect() }
+            SpendPolicyHelper::Thresh { n, of } => SpendPolicy::Threshold {
+                n,
+                of: of.into_iter().map(SpendPolicy::from).collect(),
             },
             SpendPolicyHelper::Opaque(address) => SpendPolicy::Opaque(address),
             SpendPolicyHelper::Uc(uc) => SpendPolicy::UnlockConditions(uc),
@@ -105,7 +106,7 @@ impl SpendPolicy {
             },
             SpendPolicy::Opaque(address) => {
                 encoder.write_u8(opcode);
-                encoder.write_slice(&address.0.0);
+                encoder.write_slice(&address.0 .0);
             },
             SpendPolicy::UnlockConditions(unlock_condition) => {
                 encoder.write_u8(opcode);
@@ -202,7 +203,7 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnlockKey {
     Ed25519(PublicKey),
-    Unsupported{ algorithm: Specifier, public_key: Vec<u8> },
+    Unsupported { algorithm: Specifier, public_key: Vec<u8> },
 }
 
 impl<'de> Deserialize<'de> for UnlockKey {
@@ -254,7 +255,10 @@ fn parse_unlock_key(input: &str) -> IResult<&str, UnlockKey> {
     let (input, specifier) = parse_specifier(input)?;
     match specifier {
         Specifier::Ed25519 => {
-            let (input, public_key) = map_res(all_consuming(map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode)), |bytes: Vec<u8>| PublicKey::from_bytes(&bytes))(input)?;
+            let (input, public_key) = map_res(
+                all_consuming(map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode)),
+                |bytes: Vec<u8>| PublicKey::from_bytes(&bytes),
+            )(input)?;
             Ok((input, UnlockKey::Ed25519(public_key)))
         },
         _ => {
@@ -275,7 +279,7 @@ pub struct UnlockKeyParseError(pub String);
 impl FromStr for UnlockKey {
     type Err = UnlockKeyParseError;
 
-    fn from_str(input: &str) -> Result<UnlockKey, Self::Err>  {
+    fn from_str(input: &str) -> Result<UnlockKey, Self::Err> {
         match all_consuming(parse_unlock_key)(input) {
             Ok((_, key)) => Ok(key),
             Err(e) => Err(UnlockKeyParseError(e.to_string())), // TODO unit test to check how verbose or useful this is
@@ -289,7 +293,7 @@ impl fmt::Display for UnlockKey {
             UnlockKey::Ed25519(public_key) => write!(f, "ed25519:{}", hex::encode(public_key.as_bytes())),
             UnlockKey::Unsupported { algorithm, public_key } => {
                 write!(f, "{}:{}", algorithm.to_str(), hex::encode(public_key))
-            }
+            },
         }
     }
 }

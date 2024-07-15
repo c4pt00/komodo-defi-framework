@@ -1,7 +1,6 @@
 use crate::sia::encoding::{Encodable, Encoder};
 use std::fmt::Display;
 
-
 // this macro allows us to define the byte arrays as constants at compile time
 macro_rules! define_byte_array_const {
     ($name:ident, $size:expr, $value:expr) => {
