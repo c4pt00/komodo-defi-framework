@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedSignature};
 use crate::sia::transaction::{Currency, FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
-                              TransactionV1, V2Transaction, V2FileContract, V2FileContractElement, V2StorageProof};
+                              TransactionV1, V2FileContract, V2FileContractElement, V2StorageProof, V2Transaction};
 use crate::sia::Signature;
 use chrono::{DateTime, Utc};
 use rpc::v1::types::H256;

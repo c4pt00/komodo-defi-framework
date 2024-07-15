@@ -14,7 +14,7 @@ use nom::sequence::{delimited, preceded, separated_pair};
 use nom::IResult;
 use rpc::v1::types::H256;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as};
+use serde_with::serde_as;
 use std::str::FromStr;
 
 // parse 32 bytes of hex to &str
@@ -549,4 +549,3 @@ fn test_public_key_encode() {
     let expected = H256::from("d487326614f066416308bf6aa4e5041d1949928e4b26ede98e3cebb36a3b1726");
     assert_eq!(hash, expected);
 }
-

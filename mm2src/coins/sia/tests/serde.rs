@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::PrefixedH256;
-use crate::sia::spend_policy::{SpendPolicyHelper, SpendPolicy};
-use crate::sia::transaction::{V2Transaction, SiacoinElement, SiacoinOutput, StateElement};
+use crate::sia::spend_policy::{SpendPolicy, SpendPolicyHelper};
+use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement, V2Transaction};
 use crate::sia::types::Event;
 use crate::sia::PublicKey;
 
@@ -492,10 +492,10 @@ fn test_serde_spend_policy_public_key() {
       }
     );
     let pubkey = PublicKey::from_bytes(
-      &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
-  )
-  .unwrap();
-    let spend_policy_deser : SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
+        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+    let spend_policy_deser: SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
     let spend_policy = SpendPolicy::PublicKey(pubkey.into());
 
     assert_eq!(spend_policy, spend_policy_deser);
