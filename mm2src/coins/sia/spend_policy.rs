@@ -57,6 +57,23 @@ impl From<SpendPolicyHelper> for SpendPolicy {
     }
 }
 
+impl From<SpendPolicy> for SpendPolicyHelper {
+    fn from(policy: SpendPolicy) -> Self {
+        match policy {
+            SpendPolicy::Above(height) => SpendPolicyHelper::Above(height),
+            SpendPolicy::After(time) => SpendPolicyHelper::After(time),
+            SpendPolicy::PublicKey(pk) => SpendPolicyHelper::Pk(PrefixedPublicKey(pk)),
+            SpendPolicy::Hash(hash) => SpendPolicyHelper::H(PrefixedH256(hash)),
+            SpendPolicy::Threshold { n, of } => SpendPolicyHelper::Thresh {
+                n,
+                of: of.into_iter().map(SpendPolicyHelper::from).collect(),
+            },
+            SpendPolicy::Opaque(address) => SpendPolicyHelper::Opaque(address),
+            SpendPolicy::UnlockConditions(uc) => SpendPolicyHelper::Uc(uc),
+        }
+    }
+}
+
 impl Encodable for SpendPolicy {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u8(POLICY_VERSION);

@@ -1,6 +1,6 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, HexArray64, PrefixedH256, PrefixedPublicKey, PrefixedSignature};
-use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey};
+use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey, SpendPolicyHelper};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
@@ -108,6 +108,7 @@ impl Encodable for Currency {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SatisfiedPolicy {
+    #[serde_as(as = "FromInto<SpendPolicyHelper>")]
     pub policy: SpendPolicy,
     #[serde_as(as = "Vec<FromInto<PrefixedSignature>>")]
     #[serde(default)]
