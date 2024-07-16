@@ -1,6 +1,6 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, HexArray64, PrefixedH256, PrefixedPublicKey, PrefixedSignature};
-use crate::sia::spend_policy::{SpendPolicy, UnlockCondition, UnlockKey, SpendPolicyHelper};
+use crate::sia::spend_policy::{SpendPolicy, SpendPolicyHelper, UnlockCondition, UnlockKey};
 use crate::sia::types::ChainIndex;
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
@@ -424,7 +424,10 @@ pub struct V2FileContract {
 
 impl V2FileContract {
     pub fn with_nil_sigs(&self) -> V2FileContract {
-        debug_assert!(Signature::from_bytes(&[0u8; 64]).is_ok(), "nil signature is valid and cannot return Err");
+        debug_assert!(
+            Signature::from_bytes(&[0u8; 64]).is_ok(),
+            "nil signature is valid and cannot return Err"
+        );
         V2FileContract {
             renter_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
             host_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
@@ -561,9 +564,15 @@ pub enum FileContractResolutionTypeV2 {
 impl FileContractResolutionTypeV2 {
     fn with_nil_sigs(&self) -> FileContractResolutionTypeV2 {
         match self {
-            FileContractResolutionTypeV2::Finalization(f) => FileContractResolutionTypeV2::Finalization(Box::new(f.with_nil_sigs())),
-            FileContractResolutionTypeV2::Renewal(r) => FileContractResolutionTypeV2::Renewal(Box::new(r.with_nil_sigs())),
-            FileContractResolutionTypeV2::StorageProof(s) => FileContractResolutionTypeV2::StorageProof(s.with_nil_merkle_proof()),
+            FileContractResolutionTypeV2::Finalization(f) => {
+                FileContractResolutionTypeV2::Finalization(Box::new(f.with_nil_sigs()))
+            },
+            FileContractResolutionTypeV2::Renewal(r) => {
+                FileContractResolutionTypeV2::Renewal(Box::new(r.with_nil_sigs()))
+            },
+            FileContractResolutionTypeV2::StorageProof(s) => {
+                FileContractResolutionTypeV2::StorageProof(s.with_nil_merkle_proof())
+            },
             FileContractResolutionTypeV2::Expiration(e) => FileContractResolutionTypeV2::Expiration(e.clone()),
         }
     }
@@ -593,9 +602,7 @@ impl Encodable for FileContractResolutionV2 {
 pub struct V2FileContractFinalization(pub V2FileContract);
 
 impl V2FileContractFinalization {
-    fn with_nil_sigs(&self) -> V2FileContractFinalization {
-        V2FileContractFinalization(self.0.with_nil_sigs())
-        }   
+    fn with_nil_sigs(&self) -> V2FileContractFinalization { V2FileContractFinalization(self.0.with_nil_sigs()) }
 }
 
 // TODO unit test
@@ -615,7 +622,10 @@ pub struct V2FileContractRenewal {
 
 impl V2FileContractRenewal {
     pub fn with_nil_sigs(&self) -> V2FileContractRenewal {
-        debug_assert!(Signature::from_bytes(&[0u8; 64]).is_ok(), "nil signature is valid and cannot return Err");
+        debug_assert!(
+            Signature::from_bytes(&[0u8; 64]).is_ok(),
+            "nil signature is valid and cannot return Err"
+        );
         V2FileContractRenewal {
             final_revision: self.final_revision.with_nil_sigs(),
             new_contract: self.new_contract.with_nil_sigs(),
@@ -648,8 +658,8 @@ pub struct V2StorageProof {
 impl V2StorageProof {
     pub fn with_nil_merkle_proof(&self) -> V2StorageProof {
         V2StorageProof {
-            proof_index: ChainIndexElement{
-                state_element: StateElement{
+            proof_index: ChainIndexElement {
+                state_element: StateElement {
                     merkle_proof: None,
                     ..self.proof_index.state_element.clone()
                 },
@@ -764,7 +774,6 @@ impl V2Transaction {
             file_contract_resolutions: self.file_contract_resolutions.clone(),
             ..self.clone()
         }
-    
     }
 }
 
@@ -826,7 +835,6 @@ impl Encodable for V2Transaction {
             None => encoder.write_u64(0),
         }
     }
-
 }
 
 #[test]
