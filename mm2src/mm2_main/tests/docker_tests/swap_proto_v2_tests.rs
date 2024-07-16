@@ -157,7 +157,6 @@ fn send_and_refund_taker_funding_secret() {
         taker_secret: &taker_secret,
         taker_secret_hash,
         maker_secret_hash: &[],
-        swap_contract_address: &None,
         dex_fee,
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),

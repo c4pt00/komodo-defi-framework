@@ -1310,7 +1310,6 @@ pub struct RefundFundingSecretArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     pub taker_secret: &'a [u8],
     pub taker_secret_hash: &'a [u8],
     pub maker_secret_hash: &'a [u8],
-    pub swap_contract_address: &'a Option<BytesJson>,
     /// DEX fee
     pub dex_fee: &'a DexFee,
     /// Additional reward for maker (premium)

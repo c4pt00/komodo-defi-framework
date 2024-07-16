@@ -12,10 +12,11 @@ use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_reque
                  EthPrivKeyBuildPolicy, SignedEthTx, SwapV2Contracts, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
-            Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
-            ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundNftMakerPaymentArgs, RefundPaymentArgs,
-            SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SpendNftMakerPaymentArgs,
-            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, ToBytes, Transaction,
+            DexFee, Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct,
+            NftSwapInfo, ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundFundingSecretArgs,
+            RefundNftMakerPaymentArgs, RefundPaymentArgs, SearchForSwapTxSpendInput, SendNftMakerPaymentArgs,
+            SendPaymentArgs, SendTakerFundingArgs, SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps,
+            SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes, Transaction,
             ValidateNftMakerPaymentArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
@@ -25,6 +26,7 @@ use futures01::Future;
 use mm2_core::mm_ctx::MmArc;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, nft_dev_conf, nft_sepolia_conf};
+use serde_json::Value as Json;
 use std::thread;
 use std::time::Duration;
 use web3::contract::{Contract, Options};
@@ -36,6 +38,8 @@ const SEPOLIA_MAKER_PRIV: &str = "6e2f3a6223b928a05a3a3622b0c3f3573d03663b704a61
 #[allow(dead_code)]
 const SEPOLIA_TAKER_PRIV: &str = "e0be82dca60ff7e4c6d6db339ac9e1ae249af081dba2110bddd281e711608f16";
 const NFT_ETH: &str = "NFT_ETH";
+const ETH: &str = "ETH";
+const ERC20: &str = "ERC20DEV";
 
 /// # Safety
 ///
@@ -358,7 +362,7 @@ pub enum TestNftType {
 /// Generates a global NFT coin instance with a random private key and an initial 100 ETH balance.
 /// Optionally mints a specified NFT (either ERC721 or ERC1155) to the global NFT address,
 /// with details recorded in the `nfts_infos` field based on the provided `nft_type`.
-pub fn global_nft_with_random_privkey(
+fn global_nft_with_random_privkey(
     swap_v2_contracts: SwapV2Contracts,
     swap_contract_address: Address,
     fallback_swap_contract_address: Address,
@@ -1459,4 +1463,164 @@ fn refund_nft_maker_payment(
 enum RefundType {
     Timelock,
     Secret,
+}
+
+#[derive(Copy, Clone)]
+struct SwapAddresses {
+    swap_v2_contracts: SwapV2Contracts,
+    swap_contract_address: Address,
+    fallback_swap_contract_address: Address,
+}
+
+impl SwapAddresses {
+    fn init() -> Self {
+        Self {
+            swap_contract_address: swap_contract(),
+            fallback_swap_contract_address: swap_contract(),
+            swap_v2_contracts: SwapV2Contracts {
+                maker_swap_v2_contract: maker_swap_v2(),
+                taker_swap_v2_contract: taker_swap_v2(),
+                nft_maker_swap_v2_contract: geth_nft_maker_swap_v2(),
+            },
+        }
+    }
+}
+
+fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_addr: SwapAddresses) -> EthCoin {
+    let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret());
+    let node = EthNode {
+        url: GETH_RPC_URL.to_string(),
+        gui_auth: false,
+    };
+    let platform_request = EthActivationV2Request {
+        nodes: vec![node],
+        rpc_mode: Default::default(),
+        swap_contract_address: swap_addr.swap_contract_address,
+        swap_v2_contracts: Some(swap_addr.swap_v2_contracts),
+        fallback_swap_contract: Some(swap_addr.fallback_swap_contract_address),
+        contract_supports_watchers: false,
+        mm2: None,
+        required_confirmations: None,
+        priv_key_policy: Default::default(),
+        enable_params: Default::default(),
+        path_to_address: Default::default(),
+        gap_limit: None,
+    };
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
+        &MM_CTX1,
+        ticker,
+        conf,
+        platform_request,
+        build_policy,
+    ))
+    .unwrap();
+    let my_address = block_on(coin.my_addr());
+    fill_eth(my_address, U256::from(10).pow(U256::from(20)));
+    coin
+}
+
+#[test]
+fn send_and_refund_taker_funding_by_secret_eth() {
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
+
+    let taker_secret = vec![0; 32];
+    let taker_secret_hash = sha256(&taker_secret).to_vec();
+    let maker_secret = vec![1; 32];
+    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    let funding_time_lock = now_sec() + 3000;
+    let payment_time_lock = now_sec() + 1000;
+
+    let dex_fee = &DexFee::Standard("0.1".into());
+    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub: maker_pub.as_bytes(),
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        wait_for_confirmation_until: 0,
+    };
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
+    log!("Taker sent ETH Funding, tx hash: {:02x}", funding_tx.tx_hash());
+
+    // TODO call validation function when implemented
+
+    let refund_args = RefundFundingSecretArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        maker_pubkey: &taker_coin.derive_htlc_pubkey_v2(&[]),
+        taker_secret: &taker_secret,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        watcher_reward: false,
+    };
+    let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
+    log!(
+        "Taker refined ETH Funding by Secret, tx hash: {:02x}",
+        funding_tx_refund.tx_hash()
+    );
+}
+
+#[test]
+fn send_and_refund_taker_funding_by_secret_erc20() {
+    let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
+
+    let taker_secret = vec![0; 32];
+    let taker_secret_hash = sha256(&taker_secret).to_vec();
+    let maker_secret = vec![1; 32];
+    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    let funding_time_lock = now_sec() + 3000;
+    let payment_time_lock = now_sec() + 1000;
+
+    let dex_fee = &DexFee::Standard("0.1".into());
+    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub: maker_pub.as_bytes(),
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        wait_for_confirmation_until: 70,
+    };
+
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
+    log!("Taker sent ERC20 Funding, tx hash {:02x}", funding_tx.tx_hash());
+
+    // TODO call validation function when implemented
+
+    let refund_args = RefundFundingSecretArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        maker_pubkey: &taker_coin.derive_htlc_pubkey_v2(&[]),
+        taker_secret: &taker_secret,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        watcher_reward: false,
+    };
+    let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
+    log!(
+        "Taker refined ERC20 Funding by Secret, tx hash: {:02x}",
+        funding_tx_refund.tx_hash()
+    );
 }

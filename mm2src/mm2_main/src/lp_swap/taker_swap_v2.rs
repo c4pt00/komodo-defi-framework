@@ -1801,7 +1801,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_secret: state_machine.taker_secret.as_slice(),
             taker_secret_hash: &secret_hash,
             maker_secret_hash: &self.negotiation_data.maker_secret_hash,
-            swap_contract_address: &None,
             dex_fee: &state_machine.dex_fee,
             premium_amount: state_machine.taker_premium.to_decimal(),
             trading_amount: state_machine.taker_volume.to_decimal(),
