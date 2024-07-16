@@ -1566,7 +1566,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     };
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
     log!(
-        "Taker refined ETH Funding by Secret, tx hash: {:02x}",
+        "Taker refunded ETH Funding by Secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
 }
@@ -1596,7 +1596,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         premium_amount: BigDecimal::default(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 70,
+        wait_for_confirmation_until: now_sec() + 60,
     };
 
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
@@ -1620,7 +1620,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     };
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
     log!(
-        "Taker refined ERC20 Funding by Secret, tx hash: {:02x}",
+        "Taker refunded ERC20 Funding by Secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
 }
