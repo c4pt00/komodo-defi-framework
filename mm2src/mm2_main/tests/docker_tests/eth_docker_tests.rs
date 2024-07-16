@@ -1382,7 +1382,7 @@ fn send_nft_maker_payment(setup: &NftTestSetup, amount: BigDecimal) -> SignedEth
     block_on(setup.maker_global_nft.send_nft_maker_payment_v2(send_payment_args)).unwrap()
 }
 
-fn wait_for_confirmations(global_nft: &EthCoin, tx: &SignedEthTx, wait_seconds: u64) {
+fn wait_for_confirmations(coin: &EthCoin, tx: &SignedEthTx, wait_seconds: u64) {
     let confirm_input = ConfirmPaymentInput {
         payment_tx: tx.tx_hex(),
         confirmations: 1,
@@ -1390,7 +1390,7 @@ fn wait_for_confirmations(global_nft: &EthCoin, tx: &SignedEthTx, wait_seconds: 
         wait_until: now_sec() + wait_seconds,
         check_every: 1,
     };
-    global_nft.wait_for_confirmations(confirm_input).wait().unwrap();
+    coin.wait_for_confirmations(confirm_input).wait().unwrap();
 }
 
 fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx, amount: BigDecimal) {
@@ -1548,7 +1548,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH Funding, tx hash: {:02x}", funding_tx.tx_hash());
 
-    // TODO call validation function when implemented
+    wait_for_confirmations(&taker_coin, &funding_tx, 60);
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
@@ -1602,7 +1602,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 Funding, tx hash {:02x}", funding_tx.tx_hash());
 
-    // TODO call validation function when implemented
+    wait_for_confirmations(&taker_coin, &funding_tx, 60);
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
