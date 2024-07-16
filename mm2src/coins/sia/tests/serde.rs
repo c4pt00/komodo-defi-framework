@@ -456,7 +456,7 @@ fn test_v2_transaction_serde_basic_send() {
                 }
             ],
             "minerFee": "0"
-        } 
+        }
     );
     let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
 

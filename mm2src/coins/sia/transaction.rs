@@ -13,7 +13,7 @@ use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_ato
 #[cfg(test)] use crate::sia::v1_standard_address_from_pubkey;
 
 type SiacoinOutputID = H256;
-const V2_REPLAY_PREFIX : u8 = 2;
+const V2_REPLAY_PREFIX: u8 = 2;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Currency {
@@ -68,9 +68,7 @@ pub enum CurrencyVersion {
 }
 
 impl Default for Currency {
-    fn default() -> Self {
-        Currency { lo: 0, hi: 0 }
-    }
+    fn default() -> Self { Currency { lo: 0, hi: 0 } }
 }
 
 impl Currency {
@@ -1578,7 +1576,7 @@ fn test_v2_transaction_signing() {
                 }
             ],
             "minerFee": "0"
-        } 
+        }
     );
     let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
     let keypair = Keypair::from_bytes(&hex::decode("0100000000000000000000000000000000000000000000000000000000000000cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc").unwrap()).unwrap();
