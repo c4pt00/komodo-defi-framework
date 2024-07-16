@@ -422,6 +422,17 @@ pub struct V2FileContract {
     pub host_signature: Signature,
 }
 
+impl V2FileContract {
+    pub fn with_nil_sigs(&self) -> V2FileContract {
+        debug_assert!(Signature::from_bytes(&[0u8; 64]).is_ok(), "nil signature is valid and cannot return Err");
+        V2FileContract {
+            renter_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
+            host_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
+            ..self.clone()
+        }
+    }
+}
+
 impl Encodable for V2FileContract {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u64(self.filesize);
@@ -458,6 +469,15 @@ impl Encodable for V2FileContractElement {
 pub struct FileContractRevisionV2 {
     pub parent: V2FileContractElement,
     pub revision: V2FileContract,
+}
+
+impl FileContractRevisionV2 {
+    pub fn with_nil_sigs(&self) -> FileContractRevisionV2 {
+        FileContractRevisionV2 {
+            revision: self.revision.with_nil_sigs(),
+            ..self.clone()
+        }
+    }
 }
 
 impl Encodable for FileContractRevisionV2 {
@@ -515,12 +535,38 @@ pub struct FileContractResolutionV2 {
     pub resolution: FileContractResolutionTypeV2,
 }
 
+impl Encodable for FileContractResolutionTypeV2 {
+    fn encode(&self, _encoder: &mut Encoder) {
+        todo!();
+    }
+}
+
+impl FileContractResolutionV2 {
+    fn with_nil_sigs(&self) -> FileContractResolutionV2 {
+        FileContractResolutionV2 {
+            resolution: self.resolution.with_nil_sigs(),
+            ..self.clone()
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum FileContractResolutionTypeV2 {
     Finalization(Box<V2FileContractFinalization>),
     Renewal(Box<V2FileContractRenewal>),
     StorageProof(V2StorageProof),
     Expiration(V2FileContractExpiration),
+}
+
+impl FileContractResolutionTypeV2 {
+    fn with_nil_sigs(&self) -> FileContractResolutionTypeV2 {
+        match self {
+            FileContractResolutionTypeV2::Finalization(f) => FileContractResolutionTypeV2::Finalization(Box::new(f.with_nil_sigs())),
+            FileContractResolutionTypeV2::Renewal(r) => FileContractResolutionTypeV2::Renewal(Box::new(r.with_nil_sigs())),
+            FileContractResolutionTypeV2::StorageProof(s) => FileContractResolutionTypeV2::StorageProof(s.with_nil_merkle_proof()),
+            FileContractResolutionTypeV2::Expiration(e) => FileContractResolutionTypeV2::Expiration(e.clone()),
+        }
+    }
 }
 
 // TODO we don't need this for the time being
@@ -546,6 +592,12 @@ impl Encodable for FileContractResolutionV2 {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct V2FileContractFinalization(pub V2FileContract);
 
+impl V2FileContractFinalization {
+    fn with_nil_sigs(&self) -> V2FileContractFinalization {
+        V2FileContractFinalization(self.0.with_nil_sigs())
+        }   
+}
+
 // TODO unit test
 impl Encodable for V2FileContractFinalization {
     fn encode(&self, encoder: &mut Encoder) { self.0.encode(encoder); }
@@ -559,6 +611,19 @@ pub struct V2FileContractRenewal {
     pub host_rollover: Currency,
     pub renter_signature: Signature,
     pub host_signature: Signature,
+}
+
+impl V2FileContractRenewal {
+    pub fn with_nil_sigs(&self) -> V2FileContractRenewal {
+        debug_assert!(Signature::from_bytes(&[0u8; 64]).is_ok(), "nil signature is valid and cannot return Err");
+        V2FileContractRenewal {
+            final_revision: self.final_revision.with_nil_sigs(),
+            new_contract: self.new_contract.with_nil_sigs(),
+            renter_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
+            host_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
+            ..self.clone()
+        }
+    }
 }
 
 // TODO unit test
@@ -578,6 +643,21 @@ pub struct V2StorageProof {
     proof_index: ChainIndexElement,
     leaf: HexArray64,
     proof: Vec<H256>,
+}
+
+impl V2StorageProof {
+    pub fn with_nil_merkle_proof(&self) -> V2StorageProof {
+        V2StorageProof {
+            proof_index: ChainIndexElement{
+                state_element: StateElement{
+                    merkle_proof: None,
+                    ..self.proof_index.state_element.clone()
+                },
+                ..self.proof_index.clone()
+            },
+            ..self.clone()
+        }
+    }
 }
 
 // TODO unit test
@@ -674,6 +754,79 @@ pub struct V2Transaction {
     pub arbitrary_data: Vec<u8>,
     pub new_foundation_address: Option<Address>,
     pub miner_fee: Option<Currency>,
+}
+
+impl V2Transaction {
+    pub fn with_nil_sigs(&self) -> V2Transaction {
+        V2Transaction {
+            file_contracts: self.file_contracts.clone(),
+            file_contract_revisions: self.file_contract_revisions.clone(),
+            file_contract_resolutions: self.file_contract_resolutions.clone(),
+            ..self.clone()
+        }
+    
+    }
+}
+
+impl Encodable for V2Transaction {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u64(self.siacoin_inputs.len() as u64);
+        for si in &self.siacoin_inputs {
+            si.parent.state_element.id.encode(encoder);
+        }
+
+        encoder.write_u64(self.siacoin_outputs.len() as u64);
+        for so in &self.siacoin_outputs {
+            SiacoinOutputVersion::V2(so.clone()).encode(encoder);
+        }
+
+        encoder.write_u64(self.siafund_inputs.len() as u64);
+        for si in &self.siafund_inputs {
+            si.parent.state_element.id.encode(encoder);
+        }
+
+        encoder.write_u64(self.siafund_outputs.len() as u64);
+        for so in &self.siafund_outputs {
+            SiafundOutputVersion::V2(so.clone()).encode(encoder);
+        }
+
+        encoder.write_u64(self.file_contracts.len() as u64);
+        for fc in &self.file_contracts {
+            fc.with_nil_sigs().encode(encoder);
+        }
+
+        encoder.write_u64(self.file_contract_revisions.len() as u64);
+        for fcr in &self.file_contract_revisions {
+            fcr.parent.state_element.id.encode(encoder);
+            fcr.revision.with_nil_sigs().encode(encoder);
+        }
+
+        encoder.write_u64(self.file_contract_resolutions.len() as u64);
+        for fcr in &self.file_contract_resolutions {
+            fcr.parent.state_element.id.encode(encoder);
+            fcr.with_nil_sigs().encode(encoder);
+            // FIXME .encode() leads to unimplemented!()
+        }
+
+        encoder.write_u64(self.attestations.len() as u64);
+        for att in &self.attestations {
+            att.encode(encoder);
+        }
+
+        encoder.write_len_prefixed_bytes(&self.arbitrary_data);
+
+        encoder.write_bool(self.new_foundation_address.is_some());
+        match &self.new_foundation_address {
+            Some(addr) => addr.encode(encoder),
+            None => (),
+        }
+
+        match &self.miner_fee {
+            Some(fee) => fee.encode(encoder),
+            None => encoder.write_u64(0),
+        }
+    }
+
 }
 
 #[test]
@@ -1278,4 +1431,64 @@ fn test_file_contract_revision_v2_encode() {
     let hash = Encoder::encode_and_hash(&file_contract_revision_v2);
     let expected = H256::from("22d5d1fd8c2762758f6b6ecf7058d73524ef209ac5a64f160b71ce91677db9a6");
     assert_eq!(hash, expected);
+}
+
+// WIP
+#[test]
+fn test_v2_transaction_sig_hash() {
+    let j = json!(
+        {
+            "siacoinInputs": [
+                {
+                    "parent": {
+                        "id": "h:b49cba94064a92a75bf8c6f9d32ab18f38bfb14a2252e3e117d04da89d536f29",
+                        "leafIndex": 302,
+                        "merkleProof": [
+                            "h:6f41d366712e9dfa423160b5388f3faf673addf43566d7b3562106d15b833f46",
+                            "h:eb7df5e13eccd812a47f29a233bbf3212b7379ca6dd20ba9981524bfd5eadce6",
+                            "h:04104cbada51333f8f37a6eb71f1e8cb287da2d62469568a8a36dc8c76602c80",
+                            "h:16aac5c671d49d8cfc5493cb4c6f34889e30a0d283745c6473406bd60ab5e754",
+                            "h:1b9ccf2b6f555687b1384091faa9ed1c154f41aaff81dcf393295383ca99f518",
+                            "h:31337c9db5cdd181f5ff142bd490f779eedb1485e5dd905743280aeac3cd7ac9"
+                        ],
+                        "siacoinOutput": {
+                            "value": "288594172736732570239334030000",
+                            "address": "addr:2757c80b7ec2e493a138fed45b906f9f5735a992b68dcbd2069fbdf418c8b25158f3ac7a816b"
+                        },
+                        "maturityHeight": 0
+                    },
+                    "satisfiedPolicy": {
+                        "policy": {
+                            "type": "uc",
+                            "policy": {
+                                "timelock": 0,
+                                "publicKeys": [
+                                    "ed25519:7931b69fe8888e354d601a778e31bfa97fa89dc6f625cd01cc8aa28046e557e7"
+                                ],
+                                "signaturesRequired": 1
+                            }
+                        },
+                        "signatures": [
+                            "sig:f43380794a6384e3d24d9908143c05dd37aaac8959efb65d986feb70fe289a5e26b84e0ac712af01a2f85f8727da18aae13a599a51fb066d098591e40cb26902"
+                        ]
+                    }
+                }
+            ],
+            "siacoinOutputs": [
+                {
+                    "value": "1000000000000000000000000000",
+                    "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+                },
+                {
+                    "value": "287594172736732570239334030000",
+                    "address": "addr:2757c80b7ec2e493a138fed45b906f9f5735a992b68dcbd2069fbdf418c8b25158f3ac7a816b"
+                }
+            ],
+            "minerFee": "0"
+        }
+    );
+
+    let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
+
+    println!("{:?}", tx);
 }
