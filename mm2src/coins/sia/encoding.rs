@@ -97,7 +97,7 @@ impl Serialize for PrefixedSignature {
 }
 
 impl fmt::Display for PrefixedSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "h:{}", self.0) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "sig:{:x}", self.0) }
 }
 
 impl From<PrefixedSignature> for Signature {
