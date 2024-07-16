@@ -66,6 +66,12 @@ pub enum CurrencyVersion {
     V2(Currency),
 }
 
+impl Default for Currency {
+    fn default() -> Self {
+        Currency { lo: 0, hi: 0 }
+    }
+}
+
 impl Currency {
     pub fn new(lo: u64, hi: u64) -> Self { Currency { lo, hi } }
 
@@ -763,7 +769,7 @@ pub struct V2Transaction {
     pub attestations: Vec<Attestation>,
     pub arbitrary_data: Vec<u8>,
     pub new_foundation_address: Option<Address>,
-    pub miner_fee: Option<Currency>,
+    pub miner_fee: Currency,
 }
 
 impl V2Transaction {
@@ -830,10 +836,7 @@ impl Encodable for V2Transaction {
             None => (),
         }
 
-        match &self.miner_fee {
-            Some(fee) => fee.encode(encoder),
-            None => encoder.write_u64(0),
-        }
+        self.miner_fee.encode(encoder);
     }
 }
 
