@@ -1,5 +1,5 @@
 use super::eth::{gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
-use super::{RefundFundingSecretArgs, SendTakerFundingArgs, Transaction, TransactionErr};
+use super::{RefundFundingSecretArgs, RefundPaymentArgs, SendTakerFundingArgs, Transaction, TransactionErr};
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;
@@ -121,6 +121,18 @@ impl EthCoin {
                 "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
             )),
         }
+    }
+
+    pub(crate) async fn refund_taker_funding_timelock_impl(
+        &self,
+        _args: RefundPaymentArgs<'_>,
+    ) -> Result<SignedEthTx, TransactionErr> {
+        let _taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
+        todo!()
     }
 
     pub(crate) async fn refund_taker_funding_secret_impl(
