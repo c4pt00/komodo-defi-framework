@@ -1,9 +1,8 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::PrefixedH256;
-use crate::sia::spend_policy::{SpendPolicy, SpendPolicyHelper};
+use crate::sia::spend_policy::UnlockKey;
 use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement, V2Transaction};
 use crate::sia::types::Event;
-use crate::sia::PublicKey;
 
 // Ensure the original value matches the value after round-trip (serialize -> deserialize -> serialize)
 macro_rules! test_serde {
@@ -36,6 +35,14 @@ fn test_serde_address() {
     test_serde!(
         Address,
         json!("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
+    );
+}
+
+#[test]
+fn test_serde_unlock_key() {
+    test_serde!(
+        UnlockKey,
+        json!("ed25519:0102030000000000000000000000000000000000000000000000000000000000")
     );
 }
 
@@ -397,106 +404,63 @@ fn test_serde_event_v2_contract_resolution_finalization() {
 }
 
 #[test]
-fn test_serde_simple_v2_transaction() {
+fn test_v2_transaction_serde_basic_send() {
     let j = json!(
-      {
-        "siacoinInputs": [
-            {
-                "parent": {
-                    "id": "h:b49cba94064a92a75bf8c6f9d32ab18f38bfb14a2252e3e117d04da89d536f29",
-                    "leafIndex": 302,
-                    "merkleProof": [
-                        "h:6f41d366712e9dfa423160b5388f3faf673addf43566d7b3562106d15b833f46",
-                        "h:eb7df5e13eccd812a47f29a233bbf3212b7379ca6dd20ba9981524bfd5eadce6",
-                        "h:04104cbada51333f8f37a6eb71f1e8cb287da2d62469568a8a36dc8c76602c80",
-                        "h:16aac5c671d49d8cfc5493cb4c6f34889e30a0d283745c6473406bd60ab5e754",
-                        "h:1b9ccf2b6f555687b1384091faa9ed1c154f41aaff81dcf393295383ca99f518",
-                        "h:31337c9db5cdd181f5ff142bd490f779eedb1485e5dd905743280aeac3cd7ac9"
-                    ],
-                    "siacoinOutput": {
-                        "value": "288594172736732570239334030000",
-                        "address": "addr:2757c80b7ec2e493a138fed45b906f9f5735a992b68dcbd2069fbdf418c8b25158f3ac7a816b"
+        {
+            "siacoinInputs": [
+                {
+                    "parent": {
+                        "id": "h:f59e395dc5cbe3217ee80eff60585ffc9802e7ca580d55297782d4a9b4e08589",
+                        "leafIndex": 3,
+                        "merkleProof": [
+                            "h:ab0e1726444c50e2c0f7325eb65e5bd262a97aad2647d2816c39d97958d9588a",
+                            "h:467e2be4d8482eca1f99440b6efd531ab556d10a8371a98a05b00cb284620cf0",
+                            "h:64d5766fce1ff78a13a4a4744795ad49a8f8d187c01f9f46544810049643a74a",
+                            "h:31d5151875152bc25d1df18ca6bbda1bef5b351e8d53c277791ecf416fcbb8a8",
+                            "h:12a92a1ba87c7b38f3c4e264c399abfa28fb46274cfa429605a6409bd6d0a779",
+                            "h:eda1d58a9282dbf6c3f1beb4d6c7bdc036d14a1cfee8ab1e94fabefa9bd63865",
+                            "h:e03dee6e27220386c906f19fec711647353a5f6d76633a191cbc2f6dce239e89",
+                            "h:e70fcf0129c500f7afb49f4f2bb82950462e952b7cdebb2ad0aa1561dc6ea8eb"
+                        ],
+                        "siacoinOutput": {
+                            "value": "300000000000000000000000000000",
+                            "address": "addr:f7843ac265b037658b304468013da4fd0f304a1b73df0dc68c4273c867bfa38d01a7661a187f"
+                        },
+                        "maturityHeight": 145
                     },
-                    "maturityHeight": 0
-                },
-                "satisfiedPolicy": {
-                    "policy": {
-                        "type": "uc",
+                    "satisfiedPolicy": {
                         "policy": {
-                            "timelock": 0,
-                            "publicKeys": [
-                                "ed25519:7931b69fe8888e354d601a778e31bfa97fa89dc6f625cd01cc8aa28046e557e7"
-                            ],
-                            "signaturesRequired": 1
-                        }
-                    },
-                    "signatures": [
-                        "sig:f43380794a6384e3d24d9908143c05dd37aaac8959efb65d986feb70fe289a5e26b84e0ac712af01a2f85f8727da18aae13a599a51fb066d098591e40cb26902"
-                    ]
+                            "type": "uc",
+                            "policy": {
+                                "timelock": 0,
+                                "publicKeys": [
+                                    "ed25519:cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+                                ],
+                                "signaturesRequired": 1
+                            }
+                        },
+                        "signatures": [
+                            "sig:f0a29ba576eb0dbc3438877ac1d3a6da4f3c4cbafd9030709c8a83c2fffa64f4dd080d37444261f023af3bd7a10a9597c33616267d5371bf2c0ade5e25e61903"
+                        ]
+                    }
                 }
-            }
-        ],
-        "siacoinOutputs": [
-            {
-                "value": "1000000000000000000000000000",
-                "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
-            },
-            {
-                "value": "287594172736732570239334030000",
-                "address": "addr:2757c80b7ec2e493a138fed45b906f9f5735a992b68dcbd2069fbdf418c8b25158f3ac7a816b"
-            }
-        ],
-        "minerFee": "0"
-    }
+            ],
+            "siacoinOutputs": [
+                {
+                    "value": "1000000000000000000000000000",
+                    "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+                },
+                {
+                    "value": "299000000000000000000000000000",
+                    "address": "addr:f7843ac265b037658b304468013da4fd0f304a1b73df0dc68c4273c867bfa38d01a7661a187f"
+                }
+            ],
+            "minerFee": "0"
+        } 
     );
+    let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
 
-    let _event = serde_json::from_value::<V2Transaction>(j).unwrap();
-}
-
-#[test]
-fn test_serde_spend_policy_above() {
-    let j = json!(
-      {
-        "type": "above",
-        "policy": 100
-      }
-    );
-
-    let spend_policy_deser = serde_json::from_value::<SpendPolicy>(j).unwrap();
-    let spend_policy = SpendPolicy::Above(100);
-
-    assert_eq!(spend_policy, spend_policy_deser);
-}
-
-#[test]
-fn test_serde_spend_policy_after() {
-    let j = json!(
-      {
-        "type": "after",
-        "policy": 200
-      }
-    );
-
-    let spend_policy_deser = serde_json::from_value::<SpendPolicy>(j).unwrap();
-    let spend_policy = SpendPolicy::After(200);
-
-    assert_eq!(spend_policy, spend_policy_deser);
-}
-
-#[test]
-fn test_serde_spend_policy_public_key() {
-    let j = json!(
-      {
-        "type": "pk",
-        "policy": "ed25519:0102030000000000000000000000000000000000000000000000000000000000"
-      }
-    );
-    let pubkey = PublicKey::from_bytes(
-        &hex::decode("0102030000000000000000000000000000000000000000000000000000000000").unwrap(),
-    )
-    .unwrap();
-    let spend_policy_deser: SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
-    let spend_policy = SpendPolicy::PublicKey(pubkey.into());
-
-    assert_eq!(spend_policy, spend_policy_deser);
+    let j2 = serde_json::to_value(&tx).unwrap().to_string();
+    let tx2 = serde_json::from_str::<V2Transaction>(&j2).unwrap();
+    assert_eq!(tx, tx2);
 }

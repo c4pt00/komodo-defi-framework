@@ -12,7 +12,7 @@ use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BlockID(pub H256);
 
 impl From<BlockID> for H256 {
@@ -68,7 +68,7 @@ impl fmt::Display for BlockID {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "bid:{}", self.0) }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ChainIndex {
     pub height: u64,
     pub id: BlockID,

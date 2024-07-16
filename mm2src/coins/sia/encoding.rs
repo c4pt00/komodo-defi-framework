@@ -7,7 +7,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct HexArray64(pub [u8; 64]);
 
 impl<'de> Deserialize<'de> for HexArray64 {

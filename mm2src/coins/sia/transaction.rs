@@ -13,8 +13,9 @@ use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_ato
 #[cfg(test)] use crate::sia::v1_standard_address_from_pubkey;
 
 type SiacoinOutputID = H256;
+const V2_REPLAY_PREFIX : u8 = 2;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Currency {
     lo: u64,
     hi: u64,
@@ -111,7 +112,7 @@ impl Encodable for Currency {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SatisfiedPolicy {
     #[serde_as(as = "FromInto<SpendPolicyHelper>")]
@@ -177,7 +178,7 @@ impl Encodable for SatisfiedPolicy {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StateElement {
     #[serde_as(as = "FromInto<PrefixedH256>")]
@@ -206,7 +207,7 @@ impl Encodable for StateElement {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SiafundElement {
     #[serde(flatten)]
@@ -223,7 +224,7 @@ impl Encodable for SiafundElement {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SiacoinElement {
     #[serde(flatten)]
@@ -240,7 +241,7 @@ impl Encodable for SiacoinElement {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SiafundInputV2 {
     pub parent: SiafundElement,
@@ -276,7 +277,7 @@ impl Encodable for SiacoinInputV1 {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SiacoinInputV2 {
     pub parent: SiacoinElement,
@@ -299,7 +300,7 @@ impl Encodable for SiacoinInput {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SiafundOutput {
     pub value: u64,
     pub address: Address,
@@ -340,7 +341,7 @@ pub enum SiacoinOutputVersion {
     V2(SiacoinOutput),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SiacoinOutput {
     pub value: Currency,
     pub address: Address,
@@ -405,7 +406,7 @@ pub struct FileContract {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct V2FileContract {
     pub filesize: u64,
@@ -459,7 +460,7 @@ impl Encodable for V2FileContract {
         self.host_signature.encode(encoder);
     }
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct V2FileContractElement {
     #[serde(flatten)]
@@ -474,7 +475,7 @@ impl Encodable for V2FileContractElement {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct FileContractRevisionV2 {
     pub parent: V2FileContractElement,
     pub revision: V2FileContract,
@@ -496,7 +497,7 @@ impl Encodable for FileContractRevisionV2 {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Attestation {
     pub public_key: PublicKey,
@@ -538,7 +539,7 @@ pub struct SiafundInputV1 {
 }
 
 // TODO requires unit tests
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct FileContractResolutionV2 {
     pub parent: V2FileContractElement,
     pub resolution: FileContractResolutionTypeV2,
@@ -559,7 +560,7 @@ impl FileContractResolutionV2 {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum FileContractResolutionTypeV2 {
     Finalization(Box<V2FileContractFinalization>),
     Renewal(Box<V2FileContractRenewal>),
@@ -604,7 +605,7 @@ impl Encodable for FileContractResolutionV2 {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct V2FileContractFinalization(pub V2FileContract);
 
 impl V2FileContractFinalization {
@@ -616,7 +617,7 @@ impl Encodable for V2FileContractFinalization {
     fn encode(&self, encoder: &mut Encoder) { self.0.encode(encoder); }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct V2FileContractRenewal {
     pub final_revision: V2FileContract,
     pub new_contract: V2FileContract,
@@ -653,7 +654,7 @@ impl Encodable for V2FileContractRenewal {
         self.host_signature.encode(encoder);
     }
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct V2StorageProof {
     proof_index: ChainIndexElement,
@@ -688,7 +689,7 @@ impl Encodable for V2StorageProof {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainIndexElement {
     #[serde(flatten)]
@@ -704,7 +705,7 @@ impl Encodable for ChainIndexElement {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct V2FileContractExpiration;
 
 // TODO
@@ -756,18 +757,28 @@ pub struct TransactionV1 {
     pub signatures: Vec<TransactionSignature>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 pub struct V2Transaction {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub siacoin_inputs: Vec<SiacoinInputV2>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub siacoin_outputs: Vec<SiacoinOutput>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub siafund_inputs: Vec<SiafundInputV2>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub siafund_outputs: Vec<SiafundOutput>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub file_contracts: Vec<V2FileContract>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub file_contract_revisions: Vec<FileContractRevisionV2>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub file_contract_resolutions: Vec<FileContractResolutionV2>, // TODO needs Encodable trait
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attestations: Vec<Attestation>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub arbitrary_data: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub new_foundation_address: Option<Address>,
     pub miner_fee: Currency,
 }
@@ -781,8 +792,17 @@ impl V2Transaction {
             ..self.clone()
         }
     }
+
+    pub fn input_sig_hash(&self) -> H256 {
+        let mut encoder = Encoder::default();
+        encoder.write_distinguisher("sig/input");
+        encoder.write_u8(V2_REPLAY_PREFIX);
+        self.encode(&mut encoder);
+        encoder.hash()
+    }
 }
 
+// this encoding corresponds to the Go implementation's "V2TransactionSemantics" rather than "V2Transaction"
 impl Encodable for V2Transaction {
     fn encode(&self, encoder: &mut Encoder) {
         encoder.write_u64(self.siacoin_inputs.len() as u64);
@@ -835,8 +855,7 @@ impl Encodable for V2Transaction {
             Some(addr) => addr.encode(encoder),
             None => (),
         }
-
-        self.miner_fee.encode(encoder);
+        CurrencyVersion::V2(self.miner_fee.clone()).encode(encoder);
     }
 }
 
@@ -1444,7 +1463,6 @@ fn test_file_contract_revision_v2_encode() {
     assert_eq!(hash, expected);
 }
 
-// WIP
 #[test]
 fn test_v2_transaction_sig_hash() {
     let j = json!(
@@ -1500,6 +1518,73 @@ fn test_v2_transaction_sig_hash() {
     );
 
     let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
+    let hash = tx.input_sig_hash();
+    let expected = H256::from("ef2f59bb25300bed9accbdcd95e1a2bd9f146ab6b474002670dc908ad68aacac");
+    assert_eq!(hash, expected);
+}
 
-    println!("{:?}", tx);
+#[test]
+fn test_v2_transaction_signing() {
+    use crate::sia::{Keypair, Signature};
+    use ed25519_dalek::Signer;
+    let j = json!(
+        {
+            "siacoinInputs": [
+                {
+                    "parent": {
+                        "id": "h:f59e395dc5cbe3217ee80eff60585ffc9802e7ca580d55297782d4a9b4e08589",
+                        "leafIndex": 3,
+                        "merkleProof": [
+                            "h:ab0e1726444c50e2c0f7325eb65e5bd262a97aad2647d2816c39d97958d9588a",
+                            "h:467e2be4d8482eca1f99440b6efd531ab556d10a8371a98a05b00cb284620cf0",
+                            "h:64d5766fce1ff78a13a4a4744795ad49a8f8d187c01f9f46544810049643a74a",
+                            "h:31d5151875152bc25d1df18ca6bbda1bef5b351e8d53c277791ecf416fcbb8a8",
+                            "h:12a92a1ba87c7b38f3c4e264c399abfa28fb46274cfa429605a6409bd6d0a779",
+                            "h:eda1d58a9282dbf6c3f1beb4d6c7bdc036d14a1cfee8ab1e94fabefa9bd63865",
+                            "h:e03dee6e27220386c906f19fec711647353a5f6d76633a191cbc2f6dce239e89",
+                            "h:e70fcf0129c500f7afb49f4f2bb82950462e952b7cdebb2ad0aa1561dc6ea8eb"
+                        ],
+                        "siacoinOutput": {
+                            "value": "300000000000000000000000000000",
+                            "address": "addr:f7843ac265b037658b304468013da4fd0f304a1b73df0dc68c4273c867bfa38d01a7661a187f"
+                        },
+                        "maturityHeight": 145
+                    },
+                    "satisfiedPolicy": {
+                        "policy": {
+                            "type": "uc",
+                            "policy": {
+                                "timelock": 0,
+                                "publicKeys": [
+                                    "ed25519:cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+                                ],
+                                "signaturesRequired": 1
+                            }
+                        },
+                        "signatures": [
+                            "sig:f0a29ba576eb0dbc3438877ac1d3a6da4f3c4cbafd9030709c8a83c2fffa64f4dd080d37444261f023af3bd7a10a9597c33616267d5371bf2c0ade5e25e61903"
+                        ]
+                    }
+                }
+            ],
+            "siacoinOutputs": [
+                {
+                    "value": "1000000000000000000000000000",
+                    "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+                },
+                {
+                    "value": "299000000000000000000000000000",
+                    "address": "addr:f7843ac265b037658b304468013da4fd0f304a1b73df0dc68c4273c867bfa38d01a7661a187f"
+                }
+            ],
+            "minerFee": "0"
+        } 
+    );
+    let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
+    let keypair = Keypair::from_bytes(&hex::decode("0100000000000000000000000000000000000000000000000000000000000000cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc").unwrap()).unwrap();
+    let sig_hash = tx.input_sig_hash();
+
+    // test that we can correctly regenerate the signature
+    let sig: Signature = keypair.try_sign(&sig_hash.0).unwrap();
+    assert_eq!(tx.siacoin_inputs[0].satisfied_policy.signatures[0], sig);
 }
