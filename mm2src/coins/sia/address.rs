@@ -59,7 +59,7 @@ impl Address {
 }
 
 impl Encodable for Address {
-    fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(self.0 .0.as_ref()); }
+    fn encode(&self, encoder: &mut Encoder) { self.0.encode(encoder) }
 }
 
 impl fmt::Display for Address {
