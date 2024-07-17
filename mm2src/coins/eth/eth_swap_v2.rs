@@ -27,6 +27,7 @@ struct TakerRefundSecretArgs<'a> {
     maker_secret_hash: &'a [u8],
     funding_time_lock: u32,
     payment_time_lock: u32,
+    token_address: Address,
 }
 
 struct TakerRefundArgs<'a> {
@@ -222,6 +223,18 @@ impl EthCoin {
         let maker_address = public_to_address(args.maker_pubkey);
         let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
         let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
+        let (token_address, gas_limit) = match &self.coin_type {
+            EthCoinType::Eth => (Address::default(), gas_limit::ETH_SENDER_REFUND),
+            EthCoinType::Erc20 {
+                platform: _,
+                token_addr,
+            } => (*token_addr, gas_limit::ERC20_SENDER_REFUND),
+            EthCoinType::Nft { .. } => {
+                return Err(TransactionErr::ProtocolNotSupported(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
+                ))
+            },
+        };
         let refund_args = TakerRefundSecretArgs {
             dex_fee,
             payment_amount,
@@ -230,43 +243,18 @@ impl EthCoin {
             maker_secret_hash: args.maker_secret_hash,
             funding_time_lock,
             payment_time_lock,
+            token_address,
         };
-        match &self.coin_type {
-            EthCoinType::Eth => {
-                let data = try_tx_s!(
-                    self.prepare_taker_refund_payment_secret_data(&refund_args, Address::default())
-                        .await
-                );
-                self.sign_and_send_transaction(
-                    payment_amount,
-                    Action::Call(taker_swap_v2_contract),
-                    data,
-                    U256::from(gas_limit::ETH_SENDER_REFUND),
-                )
-                .compat()
-                .await
-            },
-            EthCoinType::Erc20 {
-                platform: _,
-                token_addr,
-            } => {
-                let data = try_tx_s!(
-                    self.prepare_taker_refund_payment_secret_data(&refund_args, *token_addr)
-                        .await
-                );
-                self.sign_and_send_transaction(
-                    payment_amount,
-                    Action::Call(taker_swap_v2_contract),
-                    data,
-                    U256::from(gas_limit::ERC20_SENDER_REFUND),
-                )
-                .compat()
-                .await
-            },
-            EthCoinType::Nft { .. } => Err(TransactionErr::ProtocolNotSupported(
-                "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
-            )),
-        }
+        let data = try_tx_s!(self.prepare_taker_refund_payment_secret_data(&refund_args).await);
+
+        self.sign_and_send_transaction(
+            payment_amount,
+            Action::Call(taker_swap_v2_contract),
+            data,
+            U256::from(gas_limit),
+        )
+        .compat()
+        .await
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract `ethTakerPayment` method
@@ -363,7 +351,6 @@ impl EthCoin {
     async fn prepare_taker_refund_payment_secret_data(
         &self,
         args: &TakerRefundSecretArgs<'_>,
-        token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentSecret")?;
         let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret);
@@ -374,7 +361,7 @@ impl EthCoin {
             Token::Address(args.maker_address),
             Token::FixedBytes(args.taker_secret.to_vec()),
             Token::FixedBytes(args.maker_secret_hash.to_vec()),
-            Token::Address(token_address),
+            Token::Address(args.token_address),
         ])?;
         Ok(data)
     }
