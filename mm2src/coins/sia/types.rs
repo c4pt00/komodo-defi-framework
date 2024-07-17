@@ -200,7 +200,18 @@ pub enum EventDataWrapper {
 #[derive(Clone, Debug, Serialize)]
 pub struct V2FileContractResolution {
     pub parent: V2FileContractElement,
+    #[serde(rename = "type")]
+    pub resolution_type: ResolutionType,
     pub resolution: V2FileContractResolutionWrapper,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")] 
+pub enum ResolutionType {
+    Renewal,
+    StorageProof,
+    Expiration,
+    Finalization,
 }
 
 impl<'de> Deserialize<'de> for V2FileContractResolution {
@@ -212,39 +223,34 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
         struct V2FileContractResolutionHelper {
             parent: V2FileContractElement,
             #[serde(rename = "type")]
-            resolution_type: String,
+            resolution_type: ResolutionType,
             resolution: Value,
         }
 
         let helper = V2FileContractResolutionHelper::deserialize(deserializer)?;
-        let resolution_data = match helper.resolution_type.as_str() {
-            "renewal" => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
+        // TODO refactor this similar to EventType type
+        let resolution_data = match helper.resolution_type {
+            ResolutionType::Renewal => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::Renewal)
                 .map_err(serde::de::Error::custom),
-            "storage proof" => serde_json::from_value::<V2StorageProof>(helper.resolution)
+            ResolutionType::StorageProof => serde_json::from_value::<V2StorageProof>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::StorageProof)
                 .map_err(serde::de::Error::custom),
-            "finalization" => serde_json::from_value::<V2FileContractFinalization>(helper.resolution)
+            ResolutionType::Finalization => serde_json::from_value::<V2FileContractFinalization>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::Finalization)
                 .map_err(serde::de::Error::custom),
             // expiration is a special case because it has no data. It is just an empty object, "{}".
-            "expiration" => match &helper.resolution {
+            ResolutionType::Expiration => match &helper.resolution {
                 Value::Object(map) if map.is_empty() => {
                     Ok(V2FileContractResolutionWrapper::Expiration(V2FileContractExpiration))
                 },
                 _ => Err(serde::de::Error::custom("expected an empty map for expiration")),
             },
-            // "finalization"
-            _ => Err(serde::de::Error::unknown_variant(&helper.resolution_type, &[
-                "renewal",
-                "storage proof",
-                "expiration",
-                "finalization",
-            ])),
         }?;
 
         Ok(V2FileContractResolution {
             parent: helper.parent,
+            resolution_type: helper.resolution_type,
             resolution: resolution_data,
         })
     }
