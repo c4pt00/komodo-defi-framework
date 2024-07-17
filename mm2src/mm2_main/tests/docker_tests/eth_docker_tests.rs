@@ -838,7 +838,7 @@ fn send_and_refund_erc20_maker_payment_priority_fee() {
 }
 
 fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
-    thread::sleep(Duration::from_secs(7));
+    thread::sleep(Duration::from_secs(5));
     let maker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
     let taker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
 
@@ -1074,7 +1074,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(33));
+    thread::sleep(Duration::from_secs(29));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let activation = NftActivationV2Args::init();
