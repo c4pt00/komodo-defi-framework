@@ -104,6 +104,18 @@ pub struct EventPayout {
     pub siacoin_element: SiacoinElement,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EventType {
+    Miner,
+    Foundation,
+    SiafundClaim,
+    V1Transaction,
+    V2Transaction,
+    V1ContractResolution,
+    V2ContractResolution,
+}
+
 #[serde_as]
 #[derive(Clone, Debug, Serialize)]
 pub struct Event {
@@ -114,7 +126,7 @@ pub struct Event {
     #[serde(rename = "maturityHeight")]
     pub maturity_height: u64,
     #[serde(rename = "type")]
-    pub event_type: String,
+    pub event_type: EventType,
     pub data: EventDataWrapper,
     pub relevant: Option<Vec<Address>>,
 }
@@ -132,42 +144,32 @@ impl<'de> Deserialize<'de> for Event {
             #[serde(rename = "maturityHeight")]
             maturity_height: u64,
             #[serde(rename = "type")]
-            event_type: String,
+            event_type: EventType,
             data: Value,
             relevant: Option<Vec<Address>>,
         }
 
         let helper = EventHelper::deserialize(deserializer)?;
-        let event_data = match helper.event_type.as_str() {
-            "miner" => serde_json::from_value::<EventPayout>(helper.data)
+        let event_data = match helper.event_type {
+            EventType::Miner => serde_json::from_value::<EventPayout>(helper.data)
                 .map(EventDataWrapper::MinerPayout)
                 .map_err(serde::de::Error::custom),
-            "foundation" => serde_json::from_value::<EventPayout>(helper.data)
+            EventType::Foundation => serde_json::from_value::<EventPayout>(helper.data)
                 .map(EventDataWrapper::FoundationPayout)
                 .map_err(serde::de::Error::custom),
-            "siafundClaim" => serde_json::from_value::<EventPayout>(helper.data)
+            EventType::SiafundClaim => serde_json::from_value::<EventPayout>(helper.data)
                 .map(EventDataWrapper::ClaimPayout)
                 .map_err(serde::de::Error::custom),
-            "v1Transaction" => serde_json::from_value::<EventV1Transaction>(helper.data)
+            EventType::V1Transaction => serde_json::from_value::<EventV1Transaction>(helper.data)
                 .map(EventDataWrapper::V1Transaction)
                 .map_err(serde::de::Error::custom),
-            "v2Transaction" => serde_json::from_value::<V2Transaction>(helper.data)
+            EventType::V2Transaction => serde_json::from_value::<V2Transaction>(helper.data)
                 .map(EventDataWrapper::V2Transaction)
                 .map_err(serde::de::Error::custom),
-            // "v1ContractResolution" => serde_json::from_value::<EventV1ContractResolution>(helper.data)
-            //     .map(EventDataWrapper::V1FileContractResolution)
-            //     .map_err(serde::de::Error::custom),
-            "v2ContractResolution" => serde_json::from_value::<V2FileContractResolution>(helper.data)
+            EventType::V1ContractResolution => unimplemented!(),
+            EventType::V2ContractResolution => serde_json::from_value::<V2FileContractResolution>(helper.data)
                 .map(EventDataWrapper::V2FileContractResolution)
                 .map_err(serde::de::Error::custom),
-            // Add other type mappings here...
-            _ => Err(serde::de::Error::unknown_variant(&helper.event_type, &[
-                "Payout",
-                "V2Transaction",
-                "V2FileContractResolution",
-                "V1Transaction",
-                "V1FileContractResolution",
-            ])),
         }?;
 
         Ok(Event {
@@ -213,11 +215,6 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
         }
 
         let helper = V2FileContractResolutionHelper::deserialize(deserializer)?;
-        println!(
-            "type: {} helper.data: {:?}",
-            helper.resolution_type.as_str(),
-            helper.resolution
-        );
         let resolution_data = match helper.resolution_type.as_str() {
             "renewal" => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::Renewal)
