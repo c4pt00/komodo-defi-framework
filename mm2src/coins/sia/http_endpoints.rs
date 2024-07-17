@@ -1,6 +1,6 @@
 use crate::sia::address::Address;
 use crate::sia::transaction::SiacoinElement;
-use crate::sia::types::Event;
+use crate::sia::types::{Event, BlockID};
 use crate::sia::SiaApiClientError;
 use mm2_number::MmNumber;
 use reqwest::{Method, Request, Url};
@@ -8,11 +8,6 @@ use rpc::v1::types::H256;
 use serde::de::DeserializeOwned;
 
 const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
-
-// TODO this can be H256 type instead of String ie `use rpc::v1::types::H256;`
-// requires custom serde because the walletd API displays it like:
-// "id": "bid:0079148b08cd64112de2cfccbd0f2b4d5a40c618726665349a8954d1c463b03b"
-pub type BlockId = String;
 
 pub trait SiaApiRequest {
     type Response: SiaApiResponse + DeserializeOwned;
@@ -43,7 +38,7 @@ impl SiaApiRequest for ConsensusTipRequest {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ConsensusTipResponse {
     pub height: u64,
-    pub id: String, // TODO this can match "BlockID" type
+    pub id: BlockID,
 }
 
 impl SiaApiResponse for ConsensusTipResponse {}
