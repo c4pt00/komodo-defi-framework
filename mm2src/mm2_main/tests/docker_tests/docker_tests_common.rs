@@ -44,6 +44,7 @@ use serde_json::{self as json, Value as Json};
 pub use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 use std::sync::Mutex;
 pub use std::thread;
 use std::time::Duration;
@@ -96,6 +97,10 @@ pub const GETH_DOCKER_IMAGE: &str = "docker.io/ethereum/client-go";
 pub const GETH_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/ethereum/client-go:stable";
 pub const SIA_DOCKER_IMAGE: &str = "docker.io/alrighttt/walletd-komodo";
 pub const SIA_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/alrighttt/walletd-komodo:latest";
+
+pub const NUCLEUS_IMAGE: &str = "docker.io/komodoofficial/nucleusd";
+pub const ATOM_IMAGE: &str = "docker.io/komodoofficial/gaiad";
+pub const IBC_RELAYER_IMAGE: &str = "docker.io/komodoofficial/ibc-relayer";
 
 pub const QTUM_ADDRESS_LABEL: &str = "MM2_ADDRESS_LABEL";
 
@@ -215,15 +220,13 @@ impl BchDockerOps {
 
         for _ in 0..18 {
             let key_pair = KeyPair::random_compressed();
-            let address_hash = key_pair.public().address_hash();
             let address = AddressBuilder::new(
                 Default::default(),
-                address_hash.into(),
                 Default::default(),
                 self.coin.as_ref().conf.address_prefixes.clone(),
                 None,
             )
-            .as_pkh()
+            .as_pkh_from_pk(*key_pair.public())
             .build()
             .expect("valid address props");
 
@@ -232,7 +235,7 @@ impl BchDockerOps {
                 .wait()
                 .unwrap();
 
-            let script_pubkey = Builder::build_p2pkh(&address_hash.into());
+            let script_pubkey = Builder::build_p2pkh(&key_pair.public().address_hash().into());
 
             bch_outputs.push(TransactionOutput {
                 value: 1000_00000000,
@@ -261,7 +264,7 @@ impl BchDockerOps {
         let adex_slp = SlpToken::new(
             8,
             "ADEXSLP".into(),
-            slp_genesis_tx.tx_hash().as_slice().into(),
+            slp_genesis_tx.tx_hash_as_bytes().as_slice().into(),
             self.coin.clone(),
             1,
         )
@@ -277,7 +280,7 @@ impl BchDockerOps {
         };
         self.coin.wait_for_confirmations(confirm_payment_input).wait().unwrap();
         *SLP_TOKEN_OWNERS.lock().unwrap() = slp_privkeys;
-        *SLP_TOKEN_ID.lock().unwrap() = slp_genesis_tx.tx_hash().as_slice().into();
+        *SLP_TOKEN_ID.lock().unwrap() = slp_genesis_tx.tx_hash_as_bytes().as_slice().into();
     }
 }
 
@@ -363,6 +366,54 @@ pub fn sia_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) -> 
         container,
         ticker: ticker.into(),
         port,
+    }
+}
+
+pub fn nucleus_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
+    let nucleus_node_runtime_dir = runtime_dir.join("nucleus-testnet-data");
+    assert!(nucleus_node_runtime_dir.exists());
+
+    let image = GenericImage::new(NUCLEUS_IMAGE, "latest")
+        .with_volume(nucleus_node_runtime_dir.to_str().unwrap(), "/root/.nucleus");
+    let image = RunnableImage::from((image, vec![])).with_network("host");
+    let container = docker.run(image);
+
+    DockerNode {
+        container,
+        ticker: "NUCLEUS-TEST".to_owned(),
+        port: Default::default(), // This doesn't need to be the correct value as we are using the host network.
+    }
+}
+
+pub fn atom_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
+    let atom_node_runtime_dir = runtime_dir.join("atom-testnet-data");
+    assert!(atom_node_runtime_dir.exists());
+
+    let image =
+        GenericImage::new(ATOM_IMAGE, "latest").with_volume(atom_node_runtime_dir.to_str().unwrap(), "/root/.gaia");
+    let image = RunnableImage::from((image, vec![])).with_network("host");
+    let container = docker.run(image);
+
+    DockerNode {
+        container,
+        ticker: "ATOM-TEST".to_owned(),
+        port: Default::default(), // This doesn't need to be the correct value as we are using the host network.
+    }
+}
+
+pub fn ibc_relayer_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
+    let relayer_node_runtime_dir = runtime_dir.join("ibc-relayer-data");
+    assert!(relayer_node_runtime_dir.exists());
+
+    let image = GenericImage::new(IBC_RELAYER_IMAGE, "latest")
+        .with_volume(relayer_node_runtime_dir.to_str().unwrap(), "/home/relayer/.relayer");
+    let image = RunnableImage::from((image, vec![])).with_network("host");
+    let container = docker.run(image);
+
+    DockerNode {
+        container,
+        ticker: Default::default(), // This isn't an asset node.
+        port: Default::default(),   // This doesn't need to be the correct value as we are using the host network.
     }
 }
 
@@ -987,7 +1038,7 @@ pub fn slp_supplied_node() -> MarketMakerIt {
     ]);
 
     let priv_key = get_prefilled_slp_privkey();
-    let mm = MarketMakerIt::start(
+    MarketMakerIt::start(
         json! ({
             "gui": "nogui",
             "netid": 9000,
@@ -1000,9 +1051,7 @@ pub fn slp_supplied_node() -> MarketMakerIt {
         "pass".to_string(),
         None,
     )
-    .unwrap();
-
-    mm
+    .unwrap()
 }
 
 pub fn _solana_supplied_node() -> MarketMakerIt {
@@ -1042,7 +1091,6 @@ pub fn get_balance(mm: &MarketMakerIt, coin: &str) -> BalanceResponse {
 pub fn utxo_burn_address() -> Address {
     AddressBuilder::new(
         UtxoAddressFormat::Standard,
-        AddressHashEnum::default_address_hash(),
         ChecksumType::DSHA256,
         NetworkAddressPrefixes {
             p2pkh: [60].into(),
@@ -1050,7 +1098,7 @@ pub fn utxo_burn_address() -> Address {
         },
         None,
     )
-    .as_pkh()
+    .as_pkh(AddressHashEnum::default_address_hash())
     .build()
     .expect("valid address props")
 }
@@ -1086,6 +1134,36 @@ async fn get_current_gas_limit(web3: &Web3<Http>) {
         },
         Ok(None) => log!("Latest block information is not available."),
         Err(e) => log!("Failed to fetch the latest block: {}", e),
+    }
+}
+
+pub fn wait_until_relayer_container_is_ready(container_id: &str) {
+    const Q_RESULT: &str = "0: nucleus-atom         -> chns(✔) clnts(✔) conn(✔) (nucleus-testnet<>cosmoshub-testnet)";
+
+    let mut attempts = 0;
+    loop {
+        let mut docker = Command::new("docker");
+        docker.arg("exec").arg(container_id).args(["rly", "paths", "list"]);
+
+        log!("Running <<{docker:?}>>.");
+
+        let output = docker.stderr(Stdio::inherit()).output().unwrap();
+        let output = String::from_utf8(output.stdout).unwrap();
+        let output = output.trim();
+
+        if output == Q_RESULT {
+            break;
+        }
+        attempts += 1;
+
+        log!("Expected output {Q_RESULT}, received {output}.");
+        if attempts > 10 {
+            panic!("{}", "Reached max attempts for <<{docker:?}>>.");
+        } else {
+            log!("Asking for relayer node status again..");
+        }
+
+        thread::sleep(Duration::from_secs(2));
     }
 }
 
