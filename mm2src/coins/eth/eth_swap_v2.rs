@@ -1,5 +1,6 @@
 use super::eth::{gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
-use super::{RefundFundingSecretArgs, RefundPaymentArgs, SendTakerFundingArgs, Transaction, TransactionErr};
+use super::{RefundFundingSecretArgs, SendTakerFundingArgs, Transaction, TransactionErr};
+use crate::RefundTakerPaymentArgs;
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;
@@ -44,7 +45,7 @@ impl EthCoin {
             &(args.trading_amount + args.premium_amount),
             self.decimals
         ));
-        // TODO add legacy derive_htlc_pubkey support additionally?
+        // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
         // as derive_htlc_pubkey_v2 function is used for swap_v2, we can call public_to_address
         let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
 
@@ -125,13 +126,23 @@ impl EthCoin {
 
     pub(crate) async fn refund_taker_funding_timelock_impl(
         &self,
-        _args: RefundPaymentArgs<'_>,
+        args: RefundTakerPaymentArgs<'_>,
     ) -> Result<SignedEthTx, TransactionErr> {
         let _taker_swap_v2_contract = self
             .swap_v2_contracts
             .as_ref()
             .map(|contracts| contracts.taker_swap_v2_contract)
             .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
+        let _dex_fee = try_tx_s!(wei_from_big_decimal(
+            &args.dex_fee.fee_amount().to_decimal(),
+            self.decimals
+        ));
+        let _payment_amount = try_tx_s!(wei_from_big_decimal(
+            &(args.trading_amount + args.premium_amount),
+            self.decimals
+        ));
+        // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
+        let _maker_address = public_to_address(&Public::from_slice(args.maker_pub));
         todo!()
     }
 

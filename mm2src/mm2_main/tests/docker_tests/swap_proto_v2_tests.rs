@@ -3,8 +3,9 @@ use bitcrypto::dhash160;
 use coins::utxo::UtxoCommonOps;
 use coins::{ConfirmPaymentInput, DexFee, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
             MakerCoinSwapOpsV2, MarketCoinOps, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundMakerPaymentArgs,
-            RefundPaymentArgs, SendMakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
-            TakerCoinSwapOpsV2, Transaction, ValidateMakerPaymentArgs, ValidateTakerFundingArgs};
+            RefundPaymentArgs, RefundTakerPaymentArgs, SendMakerPaymentArgs, SendTakerFundingArgs,
+            SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, Transaction, ValidateMakerPaymentArgs,
+            ValidateTakerFundingArgs};
 use common::{block_on, now_sec, DEX_FEE_ADDR_RAW_PUBKEY};
 use futures01::Future;
 use mm2_number::MmNumber;
@@ -66,16 +67,19 @@ fn send_and_refund_taker_funding_timelock() {
     };
     block_on(coin.validate_taker_funding(validate_args)).unwrap();
 
-    let refund_args = RefundPaymentArgs {
+    let refund_args = RefundTakerPaymentArgs {
         payment_tx: &serialize(&taker_funding_utxo_tx).take(),
+        funding_time_lock,
         time_lock: funding_time_lock,
-        other_pubkey: coin.my_public_key().unwrap(),
+        maker_pub: coin.my_public_key().unwrap(),
         tx_type_with_secret_hash: SwapTxTypeWithSecretHash::TakerFunding {
             taker_secret_hash: &[0; 20],
         },
         swap_unique_data: &[],
-        swap_contract_address: &None,
         watcher_reward: false,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: Default::default(),
     };
 
     let refund_tx = block_on(coin.refund_taker_funding_timelock(refund_args)).unwrap();

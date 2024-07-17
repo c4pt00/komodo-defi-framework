@@ -7053,7 +7053,10 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
-    async fn refund_taker_funding_timelock(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+    async fn refund_taker_funding_timelock(
+        &self,
+        args: RefundTakerPaymentArgs<'_>,
+    ) -> Result<Self::Tx, TransactionErr> {
         self.refund_taker_funding_timelock_impl(args).await
     }
 
@@ -7105,7 +7108,10 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
-    async fn refund_combined_taker_payment(&self, _args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+    async fn refund_combined_taker_payment(
+        &self,
+        _args: RefundTakerPaymentArgs<'_>,
+    ) -> Result<Self::Tx, TransactionErr> {
         todo!()
     }
 

@@ -26,7 +26,7 @@ use crate::{CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinBalance, CoinWithDeriva
             GenTakerPaymentSpendArgs, GetWithdrawSenderAddress, IguanaBalanceOps, IguanaPrivKey, MakerCoinSwapOpsV2,
             MakerSwapTakerCoin, MmCoinEnum, NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions,
             PaymentInstructionsErr, PrivKeyBuildPolicy, RawTransactionRequest, RawTransactionResult, RefundError,
-            RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RefundResult,
+            RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RefundResult, RefundTakerPaymentArgs,
             SearchForFundingSpendErr, SearchForSwapTxSpendInput, SendMakerPaymentArgs,
             SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SendTakerFundingArgs, SignRawTransactionRequest,
             SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxTypeWithSecretHash,
@@ -662,7 +662,19 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
         utxo_common::validate_taker_funding(self, args).await
     }
 
-    async fn refund_taker_funding_timelock(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+    async fn refund_taker_funding_timelock(
+        &self,
+        args: RefundTakerPaymentArgs<'_>,
+    ) -> Result<Self::Tx, TransactionErr> {
+        let args = RefundPaymentArgs {
+            payment_tx: args.payment_tx,
+            time_lock: args.time_lock,
+            other_pubkey: args.maker_pub,
+            tx_type_with_secret_hash: args.tx_type_with_secret_hash,
+            swap_contract_address: &None,
+            swap_unique_data: args.swap_unique_data,
+            watcher_reward: args.watcher_reward,
+        };
         utxo_common::refund_htlc_payment(self.clone(), args).await
     }
 
@@ -774,7 +786,19 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
         utxo_common::sign_and_send_taker_funding_spend(self, preimage, args, &htlc_keypair).await
     }
 
-    async fn refund_combined_taker_payment(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+    async fn refund_combined_taker_payment(
+        &self,
+        args: RefundTakerPaymentArgs<'_>,
+    ) -> Result<Self::Tx, TransactionErr> {
+        let args = RefundPaymentArgs {
+            payment_tx: args.payment_tx,
+            time_lock: args.time_lock,
+            other_pubkey: args.maker_pub,
+            tx_type_with_secret_hash: args.tx_type_with_secret_hash,
+            swap_contract_address: &None,
+            swap_unique_data: args.swap_unique_data,
+            watcher_reward: args.watcher_reward,
+        };
         utxo_common::refund_htlc_payment(self.clone(), args).await
     }
 

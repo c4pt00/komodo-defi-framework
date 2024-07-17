@@ -885,7 +885,10 @@ pub enum SwapTxTypeWithSecretHash<'a> {
         taker_secret_hash: &'a [u8],
     },
     /// Taker payment v2
-    TakerPaymentV2 { maker_secret_hash: &'a [u8] },
+    TakerPaymentV2 {
+        maker_secret_hash: &'a [u8],
+        taker_secret_hash: &'a [u8],
+    },
 }
 
 impl<'a> SwapTxTypeWithSecretHash<'a> {
@@ -907,7 +910,7 @@ impl<'a> SwapTxTypeWithSecretHash<'a> {
                 my_public,
                 other_public,
             ),
-            SwapTxTypeWithSecretHash::TakerPaymentV2 { maker_secret_hash } => {
+            SwapTxTypeWithSecretHash::TakerPaymentV2 { maker_secret_hash, .. } => {
                 swap_proto_v2_scripts::taker_payment_script(time_lock, maker_secret_hash, my_public, other_public)
             },
         }
@@ -921,7 +924,7 @@ impl<'a> SwapTxTypeWithSecretHash<'a> {
                 maker_secret_hash,
                 taker_secret_hash,
             } => [*maker_secret_hash, *taker_secret_hash].concat(),
-            SwapTxTypeWithSecretHash::TakerPaymentV2 { maker_secret_hash } => maker_secret_hash.to_vec(),
+            SwapTxTypeWithSecretHash::TakerPaymentV2 { maker_secret_hash, .. } => maker_secret_hash.to_vec(),
         }
     }
 }
@@ -983,6 +986,24 @@ pub struct RefundPaymentArgs<'a> {
     pub swap_contract_address: &'a Option<BytesJson>,
     pub swap_unique_data: &'a [u8],
     pub watcher_reward: bool,
+}
+
+#[derive(Debug)]
+pub struct RefundTakerPaymentArgs<'a> {
+    pub payment_tx: &'a [u8],
+    /// Needed for taker refund as for eth taker swap id `etomic_swap_v2_id` was used
+    pub funding_time_lock: u64,
+    pub time_lock: u64,
+    pub maker_pub: &'a [u8],
+    pub tx_type_with_secret_hash: SwapTxTypeWithSecretHash<'a>,
+    pub swap_unique_data: &'a [u8],
+    pub watcher_reward: bool,
+    /// DEX fee
+    pub dex_fee: &'a DexFee,
+    /// Additional reward for maker (premium)
+    pub premium_amount: BigDecimal,
+    /// Actual volume of taker's payment
+    pub trading_amount: BigDecimal,
 }
 
 /// Helper struct wrapping arguments for [SwapOps::check_if_my_payment_sent].
@@ -1850,7 +1871,8 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     async fn validate_taker_funding(&self, args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult;
 
     /// Refunds taker funding transaction using time-locked path without secret reveal.
-    async fn refund_taker_funding_timelock(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr>;
+    async fn refund_taker_funding_timelock(&self, args: RefundTakerPaymentArgs<'_>)
+        -> Result<Self::Tx, TransactionErr>;
 
     /// Reclaims taker funding transaction using immediate refund path with secret reveal.
     async fn refund_taker_funding_secret(
@@ -1889,7 +1911,8 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     ) -> Result<Self::Tx, TransactionErr>;
 
     /// Refunds taker payment transaction.
-    async fn refund_combined_taker_payment(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr>;
+    async fn refund_combined_taker_payment(&self, args: RefundTakerPaymentArgs<'_>)
+        -> Result<Self::Tx, TransactionErr>;
 
     /// Generates and signs taker payment spend preimage. The preimage and signature should be
     /// shared with maker to proceed with protocol execution.
