@@ -1,6 +1,6 @@
 use super::eth::{gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{RefundFundingSecretArgs, SendTakerFundingArgs, Transaction, TransactionErr};
-use crate::RefundTakerPaymentArgs;
+use crate::{RefundTakerPaymentArgs, SwapTxTypeWithSecretHash};
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;
@@ -27,6 +27,17 @@ struct TakerRefundSecretArgs<'a> {
     maker_secret_hash: &'a [u8],
     funding_time_lock: u32,
     payment_time_lock: u32,
+}
+
+struct TakerRefundArgs<'a> {
+    dex_fee: U256,
+    payment_amount: U256,
+    maker_address: Address,
+    taker_secret_hash: &'a [u8],
+    maker_secret_hash: &'a [u8],
+    funding_time_lock: u32,
+    payment_time_lock: u32,
+    token_address: Address,
 }
 
 impl EthCoin {
@@ -128,22 +139,67 @@ impl EthCoin {
         &self,
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        let _taker_swap_v2_contract = self
+        let taker_swap_v2_contract = self
             .swap_v2_contracts
             .as_ref()
             .map(|contracts| contracts.taker_swap_v2_contract)
             .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
-        let _dex_fee = try_tx_s!(wei_from_big_decimal(
+        let dex_fee = try_tx_s!(wei_from_big_decimal(
             &args.dex_fee.fee_amount().to_decimal(),
             self.decimals
         ));
-        let _payment_amount = try_tx_s!(wei_from_big_decimal(
+        let payment_amount = try_tx_s!(wei_from_big_decimal(
             &(args.trading_amount + args.premium_amount),
             self.decimals
         ));
         // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
-        let _maker_address = public_to_address(&Public::from_slice(args.maker_pub));
-        todo!()
+        let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
+        let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
+        let payment_time_lock: u32 = try_tx_s!(args.time_lock.try_into());
+        let (maker_secret_hash, taker_secret_hash) = match args.tx_type_with_secret_hash {
+            SwapTxTypeWithSecretHash::TakerPaymentV2 {
+                maker_secret_hash,
+                taker_secret_hash,
+            } => (maker_secret_hash, taker_secret_hash),
+            _ => {
+                return Err(TransactionErr::Plain(ERRL!(
+                    "Unsupported swap tx type for timelock refund"
+                )))
+            },
+        };
+
+        let (token_address, gas_limit) = match &self.coin_type {
+            EthCoinType::Eth => (Address::default(), gas_limit::ETH_SENDER_REFUND),
+            EthCoinType::Erc20 {
+                platform: _,
+                token_addr,
+            } => (*token_addr, gas_limit::ERC20_SENDER_REFUND),
+            EthCoinType::Nft { .. } => {
+                return Err(TransactionErr::ProtocolNotSupported(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
+                ))
+            },
+        };
+        let args = TakerRefundArgs {
+            dex_fee,
+            payment_amount,
+            maker_address,
+            taker_secret_hash,
+            maker_secret_hash,
+            funding_time_lock,
+            payment_time_lock,
+            token_address,
+        };
+        let data = try_tx_s!(self.prepare_taker_refund_payment_timelock_data(args).await);
+
+        self.sign_and_send_transaction(
+            payment_amount,
+            Action::Call(taker_swap_v2_contract),
+            data,
+            U256::from(gas_limit),
+        )
+        .compat()
+        .await
     }
 
     pub(crate) async fn refund_taker_funding_secret_impl(
@@ -265,6 +321,32 @@ impl EthCoin {
             Token::FixedBytes(args.maker_secret_hash.to_vec()),
             Token::Uint(args.funding_time_lock.into()),
             Token::Uint(args.payment_time_lock.into()),
+        ])?;
+        Ok(data)
+    }
+
+    /// Prepares data for EtomicSwapTakerV2 contract `refundTakerPaymentTimelock` method
+    /// function refundMakerPaymentTimelock(
+    ///         bytes32 id,
+    ///         uint256 amount,
+    ///         address taker,
+    ///         bytes32 takerSecretHash,
+    ///         bytes32 makerSecretHash,
+    ///         address tokenAddress
+    async fn prepare_taker_refund_payment_timelock_data(
+        &self,
+        args: TakerRefundArgs<'_>,
+    ) -> Result<Vec<u8>, PrepareTxDataError> {
+        let function = TAKER_SWAP_V2.function("refundTakerPaymentTimelock")?;
+        let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret_hash);
+        let data = function.encode_input(&[
+            Token::FixedBytes(id),
+            Token::Uint(args.payment_amount),
+            Token::Uint(args.dex_fee),
+            Token::Address(args.maker_address),
+            Token::FixedBytes(args.taker_secret_hash.to_vec()),
+            Token::FixedBytes(args.maker_secret_hash.to_vec()),
+            Token::Address(args.token_address),
         ])?;
         Ok(data)
     }
