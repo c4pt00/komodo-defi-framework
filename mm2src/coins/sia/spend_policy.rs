@@ -357,8 +357,6 @@ impl Encodable for UnlockCondition {
 
 impl UnlockCondition {
     pub fn new(pubkeys: Vec<PublicKey>, timelock: u64, signatures_required: u64) -> Self {
-        // TODO check go implementation to see if there should be limitations or checks imposed here
-        // eg, max number of keys, max sigs_required, etc
         let unlock_keys = pubkeys
             .into_iter()
             .map(|public_key| UnlockKey::Ed25519(public_key))
