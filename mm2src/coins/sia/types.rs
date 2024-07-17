@@ -93,7 +93,7 @@ pub struct EventV1Transaction {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EventV1ContractResolution {
-    pub file_contract: FileContractElementV1,
+    pub parent: FileContractElementV1,
     pub siacoin_element: SiacoinElement,
     pub missed: Option<bool>,
 }
@@ -128,6 +128,7 @@ pub struct Event {
     #[serde(rename = "type")]
     pub event_type: EventType,
     pub data: EventDataWrapper,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub relevant: Option<Vec<Address>>,
 }
 
@@ -185,6 +186,7 @@ impl<'de> Deserialize<'de> for Event {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)] 
 pub enum EventDataWrapper {
     MinerPayout(EventPayout),
     FoundationPayout(EventPayout),
