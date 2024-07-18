@@ -214,7 +214,7 @@ pub struct SiafundElement {
 impl Encodable for SiafundElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.state_element.encode(encoder);
-        SiafundOutputVersion::V2(self.siafund_output.clone()).encode(encoder);
+        SiafundOutputVersion::V2(&self.siafund_output).encode(encoder);
         CurrencyVersion::V2(&self.claim_start).encode(encoder);
     }
 }
@@ -287,13 +287,13 @@ pub struct SiafundOutput {
 }
 
 // SiafundOutput remains the same data structure between V1 and V2 however the encoding changes
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum SiafundOutputVersion {
-    V1(SiafundOutput),
-    V2(SiafundOutput),
+#[derive(Clone, Debug)]
+pub enum SiafundOutputVersion<'a> {
+    V1(&'a SiafundOutput),
+    V2(&'a SiafundOutput),
 }
 
-impl Encodable for SiafundOutputVersion {
+impl<'a> Encodable for SiafundOutputVersion<'a> {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
             SiafundOutputVersion::V1(v1) => {
@@ -790,7 +790,7 @@ impl Encodable for V2Transaction {
 
         encoder.write_u64(self.siafund_outputs.len() as u64);
         for so in &self.siafund_outputs {
-            SiafundOutputVersion::V2(so.clone()).encode(encoder);
+            SiafundOutputVersion::V2(&so).encode(encoder);
         }
 
         encoder.write_u64(self.file_contracts.len() as u64);
