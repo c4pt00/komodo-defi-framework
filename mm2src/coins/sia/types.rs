@@ -1,8 +1,7 @@
 use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder, PrefixedH256, PrefixedSignature};
-use crate::sia::transaction::{Currency, FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
-                              TransactionV1, V2FileContract, V2FileContractElement, V2StorageProof, V2Transaction};
-use crate::sia::Signature;
+use crate::sia::encoding::{Encodable, Encoder, PrefixedH256};
+use crate::sia::transaction::{FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
+                              TransactionV1, V2Transaction, V2FileContractResolution};
 use chrono::{DateTime, Utc};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -168,7 +167,7 @@ impl<'de> Deserialize<'de> for Event {
                 .map(EventDataWrapper::V2Transaction)
                 .map_err(serde::de::Error::custom),
             EventType::V1ContractResolution => unimplemented!(),
-            EventType::V2ContractResolution => serde_json::from_value::<V2FileContractResolution>(helper.data)
+            EventType::V2ContractResolution => serde_json::from_value::<EventV2ContractResolution>(helper.data)
                 .map(EventDataWrapper::V2FileContractResolution)
                 .map_err(serde::de::Error::custom),
         }?;
@@ -192,96 +191,17 @@ pub enum EventDataWrapper {
     FoundationPayout(EventPayout),
     ClaimPayout(EventPayout),
     V2Transaction(V2Transaction),
-    V2FileContractResolution(V2FileContractResolution),
+    V2FileContractResolution(EventV2ContractResolution),
     V1Transaction(EventV1Transaction),
     EventV1ContractResolution(EventV1ContractResolution),
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct V2FileContractResolution {
-    pub parent: V2FileContractElement,
-    #[serde(rename = "type")]
-    pub resolution_type: ResolutionType,
-    pub resolution: V2FileContractResolutionWrapper,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")] 
-pub enum ResolutionType {
-    Renewal,
-    StorageProof,
-    Expiration,
-    Finalization,
-}
-
-impl<'de> Deserialize<'de> for V2FileContractResolution {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize, Debug)]
-        struct V2FileContractResolutionHelper {
-            parent: V2FileContractElement,
-            #[serde(rename = "type")]
-            resolution_type: ResolutionType,
-            resolution: Value,
-        }
-
-        let helper = V2FileContractResolutionHelper::deserialize(deserializer)?;
-        // TODO refactor this similar to EventType type
-        let resolution_data = match helper.resolution_type {
-            ResolutionType::Renewal => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
-                .map(V2FileContractResolutionWrapper::Renewal)
-                .map_err(serde::de::Error::custom),
-            ResolutionType::StorageProof => serde_json::from_value::<V2StorageProof>(helper.resolution)
-                .map(V2FileContractResolutionWrapper::StorageProof)
-                .map_err(serde::de::Error::custom),
-            ResolutionType::Finalization => serde_json::from_value::<V2FileContractFinalization>(helper.resolution)
-                .map(V2FileContractResolutionWrapper::Finalization)
-                .map_err(serde::de::Error::custom),
-            // expiration is a special case because it has no data. It is just an empty object, "{}".
-            ResolutionType::Expiration => match &helper.resolution {
-                Value::Object(map) if map.is_empty() => {
-                    Ok(V2FileContractResolutionWrapper::Expiration(V2FileContractExpiration))
-                },
-                _ => Err(serde::de::Error::custom("expected an empty map for expiration")),
-            },
-        }?;
-
-        Ok(V2FileContractResolution {
-            parent: helper.parent,
-            resolution_type: helper.resolution_type,
-            resolution: resolution_data,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum V2FileContractResolutionWrapper {
-    Finalization(V2FileContractFinalization),
-    Renewal(V2FileContractRenewal),
-    StorageProof(V2StorageProof),
-    Expiration(V2FileContractExpiration),
-}
-
-type V2FileContractFinalization = V2FileContract;
-
-// FIXME this may need custom serde to handle it as "{}"
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct V2FileContractExpiration;
-
-#[serde_as]
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct V2FileContractRenewal {
-    final_revision: V2FileContract,
-    new_contract: V2FileContract,
-    renter_rollover: Currency,
-    host_rollover: Currency,
-    #[serde_as(as = "FromInto<PrefixedSignature>")]
-    renter_signature: Signature,
-    #[serde_as(as = "FromInto<PrefixedSignature>")]
-    host_signature: Signature,
+pub struct EventV2ContractResolution {
+    pub resolution: V2FileContractResolution,
+    pub siacoin_element: SiacoinElement,
+    pub missed: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

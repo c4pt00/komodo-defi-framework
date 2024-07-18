@@ -6,6 +6,7 @@ use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{serde_as, FromInto};
+use serde_json::Value;
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -113,9 +114,9 @@ pub struct SatisfiedPolicy {
     #[serde_as(as = "FromInto<SpendPolicyHelper>")]
     pub policy: SpendPolicy,
     #[serde_as(as = "Vec<FromInto<PrefixedSignature>>")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub signatures: Vec<Signature>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub preimages: Vec<Vec<u8>>,
 }
 
@@ -506,22 +507,80 @@ pub struct SiafundInputV1 {
     pub claim_address: Address,
 }
 
-// TODO requires unit tests
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct FileContractResolutionV2 {
-    pub parent: V2FileContractElement,
-    pub resolution: FileContractResolutionTypeV2,
+#[serde(rename_all = "camelCase")] 
+pub enum ResolutionType {
+    Renewal,
+    StorageProof,
+    Expiration,
+    Finalization,
 }
 
-impl Encodable for FileContractResolutionTypeV2 {
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct V2FileContractResolution {
+    pub parent: V2FileContractElement,
+    #[serde(rename = "type")]
+    pub resolution_type: ResolutionType,
+    pub resolution: V2FileContractResolutionWrapper,
+}
+
+impl Encodable for V2FileContractResolution {
+    fn encode(&self, _encoder: &mut Encoder) {
+        todo!()
+    }
+}
+
+impl<'de> Deserialize<'de> for V2FileContractResolution {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize, Debug)]
+        struct V2FileContractResolutionHelper {
+            parent: V2FileContractElement,
+            #[serde(rename = "type")]
+            resolution_type: ResolutionType,
+            resolution: Value,
+        }
+
+        let helper = V2FileContractResolutionHelper::deserialize(deserializer)?;
+        // TODO refactor this similar to EventType type
+        let resolution_data = match helper.resolution_type {
+            ResolutionType::Renewal => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
+                .map(V2FileContractResolutionWrapper::Renewal)
+                .map_err(serde::de::Error::custom),
+            ResolutionType::StorageProof => serde_json::from_value::<V2StorageProof>(helper.resolution)
+                .map(V2FileContractResolutionWrapper::StorageProof)
+                .map_err(serde::de::Error::custom),
+            ResolutionType::Finalization => serde_json::from_value::<V2FileContractFinalization>(helper.resolution)
+                .map(V2FileContractResolutionWrapper::Finalization)
+                .map_err(serde::de::Error::custom),
+            // expiration is a special case because it has no data. It is just an empty object, "{}".
+            ResolutionType::Expiration => match &helper.resolution {
+                Value::Object(map) if map.is_empty() => {
+                    Ok(V2FileContractResolutionWrapper::Expiration)
+                },
+                _ => Err(serde::de::Error::custom("expected an empty map for expiration")),
+            },
+        }?;
+
+        Ok(V2FileContractResolution {
+            parent: helper.parent,
+            resolution_type: helper.resolution_type,
+            resolution: resolution_data,
+        })
+    }
+}
+
+impl Encodable for V2FileContractResolutionWrapper {
     fn encode(&self, _encoder: &mut Encoder) {
         todo!();
     }
 }
 
-impl FileContractResolutionV2 {
-    fn with_nil_sigs(&self) -> FileContractResolutionV2 {
-        FileContractResolutionV2 {
+impl V2FileContractResolution {
+    fn with_nil_sigs(&self) -> V2FileContractResolution {
+        V2FileContractResolution {
             resolution: self.resolution.with_nil_sigs(),
             ..self.clone()
         }
@@ -529,46 +588,34 @@ impl FileContractResolutionV2 {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub enum FileContractResolutionTypeV2 {
-    Finalization(Box<V2FileContractFinalization>),
-    Renewal(Box<V2FileContractRenewal>),
+pub enum V2FileContractResolutionWrapper {
+    Finalization(V2FileContractFinalization),
+    Renewal(V2FileContractRenewal),
     StorageProof(V2StorageProof),
-    Expiration(V2FileContractExpiration),
+    #[serde(serialize_with = "serialize_variant_as_empty_object")]
+    Expiration,
 }
 
-impl FileContractResolutionTypeV2 {
-    fn with_nil_sigs(&self) -> FileContractResolutionTypeV2 {
+fn serialize_variant_as_empty_object<S>(serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str("{}")
+}
+
+impl V2FileContractResolutionWrapper {
+    fn with_nil_sigs(&self) -> V2FileContractResolutionWrapper {
         match self {
-            FileContractResolutionTypeV2::Finalization(f) => {
-                FileContractResolutionTypeV2::Finalization(Box::new(f.with_nil_sigs()))
+            V2FileContractResolutionWrapper::Finalization(f) => {
+                V2FileContractResolutionWrapper::Finalization(f.with_nil_sigs())
             },
-            FileContractResolutionTypeV2::Renewal(r) => {
-                FileContractResolutionTypeV2::Renewal(Box::new(r.with_nil_sigs()))
+            V2FileContractResolutionWrapper::Renewal(r) => {
+                V2FileContractResolutionWrapper::Renewal(r.with_nil_sigs())
             },
-            FileContractResolutionTypeV2::StorageProof(s) => {
-                FileContractResolutionTypeV2::StorageProof(s.with_nil_merkle_proof())
+            V2FileContractResolutionWrapper::StorageProof(s) => {
+                V2FileContractResolutionWrapper::StorageProof(s.with_nil_merkle_proof())
             },
-            FileContractResolutionTypeV2::Expiration(e) => FileContractResolutionTypeV2::Expiration(e.clone()),
-        }
-    }
-}
-
-// TODO we don't need this for the time being
-impl Encodable for FileContractResolutionV2 {
-    fn encode(&self, _encoder: &mut Encoder) {
-        match &self.resolution {
-            FileContractResolutionTypeV2::Finalization(_) => {
-                todo!();
-            },
-            FileContractResolutionTypeV2::Renewal(_) => {
-                todo!();
-            },
-            FileContractResolutionTypeV2::StorageProof(_) => {
-                todo!();
-            },
-            FileContractResolutionTypeV2::Expiration(_) => {
-                todo!();
-            },
+            V2FileContractResolutionWrapper::Expiration => V2FileContractResolutionWrapper::Expiration,
         }
     }
 }
@@ -585,14 +632,18 @@ impl Encodable for V2FileContractFinalization {
     fn encode(&self, encoder: &mut Encoder) { self.0.encode(encoder); }
 }
 
+#[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct V2FileContractRenewal {
-    pub final_revision: V2FileContract,
-    pub new_contract: V2FileContract,
-    pub renter_rollover: Currency,
-    pub host_rollover: Currency,
-    pub renter_signature: Signature,
-    pub host_signature: Signature,
+    final_revision: V2FileContract,
+    new_contract: V2FileContract,
+    renter_rollover: Currency,
+    host_rollover: Currency,
+    #[serde_as(as = "FromInto<PrefixedSignature>")]
+    renter_signature: Signature,
+    #[serde_as(as = "FromInto<PrefixedSignature>")]
+    host_signature: Signature,
 }
 
 impl V2FileContractRenewal {
@@ -673,16 +724,6 @@ impl Encodable for ChainIndexElement {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct V2FileContractExpiration;
-
-// TODO
-impl Encodable for V2FileContractExpiration {
-    fn encode(&self, _encoder: &mut Encoder) {
-        todo!();
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct FileContractElementV1 {
     #[serde(flatten)]
@@ -741,7 +782,7 @@ pub struct V2Transaction {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub file_contract_revisions: Vec<FileContractRevisionV2>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub file_contract_resolutions: Vec<FileContractResolutionV2>, // TODO needs Encodable trait
+    pub file_contract_resolutions: Vec<V2FileContractResolution>, // TODO needs Encodable trait
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attestations: Vec<Attestation>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
