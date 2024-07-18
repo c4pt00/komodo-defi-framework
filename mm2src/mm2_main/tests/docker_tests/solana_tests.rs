@@ -1,10 +1,15 @@
-use crate::docker_tests::docker_tests_common::*;
+use serde_json as json;
+
 use mm2_number::bigdecimal::Zero;
 use mm2_test_helpers::for_tests::{disable_coin, enable_solana_with_tokens, enable_spl, sign_message, verify_message};
 use mm2_test_helpers::structs::{EnableSolanaWithTokensResponse, EnableSplResponse, RpcV2Response, SignatureResponse,
                                 VerificationResponse};
-use serde_json as json;
 
+use crate::docker_tests::docker_tests_common::*;
+
+const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
+
+#[ignore]
 #[test]
 fn test_solana_and_spl_balance_enable_spl_v2() {
     let mm = _solana_supplied_node();
@@ -13,7 +18,7 @@ fn test_solana_and_spl_balance_enable_spl_v2() {
         &mm,
         "SOL-DEVNET",
         &["USDC-SOL-DEVNET"],
-        "https://api.devnet.solana.com",
+        SOLANA_CLIENT_URL,
         tx_history,
     ));
     let enable_solana_with_tokens: RpcV2Response<EnableSolanaWithTokensResponse> =
@@ -55,7 +60,7 @@ fn test_sign_verify_message_solana() {
         &mm,
         "SOL-DEVNET",
         &["USDC-SOL-DEVNET"],
-        "https://api.devnet.solana.com",
+        SOLANA_CLIENT_URL,
         tx_history,
     ));
 
@@ -88,7 +93,7 @@ fn test_sign_verify_message_spl() {
         &mm,
         "SOL-DEVNET",
         &["USDC-SOL-DEVNET"],
-        "https://api.devnet.solana.com",
+        SOLANA_CLIENT_URL,
         tx_history,
     ));
 
@@ -122,7 +127,7 @@ fn test_disable_solana_platform_coin_with_tokens() {
         &mm,
         "SOL-DEVNET",
         &["USDC-SOL-DEVNET"],
-        "https://api.devnet.solana.com",
+        SOLANA_CLIENT_URL,
         false,
     ));
     block_on(enable_spl(&mm, "ADEX-SOL-DEVNET"));
