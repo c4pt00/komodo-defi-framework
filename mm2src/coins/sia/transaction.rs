@@ -75,14 +75,14 @@ impl From<u64> for Currency {
     fn from(value: u64) -> Self { Currency { lo: value, hi: 0 } }
 }
 
-// Currnecy remains the same data structure between V1 and V2 however the encoding changes
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum CurrencyVersion {
-    V1(Currency),
-    V2(Currency),
+// Currency remains the same data structure between V1 and V2 however the encoding changes
+#[derive(Clone, Debug)]
+pub enum CurrencyVersion<'a> {
+    V1(&'a Currency),
+    V2(&'a Currency),
 }
 
-impl Encodable for CurrencyVersion {
+impl<'a> Encodable for CurrencyVersion<'a> {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
             CurrencyVersion::V1(currency) => {
@@ -215,7 +215,7 @@ impl Encodable for SiafundElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.state_element.encode(encoder);
         SiafundOutputVersion::V2(self.siafund_output.clone()).encode(encoder);
-        CurrencyVersion::V2(self.claim_start.clone()).encode(encoder);
+        CurrencyVersion::V2(&self.claim_start).encode(encoder);
     }
 }
 
@@ -312,7 +312,7 @@ impl Encodable for SiafundOutputVersion {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
             SiafundOutputVersion::V1(v1) => {
-                CurrencyVersion::V1(Currency::from(v1.value)).encode(encoder);
+                CurrencyVersion::V1(&Currency::from(v1.value)).encode(encoder);
                 v1.address.encode(encoder);
             },
             SiafundOutputVersion::V2(v2) => {
@@ -340,11 +340,11 @@ impl Encodable for SiacoinOutputVersion {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
             SiacoinOutputVersion::V1(v1) => {
-                CurrencyVersion::V1(v1.value.clone()).encode(encoder);
+                CurrencyVersion::V1(&v1.value).encode(encoder);
                 v1.address.encode(encoder);
             },
             SiacoinOutputVersion::V2(v2) => {
-                CurrencyVersion::V2(v2.value.clone()).encode(encoder);
+                CurrencyVersion::V2(&v2.value).encode(encoder);
                 v2.address.encode(encoder);
             },
         }
@@ -434,8 +434,8 @@ impl Encodable for V2FileContract {
         encoder.write_u64(self.expiration_height);
         SiacoinOutputVersion::V2(self.renter_output.clone()).encode(encoder);
         SiacoinOutputVersion::V2(self.host_output.clone()).encode(encoder);
-        CurrencyVersion::V2(self.missed_host_value.clone()).encode(encoder);
-        CurrencyVersion::V2(self.total_collateral.clone()).encode(encoder);
+        CurrencyVersion::V2(&self.missed_host_value).encode(encoder);
+        CurrencyVersion::V2(&self.total_collateral).encode(encoder);
         self.renter_public_key.encode(encoder);
         self.host_public_key.encode(encoder);
         encoder.write_u64(self.revision_number);
@@ -631,8 +631,8 @@ impl Encodable for V2FileContractRenewal {
     fn encode(&self, encoder: &mut Encoder) {
         self.final_revision.encode(encoder);
         self.new_contract.encode(encoder);
-        CurrencyVersion::V2(self.renter_rollover.clone()).encode(encoder);
-        CurrencyVersion::V2(self.host_rollover.clone()).encode(encoder);
+        CurrencyVersion::V2(&self.renter_rollover).encode(encoder);
+        CurrencyVersion::V2(&self.host_rollover).encode(encoder);
         self.renter_signature.encode(encoder);
         self.host_signature.encode(encoder);
     }
@@ -838,7 +838,7 @@ impl Encodable for V2Transaction {
             Some(addr) => addr.encode(encoder),
             None => (),
         }
-        CurrencyVersion::V2(self.miner_fee.clone()).encode(encoder);
+        CurrencyVersion::V2(&self.miner_fee).encode(encoder);
     }
 }
 
@@ -864,7 +864,7 @@ fn test_siacoin_input_encode() {
 fn test_siacoin_currency_encode_v1() {
     let currency: Currency = 1.into();
 
-    let hash = Encoder::encode_and_hash(&CurrencyVersion::V1(currency));
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V1(&currency));
     let expected = H256::from("a1cc3a97fc1ebfa23b0b128b153a29ad9f918585d1d8a32354f547d8451b7826");
     assert_eq!(hash, expected);
 }
@@ -873,7 +873,7 @@ fn test_siacoin_currency_encode_v1() {
 fn test_siacoin_currency_encode_v2() {
     let currency: Currency = 1.into();
 
-    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(currency));
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(&currency));
     let expected = H256::from("a3865e5e284e12e0ea418e73127db5d1092bfb98ed372ca9a664504816375e1d");
     assert_eq!(hash, expected);
 }
@@ -882,7 +882,7 @@ fn test_siacoin_currency_encode_v2() {
 fn test_siacoin_currency_encode_v1_max() {
     let currency = Currency::new(u64::MAX, u64::MAX);
 
-    let hash = Encoder::encode_and_hash(&CurrencyVersion::V1(currency));
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V1(&currency));
     let expected = H256::from("4b9ed7269cb15f71ddf7238172a593a8e7ffe68b12c1bf73d67ac8eec44355bb");
     assert_eq!(hash, expected);
 }
@@ -891,7 +891,7 @@ fn test_siacoin_currency_encode_v1_max() {
 fn test_siacoin_currency_encode_v2_max() {
     let currency = Currency::new(u64::MAX, u64::MAX);
 
-    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(currency));
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(&currency));
     let expected = H256::from("681467b3337425fd38fa3983531ca1a6214de9264eebabdf9c9bc5d157d202b4");
     assert_eq!(hash, expected);
 }
