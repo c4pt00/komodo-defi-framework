@@ -1,4 +1,4 @@
-use super::eth::{gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
+use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{RefundFundingSecretArgs, SendTakerFundingArgs, Transaction, TransactionErr};
 use crate::{RefundTakerPaymentArgs, SwapTxTypeWithSecretHash};
 use enum_derives::EnumFromStringify;
@@ -80,7 +80,7 @@ impl EthCoin {
                     payment_amount,
                     Action::Call(taker_swap_v2_contract),
                     data,
-                    U256::from(gas_limit::ETH_PAYMENT),
+                    U256::from(self.gas_limit.eth_payment),
                 )
                 .compat()
                 .await
@@ -115,7 +115,7 @@ impl EthCoin {
                         U256::from(0),
                         Action::Call(taker_swap_v2_contract),
                         data,
-                        U256::from(gas_limit::ERC20_PAYMENT),
+                        U256::from(self.gas_limit.erc20_payment),
                     )
                     .compat()
                     .await
@@ -124,7 +124,7 @@ impl EthCoin {
                         U256::from(0),
                         Action::Call(taker_swap_v2_contract),
                         data,
-                        U256::from(gas_limit::ERC20_PAYMENT),
+                        U256::from(self.gas_limit.erc20_payment),
                     )
                     .compat()
                     .await
@@ -170,11 +170,11 @@ impl EthCoin {
         };
 
         let (token_address, gas_limit) = match &self.coin_type {
-            EthCoinType::Eth => (Address::default(), gas_limit::ETH_SENDER_REFUND),
+            EthCoinType::Eth => (Address::default(), self.gas_limit.eth_sender_refund),
             EthCoinType::Erc20 {
                 platform: _,
                 token_addr,
-            } => (*token_addr, gas_limit::ERC20_SENDER_REFUND),
+            } => (*token_addr, self.gas_limit.erc20_sender_refund),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(
                     "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
@@ -224,11 +224,11 @@ impl EthCoin {
         let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
         let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
         let (token_address, gas_limit) = match &self.coin_type {
-            EthCoinType::Eth => (Address::default(), gas_limit::ETH_SENDER_REFUND),
+            EthCoinType::Eth => (Address::default(), self.gas_limit.eth_sender_refund),
             EthCoinType::Erc20 {
                 platform: _,
                 token_addr,
-            } => (*token_addr, gas_limit::ERC20_SENDER_REFUND),
+            } => (*token_addr, self.gas_limit.erc20_sender_refund),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(
                     "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
