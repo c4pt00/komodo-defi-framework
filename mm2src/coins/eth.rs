@@ -7260,6 +7260,7 @@ impl EthCoin {
             erc20_tokens_infos: Arc::clone(&self.erc20_tokens_infos),
             nfts_infos: Arc::clone(&self.nfts_infos),
             platform_fee_estimator_state: Arc::clone(&self.platform_fee_estimator_state),
+            gas_limit: EthGasLimit::default(),
             abortable_system: self.abortable_system.create_subsystem().unwrap(),
         };
         EthCoin(Arc::new(coin))
