@@ -61,12 +61,6 @@ impl Serialize for Currency {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum CurrencyVersion {
-    V1(Currency),
-    V2(Currency),
-}
-
 impl Default for Currency {
     fn default() -> Self { Currency { lo: 0, hi: 0 } }
 }
@@ -81,31 +75,34 @@ impl From<u64> for Currency {
     fn from(value: u64) -> Self { Currency { lo: value, hi: 0 } }
 }
 
-impl Encodable for CurrencyVersion {
+// Currency remains the same data structure between V1 and V2 however the encoding changes
+#[derive(Clone, Debug)]
+pub enum CurrencyVersion<'a> {
+    V1(&'a Currency),
+    V2(&'a Currency),
+}
+
+impl<'a> Encodable for CurrencyVersion<'a> {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
-            CurrencyVersion::V1(currency) => currency.encode(encoder),
+            CurrencyVersion::V1(currency) => {
+                let mut buffer = [0u8; 16];
+        
+                buffer[8..].copy_from_slice(&currency.lo.to_be_bytes());
+                buffer[..8].copy_from_slice(&currency.hi.to_be_bytes());
+        
+                // Trim leading zero bytes from the buffer
+                let trimmed_buf = match buffer.iter().position(|&x| x != 0) {
+                    Some(index) => &buffer[index..],
+                    None => &buffer[..], // In case all bytes are zero
+                };
+                encoder.write_len_prefixed_bytes(trimmed_buf);
+            },
             CurrencyVersion::V2(currency) => {
                 encoder.write_u64(currency.lo);
                 encoder.write_u64(currency.hi);
             },
         }
-    }
-}
-
-impl Encodable for Currency {
-    fn encode(&self, encoder: &mut Encoder) {
-        let mut buffer = [0u8; 16];
-
-        buffer[8..].copy_from_slice(&self.lo.to_be_bytes());
-        buffer[..8].copy_from_slice(&self.hi.to_be_bytes());
-
-        // Trim leading zero bytes from the buffer
-        let trimmed_buf = match buffer.iter().position(|&x| x != 0) {
-            Some(index) => &buffer[index..],
-            None => &buffer[..], // In case all bytes are zero
-        };
-        encoder.write_len_prefixed_bytes(trimmed_buf);
     }
 }
 
@@ -217,8 +214,8 @@ pub struct SiafundElement {
 impl Encodable for SiafundElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.state_element.encode(encoder);
-        SiafundOutputVersion::V2(self.siafund_output.clone()).encode(encoder);
-        self.claim_start.encode(encoder);
+        SiafundOutputVersion::V2(&self.siafund_output).encode(encoder);
+        CurrencyVersion::V2(&self.claim_start).encode(encoder);
     }
 }
 
@@ -234,7 +231,7 @@ pub struct SiacoinElement {
 impl Encodable for SiacoinElement {
     fn encode(&self, encoder: &mut Encoder) {
         self.state_element.encode(encoder);
-        SiacoinOutputVersion::V2(self.siacoin_output.clone()).encode(encoder);
+        SiacoinOutputVersion::V2(&self.siacoin_output).encode(encoder);
         encoder.write_u64(self.maturity_height);
     }
 }
@@ -253,12 +250,6 @@ impl Encodable for SiafundInputV2 {
         self.claim_address.encode(encoder);
         self.satisfied_policy.encode(encoder);
     }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum SiacoinInput {
-    V1(SiacoinInputV1),
-    V2(SiacoinInputV2),
 }
 
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L197-L198
@@ -289,40 +280,25 @@ impl Encodable for SiacoinInputV2 {
     }
 }
 
-impl Encodable for SiacoinInput {
-    fn encode(&self, encoder: &mut Encoder) {
-        match self {
-            SiacoinInput::V1(v1) => v1.encode(encoder),
-            SiacoinInput::V2(v2) => v2.encode(encoder),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SiafundOutput {
     pub value: u64,
     pub address: Address,
 }
 
-impl Encodable for SiafundOutput {
-    fn encode(&self, encoder: &mut Encoder) {
-        encoder.write_u64(self.value);
-        self.address.encode(encoder);
-    }
+// SiafundOutput remains the same data structure between V1 and V2 however the encoding changes
+#[derive(Clone, Debug)]
+pub enum SiafundOutputVersion<'a> {
+    V1(&'a SiafundOutput),
+    V2(&'a SiafundOutput),
 }
 
-// SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum SiafundOutputVersion {
-    V1(SiafundOutput),
-    V2(SiafundOutput),
-}
-
-impl Encodable for SiafundOutputVersion {
+impl<'a> Encodable for SiafundOutputVersion<'a> {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
             SiafundOutputVersion::V1(v1) => {
-                v1.encode(encoder);
+                CurrencyVersion::V1(&Currency::from(v1.value)).encode(encoder);
+                v1.address.encode(encoder);
             },
             SiafundOutputVersion::V2(v2) => {
                 encoder.write_u64(v2.value);
@@ -333,10 +309,10 @@ impl Encodable for SiafundOutputVersion {
 }
 
 // SiacoinOutput remains the same data structure between V1 and V2 however the encoding changes
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum SiacoinOutputVersion {
-    V1(SiacoinOutput),
-    V2(SiacoinOutput),
+#[derive(Clone, Debug)]
+pub enum SiacoinOutputVersion<'a> {
+    V1(&'a SiacoinOutput),
+    V2(&'a SiacoinOutput),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -345,21 +321,15 @@ pub struct SiacoinOutput {
     pub address: Address,
 }
 
-impl Encodable for SiacoinOutput {
-    fn encode(&self, encoder: &mut Encoder) {
-        self.value.encode(encoder);
-        self.address.encode(encoder);
-    }
-}
-
-impl Encodable for SiacoinOutputVersion {
+impl<'a> Encodable for SiacoinOutputVersion<'a> {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
             SiacoinOutputVersion::V1(v1) => {
-                v1.encode(encoder);
+                CurrencyVersion::V1(&v1.value).encode(encoder);
+                v1.address.encode(encoder);
             },
             SiacoinOutputVersion::V2(v2) => {
-                CurrencyVersion::V2(v2.value.clone()).encode(encoder);
+                CurrencyVersion::V2(&v2.value).encode(encoder);
                 v2.address.encode(encoder);
             },
         }
@@ -447,10 +417,10 @@ impl Encodable for V2FileContract {
         self.file_merkle_root.encode(encoder);
         encoder.write_u64(self.proof_height);
         encoder.write_u64(self.expiration_height);
-        SiacoinOutputVersion::V2(self.renter_output.clone()).encode(encoder);
-        SiacoinOutputVersion::V2(self.host_output.clone()).encode(encoder);
-        CurrencyVersion::V2(self.missed_host_value.clone()).encode(encoder);
-        CurrencyVersion::V2(self.total_collateral.clone()).encode(encoder);
+        SiacoinOutputVersion::V2(&self.renter_output).encode(encoder);
+        SiacoinOutputVersion::V2(&self.host_output).encode(encoder);
+        CurrencyVersion::V2(&self.missed_host_value).encode(encoder);
+        CurrencyVersion::V2(&self.total_collateral).encode(encoder);
         self.renter_public_key.encode(encoder);
         self.host_public_key.encode(encoder);
         encoder.write_u64(self.revision_number);
@@ -646,8 +616,8 @@ impl Encodable for V2FileContractRenewal {
     fn encode(&self, encoder: &mut Encoder) {
         self.final_revision.encode(encoder);
         self.new_contract.encode(encoder);
-        CurrencyVersion::V2(self.renter_rollover.clone()).encode(encoder);
-        CurrencyVersion::V2(self.host_rollover.clone()).encode(encoder);
+        CurrencyVersion::V2(&self.renter_rollover).encode(encoder);
+        CurrencyVersion::V2(&self.host_rollover).encode(encoder);
         self.renter_signature.encode(encoder);
         self.host_signature.encode(encoder);
     }
@@ -743,7 +713,7 @@ It is possible this may need to change in later implementations.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 pub struct TransactionV1 {
-    pub siacoin_inputs: Vec<SiacoinInput>,
+    pub siacoin_inputs: Vec<SiacoinInputV1>,
     pub siacoin_outputs: Vec<SiacoinOutput>,
     pub file_contracts: Vec<FileContract>,
     pub file_contract_revisions: Vec<FileContractRevision>,
@@ -810,7 +780,7 @@ impl Encodable for V2Transaction {
 
         encoder.write_u64(self.siacoin_outputs.len() as u64);
         for so in &self.siacoin_outputs {
-            SiacoinOutputVersion::V2(so.clone()).encode(encoder);
+            SiacoinOutputVersion::V2(&so).encode(encoder);
         }
 
         encoder.write_u64(self.siafund_inputs.len() as u64);
@@ -820,7 +790,7 @@ impl Encodable for V2Transaction {
 
         encoder.write_u64(self.siafund_outputs.len() as u64);
         for so in &self.siafund_outputs {
-            SiafundOutputVersion::V2(so.clone()).encode(encoder);
+            SiafundOutputVersion::V2(&so).encode(encoder);
         }
 
         encoder.write_u64(self.file_contracts.len() as u64);
@@ -853,7 +823,7 @@ impl Encodable for V2Transaction {
             Some(addr) => addr.encode(encoder),
             None => (),
         }
-        CurrencyVersion::V2(self.miner_fee.clone()).encode(encoder);
+        CurrencyVersion::V2(&self.miner_fee).encode(encoder);
     }
 }
 
@@ -879,7 +849,7 @@ fn test_siacoin_input_encode() {
 fn test_siacoin_currency_encode_v1() {
     let currency: Currency = 1.into();
 
-    let hash = Encoder::encode_and_hash(&currency);
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V1(&currency));
     let expected = H256::from("a1cc3a97fc1ebfa23b0b128b153a29ad9f918585d1d8a32354f547d8451b7826");
     assert_eq!(hash, expected);
 }
@@ -888,7 +858,7 @@ fn test_siacoin_currency_encode_v1() {
 fn test_siacoin_currency_encode_v2() {
     let currency: Currency = 1.into();
 
-    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(currency));
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(&currency));
     let expected = H256::from("a3865e5e284e12e0ea418e73127db5d1092bfb98ed372ca9a664504816375e1d");
     assert_eq!(hash, expected);
 }
@@ -897,7 +867,7 @@ fn test_siacoin_currency_encode_v2() {
 fn test_siacoin_currency_encode_v1_max() {
     let currency = Currency::new(u64::MAX, u64::MAX);
 
-    let hash = Encoder::encode_and_hash(&currency);
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V1(&currency));
     let expected = H256::from("4b9ed7269cb15f71ddf7238172a593a8e7ffe68b12c1bf73d67ac8eec44355bb");
     assert_eq!(hash, expected);
 }
@@ -906,7 +876,7 @@ fn test_siacoin_currency_encode_v1_max() {
 fn test_siacoin_currency_encode_v2_max() {
     let currency = Currency::new(u64::MAX, u64::MAX);
 
-    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(currency));
+    let hash = Encoder::encode_and_hash(&CurrencyVersion::V2(&currency));
     let expected = H256::from("681467b3337425fd38fa3983531ca1a6214de9264eebabdf9c9bc5d157d202b4");
     assert_eq!(hash, expected);
 }
@@ -919,7 +889,7 @@ fn test_siacoin_output_encode_v1() {
             .unwrap(),
     };
 
-    let hash = Encoder::encode_and_hash(&vout);
+    let hash = Encoder::encode_and_hash(&SiacoinOutputVersion::V1(&vout));
     let expected = H256::from("3253c57e76600721f2bdf03497a71ed47c09981e22ef49aed92e40da1ea91b28");
     assert_eq!(hash, expected);
 }
@@ -931,9 +901,8 @@ fn test_siacoin_output_encode_v2() {
         address: Address::from_str("addr:72b0762b382d4c251af5ae25b6777d908726d75962e5224f98d7f619bb39515dd64b9a56043a")
             .unwrap(),
     };
-    let wrapped_vout = SiacoinOutputVersion::V2(vout);
 
-    let hash = Encoder::encode_and_hash(&wrapped_vout);
+    let hash = Encoder::encode_and_hash(&SiacoinOutputVersion::V2(&vout));
     let expected = H256::from("c278eceae42f594f5f4ca52c8a84b749146d08af214cc959ed2aaaa916eaafd3");
     assert_eq!(hash, expected);
 }
@@ -1000,9 +969,8 @@ fn test_siacoin_input_encode_v1() {
         parent_id: H256::default(),
         unlock_condition: UnlockCondition::new(vec![], 0, 0),
     };
-    let vin_wrapped = SiacoinInput::V1(vin);
 
-    let hash = Encoder::encode_and_hash(&vin_wrapped);
+    let hash = Encoder::encode_and_hash(&vin);
     let expected = H256::from("2f806f905436dc7c5079ad8062467266e225d8110a3c58d17628d609cb1c99d0");
     assert_eq!(hash, expected);
 }
@@ -1253,9 +1221,8 @@ fn test_siacoin_input_encode_v2() {
         },
         satisfied_policy,
     };
-    let vin_wrapped = SiacoinInput::V2(vin);
 
-    let hash = Encoder::encode_and_hash(&vin_wrapped);
+    let hash = Encoder::encode_and_hash(&vin);
     let expected = H256::from("a8ab11b91ee19ce68f2d608bd4d19212841842f0c50151ae4ccb8e9db68cd6c4");
     assert_eq!(hash, expected);
 }
