@@ -15,7 +15,7 @@ mod structs;
 use structs::{ExpectedHtlcParams, PaymentType, ValidationParams};
 
 use super::ContractType;
-use crate::eth::{decode_contract_call, gas_limit::ETH_MAX_TRADE_GAS, EthCoin, EthCoinType, MakerPaymentStateV2,
+use crate::eth::{decode_contract_call,  EthCoin, EthCoinType, MakerPaymentStateV2,
                  SignedEthTx, ERC1155_CONTRACT, ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
             TransactionErr, ValidateNftMakerPaymentArgs};
@@ -40,7 +40,7 @@ impl EthCoin {
                     0.into(),
                     Action::Call(*args.nft_swap_info.token_address),
                     data,
-                    U256::from(ETH_MAX_TRADE_GAS), // TODO: fix to a more accurate const or estimated value
+                    U256::from(self.gas_limit.eth_max_trade_gas), // TODO: fix to a more accurate const or estimated value
                 )
                 .compat()
                 .await
@@ -198,7 +198,7 @@ impl EthCoin {
                     0.into(),
                     Action::Call(*etomic_swap_contract),
                     data,
-                    U256::from(ETH_MAX_TRADE_GAS), // TODO: fix to a more accurate const or estimated value
+                    U256::from(self.gas_limit.eth_max_trade_gas), // TODO: fix to a more accurate const or estimated value
                 )
                 .compat()
                 .await
