@@ -252,12 +252,6 @@ impl Encodable for SiafundInputV2 {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum SiacoinInput {
-    V1(SiacoinInputV1),
-    V2(SiacoinInputV2),
-}
-
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L197-L198
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiacoinInputV1 {
@@ -283,15 +277,6 @@ impl Encodable for SiacoinInputV2 {
     fn encode(&self, encoder: &mut Encoder) {
         self.parent.encode(encoder);
         self.satisfied_policy.encode(encoder);
-    }
-}
-
-impl Encodable for SiacoinInput {
-    fn encode(&self, encoder: &mut Encoder) {
-        match self {
-            SiacoinInput::V1(v1) => v1.encode(encoder),
-            SiacoinInput::V2(v2) => v2.encode(encoder),
-        }
     }
 }
 
@@ -728,7 +713,7 @@ It is possible this may need to change in later implementations.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 pub struct TransactionV1 {
-    pub siacoin_inputs: Vec<SiacoinInput>,
+    pub siacoin_inputs: Vec<SiacoinInputV1>,
     pub siacoin_outputs: Vec<SiacoinOutput>,
     pub file_contracts: Vec<FileContract>,
     pub file_contract_revisions: Vec<FileContractRevision>,
@@ -984,9 +969,8 @@ fn test_siacoin_input_encode_v1() {
         parent_id: H256::default(),
         unlock_condition: UnlockCondition::new(vec![], 0, 0),
     };
-    let vin_wrapped = SiacoinInput::V1(vin);
 
-    let hash = Encoder::encode_and_hash(&vin_wrapped);
+    let hash = Encoder::encode_and_hash(&vin);
     let expected = H256::from("2f806f905436dc7c5079ad8062467266e225d8110a3c58d17628d609cb1c99d0");
     assert_eq!(hash, expected);
 }
@@ -1237,9 +1221,8 @@ fn test_siacoin_input_encode_v2() {
         },
         satisfied_policy,
     };
-    let vin_wrapped = SiacoinInput::V2(vin);
 
-    let hash = Encoder::encode_and_hash(&vin_wrapped);
+    let hash = Encoder::encode_and_hash(&vin);
     let expected = H256::from("a8ab11b91ee19ce68f2d608bd4d19212841842f0c50151ae4ccb8e9db68cd6c4");
     assert_eq!(hash, expected);
 }
