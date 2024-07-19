@@ -1,6 +1,6 @@
 use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
-use super::{RefundFundingSecretArgs, SendTakerFundingArgs, Transaction, TransactionErr};
-use crate::{RefundTakerPaymentArgs, SwapTxTypeWithSecretHash};
+use super::{RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
+            Transaction, TransactionErr};
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;

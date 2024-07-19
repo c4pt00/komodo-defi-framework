@@ -1624,3 +1624,58 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         funding_tx_refund.tx_hash()
     );
 }
+
+#[ignore]
+#[test]
+fn send_and_refund_taker_funding_timelock_eth() {
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
+
+    let taker_secret = vec![0; 32];
+    let taker_secret_hash = sha256(&taker_secret).to_vec();
+    let maker_secret = vec![1; 32];
+    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    // TODO exceed funding_time_lock, as if TakerPaymentState.PaymentSent then
+    // timestamp should exceed payment pre-approve lock time
+    let funding_time_lock = now_sec() + 3000;
+    let payment_time_lock = now_sec() + 1000;
+
+    let dex_fee = &DexFee::Standard("0.1".into());
+    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub: maker_pub.as_bytes(),
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        wait_for_confirmation_until: 0,
+    };
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
+    log!("Taker sent ETH Funding, tx hash: {:02x}", funding_tx.tx_hash());
+
+    wait_for_confirmations(&taker_coin, &funding_tx, 60);
+
+    let refund_args = RefundFundingSecretArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        maker_pubkey: &taker_coin.derive_htlc_pubkey_v2(&[]),
+        taker_secret: &taker_secret,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
+        watcher_reward: false,
+    };
+    let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
+    log!(
+        "Taker refunded ETH Funding by Secret, tx hash: {:02x}",
+        funding_tx_refund.tx_hash()
+    );
+}
