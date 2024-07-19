@@ -153,7 +153,6 @@ impl EthCoin {
                     )
                     .await
                 );
-
                 let data = try_tx_s!(self.prepare_spend_nft_maker_v2_data(&args, decoded, htlc_params, state));
                 self.sign_and_send_transaction(
                     0.into(),

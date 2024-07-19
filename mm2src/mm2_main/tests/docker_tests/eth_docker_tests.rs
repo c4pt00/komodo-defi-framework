@@ -1,9 +1,9 @@
 use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC721_TEST_ABI, GETH_ACCOUNT,
-                                 GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT, GETH_MAKER_SWAP_V2,
+                                 GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT,
                                  GETH_NFT_MAKER_SWAP_V2, GETH_NFT_SWAP_CONTRACT, GETH_NONCE_LOCK, GETH_RPC_URL,
-                                 GETH_SWAP_CONTRACT, GETH_TAKER_SWAP_V2, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3,
-                                 MM_CTX, SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT,
-                                 SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2, SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
+                                 GETH_SWAP_CONTRACT, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX, MM_CTX1,GETH_MAKER_SWAP_V2,
+                                 SEPOLIA_ERC1155_CONTRACT,GETH_TAKER_SWAP_V2, SEPOLIA_ERC721_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2,
+                                 SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
 use coins::eth::gas_limit::ETH_MAX_TRADE_GAS;
@@ -81,11 +81,13 @@ pub fn erc20_contract() -> Address { unsafe { GETH_ERC20_CONTRACT } }
 /// Return ERC20 dev token contract address in checksum format
 pub fn erc20_contract_checksum() -> String { checksum_address(&format!("{:02x}", erc20_contract())) }
 
+#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_ERC721_CONTRACT is set once during initialization before tests start
 pub fn geth_erc721_contract() -> Address { unsafe { GETH_ERC721_CONTRACT } }
 
+#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_ERC1155_CONTRACT is set once during initialization before tests start
@@ -104,6 +106,21 @@ pub fn sepolia_etomic_maker_nft() -> Address { unsafe { SEPOLIA_ETOMIC_MAKER_NFT
 pub fn sepolia_erc721() -> Address { unsafe { SEPOLIA_ERC721_CONTRACT } }
 
 #[allow(dead_code)]
+/// # Safety
+///
+/// SEPOLIA_ERC1155_CONTRACT address is set once during initialization before tests start
+pub fn sepolia_erc1155() -> Address { unsafe { SEPOLIA_ERC1155_CONTRACT } }
+
+/// # Safety
+///
+/// SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 address is set once during initialization before tests start
+pub fn sepolia_etomic_maker_nft() -> Address { unsafe { SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 } }
+
+/// # Safety
+///
+/// SEPOLIA_ERC721_CONTRACT address is set once during initialization before tests start
+pub fn sepolia_erc721() -> Address { unsafe { SEPOLIA_ERC721_CONTRACT } }
+
 /// # Safety
 ///
 /// SEPOLIA_ERC1155_CONTRACT address is set once during initialization before tests start
@@ -231,7 +248,7 @@ fn mint_erc1155(to_addr: Address, token_id: U256, amount: U256) {
 }
 
 fn geth_erc1155_balance(wallet_addr: Address, token_id: U256) -> U256 {
-    let _guard = GETH_NONCE_LOCK.lock().unwrap();
+    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
     let erc1155_contract =
         Contract::from_json(GETH_WEB3.eth(), geth_erc1155_contract(), ERC1155_TEST_ABI.as_bytes()).unwrap();
     block_on(erc1155_contract.query(
@@ -358,6 +375,7 @@ pub enum TestNftType {
 /// Generates a global NFT coin instance with a random private key and an initial 100 ETH balance.
 /// Optionally mints a specified NFT (either ERC721 or ERC1155) to the global NFT address,
 /// with details recorded in the `nfts_infos` field based on the provided `nft_type`.
+#[allow(dead_code)]
 pub fn global_nft_with_random_privkey(swap_contract_address: Address, nft_type: Option<TestNftType>) -> EthCoin {
     let nft_conf = nft_dev_conf();
     let req = json!({
