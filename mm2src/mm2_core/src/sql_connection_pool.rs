@@ -1,10 +1,12 @@
-use crate::mm_ctx::{log_sqlite_file_open_attempt, path_to_dbdir, MmCtx};
+use crate::mm_ctx::{log_sqlite_file_open_attempt, path_to_dbdir, MmArc, MmCtx};
 use async_std::sync::RwLock as AsyncRwLock;
 use common::log::error;
+use common::log::info;
 use db_common::async_sql_conn::AsyncConnection;
 use db_common::sqlite::rusqlite::Connection;
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::lock::Mutex as AsyncMutex;
+use futures::SinkExt;
 use gstuff::try_s;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -308,4 +310,16 @@ impl DbMigrationWatcher {
     }
 
     pub fn get_sender(&self) -> DbMigrationSender { self.sender.clone() }
+}
+
+pub async fn run_db_migration_for_new_pubkey(ctx: &MmArc, db_id: String) -> Result<(), String> {
+    info!("Public key hash: {db_id:?}");
+    let mut db_migration_sender = ctx
+        .db_migration_watcher
+        .as_option()
+        .expect("Db migration watcher isn't intialized yet!")
+        .get_sender();
+    db_migration_sender.send(db_id).await.map_err(|err| err.to_string())?;
+
+    Ok(())
 }

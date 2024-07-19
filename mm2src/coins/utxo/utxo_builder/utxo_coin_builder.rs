@@ -24,12 +24,13 @@ use derive_more::Display;
 use futures::channel::mpsc::{channel, unbounded, Receiver as AsyncReceiver, UnboundedReceiver, UnboundedSender};
 use futures::compat::Future01CompatExt;
 use futures::lock::Mutex as AsyncMutex;
-#[cfg(not(target_arch = "wasm32"))] use futures::SinkExt;
 use futures::StreamExt;
 use keys::bytes::Bytes;
 pub use keys::{Address, AddressBuilder, AddressFormat as UtxoAddressFormat, AddressHashEnum, AddressScriptType,
                KeyPair, Private, Public, Secret};
 use mm2_core::mm_ctx::MmArc;
+#[cfg(not(target_arch = "wasm32"))]
+use mm2_core::sql_connection_pool::run_db_migration_for_new_pubkey;
 use mm2_err_handle::prelude::*;
 use primitives::hash::H160;
 use rand::seq::SliceRandom;
@@ -222,8 +223,10 @@ pub trait UtxoFieldsWithGlobalHDBuilder: UtxoCoinBuilderCommonOps {
         #[cfg(not(target_arch = "wasm32"))]
         {
             // db_id should be the current activated key for this hd wallet
-            run_db_migration_for_new_utxo_pubkey(self.ctx(), activated_key_pair.public().address_hash().to_string())
-                .await?
+            let pubkey = activated_key_pair.public().address_hash().to_string();
+            run_db_migration_for_new_pubkey(self.ctx(), pubkey)
+                .await
+                .map_to_mm(UtxoCoinBuildError::Internal)?
         }
 
         let address_format = self.address_format()?;
@@ -1018,21 +1021,4 @@ async fn wait_for_protocol_version_checked(client: &ElectrumClientImpl) -> Resul
     .map_err(|_exceed| ERRL!("Failed protocol version verifying of at least 1 of Electrums in 5 seconds."))
     // Flatten `Result< Result<(), String>, String >`
     .flatten()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub async fn run_db_migration_for_new_utxo_pubkey(ctx: &MmArc, db_id: String) -> MmResult<(), UtxoCoinBuildError> {
-    info!("Public key hash: {db_id:?}");
-
-    let mut db_migration_sender = ctx
-        .db_migration_watcher
-        .as_option()
-        .expect("Db migration watcher isn't intialized yet!")
-        .get_sender();
-    db_migration_sender
-        .send(db_id)
-        .await
-        .map_to_mm(|err| UtxoCoinBuildError::Internal(err.to_string()))?;
-
-    Ok(())
 }

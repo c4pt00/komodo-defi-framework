@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex as AsyncMutex, OwnedMappedMutexGuard, OwnedMutexGuard, RwLock};
 
+const GLOBAL_DB_ID: &str = "KOMODEFI";
+
 /// The mapped mutex guard.
 /// This implements `Deref<Db>`.
 pub type DbLocked<Db> = OwnedMappedMutexGuard<Option<Db>, Db>;
@@ -79,11 +81,18 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         self.get_or_initialize_impl(db_id, true).await
     }
 
+    // handle to get or initialize global db
+    pub async fn get_or_intiailize_global(&self) -> InitDbResult<DbLocked<Db>> {
+        self.get_or_initialize_impl(Some(GLOBAL_DB_ID), false).await
+    }
+
     /// Locks the given mutex and checks if the inner database is initialized already or not,
     /// initializes it if it's required, and returns the locked instance.
     async fn get_or_initialize_impl(&self, db_id: Option<&str>, is_shared: bool) -> InitDbResult<DbLocked<Db>> {
-        let default_id = if is_shared { &self.shared_db_id } else { &self.db_id };
-        let db_id = db_id.unwrap_or(default_id).to_owned();
+        let db_id = {
+            let default_id = if is_shared { &self.shared_db_id } else { &self.db_id };
+            db_id.unwrap_or(default_id).to_owned()
+        };
 
         let mut connections = self.locks.write().await;
         if let Some(connection) = connections.get_mut(&db_id) {
@@ -105,7 +114,6 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
         let db = Db::init(DbIdentifier::new::<Db>(self.db_namespace, Some(db_id.clone()))).await?;
         let db = Arc::new(AsyncMutex::new(Some(db)));
         connections.insert(db_id, db.clone());
-        // Drop connections lock as soon as possible.
         drop(connections);
 
         let locked_db = db.lock_owned().await;

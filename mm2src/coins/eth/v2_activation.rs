@@ -8,8 +8,9 @@ use crate::nft::nft_structs::Chain;
 use common::executor::AbortedError;
 use crypto::{trezor::TrezorError, Bip32Error, CryptoCtxError, HwError};
 use enum_derives::EnumFromTrait;
-#[cfg(not(target_arch = "wasm32"))] use futures::SinkExt;
 use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use mm2_core::sql_connection_pool::run_db_migration_for_new_pubkey;
 use mm2_err_handle::common_errors::WithInternal;
 #[cfg(target_arch = "wasm32")]
 use mm2_metamask::{from_metamask_error, MetamaskError, MetamaskRpcError, WithMetamaskRpcError};
@@ -664,7 +665,12 @@ pub(crate) async fn build_address_and_priv_key_policy(
             let bip39_secp_priv_key = global_hd_ctx.root_priv_key().clone();
 
             #[cfg(not(target_arch = "wasm32"))]
-            run_db_migration_for_new_eth_pubkey(ctx, dhash160(activated_key.public().as_bytes()).to_string()).await?;
+            {
+                let pubkey = dhash160(activated_key.public().as_bytes()).to_string();
+                run_db_migration_for_new_pubkey(ctx, pubkey)
+                    .await
+                    .map_to_mm(EthActivationV2Error::InternalError)?;
+            }
 
             let hd_wallet_rmd160 = *ctx.rmd160();
             let hd_wallet_storage = HDWalletCoinStorage::init_with_rmd160(ctx, ticker.to_string(), hd_wallet_rmd160)
@@ -922,37 +928,19 @@ fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Erro
     Ok(H264::from(compressed))
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migration_for_new_eth_pubkey(ctx: &MmArc, db_id: String) -> MmResult<(), EthActivationV2Error> {
-    info!("Public key hash: {db_id:?}");
-
-    let mut db_migration_sender = ctx
-        .db_migration_watcher
-        .as_option()
-        .expect("Db migration watcher isn't intialized yet!")
-        .get_sender();
-    db_migration_sender
-        .send(db_id)
-        .await
-        .map_to_mm(|err| EthActivationV2Error::InternalError(err.to_string()))?;
-
-    Ok(())
-}
-
 pub(super) async fn eth_shared_db_id(coin: &EthCoin, ctx: &MmArc) -> Option<String> {
-    // Use the hd_wallet_rmd160 as the db_id in HD mode since it's unique to a device and not tied to a single address
+    // Use the hd_wallet_rmd160 as the db_id in HD mode only since it's unique to a device and not tied to a single address
     coin.derivation_method()
         .hd_wallet()
         .map(|_| ctx.default_shared_db_id().to_string())
 }
 
 pub(super) async fn eth_account_db_id(coin: &EthCoin) -> Option<String> {
-    if let Some(hd_wallet) = coin.derivation_method().hd_wallet() {
-        return hd_wallet
+    match coin.derivation_method() {
+        DerivationMethod::HDWallet(hd_wallet) => hd_wallet
             .get_enabled_address()
             .await
-            .map(|addr| hex::encode(dhash160(addr.pubkey().as_bytes())));
+            .map(|addr| dhash160(addr.pubkey().as_bytes()).to_string()),
+        _ => None,
     }
-
-    None
 }
