@@ -7161,6 +7161,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         todo!()
     }
 
+    // TODO lets call refund_taker_funding_timelock inside this func?
     async fn refund_combined_taker_payment(
         &self,
         _args: RefundTakerPaymentArgs<'_>,
