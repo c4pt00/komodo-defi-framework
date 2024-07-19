@@ -1486,6 +1486,97 @@ pub fn init_geth_node() {
             thread::sleep(Duration::from_millis(100));
         }
 
+        let tx_request_deploy_nft_maker_swap_v2_contract = TransactionRequest {
+            from: GETH_ACCOUNT,
+            to: None,
+            gas: None,
+            gas_price: None,
+            value: None,
+            data: Some(hex::decode(NFT_MAKER_SWAP_V2_BYTES).unwrap().into()),
+            nonce: None,
+            condition: None,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+        };
+        let deploy_nft_maker_swap_v2_tx_hash = block_on(
+            GETH_WEB3
+                .eth()
+                .send_transaction(tx_request_deploy_nft_maker_swap_v2_contract),
+        )
+        .unwrap();
+        log!(
+            "Sent deploy nft maker swap v2 contract transaction {:?}",
+            deploy_nft_maker_swap_v2_tx_hash
+        );
+
+        loop {
+            let deploy_nft_maker_swap_v2_tx_receipt =
+                match block_on(GETH_WEB3.eth().transaction_receipt(deploy_nft_maker_swap_v2_tx_hash)) {
+                    Ok(receipt) => receipt,
+                    Err(_) => {
+                        thread::sleep(Duration::from_millis(100));
+                        continue;
+                    },
+                };
+
+            if let Some(receipt) = deploy_nft_maker_swap_v2_tx_receipt {
+                GETH_NFT_MAKER_SWAP_V2 = receipt.contract_address.unwrap();
+                log!(
+                    "GETH_NFT_MAKER_SWAP_V2 {:?}, receipt.status {:?}",
+                    GETH_NFT_MAKER_SWAP_V2,
+                    receipt.status
+                );
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+
+        let dex_fee_address = Token::Address(geth_account());
+        let params = ethabi::encode(&[dex_fee_address]);
+        let nft_swap_data = format!("{}{}", NFT_SWAP_CONTRACT_BYTES, hex::encode(params));
+
+        let tx_request_deploy_nft_swap_contract = TransactionRequest {
+            from: GETH_ACCOUNT,
+            to: None,
+            gas: None,
+            gas_price: None,
+            value: None,
+            data: Some(hex::decode(nft_swap_data).unwrap().into()),
+            nonce: None,
+            condition: None,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+        };
+        let deploy_nft_swap_tx_hash =
+            block_on(GETH_WEB3.eth().send_transaction(tx_request_deploy_nft_swap_contract)).unwrap();
+        log!("Sent deploy nft swap contract transaction {:?}", deploy_swap_tx_hash);
+
+        loop {
+            let deploy_nft_swap_tx_receipt =
+                match block_on(GETH_WEB3.eth().transaction_receipt(deploy_nft_swap_tx_hash)) {
+                    Ok(receipt) => receipt,
+                    Err(_) => {
+                        thread::sleep(Duration::from_millis(100));
+                        continue;
+                    },
+                };
+
+            if let Some(receipt) = deploy_nft_swap_tx_receipt {
+                GETH_NFT_SWAP_CONTRACT = receipt.contract_address.unwrap();
+                log!(
+                    "GETH_NFT_SWAP_CONTRACT {:?}, receipt.status {:?}",
+                    GETH_NFT_SWAP_CONTRACT,
+                    receipt.status
+                );
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+
         let name = Token::String("MyNFT".into());
         let symbol = Token::String("MNFT".into());
         let params = ethabi::encode(&[name, symbol]);

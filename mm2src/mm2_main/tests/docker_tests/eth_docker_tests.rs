@@ -85,11 +85,13 @@ pub fn erc20_contract() -> Address { unsafe { GETH_ERC20_CONTRACT } }
 /// Return ERC20 dev token contract address in checksum format
 pub fn erc20_contract_checksum() -> String { checksum_address(&format!("{:02x}", erc20_contract())) }
 
+#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_ERC721_CONTRACT is set once during initialization before tests start
 pub fn geth_erc721_contract() -> Address { unsafe { GETH_ERC721_CONTRACT } }
 
+#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_ERC1155_CONTRACT is set once during initialization before tests start
@@ -235,7 +237,7 @@ fn mint_erc1155(to_addr: Address, token_id: U256, amount: U256) {
 }
 
 fn geth_erc1155_balance(wallet_addr: Address, token_id: U256) -> U256 {
-    let _guard = GETH_NONCE_LOCK.lock().unwrap();
+    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
     let erc1155_contract =
         Contract::from_json(GETH_WEB3.eth(), geth_erc1155_contract(), ERC1155_TEST_ABI.as_bytes()).unwrap();
     block_on(erc1155_contract.query(
