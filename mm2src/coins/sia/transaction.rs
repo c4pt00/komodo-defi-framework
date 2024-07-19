@@ -544,7 +544,7 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
         }
 
         let helper = V2FileContractResolutionHelper::deserialize(deserializer)?;
-        // TODO refactor this similar to EventType type
+
         let resolution_data = match helper.resolution_type {
             ResolutionType::Renewal => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::Renewal)
