@@ -7120,6 +7120,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.refund_taker_funding_secret_impl(args).await
     }
 
+    /// checks taker payment status in etomic swap contract
     async fn search_for_taker_funding_spend(
         &self,
         _tx: &Self::Tx,
@@ -7151,7 +7152,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// Eth doesnt use multisig
+    /// takerPaymentApprove is called here for EVM based chains
     async fn sign_and_send_taker_funding_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
@@ -7191,6 +7192,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
+    /// spendTakerPayment is called here for EVM based chains
     async fn sign_and_broadcast_taker_payment_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
