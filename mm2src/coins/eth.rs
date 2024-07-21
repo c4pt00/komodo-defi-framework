@@ -838,28 +838,6 @@ impl EthCoinImpl {
         sha256(&input).to_vec()
     }
 
-    /// The id used to differentiate payments on Etomic swap smart contract.
-    /// For Taker Etomic Swap contract taker_secret_hash should be provided.
-    pub(crate) fn etomic_swap_v2_id(
-        &self,
-        funding_time_lock: u32,
-        payment_time_lock: u32,
-        secret_hash: &[u8],
-    ) -> Vec<u8> {
-        let funding_timelock_bytes = funding_time_lock.to_le_bytes();
-        let payment_timelock_bytes = payment_time_lock.to_le_bytes();
-
-        let mut input =
-            Vec::with_capacity(funding_timelock_bytes.len() + payment_timelock_bytes.len() + secret_hash.len());
-        input.extend(
-            funding_timelock_bytes
-                .iter()
-                .chain(payment_timelock_bytes.iter())
-                .chain(secret_hash.iter()),
-        );
-        sha256(&input).to_vec()
-    }
-
     /// Try to parse address from string.
     pub fn address_from_str(&self, address: &str) -> Result<Address, String> {
         Ok(try_s!(valid_addr_from_str(address)))
