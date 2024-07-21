@@ -112,7 +112,7 @@ impl EthCoin {
 
     async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs<'_>) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("ethTakerPayment")?;
-        let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret_hash);
+        let id = self.etomic_swap_id(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.dex_fee),
@@ -131,7 +131,7 @@ impl EthCoin {
         token_addr: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
-        let id = self.etomic_swap_v2_id(args.funding_time_lock, args.payment_time_lock, args.taker_secret_hash);
+        let id = self.etomic_swap_id(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
