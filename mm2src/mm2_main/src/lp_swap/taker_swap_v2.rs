@@ -1901,7 +1901,6 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
         let args = RefundTakerPaymentArgs {
             payment_tx: &payment_tx_bytes,
-            funding_time_lock: state_machine.taker_funding_locktime(),
             time_lock: state_machine.taker_payment_locktime(),
             maker_pub: &maker_pub,
             tx_type_with_secret_hash: SwapTxTypeWithSecretHash::TakerPaymentV2 {

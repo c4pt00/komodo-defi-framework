@@ -69,7 +69,6 @@ fn send_and_refund_taker_funding_timelock() {
 
     let refund_args = RefundTakerPaymentArgs {
         payment_tx: &serialize(&taker_funding_utxo_tx).take(),
-        funding_time_lock,
         time_lock: funding_time_lock,
         maker_pub: coin.my_public_key().unwrap(),
         tx_type_with_secret_hash: SwapTxTypeWithSecretHash::TakerFunding {

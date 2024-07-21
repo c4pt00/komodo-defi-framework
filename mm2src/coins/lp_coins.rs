@@ -991,8 +991,6 @@ pub struct RefundPaymentArgs<'a> {
 #[derive(Debug)]
 pub struct RefundTakerPaymentArgs<'a> {
     pub payment_tx: &'a [u8],
-    /// Needed for taker refund as for eth taker swap id `etomic_swap_v2_id` was used
-    pub funding_time_lock: u64,
     pub time_lock: u64,
     pub maker_pub: &'a [u8],
     pub tx_type_with_secret_hash: SwapTxTypeWithSecretHash<'a>,

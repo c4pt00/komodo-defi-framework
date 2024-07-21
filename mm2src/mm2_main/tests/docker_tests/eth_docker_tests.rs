@@ -1667,7 +1667,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
     let refund_args = RefundTakerPaymentArgs {
         payment_tx: &funding_tx.to_bytes(),
-        funding_time_lock,
         time_lock: payment_time_lock,
         maker_pub: maker_pub.as_bytes(),
         tx_type_with_secret_hash,
@@ -1725,7 +1724,6 @@ fn send_and_refund_taker_funding_timelock_erc20() {
 
     let refund_args = RefundTakerPaymentArgs {
         payment_tx: &funding_tx.to_bytes(),
-        funding_time_lock,
         time_lock: payment_time_lock,
         maker_pub: maker_pub.as_bytes(),
         tx_type_with_secret_hash,
