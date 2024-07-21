@@ -1,5 +1,4 @@
-use super::eth::{addr_from_raw_pubkey, gas_limit, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx,
-                 TAKER_SWAP_V2};
+use super::eth::{addr_from_raw_pubkey, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{SendTakerFundingArgs, Transaction, TransactionErr};
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
@@ -55,7 +54,7 @@ impl EthCoin {
                     payment_amount,
                     Action::Call(taker_swap_v2_contract),
                     data,
-                    U256::from(gas_limit::ETH_PAYMENT),
+                    U256::from(self.gas_limit.eth_payment),
                 )
                 .compat()
                 .await
@@ -90,7 +89,7 @@ impl EthCoin {
                         U256::from(0),
                         Action::Call(taker_swap_v2_contract),
                         data,
-                        U256::from(gas_limit::ERC20_PAYMENT),
+                        U256::from(self.gas_limit.erc20_payment),
                     )
                     .compat()
                     .await
@@ -99,7 +98,7 @@ impl EthCoin {
                         U256::from(0),
                         Action::Call(taker_swap_v2_contract),
                         data,
-                        U256::from(gas_limit::ERC20_PAYMENT),
+                        U256::from(self.gas_limit.erc20_payment),
                     )
                     .compat()
                     .await
