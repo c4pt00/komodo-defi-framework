@@ -7,12 +7,12 @@ use ethereum_types::{Address, U256};
 use futures::compat::Future01CompatExt;
 use std::convert::TryInto;
 
-struct TakerFundingArgs<'a> {
+struct TakerFundingArgs {
     dex_fee: U256,
     payment_amount: U256,
     maker_address: Address,
-    taker_secret_hash: &'a [u8],
-    maker_secret_hash: &'a [u8],
+    taker_secret_hash: [u8; 32],
+    maker_secret_hash: [u8; 32],
     funding_time_lock: u32,
     payment_time_lock: u32,
 }
@@ -41,8 +41,8 @@ impl EthCoin {
             dex_fee,
             payment_amount,
             maker_address,
-            taker_secret_hash: args.taker_secret_hash,
-            maker_secret_hash: args.maker_secret_hash,
+            taker_secret_hash: try_tx_s!(args.taker_secret_hash.try_into()),
+            maker_secret_hash: try_tx_s!(args.maker_secret_hash.try_into()),
             funding_time_lock,
             payment_time_lock,
         };
@@ -110,9 +110,9 @@ impl EthCoin {
         }
     }
 
-    async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs<'_>) -> Result<Vec<u8>, PrepareTxDataError> {
+    async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("ethTakerPayment")?;
-        let id = self.etomic_swap_id(args.payment_time_lock, args.maker_secret_hash);
+        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.dex_fee),
@@ -127,11 +127,11 @@ impl EthCoin {
 
     async fn prepare_taker_erc20_funding_data(
         &self,
-        args: &TakerFundingArgs<'_>,
+        args: &TakerFundingArgs,
         token_addr: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
-        let id = self.etomic_swap_id(args.payment_time_lock, args.maker_secret_hash);
+        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
