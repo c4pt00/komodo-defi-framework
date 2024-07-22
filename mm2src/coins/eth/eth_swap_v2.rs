@@ -53,7 +53,11 @@ impl EthCoin {
         let dex_fee = try_tx_s!(wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals));
 
         let payment_amount = try_tx_s!(wei_from_big_decimal(
-            &(args.trading_amount + args.premium_amount),
+            &(args.trading_amount.clone() + args.premium_amount.clone()),
+            self.decimals
+        ));
+        let eth_total_amount = try_tx_s!(wei_from_big_decimal(
+            &(args.dex_fee.fee_amount().to_decimal() + args.trading_amount + args.premium_amount),
             self.decimals
         ));
         // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
@@ -76,7 +80,7 @@ impl EthCoin {
             EthCoinType::Eth => {
                 let data = try_tx_s!(self.prepare_taker_eth_funding_data(&funding_args).await);
                 self.sign_and_send_transaction(
-                    payment_amount,
+                    eth_total_amount,
                     Action::Call(taker_swap_v2_contract),
                     data,
                     U256::from(self.gas_limit.eth_payment),
