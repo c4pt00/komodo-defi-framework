@@ -164,6 +164,18 @@ fn fill_erc20(to_addr: Address, amount: U256) {
     wait_for_confirmation(tx_hash);
 }
 
+fn check_eth_balance(address: Address) -> U256 {
+    let _guard = GETH_NONCE_LOCK.lock().unwrap();
+    block_on(GETH_WEB3.eth().balance(address, None)).unwrap()
+}
+
+#[allow(dead_code)]
+fn check_erc20_balance(address: Address) -> U256 {
+    let _guard = GETH_NONCE_LOCK.lock().unwrap();
+    let erc20_contract = Contract::from_json(GETH_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
+    block_on(erc20_contract.query("balanceOf", (address,), None, Options::default(), None)).unwrap()
+}
+
 fn mint_erc721(to_addr: Address, token_id: U256) {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
     let erc721_contract =
@@ -1533,6 +1545,11 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
 
+    let taker_address = block_on(taker_coin.my_addr());
+
+    let balance_before_payment = check_eth_balance(taker_address);
+    log!("Taker ETH balance before payment: {}", balance_before_payment);
+
     let dex_fee = &DexFee::Standard("0.1".into());
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
     let payment_args = SendTakerFundingArgs {
@@ -1552,11 +1569,14 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 60);
 
+    let balance_after_payment = check_eth_balance(taker_address);
+    log!("Taker ETH balance after payment: {}", balance_after_payment);
+
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
         funding_time_lock,
         payment_time_lock,
-        maker_pubkey: &taker_coin.derive_htlc_pubkey_v2(&[]),
+        maker_pubkey: maker_pub,
         taker_secret: &taker_secret,
         taker_secret_hash: &taker_secret_hash,
         maker_secret_hash: &maker_secret_hash,
@@ -1571,6 +1591,12 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         "Taker refunded ETH funding by secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
+
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
+
+    let balance_after_refund = check_eth_balance(taker_address);
+    log!("Taker ETH balance after refund: {}", balance_after_refund);
+    assert_eq!(balance_before_payment, balance_after_refund);
 }
 
 #[test]
