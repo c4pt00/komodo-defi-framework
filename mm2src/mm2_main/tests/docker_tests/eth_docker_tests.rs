@@ -1523,6 +1523,7 @@ fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_ad
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
+    use std::str::FromStr;
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
 
@@ -1543,7 +1544,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         maker_pub: maker_pub.as_bytes(),
         dex_fee,
         premium_amount: BigDecimal::default(),
-        trading_amount: 1.into(),
+        trading_amount: BigDecimal::from_str("0.9").unwrap(),
         swap_unique_data: &[],
         wait_for_confirmation_until: 0,
     };
