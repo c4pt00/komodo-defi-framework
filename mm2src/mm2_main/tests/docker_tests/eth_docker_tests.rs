@@ -169,7 +169,6 @@ fn check_eth_balance(address: Address) -> U256 {
     block_on(GETH_WEB3.eth().balance(address, None)).unwrap()
 }
 
-#[allow(dead_code)]
 fn check_erc20_balance(address: Address) -> U256 {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
     let erc20_contract = Contract::from_json(GETH_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
@@ -1612,6 +1611,11 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
 
+    let taker_address = block_on(taker_coin.my_addr());
+
+    let balance_before_payment = check_erc20_balance(taker_address);
+    log!("Taker ERC20 balance before payment: {}", balance_before_payment);
+
     let dex_fee = &DexFee::Standard("0.1".into());
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
     let payment_args = SendTakerFundingArgs {
@@ -1632,6 +1636,9 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 60);
 
+    let balance_after_payment = check_eth_balance(taker_address);
+    log!("Taker ERC20 balance after payment: {}", balance_after_payment);
+
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
         funding_time_lock,
@@ -1651,6 +1658,11 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         "Taker refunded ERC20 funding by secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
+
+    let balance_after_refund = check_eth_balance(taker_address);
+    log!("Taker ERC20 balance after refund: {}", balance_after_refund);
+    assert_eq!(balance_before_payment, balance_after_refund);
 }
 
 #[test]
