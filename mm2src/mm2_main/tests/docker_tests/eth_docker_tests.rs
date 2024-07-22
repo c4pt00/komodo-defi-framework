@@ -1529,6 +1529,7 @@ fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_ad
     .unwrap();
     let my_address = block_on(coin.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));
+    fill_erc20(my_address, U256::from(10000000000u64));
     coin
 }
 
