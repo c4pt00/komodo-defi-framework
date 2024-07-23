@@ -307,7 +307,9 @@ impl EthCoin {
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
+        log!("function: {:?}", function);
         let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
+        log!("payment_amount: {:?}", args.payment_amount.clone());
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
