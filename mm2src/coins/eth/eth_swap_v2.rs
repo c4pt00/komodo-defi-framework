@@ -99,7 +99,7 @@ impl EthCoin {
                     .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
                 let data = try_tx_s!(self.prepare_taker_erc20_funding_data(&funding_args, *token_addr).await);
                 if allowed < payment_amount {
-                    println!("Allowed: {}, payment_amount: {}", allowed, payment_amount);
+                    log!("Allowed: {}, payment_amount: {}", allowed, payment_amount);
                     let approved_tx = self.approve(taker_swap_v2_contract, U256::max_value()).compat().await?;
                     self.wait_for_required_allowance(
                         taker_swap_v2_contract,

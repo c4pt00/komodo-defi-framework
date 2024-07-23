@@ -1625,6 +1625,8 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let payment_time_lock = now_sec() + 1000;
 
     let taker_address = block_on(taker_coin.my_addr());
+    log!("taker_address type: {:?}", taker_address);
+    log!("coin type: {:?}", taker_coin.coin_type);
 
     let balance_before_payment = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance before payment: {}", balance_before_payment);
