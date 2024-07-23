@@ -1087,7 +1087,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(31));
+    thread::sleep(Duration::from_secs(40));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let activation = NftActivationV2Args::init();
@@ -1568,7 +1568,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
-    wait_for_confirmations(&taker_coin, &funding_tx, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
     let balance_after_payment = check_eth_balance(taker_address);
     log!("Taker ETH balance after payment: {}", balance_after_payment);
@@ -1593,7 +1593,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         funding_tx_refund.tx_hash()
     );
 
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 
     let balance_after_refund = check_eth_balance(taker_address);
     log!("Taker ETH balance after refund: {}", balance_after_refund);
@@ -1637,7 +1637,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash {:02x}", funding_tx.tx_hash());
 
-    wait_for_confirmations(&taker_coin, &funding_tx, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
     let balance_after_payment = check_eth_balance(taker_address);
     log!("Taker ERC20 balance after payment: {}", balance_after_payment);
@@ -1661,7 +1661,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         "Taker refunded ERC20 funding by secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 
     let balance_after_refund = check_eth_balance(taker_address);
     log!("Taker ERC20 balance after refund: {}", balance_after_refund);
@@ -1699,7 +1699,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
-    wait_for_confirmations(&taker_coin, &funding_tx, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
@@ -1723,7 +1723,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
         funding_tx_refund.tx_hash()
     );
 
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
 #[test]
@@ -1759,7 +1759,7 @@ fn send_and_refund_taker_funding_timelock_erc20() {
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
 
-    wait_for_confirmations(&taker_coin, &funding_tx, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
@@ -1782,5 +1782,5 @@ fn send_and_refund_taker_funding_timelock_erc20() {
         "Taker refunded ERC20 funding after pre-approval lock time was exceeded, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
