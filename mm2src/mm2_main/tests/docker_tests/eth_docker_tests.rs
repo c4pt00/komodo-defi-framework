@@ -1087,7 +1087,7 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(29));
+    thread::sleep(Duration::from_secs(31));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let activation = NftActivationV2Args::init();
@@ -1535,6 +1535,7 @@ fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_ad
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
+    thread::sleep(Duration::from_secs(3));
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
 
@@ -1601,6 +1602,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
+    thread::sleep(Duration::from_secs(7));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
@@ -1720,10 +1722,13 @@ fn send_and_refund_taker_funding_timelock_eth() {
         "Taker refunded ETH funding after pre-approval lock time was exceeded, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
+
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
 }
 
 #[test]
 fn send_and_refund_taker_funding_timelock_erc20() {
+    thread::sleep(Duration::from_secs(2));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
@@ -1777,4 +1782,5 @@ fn send_and_refund_taker_funding_timelock_erc20() {
         "Taker refunded ERC20 funding after pre-approval lock time was exceeded, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 60);
 }
