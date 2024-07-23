@@ -1509,7 +1509,12 @@ impl SwapAddresses {
     }
 }
 
-fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_addr: SwapAddresses) -> EthCoin {
+fn eth_coin_v2_activation_with_random_privkey(
+    ticker: &str,
+    conf: &Json,
+    swap_addr: SwapAddresses,
+    erc20: bool,
+) -> EthCoin {
     let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret());
     let node = EthNode {
         url: GETH_RPC_URL.to_string(),
@@ -1540,14 +1545,22 @@ fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_ad
     let my_address = block_on(coin.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));
     fill_erc20(my_address, U256::from(10000000000u64));
+    if erc20 {
+        let coin_type = EthCoinType::Erc20 {
+            platform: ETH.to_string(),
+            token_addr: erc20_contract(),
+        };
+        let coin = block_on(coin.set_coin_type(coin_type));
+        return coin;
+    }
     coin
 }
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     thread::sleep(Duration::from_secs(1));
-    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
-    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
 
     let taker_secret = vec![0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
@@ -1614,8 +1627,8 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 fn send_and_refund_taker_funding_by_secret_erc20() {
     thread::sleep(Duration::from_secs(3));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
-    let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
-    let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
 
     let taker_secret = vec![0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
@@ -1684,11 +1697,10 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     assert_eq!(balance_before_payment, balance_after_refund);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_eth() {
-    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
-    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
 
     let taker_secret = vec![0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
@@ -1756,13 +1768,12 @@ fn send_and_refund_taker_funding_timelock_eth() {
     assert_eq!(balance_before_payment, balance_after_refund);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_erc20() {
     thread::sleep(Duration::from_secs(2));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
-    let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
-    let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
+    let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
+    let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
 
     let taker_secret = vec![0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
