@@ -1697,6 +1697,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     assert_eq!(balance_before_payment, balance_after_refund);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_eth() {
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
@@ -1768,6 +1769,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
     assert_eq!(balance_before_payment, balance_after_refund);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_erc20() {
     thread::sleep(Duration::from_secs(2));

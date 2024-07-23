@@ -57,9 +57,11 @@ fn send_and_refund_taker_funding_timelock() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        payment_time_lock: 0,
+        funding_time_lock,
         taker_secret_hash,
-        other_pub: maker_pub,
+        maker_secret_hash: &[],
+        taker_pub: maker_pub,
         dex_fee,
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
@@ -142,9 +144,11 @@ fn send_and_refund_taker_funding_secret() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
-        other_pub: maker_pub,
+        maker_secret_hash: &[],
+        taker_pub: maker_pub,
         dex_fee,
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
@@ -233,9 +237,11 @@ fn send_and_spend_taker_funding() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        payment_time_lock: 0,
+        funding_time_lock,
         taker_secret_hash,
-        other_pub: taker_pub,
+        maker_secret_hash: &[],
+        taker_pub,
         dex_fee,
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
@@ -323,9 +329,11 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
-        other_pub: taker_pub,
+        maker_secret_hash,
+        taker_pub,
         dex_fee,
         premium_amount: 0.into(),
         trading_amount: 777.into(),
@@ -429,9 +437,11 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
-        other_pub: taker_pub,
+        maker_secret_hash,
+        taker_pub,
         dex_fee,
         premium_amount: 0.into(),
         trading_amount: 777.into(),
