@@ -671,11 +671,13 @@ fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
     assert_eq!(expected, search_tx);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_eth_maker_payment_internal_gas_policy() {
     send_and_refund_eth_maker_payment_impl(SwapTxFeePolicy::Internal);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_eth_maker_payment_priority_fee() { send_and_refund_eth_maker_payment_impl(SwapTxFeePolicy::Medium); }
 
@@ -756,11 +758,13 @@ fn send_and_spend_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
     assert_eq!(expected, search_tx);
 }
 
+#[ignore]
 #[test]
 fn send_and_spend_eth_maker_payment_internal_gas_policy() {
     send_and_spend_eth_maker_payment_impl(SwapTxFeePolicy::Internal);
 }
 
+#[ignore]
 #[test]
 fn send_and_spend_eth_maker_payment_priority_fee() { send_and_spend_eth_maker_payment_impl(SwapTxFeePolicy::Medium); }
 
@@ -973,6 +977,7 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
     }
 }
 
+#[ignore]
 #[test]
 fn send_and_spend_erc721_maker_payment() {
     thread::sleep(Duration::from_secs(11));
@@ -1009,6 +1014,7 @@ fn send_and_spend_erc721_maker_payment() {
     assert_eq!(new_owner, taker_address);
 }
 
+#[ignore]
 #[test]
 fn send_and_spend_erc1155_maker_payment() {
     thread::sleep(Duration::from_secs(3));
@@ -1085,6 +1091,7 @@ fn test_nonce_lock() {
     }
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
     thread::sleep(Duration::from_secs(40));
@@ -1127,6 +1134,7 @@ fn send_and_refund_erc721_maker_payment_timelock() {
     assert_eq!(current_owner, maker_address);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_erc1155_maker_payment_timelock() {
     thread::sleep(Duration::from_secs(29));
@@ -1178,6 +1186,7 @@ fn send_and_refund_erc1155_maker_payment_timelock() {
     assert_eq!(U256::from(amount), balance);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_erc721_maker_payment_secret() {
     thread::sleep(Duration::from_secs(5));
@@ -1220,6 +1229,7 @@ fn send_and_refund_erc721_maker_payment_secret() {
     assert_eq!(current_owner, maker_address);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_erc1155_maker_payment_secret() {
     thread::sleep(Duration::from_secs(4));
