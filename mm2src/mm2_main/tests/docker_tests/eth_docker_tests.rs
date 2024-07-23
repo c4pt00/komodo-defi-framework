@@ -1628,6 +1628,8 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     let balance_before_payment = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance before payment: {}", balance_before_payment);
+    let eth_before_payment = check_eth_balance(taker_address);
+    log!("Taker ETH balance before payment: {}", eth_before_payment);
 
     let dex_fee = &DexFee::Standard("0.1".into());
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
@@ -1641,7 +1643,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         premium_amount: BigDecimal::default(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: now_sec() + 60,
+        wait_for_confirmation_until: now_sec() + 80,
     };
 
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
@@ -1651,6 +1653,8 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     let balance_after_payment = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance after payment: {}", balance_after_payment);
+    let eth_after_payment = check_eth_balance(taker_address);
+    log!("Taker ETH balance after payment: {}", eth_after_payment);
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,

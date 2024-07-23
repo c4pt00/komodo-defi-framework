@@ -1,6 +1,6 @@
 use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
-            Transaction, TransactionErr};
+            Transaction, TransactionErr, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
 use bitcrypto::sha256;
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
@@ -53,7 +53,11 @@ impl EthCoin {
         let dex_fee = try_tx_s!(wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals));
 
         let payment_amount = try_tx_s!(wei_from_big_decimal(
-            &(args.trading_amount + args.premium_amount),
+            &(args.trading_amount.clone() + args.premium_amount.clone()),
+            self.decimals
+        ));
+        let eth_total_payment = try_tx_s!(wei_from_big_decimal(
+            &(args.dex_fee.fee_amount().to_decimal() + args.trading_amount + args.premium_amount),
             self.decimals
         ));
         // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
@@ -76,7 +80,7 @@ impl EthCoin {
             EthCoinType::Eth => {
                 let data = try_tx_s!(self.prepare_taker_eth_funding_data(&funding_args).await);
                 self.sign_and_send_transaction(
-                    payment_amount,
+                    eth_total_payment,
                     Action::Call(taker_swap_v2_contract),
                     data,
                     U256::from(self.gas_limit.eth_payment),
@@ -95,6 +99,7 @@ impl EthCoin {
                     .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
                 let data = try_tx_s!(self.prepare_taker_erc20_funding_data(&funding_args, *token_addr).await);
                 if allowed < payment_amount {
+                    println!("Allowed: {}, payment_amount: {}", allowed, payment_amount);
                     let approved_tx = self.approve(taker_swap_v2_contract, U256::max_value()).compat().await?;
                     self.wait_for_required_allowance(
                         taker_swap_v2_contract,
@@ -133,6 +138,13 @@ impl EthCoin {
                 "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
             )),
         }
+    }
+
+    pub(crate) async fn validate_taker_funding_impl(
+        &self,
+        _args: ValidateTakerFundingArgs<'_, Self>,
+    ) -> ValidateSwapV2TxResult {
+        todo!()
     }
 
     pub(crate) async fn refund_taker_funding_timelock_impl(

@@ -7080,8 +7080,9 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.send_taker_funding_impl(args).await
     }
 
-    async fn validate_taker_funding(&self, _args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
-        todo!()
+    /// Validates sent taker payment
+    async fn validate_taker_funding(&self, args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
+        self.validate_taker_funding_impl(args).await
     }
 
     async fn refund_taker_funding_timelock(
@@ -7098,7 +7099,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.refund_taker_funding_secret_impl(args).await
     }
 
-    /// checks taker payment status in etomic swap contract
+    /// Checks taker payment status in etomic swap contract
     async fn search_for_taker_funding_spend(
         &self,
         _tx: &Self::Tx,
