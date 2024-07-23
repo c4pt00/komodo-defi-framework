@@ -110,8 +110,11 @@ pub const UTXO_ASSET_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/artempikulin/testb
 pub const GETH_DOCKER_IMAGE: &str = "docker.io/ethereum/client-go";
 pub const GETH_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/ethereum/client-go:stable";
 
+#[allow(dead_code)]
 pub const NUCLEUS_IMAGE: &str = "docker.io/komodoofficial/nucleusd";
+#[allow(dead_code)]
 pub const ATOM_IMAGE: &str = "docker.io/komodoofficial/gaiad";
+#[allow(dead_code)]
 pub const IBC_RELAYER_IMAGE: &str = "docker.io/komodoofficial/ibc-relayer";
 
 pub const QTUM_ADDRESS_LABEL: &str = "MM2_ADDRESS_LABEL";
