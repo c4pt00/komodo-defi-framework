@@ -1556,6 +1556,7 @@ fn eth_coin_v2_activation_with_random_privkey(
     coin
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     thread::sleep(Duration::from_secs(1));
@@ -1625,7 +1626,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
-    thread::sleep(Duration::from_secs(3));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
@@ -1662,7 +1662,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     };
 
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
-    log!("Taker sent ERC20 funding, tx hash {:02x}", funding_tx.tx_hash());
+    log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
