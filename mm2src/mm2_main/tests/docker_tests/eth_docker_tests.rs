@@ -1649,7 +1649,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
-    let balance_after_payment = check_eth_balance(taker_address);
+    let balance_after_payment = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance after payment: {}", balance_after_payment);
 
     let refund_args = RefundFundingSecretArgs {
@@ -1673,7 +1673,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     );
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 
-    let balance_after_refund = check_eth_balance(taker_address);
+    let balance_after_refund = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance after refund: {}", balance_after_refund);
     assert_eq!(balance_before_payment, balance_after_refund);
 }
@@ -1687,6 +1687,12 @@ fn send_and_refund_taker_funding_timelock_eth() {
     let taker_secret_hash = sha256(&taker_secret).to_vec();
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
+
+    let taker_address = block_on(taker_coin.my_addr());
+
+    let balance_before_payment = check_eth_balance(taker_address);
+    log!("Taker ETH balance before payment: {}", balance_before_payment);
+
     // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
     let funding_time_lock = now_sec() - 3000;
     // TODO need to impl taker approve to test exceeded payment_time_lock
@@ -1711,6 +1717,9 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
+    let balance_after_payment = check_eth_balance(taker_address);
+    log!("Taker ETH balance after payment: {}", balance_after_payment);
+
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
         taker_secret_hash: &taker_secret_hash,
@@ -1734,6 +1743,10 @@ fn send_and_refund_taker_funding_timelock_eth() {
     );
 
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
+
+    let balance_after_refund = check_eth_balance(taker_address);
+    log!("Taker ETH balance after refund: {}", balance_after_refund);
+    assert_eq!(balance_before_payment, balance_after_refund);
 }
 
 #[test]
@@ -1747,6 +1760,12 @@ fn send_and_refund_taker_funding_timelock_erc20() {
     let taker_secret_hash = sha256(&taker_secret).to_vec();
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
+
+    let taker_address = block_on(taker_coin.my_addr());
+
+    let balance_before_payment = check_erc20_balance(taker_address);
+    log!("Taker ERC20 balance before payment: {}", balance_before_payment);
+
     // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
     let funding_time_lock = now_sec() - 3000;
     // TODO need to impl taker approve to test exceeded payment_time_lock
@@ -1771,6 +1790,9 @@ fn send_and_refund_taker_funding_timelock_erc20() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
+    let balance_after_payment = check_erc20_balance(taker_address);
+    log!("Taker ERC20 balance after payment: {}", balance_after_payment);
+
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
         taker_secret_hash: &taker_secret_hash,
@@ -1793,4 +1815,8 @@ fn send_and_refund_taker_funding_timelock_erc20() {
         funding_tx_refund.tx_hash()
     );
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
+
+    let balance_after_refund = check_erc20_balance(taker_address);
+    log!("Taker ERC20 balance after refund: {}", balance_after_refund);
+    assert_eq!(balance_before_payment, balance_after_refund);
 }
