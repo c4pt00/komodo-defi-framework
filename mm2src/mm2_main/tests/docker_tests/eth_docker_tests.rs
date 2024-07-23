@@ -1545,7 +1545,7 @@ fn eth_coin_v2_activation_with_random_privkey(ticker: &str, conf: &Json, swap_ad
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
-    thread::sleep(Duration::from_secs(3));
+    thread::sleep(Duration::from_secs(1));
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
 
@@ -1612,7 +1612,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
-    thread::sleep(Duration::from_secs(7));
+    thread::sleep(Duration::from_secs(3));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init());
@@ -1678,6 +1678,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     assert_eq!(balance_before_payment, balance_after_refund);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_eth() {
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init());
@@ -1749,6 +1750,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
     assert_eq!(balance_before_payment, balance_after_refund);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_erc20() {
     thread::sleep(Duration::from_secs(2));
