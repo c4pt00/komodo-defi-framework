@@ -116,7 +116,7 @@ impl EthCoin {
                         ))
                     })?;
                     self.sign_and_send_transaction(
-                        U256::from(0),
+                        0.into(),
                         Action::Call(taker_swap_v2_contract),
                         data,
                         U256::from(self.gas_limit.erc20_payment),
@@ -125,7 +125,7 @@ impl EthCoin {
                     .await
                 } else {
                     self.sign_and_send_transaction(
-                        U256::from(0),
+                        0.into(),
                         Action::Call(taker_swap_v2_contract),
                         data,
                         U256::from(self.gas_limit.erc20_payment),
@@ -203,7 +203,7 @@ impl EthCoin {
         let data = try_tx_s!(self.prepare_taker_refund_payment_timelock_data(args).await);
 
         self.sign_and_send_transaction(
-            payment_amount,
+            0.into(),
             Action::Call(taker_swap_v2_contract),
             data,
             U256::from(gas_limit),
@@ -257,7 +257,7 @@ impl EthCoin {
         let data = try_tx_s!(self.prepare_taker_refund_payment_secret_data(&refund_args).await);
 
         self.sign_and_send_transaction(
-            payment_amount,
+            0.into(),
             Action::Call(taker_swap_v2_contract),
             data,
             U256::from(gas_limit),
@@ -307,9 +307,7 @@ impl EthCoin {
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
-        log!("function: {:?}", function);
         let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
-        log!("payment_amount: {:?}", args.payment_amount.clone());
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
