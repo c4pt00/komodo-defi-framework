@@ -1,7 +1,6 @@
 use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
             Transaction, TransactionErr, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
-use bitcrypto::sha256;
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;
@@ -361,7 +360,7 @@ impl EthCoin {
         args: &TakerRefundSecretArgs,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentSecret")?;
-        let id = self.etomic_swap_id(args.payment_time_lock, sha256(&args.taker_secret).as_slice());
+        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),

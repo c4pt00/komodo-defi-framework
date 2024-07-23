@@ -58,7 +58,7 @@ lazy_static! {
     // Due to the SLP protocol limitations only 19 outputs (18 + change) can be sent in one transaction, which is sufficient for now though.
     // Supply more privkeys when 18 will be not enough.
     pub static ref SLP_TOKEN_OWNERS: Mutex<Vec<[u8; 32]>> = Mutex::new(Vec::with_capacity(18));
-    pub static ref MM_CTX: MmArc = MmCtxBuilder::new().into_mm_arc();
+    pub static ref MM_CTX: MmArc = MmCtxBuilder::new().with_conf(json!({"use_trading_proto_v2": true})).into_mm_arc();
     /// We need a second `MmCtx` instance when we use the same private keys for Maker and Taker across various tests.
     /// When enabling coins for both Maker and Taker, two distinct coin instances are created.
     /// This means that different instances of the same coin should have separate global nonce locks.
@@ -80,12 +80,18 @@ pub static mut QTUM_CONF_PATH: Option<PathBuf> = None;
 pub static mut GETH_ACCOUNT: H160Eth = H160Eth::zero();
 /// ERC20 token address on Geth dev node
 pub static mut GETH_ERC20_CONTRACT: H160Eth = H160Eth::zero();
+#[allow(dead_code)]
+pub static mut SEPOLIA_ERC20_CONTRACT: H160Eth = H160Eth::zero();
 /// Swap contract address on Geth dev node
 pub static mut GETH_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 /// Taker Swap V2 contract address on Geth dev node
 pub static mut GETH_TAKER_SWAP_V2: H160Eth = H160Eth::zero();
+#[allow(dead_code)]
+pub static mut SEPOLIA_TAKER_SWAP_V2: H160Eth = H160Eth::zero();
+#[allow(dead_code)]
+pub static mut SEPOLIA_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 /// Swap contract (with watchers support) address on Geth dev node
 pub static mut GETH_WATCHERS_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// ERC721 token address on Geth dev node
@@ -1665,6 +1671,11 @@ pub fn init_geth_node() {
         SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
         SEPOLIA_ERC721_CONTRACT = EthAddress::from_str("0xbac1c9f2087f39caaa4e93412c6412809186870e").unwrap();
         SEPOLIA_ERC1155_CONTRACT = EthAddress::from_str("0xfb53b8764be6033d89ceacafa36631b09d60a1d2").unwrap();
+        // TODO update this
+        SEPOLIA_ERC20_CONTRACT = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
+        SEPOLIA_TAKER_SWAP_V2 = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
+        // TODO update this
+        SEPOLIA_MAKER_SWAP_V2 = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
 
         let alice_passphrase = get_passphrase!(".env.client", "ALICE_PASSPHRASE").unwrap();
         let alice_keypair = key_pair_from_seed(&alice_passphrase).unwrap();

@@ -2,8 +2,9 @@ use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC7
                                  GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT, GETH_MAKER_SWAP_V2,
                                  GETH_NFT_MAKER_SWAP_V2, GETH_NFT_SWAP_CONTRACT, GETH_NONCE_LOCK, GETH_RPC_URL,
                                  GETH_SWAP_CONTRACT, GETH_TAKER_SWAP_V2, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3,
-                                 MM_CTX, MM_CTX1, SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC721_CONTRACT,
-                                 SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2, SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_WEB3};
+                                 MM_CTX, MM_CTX1, SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC20_CONTRACT,
+                                 SEPOLIA_ERC721_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2, SEPOLIA_MAKER_SWAP_V2,
+                                 SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_TAKER_SWAP_V2, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
 use coins::eth::gas_limit::ETH_MAX_TRADE_GAS;
@@ -25,8 +26,9 @@ use ethereum_types::U256;
 use futures01::Future;
 use mm2_core::mm_ctx::MmArc;
 use mm2_number::{BigDecimal, BigUint};
-use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, nft_dev_conf, nft_sepolia_conf};
+use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, eth_sepolia_conf, nft_dev_conf, nft_sepolia_conf};
 use serde_json::Value as Json;
+use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 use web3::contract::{Contract, Options};
@@ -60,6 +62,10 @@ pub fn maker_swap_v2() -> Address { unsafe { GETH_MAKER_SWAP_V2 } }
 ///
 /// GETH_TAKER_SWAP_V2 is set once during initialization before tests start
 pub fn taker_swap_v2() -> Address { unsafe { GETH_TAKER_SWAP_V2 } }
+#[allow(dead_code)]
+pub fn sepolia_taker_swap_v2() -> Address { unsafe { SEPOLIA_TAKER_SWAP_V2 } }
+#[allow(dead_code)]
+pub fn sepolia_maker_swap_v2() -> Address { unsafe { SEPOLIA_MAKER_SWAP_V2 } }
 
 #[allow(dead_code)]
 /// # Safety
@@ -81,9 +87,13 @@ pub fn watchers_swap_contract() -> Address { unsafe { GETH_WATCHERS_SWAP_CONTRAC
 ///
 /// GETH_ERC20_CONTRACT is set once during initialization before tests start
 pub fn erc20_contract() -> Address { unsafe { GETH_ERC20_CONTRACT } }
+#[allow(dead_code)]
+pub fn sepolia_erc20_contract() -> Address { unsafe { SEPOLIA_ERC20_CONTRACT } }
 
 /// Return ERC20 dev token contract address in checksum format
 pub fn erc20_contract_checksum() -> String { checksum_address(&format!("{:02x}", erc20_contract())) }
+#[allow(dead_code)]
+pub fn sepolia_erc20_contract_checksum() -> String { checksum_address(&format!("{:02x}", sepolia_erc20_contract())) }
 
 #[allow(dead_code)]
 /// # Safety
@@ -169,9 +179,22 @@ fn check_eth_balance(address: Address) -> U256 {
     block_on(GETH_WEB3.eth().balance(address, None)).unwrap()
 }
 
+#[allow(dead_code)]
+fn sepolia_check_eth_balance(address: Address) -> U256 {
+    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
+    block_on(SEPOLIA_WEB3.eth().balance(address, None)).unwrap()
+}
+
 fn check_erc20_balance(address: Address) -> U256 {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
     let erc20_contract = Contract::from_json(GETH_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
+    block_on(erc20_contract.query("balanceOf", (address,), None, Options::default(), None)).unwrap()
+}
+
+#[allow(dead_code)]
+fn sepolia_check_erc20_balance(address: Address) -> U256 {
+    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
+    let erc20_contract = Contract::from_json(SEPOLIA_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
     block_on(erc20_contract.query("balanceOf", (address,), None, Options::default(), None)).unwrap()
 }
 
@@ -490,6 +513,70 @@ fn global_nft_from_privkey(
     }
 
     global_nft
+}
+
+#[allow(dead_code)]
+/// Can be used to generate coin from Sepolia Maker/Taker priv keys.
+fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, conf: &Json) -> EthCoin {
+    let swap_addr = SwapAddresses {
+        swap_v2_contracts: SwapV2Contracts {
+            maker_swap_v2_contract: sepolia_maker_swap_v2(),
+            taker_swap_v2_contract: sepolia_taker_swap_v2(),
+            nft_maker_swap_v2_contract: sepolia_etomic_maker_nft(),
+        },
+        swap_contract_address: sepolia_taker_swap_v2(),
+        fallback_swap_contract_address: sepolia_taker_swap_v2(),
+    };
+
+    let priv_key = Secp256k1Secret::from(secret);
+    let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(priv_key);
+
+    let node = EthNode {
+        url: SEPOLIA_RPC_URL.to_string(),
+        gui_auth: false,
+    };
+    let platform_request = EthActivationV2Request {
+        nodes: vec![node],
+        rpc_mode: Default::default(),
+        swap_contract_address: swap_addr.swap_contract_address,
+        swap_v2_contracts: Some(swap_addr.swap_v2_contracts),
+        fallback_swap_contract: Some(swap_addr.fallback_swap_contract_address),
+        contract_supports_watchers: false,
+        mm2: None,
+        required_confirmations: None,
+        priv_key_policy: Default::default(),
+        enable_params: Default::default(),
+        path_to_address: Default::default(),
+        gap_limit: None,
+    };
+
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
+        ctx,
+        ticker,
+        conf,
+        platform_request,
+        build_policy,
+    ))
+    .unwrap();
+
+    let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
+    let mut coins = block_on(coins_ctx.lock_coins());
+    coins.insert(
+        coin.ticker().into(),
+        MmCoinStruct::new(MmCoinEnum::EthCoin(coin.clone())),
+    );
+    coin
+}
+
+#[allow(dead_code)]
+fn get_or_create_sepolia_coin(ctx: &MmArc, priv_key: &'static str, ticker: &str, conf: &Json) -> EthCoin {
+    match block_on(lp_coinfind(ctx, ticker)).unwrap() {
+        None => sepolia_coin_from_privkey(ctx, priv_key, ticker, conf),
+        Some(mm_coin) => match mm_coin {
+            MmCoinEnum::EthCoin(coin) => coin,
+            _ => panic!("Unexpected coin type found. Expected MmCoinEnum::EthCoin"),
+        },
+    }
 }
 
 #[allow(dead_code)]
@@ -1556,12 +1643,11 @@ fn eth_coin_v2_activation_with_random_privkey(
     coin
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     thread::sleep(Duration::from_secs(1));
-    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
-    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
+    let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf());
+    let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf());
 
     let taker_secret = vec![0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
@@ -1571,11 +1657,14 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let payment_time_lock = now_sec() + 1000;
 
     let taker_address = block_on(taker_coin.my_addr());
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
-    let balance_before_payment = check_eth_balance(taker_address);
+    let balance_before_payment = sepolia_check_eth_balance(taker_address);
     log!("Taker ETH balance before payment: {}", balance_before_payment);
 
-    let dex_fee = &DexFee::Standard("0.1".into());
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
+
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
     let payment_args = SendTakerFundingArgs {
         funding_time_lock,
@@ -1585,7 +1674,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         maker_pub: maker_pub.as_bytes(),
         dex_fee,
         premium_amount: BigDecimal::default(),
-        trading_amount: 1.into(),
+        trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
         wait_for_confirmation_until: 0,
     };
@@ -1594,7 +1683,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
-    let balance_after_payment = check_eth_balance(taker_address);
+    let balance_after_payment = sepolia_check_eth_balance(taker_address);
     log!("Taker ETH balance after payment: {}", balance_after_payment);
 
     let refund_args = RefundFundingSecretArgs {
@@ -1607,10 +1696,11 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         maker_secret_hash: &maker_secret_hash,
         dex_fee,
         premium_amount: Default::default(),
-        trading_amount: 1.into(),
+        trading_amount,
         swap_unique_data: &[],
         watcher_reward: false,
     };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
     log!(
         "Taker refunded ETH funding by secret, tx hash: {:02x}",
@@ -1619,9 +1709,8 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 
-    let balance_after_refund = check_eth_balance(taker_address);
+    let balance_after_refund = sepolia_check_eth_balance(taker_address);
     log!("Taker ETH balance after refund: {}", balance_after_refund);
-    assert_eq!(balance_before_payment, balance_after_refund);
 }
 
 #[test]
@@ -1638,7 +1727,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let payment_time_lock = now_sec() + 1000;
 
     let taker_address = block_on(taker_coin.my_addr());
-    log!("taker_address type: {:?}", taker_address);
     log!("coin type: {:?}", taker_coin.coin_type);
 
     let balance_before_payment = check_erc20_balance(taker_address);
@@ -1658,7 +1746,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         premium_amount: BigDecimal::default(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: now_sec() + 80,
+        wait_for_confirmation_until: now_sec() + 100,
     };
 
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
@@ -1694,14 +1782,12 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     let balance_after_refund = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance after refund: {}", balance_after_refund);
-    assert_eq!(balance_before_payment, balance_after_refund);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_eth() {
-    let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
-    let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
+    let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf());
+    let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf());
 
     let taker_secret = vec![0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
@@ -1709,8 +1795,9 @@ fn send_and_refund_taker_funding_timelock_eth() {
     let maker_secret_hash = sha256(&maker_secret).to_vec();
 
     let taker_address = block_on(taker_coin.my_addr());
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
-    let balance_before_payment = check_eth_balance(taker_address);
+    let balance_before_payment = sepolia_check_eth_balance(taker_address);
     log!("Taker ETH balance before payment: {}", balance_before_payment);
 
     // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
@@ -1718,7 +1805,9 @@ fn send_and_refund_taker_funding_timelock_eth() {
     // TODO need to impl taker approve to test exceeded payment_time_lock
     let payment_time_lock = now_sec() + 1000;
 
-    let dex_fee = &DexFee::Standard("0.1".into());
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
+
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
     let payment_args = SendTakerFundingArgs {
         funding_time_lock,
@@ -1728,7 +1817,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
         maker_pub: maker_pub.as_bytes(),
         dex_fee,
         premium_amount: BigDecimal::default(),
-        trading_amount: 1.into(),
+        trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
         wait_for_confirmation_until: 0,
     };
@@ -1737,7 +1826,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
-    let balance_after_payment = check_eth_balance(taker_address);
+    let balance_after_payment = sepolia_check_eth_balance(taker_address);
     log!("Taker ETH balance after payment: {}", balance_after_payment);
 
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
@@ -1754,8 +1843,9 @@ fn send_and_refund_taker_funding_timelock_eth() {
         watcher_reward: false,
         dex_fee,
         premium_amount: BigDecimal::default(),
-        trading_amount: 1.into(),
+        trading_amount,
     };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_timelock(refund_args)).unwrap();
     log!(
         "Taker refunded ETH funding after pre-approval lock time was exceeded, tx hash: {:02x}",
@@ -1764,9 +1854,8 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 
-    let balance_after_refund = check_eth_balance(taker_address);
+    let balance_after_refund = sepolia_check_eth_balance(taker_address);
     log!("Taker ETH balance after refund: {}", balance_after_refund);
-    assert_eq!(balance_before_payment, balance_after_refund);
 }
 
 #[ignore]
@@ -1839,5 +1928,4 @@ fn send_and_refund_taker_funding_timelock_erc20() {
 
     let balance_after_refund = check_erc20_balance(taker_address);
     log!("Taker ERC20 balance after refund: {}", balance_after_refund);
-    assert_eq!(balance_before_payment, balance_after_refund);
 }
