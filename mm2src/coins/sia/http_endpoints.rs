@@ -3,7 +3,7 @@ use crate::sia::transaction::SiacoinElement;
 use crate::sia::types::{Event, BlockID};
 use crate::sia::SiaApiClientError;
 use mm2_number::MmNumber;
-use reqwest::{Method, Request, Url};
+use reqwest::{Client, Method, Request, Url};
 use rpc::v1::types::H256;
 use serde::de::DeserializeOwned;
 
@@ -12,7 +12,7 @@ const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
 pub trait SiaApiRequest {
     type Response: SiaApiResponse + DeserializeOwned;
 
-    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError>;
+    fn to_http_request(&self, client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError>;
 }
 
 // marker trait
@@ -24,7 +24,7 @@ pub struct ConsensusTipRequest;
 impl SiaApiRequest for ConsensusTipRequest {
     type Response = ConsensusTipResponse;
 
-    fn to_http_request(&self, base_url: &Url) -> Result<reqwest::Request, SiaApiClientError> {
+    fn to_http_request(&self, _client: &Client, base_url: &Url) -> Result<reqwest::Request, SiaApiClientError> {
         let endpoint_url = base_url
             .join(ENDPOINT_CONSENSUS_TIP)
             .map_err(SiaApiClientError::UrlParse)?;
@@ -52,8 +52,7 @@ pub struct AddressBalanceRequest {
 impl SiaApiRequest for AddressBalanceRequest {
     type Response = AddressBalanceResponse;
 
-    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError> {
-        // TODO use .join method of Url to prevent any possibility of path traversal
+    fn to_http_request(&self, _client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError> {
         let endpoint_path = format!("api/addresses/{}/balance", self.address);
         let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
 
@@ -83,7 +82,7 @@ pub struct EventsTxidRequest {
 impl SiaApiRequest for EventsTxidRequest {
     type Response = EventsTxidResponse;
 
-    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError> {
+    fn to_http_request(&self, _client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError> {
         let endpoint_path = format!("api/events/{}", self.txid);
         let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
 
@@ -106,7 +105,7 @@ pub struct AddressesEventsRequest {
 impl SiaApiRequest for AddressesEventsRequest {
     type Response = Vec<Event>;
 
-    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError> {
+    fn to_http_request(&self, _client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError> {
         let endpoint_path = format!("api/addresses/{}/events", self.address);
         let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
 
@@ -132,7 +131,7 @@ impl SiaApiResponse for AddressUtxosResponse {}
 impl SiaApiRequest for AddressUtxosRequest {
     type Response = AddressUtxosResponse;
 
-    fn to_http_request(&self, base_url: &Url) -> Result<Request, SiaApiClientError> {
+    fn to_http_request(&self, _client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError> {
         let endpoint_path = format!("api/addresses/{}/outputs/siacoin", self.address);
         let endpoint_url = base_url.join(&endpoint_path).map_err(SiaApiClientError::UrlParse)?;
 

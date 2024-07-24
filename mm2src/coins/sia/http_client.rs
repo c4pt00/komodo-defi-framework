@@ -129,7 +129,7 @@ impl SiaApiClient {
 
     /// General method for dispatching requests, handling routing and response parsing.
     pub async fn dispatcher<R: SiaApiRequest + Send>(&self, request: R) -> Result<R::Response, SiaApiClientError> {
-        let req = request.to_http_request(&self.conf.url)?;
+        let req = request.to_http_request(&self.client, &self.conf.url)?;
         fetch_and_parse::<R::Response>(&self.client, req.url().clone()).await
     }
 
