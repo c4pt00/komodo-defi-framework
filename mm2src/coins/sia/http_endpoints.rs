@@ -1,5 +1,5 @@
 use crate::sia::address::Address;
-use crate::sia::transaction::SiacoinElement;
+use crate::sia::transaction::{V1Transaction, V2Transaction, SiacoinElement};
 use crate::sia::types::{Event, BlockID};
 use crate::sia::SiaApiClientError;
 use mm2_number::MmNumber;
@@ -139,3 +139,31 @@ impl SiaApiRequest for AddressUtxosRequest {
         Ok(request)
     }
 }
+
+// POST /txpool/broadcast
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TxpoolBroadcastRequest {
+    pub transactions: Vec<V1Transaction>,
+    pub v2transactions: Vec<V2Transaction>,
+}
+
+impl SiaApiRequest for TxpoolBroadcastRequest {
+    type Response = TxpoolBroadcastResponse;
+
+    fn to_http_request(&self, client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError> {
+        let endpoint_path = "api/txpool/broadcast";
+        let endpoint_url = base_url.join(endpoint_path).map_err(SiaApiClientError::UrlParse)?;
+
+        let json_body = serde_json::to_string(self).map_err(SiaApiClientError::SerializationError)?;
+
+        let request = client.post(endpoint_url)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(json_body).build().map_err(SiaApiClientError::ReqwestError)?;
+        Ok(request)
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TxpoolBroadcastResponse;
+
+impl SiaApiResponse for TxpoolBroadcastResponse {}
