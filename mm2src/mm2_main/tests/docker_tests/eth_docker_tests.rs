@@ -185,6 +185,7 @@ fn sepolia_check_eth_balance(address: Address) -> U256 {
     block_on(SEPOLIA_WEB3.eth().balance(address, None)).unwrap()
 }
 
+#[allow(dead_code)]
 fn check_erc20_balance(address: Address) -> U256 {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
     let erc20_contract = Contract::from_json(GETH_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
@@ -1659,9 +1660,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let taker_address = block_on(taker_coin.my_addr());
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
-    let balance_before_payment = sepolia_check_eth_balance(taker_address);
-    log!("Taker ETH balance before payment: {}", balance_before_payment);
-
     let dex_fee = &DexFee::Standard("0.00001".into());
     let trading_amount = BigDecimal::from_str("0.0001").unwrap();
 
@@ -1682,9 +1680,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
-
-    let balance_after_payment = sepolia_check_eth_balance(taker_address);
-    log!("Taker ETH balance after payment: {}", balance_after_payment);
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
@@ -1708,9 +1703,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     );
 
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
-
-    let balance_after_refund = sepolia_check_eth_balance(taker_address);
-    log!("Taker ETH balance after refund: {}", balance_after_refund);
 }
 
 #[test]
@@ -1725,14 +1717,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let maker_secret_hash = sha256(&maker_secret).to_vec();
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
-
-    let taker_address = block_on(taker_coin.my_addr());
-    log!("coin type: {:?}", taker_coin.coin_type);
-
-    let balance_before_payment = check_erc20_balance(taker_address);
-    log!("Taker ERC20 balance before payment: {}", balance_before_payment);
-    let eth_before_payment = check_eth_balance(taker_address);
-    log!("Taker ETH balance before payment: {}", eth_before_payment);
 
     let dex_fee = &DexFee::Standard("0.1".into());
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
@@ -1754,11 +1738,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
-    let balance_after_payment = check_erc20_balance(taker_address);
-    log!("Taker ERC20 balance after payment: {}", balance_after_payment);
-    let eth_after_payment = check_eth_balance(taker_address);
-    log!("Taker ETH balance after payment: {}", eth_after_payment);
-
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
         funding_time_lock,
@@ -1779,9 +1758,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         funding_tx_refund.tx_hash()
     );
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
-
-    let balance_after_refund = check_erc20_balance(taker_address);
-    log!("Taker ERC20 balance after refund: {}", balance_after_refund);
 }
 
 #[test]
@@ -1796,9 +1772,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
     let taker_address = block_on(taker_coin.my_addr());
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
-
-    let balance_before_payment = sepolia_check_eth_balance(taker_address);
-    log!("Taker ETH balance before payment: {}", balance_before_payment);
 
     // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
     let funding_time_lock = now_sec() - 3000;
@@ -1825,9 +1798,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
-
-    let balance_after_payment = sepolia_check_eth_balance(taker_address);
-    log!("Taker ETH balance after payment: {}", balance_after_payment);
 
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
@@ -1853,9 +1823,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
     );
 
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
-
-    let balance_after_refund = sepolia_check_eth_balance(taker_address);
-    log!("Taker ETH balance after refund: {}", balance_after_refund);
 }
 
 #[ignore]
@@ -1870,11 +1837,6 @@ fn send_and_refund_taker_funding_timelock_erc20() {
     let taker_secret_hash = sha256(&taker_secret).to_vec();
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
-
-    let taker_address = block_on(taker_coin.my_addr());
-
-    let balance_before_payment = check_erc20_balance(taker_address);
-    log!("Taker ERC20 balance before payment: {}", balance_before_payment);
 
     // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
     let funding_time_lock = now_sec() - 3000;
@@ -1900,9 +1862,6 @@ fn send_and_refund_taker_funding_timelock_erc20() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
-    let balance_after_payment = check_erc20_balance(taker_address);
-    log!("Taker ERC20 balance after payment: {}", balance_after_payment);
-
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
         taker_secret_hash: &taker_secret_hash,
@@ -1925,7 +1884,4 @@ fn send_and_refund_taker_funding_timelock_erc20() {
         funding_tx_refund.tx_hash()
     );
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
-
-    let balance_after_refund = check_erc20_balance(taker_address);
-    log!("Taker ERC20 balance after refund: {}", balance_after_refund);
 }
