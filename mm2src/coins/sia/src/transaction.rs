@@ -9,8 +9,8 @@ use serde_json::Value;
 use std::str::FromStr;
 
 #[cfg(test)]
-use crate::sia::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success};
-#[cfg(test)] use crate::sia::v1_standard_address_from_pubkey;
+use crate::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_swap_success};
+#[cfg(test)] use crate::types::v1_standard_address_from_pubkey;
 
 type SiacoinOutputID = H256;
 const V2_REPLAY_PREFIX: u8 = 2;
@@ -1530,7 +1530,7 @@ fn test_v2_transaction_sig_hash() {
 
 #[test]
 fn test_v2_transaction_signing() {
-    use crate::sia::{Keypair, Signature};
+    use crate::{Keypair, Signature};
     use ed25519_dalek::Signer;
     let j = json!(
         {

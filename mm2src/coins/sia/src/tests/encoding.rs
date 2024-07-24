@@ -1,7 +1,7 @@
-use crate::sia::address::Address;
-use crate::sia::blake2b_internal::standard_unlock_hash;
-use crate::sia::encoding::Encoder;
-use crate::sia::spend_policy::{SpendPolicy, UnlockCondition};
+use crate::types::Address;
+use crate::blake2b_internal::standard_unlock_hash;
+use crate::encoding::Encoder;
+use crate::spend_policy::{SpendPolicy, UnlockCondition};
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;
 use std::str::FromStr;

@@ -1,8 +1,7 @@
-use crate::sia::address::Address;
-use crate::sia::encoding::PrefixedH256;
-use crate::sia::spend_policy::UnlockKey;
-use crate::sia::transaction::{SiacoinElement, SiacoinOutput, StateElement, V2Transaction};
-use crate::sia::types::Event;
+use crate::encoding::PrefixedH256;
+use crate::spend_policy::UnlockKey;
+use crate::transaction::{SiacoinElement, SiacoinOutput, StateElement, V2Transaction};
+use crate::types::{Address, BlockID, Event};
 
 // Ensure the original value matches the value after round-trip (serialize -> deserialize -> serialize)
 macro_rules! test_serde {
@@ -19,7 +18,6 @@ macro_rules! test_serde {
 #[test]
 #[ignore]
 fn test_serde_block_id() {
-    use crate::sia::types::BlockID;
     test_serde!(
         BlockID,
         json!("bid:c67c3b2e57490617a25a9fcb9fd54ab6acbe72fc1e4f1f432cb9334177917667")
