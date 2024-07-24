@@ -753,7 +753,7 @@ It is possible this may need to change in later implementations.
 */
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
-pub struct TransactionV1 {
+pub struct V1Transaction {
     pub siacoin_inputs: Vec<SiacoinInputV1>,
     pub siacoin_outputs: Vec<SiacoinOutput>,
     pub file_contracts: Vec<FileContract>,

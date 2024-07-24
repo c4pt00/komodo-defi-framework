@@ -1,7 +1,7 @@
 use crate::sia::address::Address;
 use crate::sia::encoding::{Encodable, Encoder, PrefixedH256};
 use crate::sia::transaction::{FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
-                              TransactionV1, V2Transaction, V2FileContractResolution};
+                              V1Transaction, V2Transaction, V2FileContractResolution};
 use chrono::{DateTime, Utc};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -85,7 +85,7 @@ impl Encodable for ChainIndex {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventV1Transaction {
-    pub transaction: TransactionV1,
+    pub transaction: V1Transaction,
     pub spent_siacoin_elements: Vec<SiacoinElement>,
     pub spent_siafund_elements: Vec<SiafundElement>,
 }
