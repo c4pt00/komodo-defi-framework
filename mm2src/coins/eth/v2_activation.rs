@@ -742,7 +742,9 @@ pub(crate) async fn build_address_and_priv_key_policy(
 
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let pubkey = dhash160(activated_key.public().as_bytes()).to_string();
+                // Skip the first byte of the uncompressed public key before converting to the eth address.
+                let pubkey = Public::from_slice(&activated_key.public().as_bytes()[1..]);
+                let pubkey = public_to_address(&pubkey).to_string();
                 run_db_migration_for_new_pubkey(ctx, pubkey)
                     .await
                     .map_to_mm(EthActivationV2Error::InternalError)?;
@@ -1013,10 +1015,11 @@ pub(super) async fn eth_shared_db_id(coin: &EthCoin, ctx: &MmArc) -> Option<Stri
 
 pub(super) async fn eth_account_db_id(coin: &EthCoin) -> Option<String> {
     match coin.derivation_method() {
-        DerivationMethod::HDWallet(hd_wallet) => hd_wallet
-            .get_enabled_address()
-            .await
-            .map(|addr| dhash160(addr.pubkey().as_bytes()).to_string()),
+        DerivationMethod::HDWallet(hd_wallet) => hd_wallet.get_enabled_address().await.map(|addr| {
+            // Skip the first byte of the uncompressed public key before converting to the eth address.
+            let pubkey = Public::from_slice(&addr.pubkey().as_bytes()[1..]);
+            public_to_address(&pubkey).to_string()
+        }),
         _ => None,
     }
 }

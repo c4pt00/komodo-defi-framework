@@ -5428,6 +5428,10 @@ pub async fn orders_kick_start(ctx: &MmArc, db_id: Option<&str>) -> Result<HashS
     {
         let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
         for order in saved_maker_orders {
+            // we need to only kickstart orders if the coin is activated with the same db_id as the order's db_id.
+            if order.db_id().as_deref() != db_id {
+                continue;
+            }
             coins.insert(order.base.clone());
             coins.insert(order.rel.clone());
             maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
@@ -5436,6 +5440,10 @@ pub async fn orders_kick_start(ctx: &MmArc, db_id: Option<&str>) -> Result<HashS
 
     let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
     for order in saved_taker_orders {
+        // we need to only kickstart orders if the coin is activated with the same db_id as the order's db_id.
+        if order.db_id().as_deref() != db_id {
+            continue;
+        }
         coins.insert(order.request.base.clone());
         coins.insert(order.request.rel.clone());
         taker_orders.insert(order.request.uuid, order);

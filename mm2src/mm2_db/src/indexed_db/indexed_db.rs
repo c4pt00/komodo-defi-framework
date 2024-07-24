@@ -111,28 +111,20 @@ impl DbIdentifier {
     }
 
     pub fn display_db_id(&self) -> String { self.db_id.clone().unwrap_or_else(|| "KOMODEFI".to_string()) }
-
-    pub fn db_id(&self) -> String {
-        self.db_id
-            .clone()
-            .unwrap_or_else(|| hex::encode(H160::default().as_slice()))
-    }
 }
 
 pub struct IndexedDbBuilder {
     pub db_name: String,
     pub db_version: u32,
     pub tables: HashMap<String, OnUpgradeNeededCb>,
-    pub db_id: String,
 }
 
 impl IndexedDbBuilder {
-    pub fn new(db_id: DbIdentifier) -> IndexedDbBuilder {
+    pub fn new(db_ident: DbIdentifier) -> IndexedDbBuilder {
         IndexedDbBuilder {
-            db_name: db_id.to_string(),
+            db_name: db_ident.to_string(),
             db_version: 1,
             tables: HashMap::new(),
-            db_id: db_id.db_id(),
         }
     }
 
@@ -148,13 +140,12 @@ impl IndexedDbBuilder {
     }
 
     pub async fn build(self) -> InitDbResult<IndexedDb> {
-        let db_id = self.db_id.clone();
         let (init_tx, init_rx) = oneshot::channel();
         let (event_tx, event_rx) = mpsc::unbounded();
 
         self.init_and_spawn(init_tx, event_rx);
         init_rx.await.expect("The init channel must not be closed")?;
-        Ok(IndexedDb { event_tx, db_id })
+        Ok(IndexedDb { event_tx })
     }
 
     fn init_and_spawn(
@@ -190,7 +181,6 @@ impl IndexedDbBuilder {
 
 pub struct IndexedDb {
     event_tx: DbEventTx,
-    db_id: String,
 }
 
 async fn send_event_recv_response<Event, Item, Error>(
@@ -248,8 +238,6 @@ impl IndexedDb {
         // ignore if the receiver is closed
         result_tx.send(Ok(transaction_event_tx)).ok();
     }
-
-    pub fn get_db_id(&self) -> String { self.db_id.to_string() }
 }
 
 pub struct DbTransaction<'transaction> {

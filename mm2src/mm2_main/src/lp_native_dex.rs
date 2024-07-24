@@ -460,7 +460,7 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
     let mut migrations = HashSet::new();
     let mut receiver = ctx
         .init_db_migration_watcher()
-        .expect("db_m igration_watcher initialization failed");
+        .expect("db_migration_watcher initialization failed");
 
     while let Some(db_id) = receiver.next().await {
         if migrations.contains(&db_id) {
@@ -468,13 +468,13 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
             continue;
         }
 
-        // run db migration for db_id if new activated pubkey is unique.
+        // run db migration for new db_id.
         if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id), None).await {
             error!("{err:?}");
             continue;
         };
 
-        // insert new db_id to migration list
+        // insert new db_id to migrated list
         migrations.insert(db_id.to_owned());
 
         // Fetch and extend ctx.coins_needed_for_kick_start from new intialized db.
@@ -500,6 +500,15 @@ async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>, shared_db_id: O
 }
 
 pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let dbdir = ctx.dbdir(None);
+        fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
+            path: dbdir.clone(),
+            error: e.to_string(),
+        })?;
+    }
+
     init_ordermatch_context(&ctx)?;
     init_p2p(ctx.clone()).await?;
 
