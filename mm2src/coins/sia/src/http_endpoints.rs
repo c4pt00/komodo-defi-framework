@@ -1,11 +1,11 @@
-use crate::sia::address::Address;
-use crate::sia::transaction::{V1Transaction, V2Transaction, SiacoinElement};
-use crate::sia::types::{Event, BlockID};
-use crate::sia::SiaApiClientError;
+use crate::transaction::{V1Transaction, V2Transaction, SiacoinElement};
+use crate::types::{Address, Event, BlockID};
+use crate::http_client::SiaApiClientError;
 use mm2_number::MmNumber;
 use reqwest::{Client, Method, Request, Url};
 use rpc::v1::types::H256;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
 

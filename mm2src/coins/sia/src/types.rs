@@ -1,6 +1,5 @@
-use crate::sia::address::Address;
-use crate::sia::encoding::{Encodable, Encoder, PrefixedH256};
-use crate::sia::transaction::{FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
+use crate::encoding::{Encodable, Encoder, PrefixedH256};
+use crate::transaction::{FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
                               V1Transaction, V2Transaction, V2FileContractResolution};
 use chrono::{DateTime, Utc};
 use rpc::v1::types::H256;
@@ -10,6 +9,129 @@ use serde_with::{serde_as, FromInto};
 use std::convert::From;
 use std::fmt;
 use std::str::FromStr;
+use crate::blake2b_internal::standard_unlock_hash;
+use blake2b_simd::Params;
+use ed25519_dalek::PublicKey;
+use hex::FromHexError;
+use std::convert::TryInto;
+
+// TODO this could probably include the checksum within the data type
+// generating the checksum on the fly is how Sia Go does this however
+#[derive(Debug, Clone, PartialEq)]
+pub struct Address(pub H256);
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex_str = format!("{}", self);
+        serializer.serialize_str(&hex_str)
+    }
+}
+
+impl<'de> Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct AddressVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for AddressVisitor {
+            type Value = Address;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string prefixed with 'addr:' and followed by a 76-character hex string")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Address::from_str(value).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?)
+            }
+        }
+
+        deserializer.deserialize_str(AddressVisitor)
+    }
+}
+
+impl Address {
+    pub fn str_without_prefix(&self) -> String {
+        let bytes = self.0 .0.as_ref();
+        let checksum = blake2b_checksum(bytes);
+        format!("{}{}", hex::encode(bytes), hex::encode(checksum))
+    }
+}
+
+impl Encodable for Address {
+    fn encode(&self, encoder: &mut Encoder) { self.0.encode(encoder) }
+}
+
+impl fmt::Display for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "addr:{}", self.str_without_prefix()) }
+}
+
+impl fmt::Display for ParseAddressError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "Failed to parse Address: {:?}", self) }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum ParseAddressError {
+    #[serde(rename = "Address must begin with addr: prefix")]
+    MissingPrefix,
+    InvalidHexEncoding(String),
+    InvalidChecksum,
+    InvalidLength,
+}
+
+impl From<FromHexError> for ParseAddressError {
+    fn from(e: FromHexError) -> Self { ParseAddressError::InvalidHexEncoding(e.to_string()) }
+}
+
+impl FromStr for Address {
+    type Err = ParseAddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with("addr:") {
+            return Err(ParseAddressError::MissingPrefix);
+        }
+
+        let without_prefix = &s[5..];
+        if without_prefix.len() != (32 + 6) * 2 {
+            return Err(ParseAddressError::InvalidLength);
+        }
+
+        let (address_hex, checksum_hex) = without_prefix.split_at(32 * 2);
+
+        let address_bytes: [u8; 32] = hex::decode(address_hex)
+            .map_err(ParseAddressError::from)?
+            .try_into()
+            .expect("length is 32 bytes");
+
+        let checksum = hex::decode(checksum_hex).map_err(ParseAddressError::from)?;
+        let checksum_bytes: [u8; 6] = checksum.try_into().expect("length is 6 bytes");
+
+        if checksum_bytes != blake2b_checksum(&address_bytes) {
+            return Err(ParseAddressError::InvalidChecksum);
+        }
+
+        Ok(Address(H256::from(address_bytes)))
+    }
+}
+
+// Sia uses the first 6 bytes of blake2b(preimage) appended
+// to address as checksum
+fn blake2b_checksum(preimage: &[u8]) -> [u8; 6] {
+    let hash = Params::new().hash_length(32).to_state().update(preimage).finalize();
+    hash.as_array()[0..6].try_into().expect("array is 64 bytes long")
+}
+
+pub fn v1_standard_address_from_pubkey(pubkey: &PublicKey) -> Address {
+    let hash = standard_unlock_hash(pubkey);
+    Address(hash)
+}
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockID(pub H256);

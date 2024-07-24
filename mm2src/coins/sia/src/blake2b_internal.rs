@@ -1,5 +1,5 @@
-use crate::sia::specifier::Specifier;
-use crate::sia::spend_policy::UnlockKey;
+use crate::specifier::Specifier;
+use crate::spend_policy::UnlockKey;
 use blake2b_simd::Params;
 use ed25519_dalek::PublicKey;
 use rpc::v1::types::H256;

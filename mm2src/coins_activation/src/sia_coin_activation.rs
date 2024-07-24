@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use coins::coin_balance::{CoinBalanceReport, IguanaWalletBalance};
 use coins::coin_errors::MyAddressError;
 use coins::my_tx_history_v2::TxHistoryStorage;
-use coins::sia::{sia_coin_from_conf_and_params, SiaCoin, SiaCoinActivationParams, SiaCoinBuildError,
+use coins::siacoin::{sia_coin_from_conf_and_params, SiaCoin, SiaCoinActivationParams, SiaCoinBuildError,
                  SiaCoinProtocolInfo};
 use coins::tx_history_storage::CreateTxHistoryStorageError;
 use coins::{BalanceError, CoinBalance, CoinProtocol, MarketCoinOps, PrivKeyBuildPolicy, RegisterCoinError};

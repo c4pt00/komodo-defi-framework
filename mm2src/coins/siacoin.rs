@@ -25,20 +25,10 @@ use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
-use url::Url;
 
-pub mod address;
-use address::v1_standard_address_from_pubkey;
-pub mod blake2b_internal;
-pub mod encoding;
-pub mod http_client;
-use http_client::{SiaApiClient, SiaApiClientError};
-pub mod http_endpoints;
-pub mod specifier;
-pub mod spend_policy;
-#[cfg(test)] pub mod tests;
-pub mod transaction;
-pub mod types;
+use sia::types::v1_standard_address_from_pubkey;
+use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
+
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
@@ -58,12 +48,6 @@ pub type SiaConfResult<T> = Result<T, MmError<SiaConfError>>;
 pub struct SiaCoinConf {
     ticker: String,
     pub foo: u32,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct SiaHttpConf {
-    pub url: Url,
-    pub password: String,
 }
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384

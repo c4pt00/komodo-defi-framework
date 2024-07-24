@@ -1,4 +1,5 @@
-use crate::sia::encoding::{Encodable, Encoder};
+use crate::encoding::{Encodable, Encoder};
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 // this macro allows us to define the byte arrays as constants at compile time
