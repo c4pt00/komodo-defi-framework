@@ -6,7 +6,8 @@ use base64::Engine as _; // required for .encode() method
 use core::fmt::Display;
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{Client, Error as ReqwestError, Url};
+use reqwest::{Client, Error as ReqwestError, Url, Request};
+// use reqwest::Proxy; TODO remove debugging code
 use serde::de::DeserializeOwned;
 
 #[derive(Debug, Clone)]
@@ -29,12 +30,15 @@ impl Display for ReqwestErrorWithUrl {
     }
 }
 
+// TODO clean up reqwest errors
+// update reqwest to latest for `.with_url()` method
 #[derive(Debug, Display)]
 pub enum SiaApiClientError {
     Timeout(String),
     BuildError(String),
     ServerUnreachable(String),
     ReqwestFetchError(ReqwestErrorWithUrl), // TODO make an enum
+    ReqwestError(reqwest::Error),
     ReqwestParseInvalidEncodingError(String),
     ReqwestParseInvalidJsonError(String),
     ReqwestParseUnexpectedTypeError(String),
@@ -42,6 +46,7 @@ pub enum SiaApiClientError {
     UrlParse(url::ParseError),
     UnexpectedHttpStatus(u16),
     ApiInternalError(String),
+    SerializationError(serde_json::Error),
 }
 
 impl From<SiaApiClientError> for String {
@@ -49,13 +54,15 @@ impl From<SiaApiClientError> for String {
 }
 
 /// Generic function to fetch data from a URL and deserialize it into a specified type.
-async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, url: Url) -> Result<T, SiaApiClientError> {
-    let fetched = client.get(url.clone()).send().await.map_err(|e| {
+async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, request: Request) -> Result<T, SiaApiClientError> {
+    let url = request.url().clone(); // TODO remove this once reqwest crate is updated
+    let fetched = client.execute(request).await.map_err(|e| {
         SiaApiClientError::ReqwestFetchError(ReqwestErrorWithUrl {
             error: e,
             url: url.clone(),
         })
     })?;
+
     let status = fetched.status().as_u16();
     match status {
         200 => {},
@@ -110,8 +117,9 @@ impl SiaApiClient {
             // the encode() method can only return valid ASCII
             HeaderValue::from_str(&auth_value).map_err(|e| SiaApiClientError::BuildError(e.to_string()))?,
         );
-
+        //let proxy = Proxy::http("http://127.0.0.1:8080").unwrap(); TODO remove debugging code
         let client = Client::builder()
+            //.proxy(proxy)
             .default_headers(headers)
             .timeout(Duration::from_secs(10)) // TODO make this configurable
             .build()
@@ -130,7 +138,7 @@ impl SiaApiClient {
     /// General method for dispatching requests, handling routing and response parsing.
     pub async fn dispatcher<R: SiaApiRequest + Send>(&self, request: R) -> Result<R::Response, SiaApiClientError> {
         let req = request.to_http_request(&self.client, &self.conf.url)?;
-        fetch_and_parse::<R::Response>(&self.client, req.url().clone()).await
+        fetch_and_parse::<R::Response>(&self.client, req).await
     }
 
     pub async fn current_height(&self) -> Result<u64, SiaApiClientError> {
