@@ -62,9 +62,7 @@ impl Specifier {
         }
     }
 
-    pub fn from_str_expect(s: &str) -> Self {
-        Specifier::from_str(s).expect("from_str cannot return Err")
-    }
+    pub fn from_str_expect(s: &str) -> Self { Specifier::from_str(s).expect("from_str cannot return Err") }
 
     pub fn to_str(&self) -> &'static str {
         match self {

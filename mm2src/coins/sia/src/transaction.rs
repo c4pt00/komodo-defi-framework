@@ -600,7 +600,9 @@ impl V2FileContractResolutionWrapper {
             V2FileContractResolutionWrapper::Finalization(f) => {
                 V2FileContractResolutionWrapper::Finalization(Box::new(f.with_nil_sigs()))
             },
-            V2FileContractResolutionWrapper::Renewal(r) => V2FileContractResolutionWrapper::Renewal(Box::new(r.with_nil_sigs())),
+            V2FileContractResolutionWrapper::Renewal(r) => {
+                V2FileContractResolutionWrapper::Renewal(Box::new(r.with_nil_sigs()))
+            },
             V2FileContractResolutionWrapper::StorageProof(s) => {
                 V2FileContractResolutionWrapper::StorageProof(s.with_nil_merkle_proof())
             },

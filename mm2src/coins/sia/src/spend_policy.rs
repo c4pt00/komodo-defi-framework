@@ -272,15 +272,19 @@ fn parse_unlock_key(input: &str) -> IResult<&str, UnlockKey> {
     match specifier {
         Specifier::Ed25519 => {
             let (input, public_key) = map_res(
-                all_consuming(map_res(take_while_m_n(64, 64, |c: char| c.is_ascii_hexdigit()), hex::decode)),
+                all_consuming(map_res(
+                    take_while_m_n(64, 64, |c: char| c.is_ascii_hexdigit()),
+                    hex::decode,
+                )),
                 |bytes: Vec<u8>| PublicKey::from_bytes(&bytes),
             )(input)?;
             Ok((input, UnlockKey::Ed25519(public_key)))
         },
         _ => {
-            let (input, public_key) = all_consuming(map_res(take_while(|c: char| c.is_ascii_hexdigit()), |hex_str: &str| {
-                hex::decode(hex_str)
-            }))(input)?;
+            let (input, public_key) =
+                all_consuming(map_res(take_while(|c: char| c.is_ascii_hexdigit()), |hex_str: &str| {
+                    hex::decode(hex_str)
+                }))(input)?;
             Ok((input, UnlockKey::Unsupported {
                 algorithm: specifier,
                 public_key,
@@ -356,10 +360,7 @@ impl Encodable for UnlockCondition {
 
 impl UnlockCondition {
     pub fn new(pubkeys: Vec<PublicKey>, timelock: u64, signatures_required: u64) -> Self {
-        let unlock_keys = pubkeys
-            .into_iter()
-            .map(UnlockKey::Ed25519)
-            .collect();
+        let unlock_keys = pubkeys.into_iter().map(UnlockKey::Ed25519).collect();
 
         UnlockCondition {
             unlock_keys,
