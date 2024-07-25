@@ -10,3 +10,6 @@ pub mod transaction;
 pub mod types;
 
 #[cfg(test)] mod tests;
+#[cfg(test)]
+#[macro_use]
+extern crate serde_json;

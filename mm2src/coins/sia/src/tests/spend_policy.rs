@@ -1,5 +1,3 @@
-#[macro_use] extern crate serde_json;
-
 use crate::spend_policy::{spend_policy_atomic_swap_success, SpendPolicy, SpendPolicyHelper, UnlockCondition, UnlockKey};
 use crate::types::Address;
 use crate::PublicKey;
