@@ -1674,7 +1674,7 @@ pub struct RefundMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     pub swap_unique_data: &'a [u8],
 }
 
-/// Commont refund NFT Maker Payment structure for [MakerNftSwapOpsV2::refund_nft_maker_payment_v2_timelock] and
+/// Common refund NFT Maker Payment structure for [MakerNftSwapOpsV2::refund_nft_maker_payment_v2_timelock] and
 /// [MakerNftSwapOpsV2::refund_nft_maker_payment_v2_secret] methods
 pub struct RefundNftMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ParseNftAssocTypes + ?Sized> {
     /// Maker payment tx
