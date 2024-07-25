@@ -1,7 +1,7 @@
 use mm2_number::MmNumber;
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia::http_endpoints::{AddressBalanceRequest, AddressesEventsRequest, ConsensusTipRequest};
-use sia::types::{Address, EventType};
+use sia::http_endpoints::{AddressBalanceRequest, ConsensusTipRequest};
+use sia::types::Address;
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;

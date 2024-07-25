@@ -262,7 +262,7 @@ impl Serialize for UnlockKey {
 
 fn parse_specifier(input: &str) -> IResult<&str, Specifier> {
     let (input, prefix_str) = take_until(":")(input)?;
-    let specifier = Specifier::from_str(prefix_str);
+    let specifier = Specifier::from_str_expect(prefix_str);
     let (input, _) = char(':')(input)?;
     Ok((input, specifier))
 }
@@ -272,13 +272,13 @@ fn parse_unlock_key(input: &str) -> IResult<&str, UnlockKey> {
     match specifier {
         Specifier::Ed25519 => {
             let (input, public_key) = map_res(
-                all_consuming(map_res(take_while_m_n(64, 64, |c: char| c.is_digit(16)), hex::decode)),
+                all_consuming(map_res(take_while_m_n(64, 64, |c: char| c.is_ascii_hexdigit()), hex::decode)),
                 |bytes: Vec<u8>| PublicKey::from_bytes(&bytes),
             )(input)?;
             Ok((input, UnlockKey::Ed25519(public_key)))
         },
         _ => {
-            let (input, public_key) = all_consuming(map_res(take_while(|c: char| c.is_digit(16)), |hex_str: &str| {
+            let (input, public_key) = all_consuming(map_res(take_while(|c: char| c.is_ascii_hexdigit()), |hex_str: &str| {
                 hex::decode(hex_str)
             }))(input)?;
             Ok((input, UnlockKey::Unsupported {
@@ -308,7 +308,7 @@ impl fmt::Display for UnlockKey {
         match self {
             UnlockKey::Ed25519(public_key) => write!(f, "ed25519:{}", hex::encode(public_key.as_bytes())),
             UnlockKey::Unsupported { algorithm, public_key } => {
-                write!(f, "{}:{}", algorithm.to_str(), hex::encode(public_key))
+                write!(f, "{}:{}", algorithm, hex::encode(public_key))
             },
         }
     }
@@ -358,7 +358,7 @@ impl UnlockCondition {
     pub fn new(pubkeys: Vec<PublicKey>, timelock: u64, signatures_required: u64) -> Self {
         let unlock_keys = pubkeys
             .into_iter()
-            .map(|public_key| UnlockKey::Ed25519(public_key))
+            .map(UnlockKey::Ed25519)
             .collect();
 
         UnlockCondition {
@@ -380,7 +380,7 @@ impl UnlockCondition {
         // almost all UnlockConditions are standard, so optimize for that case
         if let UnlockKey::Ed25519(public_key) = &self.unlock_keys[0] {
             if self.timelock == 0 && self.unlock_keys.len() == 1 && self.signatures_required == 1 {
-                return standard_unlock_hash(&public_key);
+                return standard_unlock_hash(public_key);
             }
         }
 
@@ -389,7 +389,7 @@ impl UnlockCondition {
         accumulator.add_leaf(timelock_leaf(self.timelock));
 
         for unlock_key in &self.unlock_keys {
-            accumulator.add_leaf(public_key_leaf(&unlock_key));
+            accumulator.add_leaf(public_key_leaf(unlock_key));
         }
 
         accumulator.add_leaf(sigs_required_leaf(self.signatures_required));

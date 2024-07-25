@@ -1,6 +1,7 @@
 use crate::encoding::{Encodable, Encoder};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use std::str::FromStr;
 
 // this macro allows us to define the byte arrays as constants at compile time
 macro_rules! define_byte_array_const {
@@ -61,17 +62,8 @@ impl Specifier {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
-        match s {
-            "ed25519" => Specifier::Ed25519,
-            "siacoin output" => Specifier::SiacoinOutput,
-            "siafund output" => Specifier::SiafundOutput,
-            "file contract" => Specifier::FileContract,
-            "storage proof" => Specifier::StorageProof,
-            "foundation" => Specifier::Foundation,
-            "entropy" => Specifier::Entropy,
-            _ => Specifier::Unknown,
-        }
+    pub fn from_str_expect(s: &str) -> Self {
+        Specifier::from_str(s).expect("from_str cannot return Err")
     }
 
     pub fn to_str(&self) -> &'static str {
@@ -85,6 +77,27 @@ impl Specifier {
             Specifier::Entropy => "entropy",
             Specifier::Unknown => "unknown",
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ParseSpecifierError;
+
+impl FromStr for Specifier {
+    type Err = ParseSpecifierError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let r = match s {
+            "ed25519" => Specifier::Ed25519,
+            "siacoin output" => Specifier::SiacoinOutput,
+            "siafund output" => Specifier::SiafundOutput,
+            "file contract" => Specifier::FileContract,
+            "storage proof" => Specifier::StorageProof,
+            "foundation" => Specifier::Foundation,
+            "entropy" => Specifier::Entropy,
+            _ => Specifier::Unknown,
+        };
+        Ok(r)
     }
 }
 

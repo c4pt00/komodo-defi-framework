@@ -47,7 +47,7 @@ fn test_serde_spend_policy_public_key() {
     )
     .unwrap();
     let spend_policy_deser: SpendPolicy = serde_json::from_value::<SpendPolicyHelper>(j).unwrap().into();
-    let spend_policy = SpendPolicy::PublicKey(pubkey.into());
+    let spend_policy = SpendPolicy::PublicKey(pubkey);
 
     assert_eq!(spend_policy, spend_policy_deser);
 }

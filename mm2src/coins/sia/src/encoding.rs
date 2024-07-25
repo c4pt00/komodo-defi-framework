@@ -16,7 +16,7 @@ impl<'de> Deserialize<'de> for HexArray64 {
         D: Deserializer<'de>,
     {
         let hex_str: String = Deserialize::deserialize(deserializer)?;
-        let decoded_vec = hex::decode(&hex_str).map_err(serde::de::Error::custom)?;
+        let decoded_vec = hex::decode(hex_str).map_err(serde::de::Error::custom)?;
 
         if decoded_vec.len() != 64 {
             return Err(serde::de::Error::custom("Invalid length: expected 64 byte hex string"));

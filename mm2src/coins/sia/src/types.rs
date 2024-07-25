@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for Address {
             where
                 E: serde::de::Error,
             {
-                Ok(Address::from_str(value).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?)
+                Address::from_str(value).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
             }
         }
 
@@ -289,7 +289,7 @@ impl<'de> Deserialize<'de> for Event {
                 .map_err(serde::de::Error::custom),
             EventType::V1ContractResolution => unimplemented!(),
             EventType::V2ContractResolution => serde_json::from_value::<EventV2ContractResolution>(helper.data)
-                .map(EventDataWrapper::V2FileContractResolution)
+                .map(|data| EventDataWrapper::V2FileContractResolution(Box::new(data)))
                 .map_err(serde::de::Error::custom),
         }?;
 
@@ -312,7 +312,7 @@ pub enum EventDataWrapper {
     FoundationPayout(EventPayout),
     ClaimPayout(EventPayout),
     V2Transaction(V2Transaction),
-    V2FileContractResolution(EventV2ContractResolution),
+    V2FileContractResolution(Box<EventV2ContractResolution>),
     V1Transaction(EventV1Transaction),
     EventV1ContractResolution(EventV1ContractResolution),
 }

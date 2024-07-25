@@ -15,7 +15,7 @@ use crate::spend_policy::{spend_policy_atomic_swap_refund, spend_policy_atomic_s
 type SiacoinOutputID = H256;
 const V2_REPLAY_PREFIX: u8 = 2;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Currency {
     lo: u64,
     hi: u64,
@@ -59,10 +59,6 @@ impl Serialize for Currency {
     {
         serializer.serialize_str(&self.to_u128().to_string())
     }
-}
-
-impl Default for Currency {
-    fn default() -> Self { Currency { lo: 0, hi: 0 } }
 }
 
 impl Currency {
@@ -544,13 +540,13 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
 
         let resolution_data = match helper.resolution_type {
             ResolutionType::Renewal => serde_json::from_value::<V2FileContractRenewal>(helper.resolution)
-                .map(V2FileContractResolutionWrapper::Renewal)
+                .map(|data| V2FileContractResolutionWrapper::Renewal(Box::new(data)))
                 .map_err(serde::de::Error::custom),
             ResolutionType::StorageProof => serde_json::from_value::<V2StorageProof>(helper.resolution)
                 .map(V2FileContractResolutionWrapper::StorageProof)
                 .map_err(serde::de::Error::custom),
             ResolutionType::Finalization => serde_json::from_value::<V2FileContractFinalization>(helper.resolution)
-                .map(V2FileContractResolutionWrapper::Finalization)
+                .map(|data| V2FileContractResolutionWrapper::Finalization(Box::new(data)))
                 .map_err(serde::de::Error::custom),
             // expiration is a special case because it has no data. It is just an empty object, "{}".
             ResolutionType::Expiration => match &helper.resolution {
@@ -584,8 +580,8 @@ impl V2FileContractResolution {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum V2FileContractResolutionWrapper {
-    Finalization(V2FileContractFinalization),
-    Renewal(V2FileContractRenewal),
+    Finalization(Box<V2FileContractFinalization>),
+    Renewal(Box<V2FileContractRenewal>),
     StorageProof(V2StorageProof),
     #[serde(serialize_with = "serialize_variant_as_empty_object")]
     Expiration,
@@ -602,9 +598,9 @@ impl V2FileContractResolutionWrapper {
     fn with_nil_sigs(&self) -> V2FileContractResolutionWrapper {
         match self {
             V2FileContractResolutionWrapper::Finalization(f) => {
-                V2FileContractResolutionWrapper::Finalization(f.with_nil_sigs())
+                V2FileContractResolutionWrapper::Finalization(Box::new(f.with_nil_sigs()))
             },
-            V2FileContractResolutionWrapper::Renewal(r) => V2FileContractResolutionWrapper::Renewal(r.with_nil_sigs()),
+            V2FileContractResolutionWrapper::Renewal(r) => V2FileContractResolutionWrapper::Renewal(Box::new(r.with_nil_sigs())),
             V2FileContractResolutionWrapper::StorageProof(s) => {
                 V2FileContractResolutionWrapper::StorageProof(s.with_nil_merkle_proof())
             },
@@ -814,7 +810,7 @@ impl Encodable for V2Transaction {
 
         encoder.write_u64(self.siacoin_outputs.len() as u64);
         for so in &self.siacoin_outputs {
-            SiacoinOutputVersion::V2(&so).encode(encoder);
+            SiacoinOutputVersion::V2(so).encode(encoder);
         }
 
         encoder.write_u64(self.siafund_inputs.len() as u64);
@@ -824,7 +820,7 @@ impl Encodable for V2Transaction {
 
         encoder.write_u64(self.siafund_outputs.len() as u64);
         for so in &self.siafund_outputs {
-            SiafundOutputVersion::V2(&so).encode(encoder);
+            SiafundOutputVersion::V2(so).encode(encoder);
         }
 
         encoder.write_u64(self.file_contracts.len() as u64);
