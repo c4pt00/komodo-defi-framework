@@ -1,5 +1,3 @@
-#[macro_use] extern crate serde_json;
-
 pub use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature};
 
 pub mod blake2b_internal;
