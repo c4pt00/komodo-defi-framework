@@ -9,12 +9,12 @@ use bitcrypto::{dhash160, sha256};
 use coins::eth::gas_limit::ETH_MAX_TRADE_GAS;
 use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, EthCoin, SignedEthTx, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
-use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
-            Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
-            ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundNftMakerPaymentArgs, RefundPaymentArgs,
-            SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SpendNftMakerPaymentArgs,
-            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, ToBytes, Transaction,
-            ValidateNftMakerPaymentArgs};
+use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, CommonSwapOpsV2, ConfirmPaymentInput,
+            DerivationMethod, Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum,
+            MmCoinStruct, NftSwapInfo, ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy,
+            RefundNftMakerPaymentArgs, RefundPaymentArgs, SearchForSwapTxSpendInput, SendNftMakerPaymentArgs,
+            SendPaymentArgs, SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxFeePolicy,
+            SwapTxTypeWithSecretHash, ToBytes, Transaction, ValidateNftMakerPaymentArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
@@ -1298,7 +1298,6 @@ fn setup_test(
 }
 
 fn send_nft_maker_payment(setup: &NftTestSetup, amount: BigDecimal) -> SignedEthTx {
-    let taker_pubkey = setup.taker_global_nft.derive_htlc_pubkey(&[]);
     let nft_swap_info = NftSwapInfo {
         token_address: &setup.nft_swap_info.token_address,
         token_id: &setup.nft_swap_info.token_id,
@@ -1310,7 +1309,7 @@ fn send_nft_maker_payment(setup: &NftTestSetup, amount: BigDecimal) -> SignedEth
         taker_secret_hash: &setup.taker_secret_hash,
         maker_secret_hash: &setup.maker_secret_hash,
         amount,
-        taker_pub: &setup.taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
+        taker_pub: &setup.taker_global_nft.derive_htlc_pubkey_v2(&[]),
         swap_unique_data: &[],
         nft_swap_info: &nft_swap_info,
     };
@@ -1329,8 +1328,6 @@ fn wait_for_confirmations(global_nft: &EthCoin, tx: &SignedEthTx, wait_seconds: 
 }
 
 fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx, amount: BigDecimal) {
-    let maker_pubkey = setup.maker_global_nft.derive_htlc_pubkey(&[]);
-    let taker_pubkey = setup.taker_global_nft.derive_htlc_pubkey(&[]);
     let nft_swap_info = NftSwapInfo {
         token_address: &setup.nft_swap_info.token_address,
         token_id: &setup.nft_swap_info.token_id,
@@ -1343,8 +1340,8 @@ fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx,
         taker_secret_hash: &setup.taker_secret_hash,
         maker_secret_hash: &setup.maker_secret_hash,
         amount,
-        taker_pub: &setup.taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
-        maker_pub: &setup.maker_global_nft.parse_pubkey(&maker_pubkey).unwrap(),
+        taker_pub: &setup.taker_global_nft.derive_htlc_pubkey_v2(&[]),
+        maker_pub: &setup.maker_global_nft.derive_htlc_pubkey_v2(&[]),
         swap_unique_data: &[],
         nft_swap_info: &nft_swap_info,
     };
@@ -1361,10 +1358,7 @@ fn spend_nft_maker_payment(
         taker_secret_hash: &setup.taker_secret_hash,
         maker_secret_hash: &setup.maker_secret_hash,
         maker_secret: &setup.maker_secret,
-        maker_pub: &setup
-            .maker_global_nft
-            .parse_pubkey(&setup.maker_global_nft.derive_htlc_pubkey(&[]))
-            .unwrap(),
+        maker_pub: &setup.maker_global_nft.derive_htlc_pubkey_v2(&[]),
         swap_unique_data: &[],
         contract_type,
         swap_contract_address: &setup.nft_swap_info.swap_contract_address,

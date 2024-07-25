@@ -1708,7 +1708,7 @@ pub struct SpendNftMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ParseNftAsso
 
 /// Operations specific to maker coin in [Trading Protocol Upgrade implementation](https://github.com/KomodoPlatform/komodo-defi-framework/issues/1895)
 #[async_trait]
-pub trait MakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
+pub trait MakerCoinSwapOpsV2: ParseCoinAssocTypes + CommonSwapOpsV2 + Send + Sync + 'static {
     /// Generate and broadcast maker payment transaction
     async fn send_maker_payment_v2(&self, args: SendMakerPaymentArgs<'_, Self>) -> Result<Self::Tx, TransactionErr>;
 
@@ -1842,7 +1842,7 @@ pub enum SearchForFundingSpendErr {
 
 /// Operations specific to taker coin in [Trading Protocol Upgrade implementation](https://github.com/KomodoPlatform/komodo-defi-framework/issues/1895)
 #[async_trait]
-pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
+pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + CommonSwapOpsV2 + Send + Sync + 'static {
     /// Generate and broadcast taker funding transaction that includes dex fee, maker premium and actual trading volume.
     /// Funding tx can be reclaimed immediately if maker back-outs (doesn't send maker payment)
     async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr>;
@@ -1923,9 +1923,14 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
         from_block: u64,
         wait_until: u64,
     ) -> MmResult<Self::Tx, WaitForTakerPaymentSpendError>;
+}
 
+#[async_trait]
+pub trait CommonSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     /// Derives an HTLC key-pair and returns a public key corresponding to that key.
     fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey;
+
+    fn derive_htlc_pubkey_v2_bytes(&self, swap_unique_data: &[u8]) -> Vec<u8>;
 }
 
 /// Operations that coins have independently from the MarketMaker.
