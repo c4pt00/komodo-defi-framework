@@ -7190,7 +7190,9 @@ impl TakerCoinSwapOpsV2 for EthCoin {
     ) -> MmResult<Self::Tx, WaitForTakerPaymentSpendError> {
         todo!()
     }
+}
 
+impl CommonSwapOpsV2 for EthCoin {
     #[inline(always)]
     fn derive_htlc_pubkey_v2(&self, _swap_unique_data: &[u8]) -> Self::Pubkey {
         match self.priv_key_policy {
@@ -7210,6 +7212,11 @@ impl TakerCoinSwapOpsV2 for EthCoin {
                 Public::from_slice(&pubkey_bytes)
             },
         }
+    }
+
+    #[inline(always)]
+    fn derive_htlc_pubkey_v2_bytes(&self, swap_unique_data: &[u8]) -> Vec<u8> {
+        self.derive_htlc_pubkey_v2(swap_unique_data).to_bytes()
     }
 }
 

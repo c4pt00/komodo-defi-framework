@@ -15,9 +15,9 @@ use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
             DexFee, Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct,
             NftSwapInfo, ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundFundingSecretArgs,
-            RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs, SearchForSwapTxSpendInput,
+            RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs, SearchForSwapTxSpendInput,MmCoinStruct,
             SendNftMakerPaymentArgs, SendPaymentArgs, SendTakerFundingArgs, SpendNftMakerPaymentArgs,
-            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,
+            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,CommonSwapOpsV2,
             Transaction, ValidateNftMakerPaymentArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
@@ -1475,7 +1475,6 @@ fn setup_test(
 }
 
 fn send_nft_maker_payment(setup: &NftTestSetup, amount: BigDecimal) -> SignedEthTx {
-    let taker_pubkey = setup.taker_global_nft.derive_htlc_pubkey(&[]);
     let nft_swap_info = NftSwapInfo {
         token_address: &setup.nft_swap_info.token_address,
         token_id: &setup.nft_swap_info.token_id,
@@ -1487,7 +1486,7 @@ fn send_nft_maker_payment(setup: &NftTestSetup, amount: BigDecimal) -> SignedEth
         taker_secret_hash: &setup.taker_secret_hash,
         maker_secret_hash: &setup.maker_secret_hash,
         amount,
-        taker_pub: &setup.taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
+        taker_pub: &setup.taker_global_nft.derive_htlc_pubkey_v2(&[]),
         swap_unique_data: &[],
         nft_swap_info: &nft_swap_info,
     };
@@ -1506,8 +1505,6 @@ fn wait_for_confirmations(coin: &EthCoin, tx: &SignedEthTx, wait_seconds: u64) {
 }
 
 fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx, amount: BigDecimal) {
-    let maker_pubkey = setup.maker_global_nft.derive_htlc_pubkey(&[]);
-    let taker_pubkey = setup.taker_global_nft.derive_htlc_pubkey(&[]);
     let nft_swap_info = NftSwapInfo {
         token_address: &setup.nft_swap_info.token_address,
         token_id: &setup.nft_swap_info.token_id,
@@ -1520,8 +1517,8 @@ fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx,
         taker_secret_hash: &setup.taker_secret_hash,
         maker_secret_hash: &setup.maker_secret_hash,
         amount,
-        taker_pub: &setup.taker_global_nft.parse_pubkey(&taker_pubkey).unwrap(),
-        maker_pub: &setup.maker_global_nft.parse_pubkey(&maker_pubkey).unwrap(),
+        taker_pub: &setup.taker_global_nft.derive_htlc_pubkey_v2(&[]),
+        maker_pub: &setup.maker_global_nft.derive_htlc_pubkey_v2(&[]),
         swap_unique_data: &[],
         nft_swap_info: &nft_swap_info,
     };
@@ -1538,10 +1535,7 @@ fn spend_nft_maker_payment(
         taker_secret_hash: &setup.taker_secret_hash,
         maker_secret_hash: &setup.maker_secret_hash,
         maker_secret: &setup.maker_secret,
-        maker_pub: &setup
-            .maker_global_nft
-            .parse_pubkey(&setup.maker_global_nft.derive_htlc_pubkey(&[]))
-            .unwrap(),
+        maker_pub: &setup.maker_global_nft.derive_htlc_pubkey_v2(&[]),
         swap_unique_data: &[],
         contract_type,
         swap_contract_address: &setup.nft_swap_info.swap_contract_address,
