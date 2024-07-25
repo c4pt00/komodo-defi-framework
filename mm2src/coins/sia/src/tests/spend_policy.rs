@@ -1,6 +1,5 @@
+use crate::spend_policy::{spend_policy_atomic_swap_success, SpendPolicy, SpendPolicyHelper, UnlockCondition, UnlockKey};
 use crate::types::Address;
-use crate::spend_policy::{spend_policy_atomic_swap_success, SpendPolicy, SpendPolicyHelper, UnlockCondition,
-                               UnlockKey};
 use crate::PublicKey;
 use rpc::v1::types::H256;
 use std::str::FromStr;

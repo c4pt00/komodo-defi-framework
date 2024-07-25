@@ -1,19 +1,19 @@
+use crate::blake2b_internal::standard_unlock_hash;
 use crate::encoding::{Encodable, Encoder, PrefixedH256};
-use crate::transaction::{FileContractElementV1, SiacoinElement, SiafundElement, StateElement,
-                              V1Transaction, V2Transaction, V2FileContractResolution};
+use crate::transaction::{FileContractElementV1, SiacoinElement, SiafundElement, StateElement, V1Transaction,
+                         V2FileContractResolution, V2Transaction};
+use blake2b_simd::Params;
 use chrono::{DateTime, Utc};
+use ed25519_dalek::PublicKey;
+use hex::FromHexError;
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use serde_with::{serde_as, FromInto};
 use std::convert::From;
+use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
-use crate::blake2b_internal::standard_unlock_hash;
-use blake2b_simd::Params;
-use ed25519_dalek::PublicKey;
-use hex::FromHexError;
-use std::convert::TryInto;
 
 // TODO this could probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
@@ -131,7 +131,6 @@ pub fn v1_standard_address_from_pubkey(pubkey: &PublicKey) -> Address {
     let hash = standard_unlock_hash(pubkey);
     Address(hash)
 }
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockID(pub H256);
@@ -307,7 +306,7 @@ impl<'de> Deserialize<'de> for Event {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(untagged)] 
+#[serde(untagged)]
 pub enum EventDataWrapper {
     MinerPayout(EventPayout),
     FoundationPayout(EventPayout),
@@ -319,7 +318,7 @@ pub enum EventDataWrapper {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")] 
+#[serde(rename_all = "camelCase")]
 pub struct EventV2ContractResolution {
     pub resolution: V2FileContractResolution,
     pub siacoin_element: SiacoinElement,

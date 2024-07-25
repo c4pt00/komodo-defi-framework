@@ -1,10 +1,10 @@
-use sia::types::{Address, EventType};
+use mm2_number::MmNumber;
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia::http_endpoints::{AddressBalanceRequest, AddressesEventsRequest, ConsensusTipRequest};
+use sia::types::{Address, EventType};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
-use mm2_number::MmNumber;
 
 #[cfg(test)]
 fn mine_blocks(n: u64, addr: &Address) {
@@ -58,16 +58,15 @@ async fn test_sia_client_address_balance() {
     };
     let api_client = SiaApiClient::new(conf).await.unwrap();
 
-    let address = Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
-    mine_blocks(
-        10,
-        &address,
-    );
+    let address =
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
+    mine_blocks(10, &address);
 
-    let request = AddressBalanceRequest {
-        address,
-    };
+    let request = AddressBalanceRequest { address };
     let response = api_client.dispatcher(request).await.unwrap();
 
-    assert_eq!(response.siacoins, MmNumber::from("1000000000000000000000000000000000000"))
+    assert_eq!(
+        response.siacoins,
+        MmNumber::from("1000000000000000000000000000000000000")
+    )
 }

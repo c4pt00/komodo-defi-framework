@@ -6,7 +6,7 @@ pub mod http_client;
 pub mod http_endpoints;
 pub mod specifier;
 pub mod spend_policy;
-pub mod types;
 pub mod transaction;
+pub mod types;
 
 #[cfg(test)] mod tests;

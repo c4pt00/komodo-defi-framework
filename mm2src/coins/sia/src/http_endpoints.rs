@@ -1,6 +1,6 @@
-use crate::transaction::{V1Transaction, V2Transaction, SiacoinElement};
-use crate::types::{Address, Event, BlockID};
 use crate::http_client::SiaApiClientError;
+use crate::transaction::{SiacoinElement, V1Transaction, V2Transaction};
+use crate::types::{Address, BlockID, Event};
 use mm2_number::MmNumber;
 use reqwest::{Client, Method, Request, Url};
 use rpc::v1::types::H256;
@@ -156,9 +156,12 @@ impl SiaApiRequest for TxpoolBroadcastRequest {
 
         let json_body = serde_json::to_string(self).map_err(SiaApiClientError::SerializationError)?;
 
-        let request = client.post(endpoint_url)
+        let request = client
+            .post(endpoint_url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(json_body).build().map_err(SiaApiClientError::ReqwestError)?;
+            .body(json_body)
+            .build()
+            .map_err(SiaApiClientError::ReqwestError)?;
         Ok(request)
     }
 }

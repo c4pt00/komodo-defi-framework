@@ -4,8 +4,8 @@ use crate::types::{Address, ChainIndex};
 use ed25519_dalek::{PublicKey, Signature};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_with::{serde_as, FromInto};
 use serde_json::Value;
+use serde_with::{serde_as, FromInto};
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -87,10 +87,10 @@ impl<'a> Encodable for CurrencyVersion<'a> {
         match self {
             CurrencyVersion::V1(currency) => {
                 let mut buffer = [0u8; 16];
-        
+
                 buffer[8..].copy_from_slice(&currency.lo.to_be_bytes());
                 buffer[..8].copy_from_slice(&currency.hi.to_be_bytes());
-        
+
                 // Trim leading zero bytes from the buffer
                 let trimmed_buf = match buffer.iter().position(|&x| x != 0) {
                     Some(index) => &buffer[index..],
@@ -507,7 +507,7 @@ pub struct SiafundInputV1 {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")] 
+#[serde(rename_all = "camelCase")]
 pub enum ResolutionType {
     Renewal,
     StorageProof,
@@ -524,9 +524,7 @@ pub struct V2FileContractResolution {
 }
 
 impl Encodable for V2FileContractResolution {
-    fn encode(&self, _encoder: &mut Encoder) {
-        todo!()
-    }
+    fn encode(&self, _encoder: &mut Encoder) { todo!() }
 }
 
 impl<'de> Deserialize<'de> for V2FileContractResolution {
@@ -556,9 +554,7 @@ impl<'de> Deserialize<'de> for V2FileContractResolution {
                 .map_err(serde::de::Error::custom),
             // expiration is a special case because it has no data. It is just an empty object, "{}".
             ResolutionType::Expiration => match &helper.resolution {
-                Value::Object(map) if map.is_empty() => {
-                    Ok(V2FileContractResolutionWrapper::Expiration)
-                },
+                Value::Object(map) if map.is_empty() => Ok(V2FileContractResolutionWrapper::Expiration),
                 _ => Err(serde::de::Error::custom("expected an empty map for expiration")),
             },
         }?;
@@ -608,9 +604,7 @@ impl V2FileContractResolutionWrapper {
             V2FileContractResolutionWrapper::Finalization(f) => {
                 V2FileContractResolutionWrapper::Finalization(f.with_nil_sigs())
             },
-            V2FileContractResolutionWrapper::Renewal(r) => {
-                V2FileContractResolutionWrapper::Renewal(r.with_nil_sigs())
-            },
+            V2FileContractResolutionWrapper::Renewal(r) => V2FileContractResolutionWrapper::Renewal(r.with_nil_sigs()),
             V2FileContractResolutionWrapper::StorageProof(s) => {
                 V2FileContractResolutionWrapper::StorageProof(s.with_nil_merkle_proof())
             },

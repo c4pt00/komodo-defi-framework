@@ -1,15 +1,15 @@
-use crate::types::Address;
 use crate::http_endpoints::{AddressBalanceRequest, AddressBalanceResponse, ConsensusTipRequest, SiaApiRequest};
+use crate::types::Address;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _; // required for .encode() method
 use core::fmt::Display;
 use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{Client, Error as ReqwestError, Url, Request};
+use reqwest::{Client, Error as ReqwestError, Request, Url};
 // use reqwest::Proxy; TODO remove debugging code
+use derive_more::Display;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use derive_more::Display;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiaHttpConf {

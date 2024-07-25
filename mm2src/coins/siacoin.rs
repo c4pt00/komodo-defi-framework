@@ -26,9 +26,8 @@ use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use sia::types::v1_standard_address_from_pubkey;
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-
+use sia::types::v1_standard_address_from_pubkey;
 
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);

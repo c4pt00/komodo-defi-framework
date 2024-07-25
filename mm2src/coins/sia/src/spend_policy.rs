@@ -1,8 +1,7 @@
-use crate::types::Address;
-use crate::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf,
-                                   Accumulator};
+use crate::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf, Accumulator};
 use crate::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey};
 use crate::specifier::Specifier;
+use crate::types::Address;
 use ed25519_dalek::PublicKey;
 use nom::bytes::complete::{take_until, take_while, take_while_m_n};
 use nom::character::complete::char;
