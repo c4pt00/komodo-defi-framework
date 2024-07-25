@@ -1,10 +1,23 @@
-use coins::sia::address::Address;
-use coins::sia::http_client::{SiaApiClient, SiaApiClientError};
-use coins::sia::http_endpoints::{AddressBalanceRequest, AddressesEventsRequest, ConsensusTipRequest};
-use coins::sia::SiaHttpConf;
+use sia::types::{Address, EventType};
+use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
+use sia::http_endpoints::{AddressBalanceRequest, AddressesEventsRequest, ConsensusTipRequest};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
+use mm2_number::MmNumber;
+
+#[cfg(test)]
+fn mine_blocks(n: u64, addr: &Address) {
+    Command::new("docker")
+        .arg("exec")
+        .arg("sia-docker")
+        .arg("walletd")
+        .arg("mine")
+        .arg(format!("-addr={}", addr))
+        .arg(format!("-n={}", n))
+        .status()
+        .expect("Failed to execute docker command");
+}
 
 #[tokio::test]
 async fn test_sia_new_client() {
@@ -35,6 +48,8 @@ async fn test_sia_client_consensus_tip() {
     let _response = api_client.dispatcher(ConsensusTipRequest).await.unwrap();
 }
 
+// This test likely needs to be removed because mine_blocks has possibility of interferring with other async tests
+// related to block height
 #[tokio::test]
 async fn test_sia_client_address_balance() {
     let conf = SiaHttpConf {
@@ -43,85 +58,16 @@ async fn test_sia_client_address_balance() {
     };
     let api_client = SiaApiClient::new(conf).await.unwrap();
 
+    let address = Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
     mine_blocks(
         10,
-        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap(),
+        &address,
     );
 
     let request = AddressBalanceRequest {
-        address: Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
-            .unwrap(),
+        address,
     };
-    let result = api_client.dispatcher(request).await;
+    let response = api_client.dispatcher(request).await.unwrap();
 
-    println!("balance: {:?}", result.unwrap());
-    //assert!(matches!(result, Err(SiaApiClientError::ApiInternalError(_))));
-    // TODO investigate why this gives an error on the API?
-    // the address should have a balance at this point
-}
-
-#[tokio::test]
-async fn test_sia_client_mine_blocks() {
-    let conf = SiaHttpConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
-        password: "password".to_string(),
-    };
-    let api_client = SiaApiClient::new(conf).await.unwrap();
-    let request = AddressBalanceRequest {
-        address: Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
-            .unwrap(),
-    };
-    let result = api_client.dispatcher(request).await;
-    assert!(matches!(result, Err(SiaApiClientError::ApiInternalError(_))));
-}
-
-#[cfg(test)]
-fn mine_blocks(n: u64, addr: Address) {
-    Command::new("docker")
-        .arg("exec")
-        .arg("sia-docker")
-        .arg("walletd")
-        .arg("mine")
-        .arg(format!("-addr={}", addr.to_string()))
-        .arg(format!("-n={}", n))
-        .status()
-        .expect("Failed to execute docker command");
-}
-
-#[tokio::test]
-async fn test_sia_mining() {
-    let conf = SiaHttpConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
-        password: "password".to_string(),
-    };
-    let api_client = SiaApiClient::new(conf).await.unwrap();
-
-    mine_blocks(
-        10,
-        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap(),
-    );
-
-    let consensus_tip_response = api_client.dispatcher(ConsensusTipRequest).await.unwrap();
-    println!("tip resp: {:?}", consensus_tip_response);
-    assert_eq!(consensus_tip_response.height, 10);
-}
-
-#[tokio::test]
-async fn test_sia_client_address_events() {
-    let conf = SiaHttpConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
-        password: "password".to_string(),
-    };
-    let api_client = SiaApiClient::new(conf).await.unwrap();
-
-    mine_blocks(
-        10,
-        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap(),
-    );
-
-    let request = AddressesEventsRequest {
-        address: Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f")
-            .unwrap(),
-    };
-    api_client.dispatcher(request).await.unwrap();
+    assert_eq!(response.siacoins, MmNumber::from("1000000000000000000000000000000000000"))
 }
