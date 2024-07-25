@@ -174,6 +174,7 @@ fn fill_erc20(to_addr: Address, amount: U256) {
     wait_for_confirmation(tx_hash);
 }
 
+#[allow(dead_code)]
 fn check_eth_balance(address: Address) -> U256 {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
     block_on(GETH_WEB3.eth().balance(address, None)).unwrap()
