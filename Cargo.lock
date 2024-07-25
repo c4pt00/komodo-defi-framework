@@ -1108,6 +1108,7 @@ dependencies = [
  "serialization_derive",
  "sha2 0.10.7",
  "sha3 0.9.1",
+ "sia",
  "solana-client",
  "solana-sdk",
  "solana-transaction-status",
@@ -7001,6 +7002,26 @@ name = "shared_ref_counter"
 version = "0.1.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "sia"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.7",
+ "blake2b_simd",
+ "chrono",
+ "derive_more",
+ "ed25519-dalek",
+ "hex",
+ "mm2_number",
+ "nom",
+ "reqwest",
+ "rpc",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "url",
 ]
 
 [[package]]
