@@ -12,13 +12,13 @@ use coins::eth::v2_activation::{eth_coin_from_conf_and_request_v2, EthActivation
 use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, EthCoin, EthCoinType,
                  EthPrivKeyBuildPolicy, SignedEthTx, SwapV2Contracts, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
-use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, ConfirmPaymentInput, DerivationMethod,
-            DexFee, Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct,
-            NftSwapInfo, ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundFundingSecretArgs,
-            RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs, SearchForSwapTxSpendInput,MmCoinStruct,
-            SendNftMakerPaymentArgs, SendPaymentArgs, SendTakerFundingArgs, SpendNftMakerPaymentArgs,
-            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,CommonSwapOpsV2,
-            Transaction, ValidateNftMakerPaymentArgs};
+use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, CommonSwapOpsV2, ConfirmPaymentInput,
+            DerivationMethod, DexFee, Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum,
+            MmCoinStruct, NftSwapInfo, ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy,
+            RefundFundingSecretArgs, RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs,
+            SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SendTakerFundingArgs,
+            SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash,
+            TakerCoinSwapOpsV2, ToBytes, Transaction, ValidateNftMakerPaymentArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
