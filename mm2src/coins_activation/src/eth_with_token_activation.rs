@@ -117,7 +117,6 @@ impl From<EthTokenActivationError> for InitTokensAsMmCoinsError {
             EthTokenActivationError::UnexpectedDerivationMethod(e) => {
                 InitTokensAsMmCoinsError::UnexpectedDerivationMethod(e)
             },
-            EthTokenActivationError::PrivKeyPolicyNotAllowed(e) => InitTokensAsMmCoinsError::Internal(e.to_string()),
         }
     }
 }
@@ -289,13 +288,13 @@ impl PlatformCoinWithTokensActivationOps for EthCoin {
         &self,
         activation_request: &Self::ActivationRequest,
     ) -> Result<Option<MmCoinEnum>, MmError<Self::ActivationError>> {
-        let (url, proxy_auth) = match &activation_request.nft_req {
+        let url = match &activation_request.nft_req {
             Some(nft_req) => match &nft_req.provider {
-                NftProviderEnum::Moralis { url, proxy_auth } => (url, proxy_auth),
+                NftProviderEnum::Moralis { url } => url,
             },
             None => return Ok(None),
         };
-        let nft_global = self.global_nft_from_platform_coin(url, proxy_auth).await?;
+        let nft_global = self.global_nft_from_platform_coin(url).await?;
         Ok(Some(MmCoinEnum::EthCoin(nft_global)))
     }
 
