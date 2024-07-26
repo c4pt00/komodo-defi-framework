@@ -178,10 +178,12 @@ impl EthCoin {
         };
 
         let (token_address, gas_limit) = match &self.coin_type {
+            // TODO need new consts and params for v2 calls. now it uses v1
             EthCoinType::Eth => (Address::default(), self.gas_limit.eth_sender_refund),
             EthCoinType::Erc20 {
                 platform: _,
                 token_addr,
+                // TODO need new consts and params for v2 calls. now it uses v1
             } => (*token_addr, self.gas_limit.erc20_sender_refund),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(
@@ -232,10 +234,12 @@ impl EthCoin {
         let maker_address = public_to_address(args.maker_pubkey);
         let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
         let (token_address, gas_limit) = match &self.coin_type {
+            // TODO need new consts and params for v2 calls. now it uses v1
             EthCoinType::Eth => (Address::default(), self.gas_limit.eth_sender_refund),
             EthCoinType::Erc20 {
                 platform: _,
                 token_addr,
+                // TODO need new consts and params for v2 calls. now it uses v1
             } => (*token_addr, self.gas_limit.erc20_sender_refund),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(
