@@ -77,20 +77,16 @@ impl EthCoin {
                 let data = try_tx_s!(self.prepare_taker_erc20_funding_data(&funding_args, *token_addr).await);
                 if allowed < payment_amount {
                     let approved_tx = self.approve(taker_swap_v2_contract, U256::max_value()).compat().await?;
-                    self.wait_for_required_allowance(
-                        taker_swap_v2_contract,
-                        payment_amount,
-                        args.wait_for_confirmation_until,
-                    )
-                    .compat()
-                    .await
-                    .map_err(|e| {
-                        TransactionErr::Plain(ERRL!(
-                            "Allowed value was not updated in time after sending approve transaction {:02x}: {}",
-                            approved_tx.tx_hash_as_bytes(),
-                            e
-                        ))
-                    })?;
+                    self.wait_for_required_allowance(taker_swap_v2_contract, payment_amount, args.funding_time_lock)
+                        .compat()
+                        .await
+                        .map_err(|e| {
+                            TransactionErr::Plain(ERRL!(
+                                "Allowed value was not updated in time after sending approve transaction {:02x}: {}",
+                                approved_tx.tx_hash_as_bytes(),
+                                e
+                            ))
+                        })?;
                     self.sign_and_send_transaction(
                         U256::from(0),
                         Action::Call(taker_swap_v2_contract),

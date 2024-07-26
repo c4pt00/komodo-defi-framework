@@ -1281,6 +1281,7 @@ pub trait WatcherOps {
 pub struct SendTakerFundingArgs<'a> {
     /// For UTXO-based coins, the taker can refund the funding after this timestamp if the maker hasn't claimed it.
     /// For smart contracts, the taker can refund the payment after this timestamp if the maker hasn't pre-approved the transaction.
+    /// This field is additionally used to wait for confirmations of ERC20 approval transaction.
     pub funding_time_lock: u64,
     /// For smart contracts, the taker can refund the payment after this timestamp if the maker hasn't claimed it by revealing their secret.
     pub payment_time_lock: u64,
@@ -1298,8 +1299,6 @@ pub struct SendTakerFundingArgs<'a> {
     pub trading_amount: BigDecimal,
     /// Unique data of specific swap
     pub swap_unique_data: &'a [u8],
-    /// As of now, this field is specifically used to wait for confirmations of ERC20 approval transaction.
-    pub wait_for_confirmation_until: u64,
 }
 
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::refund_taker_funding_secret]
