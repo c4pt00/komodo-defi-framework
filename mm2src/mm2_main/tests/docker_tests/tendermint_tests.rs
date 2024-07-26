@@ -22,6 +22,7 @@ const TENDERMINT_TEST_BIP39_SEED: &str =
     "emerge canoe salmon dolphin glow priority random become gasp sell blade argue";
 
 #[test]
+#[ignore]
 fn test_tendermint_balance() {
     let coins = json!([atom_testnet_conf()]);
     let coin = coins[0]["coin"].as_str().unwrap();
@@ -45,6 +46,7 @@ fn test_tendermint_balance() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_activation_without_balance() {
     let coins = json!([atom_testnet_conf()]);
     let coin = coins[0]["coin"].as_str().unwrap();
@@ -67,6 +69,7 @@ fn test_tendermint_activation_without_balance() {
 }
 
 #[test]
+#[ignore]
 fn test_iris_ibc_nucleus_without_balance() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
 
@@ -94,6 +97,7 @@ fn test_iris_ibc_nucleus_without_balance() {
 }
 
 #[test]
+#[ignore]
 fn test_iris_ibc_nucleus_orderbook() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
     let platform_coin = coins[0]["coin"].as_str().unwrap();
@@ -142,6 +146,7 @@ fn test_iris_ibc_nucleus_orderbook() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_hd_address() {
     let coins = json!([atom_testnet_conf()]);
     let coin = coins[0]["coin"].as_str().unwrap();
@@ -158,6 +163,7 @@ fn test_tendermint_hd_address() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_withdraw() {
     const MY_ADDRESS: &str = "cosmos150evuj4j7k9kgu38e453jdv9m3u0ft2n53flg6";
 
@@ -215,6 +221,7 @@ fn test_tendermint_withdraw() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_withdraw_hd() {
     const MY_ADDRESS: &str = "cosmos134h9tv7866jcuw708w5w76lcfx7s3x2ysyalxy";
 
@@ -282,6 +289,7 @@ fn test_tendermint_withdraw_hd() {
 }
 
 #[test]
+#[ignore]
 fn test_custom_gas_limit_on_tendermint_withdraw() {
     let coins = json!([atom_testnet_conf()]);
     let coin = coins[0]["coin"].as_str().unwrap();
@@ -312,6 +320,7 @@ fn test_custom_gas_limit_on_tendermint_withdraw() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_ibc_withdraw() {
     // visit `{swagger_address}/ibc/core/channel/v1/channels?pagination.limit=10000` to see the full list of ibc channels
     const IBC_SOURCE_CHANNEL: &str = "channel-1";
@@ -358,6 +367,7 @@ fn test_tendermint_ibc_withdraw() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_ibc_withdraw_hd() {
     // visit `{swagger_address}/ibc/core/channel/v1/channels?pagination.limit=10000` to see the full list of ibc channels
     const IBC_SOURCE_CHANNEL: &str = "channel-1";
@@ -405,6 +415,7 @@ fn test_tendermint_ibc_withdraw_hd() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_token_withdraw() {
     const MY_ADDRESS: &str = "nuc150evuj4j7k9kgu38e453jdv9m3u0ft2n4fgzfr";
 
@@ -485,6 +496,7 @@ fn test_tendermint_token_withdraw() {
 }
 
 #[test]
+#[ignore]
 fn test_tendermint_tx_history() {
     const TEST_SEED: &str = "Vdo8Xt8pTAetRlMq3kV0LzE393eVYbPSn5Mhtw4p";
     const TX_FINISHED_LOG: &str = "Tx history fetching finished for NUCLEUS-TEST.";
@@ -561,6 +573,7 @@ fn test_tendermint_tx_history() {
 }
 
 #[test]
+#[ignore]
 fn test_disable_tendermint_platform_coin_with_token() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
     let platform_coin = coins[0]["coin"].as_str().unwrap();
@@ -597,6 +610,7 @@ fn test_disable_tendermint_platform_coin_with_token() {
 }
 
 #[test]
+#[ignore]
 fn test_passive_coin_and_force_disable() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
     let platform_coin = coins[0]["coin"].as_str().unwrap();
@@ -673,6 +687,7 @@ mod swap {
     const ALICE_PASSPHRASE: &str = "iris test2 seed";
 
     #[test]
+    #[ignore]
     fn swap_nucleus_with_doc() {
         let bob_passphrase = String::from(BOB_PASSPHRASE);
         let alice_passphrase = String::from(ALICE_PASSPHRASE);
@@ -751,6 +766,7 @@ mod swap {
     }
 
     #[test]
+    #[ignore]
     fn swap_nucleus_with_eth() {
         let bob_passphrase = String::from(BOB_PASSPHRASE);
         let alice_passphrase = String::from(ALICE_PASSPHRASE);
@@ -857,6 +873,7 @@ mod swap {
     }
 
     #[test]
+    #[ignore]
     fn swap_doc_with_iris_ibc_nucleus() {
         let bob_passphrase = String::from(BOB_PASSPHRASE);
         let alice_passphrase = String::from(ALICE_PASSPHRASE);

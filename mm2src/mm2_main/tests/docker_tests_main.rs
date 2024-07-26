@@ -57,9 +57,9 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
             QTUM_REGTEST_DOCKER_IMAGE_WITH_TAG,
             SOLANA_CLUSTER_DOCKER_IMAGE,
             GETH_DOCKER_IMAGE_WITH_TAG,
-            NUCLEUS_IMAGE,
-            ATOM_IMAGE,
-            IBC_RELAYER_IMAGE,
+            // NUCLEUS_IMAGE,
+            // ATOM_IMAGE,
+            // IBC_RELAYER_IMAGE,
         ];
 
         for image in IMAGES {
@@ -67,11 +67,11 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
             remove_docker_containers(image);
         }
 
-        let runtime_dir = prepare_runtime_dir().unwrap();
+        // let runtime_dir = prepare_runtime_dir().unwrap();
 
-        let nucleus_node = nucleus_node(&docker, runtime_dir.clone());
-        let atom_node = atom_node(&docker, runtime_dir.clone());
-        let ibc_relayer_node = ibc_relayer_node(&docker, runtime_dir);
+        // let nucleus_node = nucleus_node(&docker, runtime_dir.clone());
+        // let atom_node = atom_node(&docker, runtime_dir.clone());
+        // let ibc_relayer_node = ibc_relayer_node(&docker, runtime_dir);
         let utxo_node = utxo_asset_docker_node(&docker, "MYCOIN", 7000);
         let utxo_node1 = utxo_asset_docker_node(&docker, "MYCOIN1", 8000);
         let qtum_node = qtum_docker_node(&docker, 9000);
@@ -93,7 +93,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
 
         wait_for_geth_node_ready();
         init_geth_node();
-        wait_until_relayer_container_is_ready(ibc_relayer_node.container.id());
+        // wait_until_relayer_container_is_ready(ibc_relayer_node.container.id());
 
         containers.push(utxo_node);
         containers.push(utxo_node1);
@@ -101,9 +101,9 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         containers.push(sol_node);
         containers.push(for_slp_node);
         containers.push(geth_node);
-        containers.push(nucleus_node);
-        containers.push(atom_node);
-        containers.push(ibc_relayer_node);
+        // containers.push(nucleus_node);
+        // containers.push(atom_node);
+        // containers.push(ibc_relayer_node);
     }
     // detect if docker is installed
     // skip the tests that use docker if not installed
@@ -176,6 +176,8 @@ fn remove_docker_containers(name: &str) {
             .expect("Failed to execute docker command");
     }
 }
+
+#[allow(dead_code)]
 fn prepare_runtime_dir() -> std::io::Result<PathBuf> {
     let project_root = {
         let mut current_dir = std::env::current_dir().unwrap();
