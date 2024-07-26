@@ -116,9 +116,6 @@ pub const NUCLEUS_IMAGE: &str = "docker.io/komodoofficial/nucleusd";
 pub const ATOM_IMAGE: &str = "docker.io/komodoofficial/gaiad";
 pub const IBC_RELAYER_IMAGE: &str = "docker.io/komodoofficial/ibc-relayer";
 pub const SOLANA_CLUSTER_DOCKER_IMAGE: &str = "docker.io/0xmmbd/solana-node-test";
-
-pub const QTUM_REGTEST_DOCKER_IMAGE: &str = "docker.io/sergeyboyko/qtumregtest";
-
 pub const QTUM_ADDRESS_LABEL: &str = "MM2_ADDRESS_LABEL";
 
 /// ERC721_TEST_TOKEN has additional mint function

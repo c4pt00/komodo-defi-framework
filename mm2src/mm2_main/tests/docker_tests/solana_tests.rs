@@ -9,7 +9,6 @@ use crate::docker_tests::docker_tests_common::*;
 
 const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
 
-#[ignore]
 #[test]
 fn test_solana_and_spl_balance_enable_spl_v2() {
     let mm = _solana_supplied_node();
