@@ -1669,7 +1669,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         premium_amount: BigDecimal::default(),
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
@@ -1725,7 +1724,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         premium_amount: BigDecimal::default(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: now_sec() + 100,
     };
 
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
@@ -1768,7 +1766,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
     let taker_address = block_on(taker_coin.my_addr());
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
-    // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
+    // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
     let funding_time_lock = now_sec() - 3000;
     // TODO need to impl taker approve to test exceeded payment_time_lock
     let payment_time_lock = now_sec() + 1000;
@@ -1787,7 +1785,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
         premium_amount: BigDecimal::default(),
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
@@ -1823,7 +1820,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
 #[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_erc20() {
-    thread::sleep(Duration::from_secs(2));
     let erc20_conf = &erc20_dev_conf(&erc20_contract_checksum());
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ERC20, erc20_conf, SwapAddresses::init(), true);
@@ -1833,8 +1829,8 @@ fn send_and_refund_taker_funding_timelock_erc20() {
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
 
-    // exceed funding_time_lock, as if TakerPaymentState.PaymentSent then timestamp should exceed payment pre-approve lock time
-    let funding_time_lock = now_sec() - 3000;
+    // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
+    let funding_time_lock = now_sec() + 29;
     // TODO need to impl taker approve to test exceeded payment_time_lock
     let payment_time_lock = now_sec() + 1000;
 
@@ -1850,12 +1846,12 @@ fn send_and_refund_taker_funding_timelock_erc20() {
         premium_amount: BigDecimal::default(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: now_sec() + 60,
     };
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
+    thread::sleep(Duration::from_secs(30));
 
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
