@@ -49,6 +49,7 @@ impl EthCoin {
             .as_ref()
             .map(|contracts| contracts.taker_swap_v2_contract)
             .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
+        // TODO add burnFee support
         let dex_fee = try_tx_s!(wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals));
 
         let payment_amount = try_tx_s!(wei_from_big_decimal(
@@ -82,6 +83,7 @@ impl EthCoin {
                     eth_total_payment,
                     Action::Call(taker_swap_v2_contract),
                     data,
+                    // TODO need new consts and params for v2 calls. now it uses v1
                     U256::from(self.gas_limit.eth_payment),
                 )
                 .compat()
@@ -99,24 +101,21 @@ impl EthCoin {
                 let data = try_tx_s!(self.prepare_taker_erc20_funding_data(&funding_args, *token_addr).await);
                 if allowed < payment_amount {
                     let approved_tx = self.approve(taker_swap_v2_contract, U256::max_value()).compat().await?;
-                    self.wait_for_required_allowance(
-                        taker_swap_v2_contract,
-                        payment_amount,
-                        args.wait_for_confirmation_until,
-                    )
-                    .compat()
-                    .await
-                    .map_err(|e| {
-                        TransactionErr::Plain(ERRL!(
-                            "Allowed value was not updated in time after sending approve transaction {:02x}: {}",
-                            approved_tx.tx_hash_as_bytes(),
-                            e
-                        ))
-                    })?;
+                    self.wait_for_required_allowance(taker_swap_v2_contract, payment_amount, args.funding_time_lock)
+                        .compat()
+                        .await
+                        .map_err(|e| {
+                            TransactionErr::Plain(ERRL!(
+                                "Allowed value was not updated in time after sending approve transaction {:02x}: {}",
+                                approved_tx.tx_hash_as_bytes(),
+                                e
+                            ))
+                        })?;
                     self.sign_and_send_transaction(
                         0.into(),
                         Action::Call(taker_swap_v2_contract),
                         data,
+                        // TODO need new consts and params for v2 calls. now it uses v1
                         U256::from(self.gas_limit.erc20_payment),
                     )
                     .compat()
@@ -126,6 +125,7 @@ impl EthCoin {
                         0.into(),
                         Action::Call(taker_swap_v2_contract),
                         data,
+                        // TODO need new consts and params for v2 calls. now it uses v1
                         U256::from(self.gas_limit.erc20_payment),
                     )
                     .compat()

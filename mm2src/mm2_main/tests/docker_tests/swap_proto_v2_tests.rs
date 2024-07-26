@@ -38,7 +38,6 @@ fn send_and_refund_taker_funding_timelock() {
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let taker_funding_utxo_tx = block_on(coin.send_taker_funding(send_args)).unwrap();
     log!("{:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
@@ -125,7 +124,6 @@ fn send_and_refund_taker_funding_secret() {
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let taker_funding_utxo_tx = block_on(coin.send_taker_funding(send_args)).unwrap();
     log!("{:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
@@ -218,7 +216,6 @@ fn send_and_spend_taker_funding() {
         premium_amount: "0.1".parse().unwrap(),
         trading_amount: 1.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
     log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
@@ -310,7 +307,6 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
         premium_amount: 0.into(),
         trading_amount: 777.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
     log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
@@ -418,7 +414,6 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
         premium_amount: 0.into(),
         trading_amount: 777.into(),
         swap_unique_data: &[],
-        wait_for_confirmation_until: 0,
     };
     let taker_funding_utxo_tx = block_on(taker_coin.send_taker_funding(send_args)).unwrap();
     log!("Funding tx {:02x}", taker_funding_utxo_tx.tx_hash_as_bytes());
