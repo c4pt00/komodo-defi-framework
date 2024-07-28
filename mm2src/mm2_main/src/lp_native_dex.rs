@@ -500,15 +500,6 @@ async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>, shared_db_id: O
 }
 
 pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let dbdir = ctx.dbdir(None);
-        fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
-            path: dbdir.clone(),
-            error: e.to_string(),
-        })?;
-    }
-
     init_ordermatch_context(&ctx)?;
     init_p2p(ctx.clone()).await?;
 
@@ -549,6 +540,14 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
 pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitResult<()> {
     info!("Version: {} DT {}", version, datetime);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let dbdir = ctx.dbdir(None);
+        fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
+            path: dbdir.clone(),
+            error: e.to_string(),
+        })?;
+    }
 
     // This either initializes the cryptographic context or sets up the context for "no login mode".
     initialize_wallet_passphrase(&ctx).await?;
