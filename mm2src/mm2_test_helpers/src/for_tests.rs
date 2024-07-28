@@ -828,6 +828,25 @@ pub fn erc20_dev_conf(contract_address: &str) -> Json {
     })
 }
 
+/// ERC20 token configuration used for dockerized tests on Sepolia
+pub fn seploia_erc20_dev_conf(contract_address: &str) -> Json {
+    json!({
+        "coin": "ERC20DEV",
+        "name": "erc20dev",
+        "chain_id": 11155111,
+        "mm2": 1,
+        "derivation_path": "m/44'/60'",
+        "protocol": {
+            "type": "ERC20",
+            "protocol_data": {
+                "platform": "ETH",
+                "contract_address": contract_address,
+            }
+        },
+        "max_eth_tx_type": 2
+    })
+}
+
 /// global NFT configuration used for dockerized Geth dev node
 pub fn nft_dev_conf() -> Json {
     json!({

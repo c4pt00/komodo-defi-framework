@@ -1671,8 +1671,7 @@ pub fn init_geth_node() {
         SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
         SEPOLIA_ERC721_CONTRACT = EthAddress::from_str("0xbac1c9f2087f39caaa4e93412c6412809186870e").unwrap();
         SEPOLIA_ERC1155_CONTRACT = EthAddress::from_str("0xfb53b8764be6033d89ceacafa36631b09d60a1d2").unwrap();
-        // TODO update this
-        SEPOLIA_ERC20_CONTRACT = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
+        SEPOLIA_ERC20_CONTRACT = EthAddress::from_str("0xF7b5F8E8555EF7A743f24D3E974E23A3C6cB6638").unwrap();
         SEPOLIA_TAKER_SWAP_V2 = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
         // TODO update this
         SEPOLIA_MAKER_SWAP_V2 = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
