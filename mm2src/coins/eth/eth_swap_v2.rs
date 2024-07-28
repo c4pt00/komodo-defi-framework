@@ -474,8 +474,8 @@ fn validate_payment_args<'a>(
     maker_secret_hash: &'a [u8],
     trading_amount: &BigDecimal,
 ) -> Result<(), String> {
-    if !is_positive_integer(trading_amount) {
-        return Err("trading_amount must be a positive integer".to_string());
+    if !is_positive(trading_amount) {
+        return Err("trading_amount must be a positive value".to_string());
     }
     if taker_secret_hash.len() != 32 {
         return Err("taker_secret_hash must be 32 bytes".to_string());
@@ -486,11 +486,9 @@ fn validate_payment_args<'a>(
     Ok(())
 }
 
-/// function to check if BigDecimal is a positive integer
+/// function to check if BigDecimal is a positive value
 #[inline(always)]
-pub(crate) fn is_positive_integer(amount: &BigDecimal) -> bool {
-    amount == &amount.with_scale(0) && amount > &BigDecimal::from(0)
-}
+fn is_positive(amount: &BigDecimal) -> bool { amount > &BigDecimal::from(0) }
 
 #[allow(dead_code)]
 pub(crate) enum EthPaymentType {

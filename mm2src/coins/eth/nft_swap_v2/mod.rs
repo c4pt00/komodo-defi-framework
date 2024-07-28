@@ -15,7 +15,7 @@ mod structs;
 use structs::{ExpectedHtlcParams, ValidationParams};
 
 use super::ContractType;
-use crate::eth::eth_swap_v2::{is_positive_integer, EthPaymentType, PaymentStatusErr};
+use crate::eth::eth_swap_v2::{EthPaymentType, PaymentStatusErr};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
@@ -539,6 +539,10 @@ fn htlc_params() -> &'static [ethabi::ParamType] {
         ethabi::ParamType::Uint(256),
     ]
 }
+
+/// function to check if BigDecimal is a positive integer
+#[inline(always)]
+fn is_positive_integer(amount: &BigDecimal) -> bool { amount == &amount.with_scale(0) && amount > &BigDecimal::from(0) }
 
 fn validate_payment_args<'a>(
     taker_secret_hash: &'a [u8],

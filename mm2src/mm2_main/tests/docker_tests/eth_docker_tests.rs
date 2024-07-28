@@ -1661,7 +1661,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
     let taker_address = block_on(taker_coin.my_addr());
     let maker_address = block_on(maker_coin.my_addr());
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
     let dex_fee = &DexFee::Standard("0.00001".into());
     let trading_amount = BigDecimal::from_str("0.0001").unwrap();
@@ -1678,6 +1677,8 @@ fn send_and_refund_taker_funding_by_secret_eth() {
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
     };
+
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
@@ -1736,7 +1737,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
     let taker_address = block_on(taker_coin.my_addr());
     let maker_address = block_on(maker_coin.my_addr());
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
@@ -1757,6 +1757,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         swap_unique_data: &[],
     };
 
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
 
@@ -1814,7 +1815,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
     let taker_address = block_on(taker_coin.my_addr());
     let maker_address = block_on(maker_coin.my_addr());
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
     // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
     let funding_time_lock = now_sec() - 3000;
@@ -1836,6 +1836,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
     };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
@@ -1896,7 +1897,6 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
 
     let taker_address = block_on(taker_coin.my_addr());
     let maker_address = block_on(maker_coin.my_addr());
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
 
     // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
     let funding_time_lock = now_sec() + 29;
@@ -1918,6 +1918,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
     };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
 
