@@ -145,7 +145,7 @@ pub const ERC1155_TEST_TOKEN_BYTES: &str =
     include_str!("../../../mm2_test_helpers/contract_bytes/erc1155_test_token_bytes");
 pub const NFT_SWAP_CONTRACT_BYTES: &str =
     include_str!("../../../mm2_test_helpers/contract_bytes/nft_swap_contract_bytes");
-/// https://github.com/KomodoPlatform/etomic-swap/blob/006e6fd52334530f23624a2139d0eb5299c4cd10/contracts/EtomicSwapMakerNftV2Test.sol
+/// https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapMakerNftV2.sol
 pub const NFT_MAKER_SWAP_V2_BYTES: &str =
     include_str!("../../../mm2_test_helpers/contract_bytes/nft_maker_swap_v2_bytes");
 /// https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapMakerNftV2.sol

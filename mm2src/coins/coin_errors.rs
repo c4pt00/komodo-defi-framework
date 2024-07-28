@@ -1,4 +1,5 @@
-use crate::eth::nft_swap_v2::errors::{Erc721FunctionError, HtlcParamsError, PaymentStatusErr, PrepareTxDataError};
+use crate::eth::eth_swap_v2::PaymentStatusErr;
+use crate::eth::nft_swap_v2::errors::{Erc721FunctionError, HtlcParamsError, PrepareTxDataError};
 use crate::eth::{EthAssocTypesError, EthNftAssocTypesError, Web3RpcError};
 use crate::{utxo::rpc_clients::UtxoRpcError, NumConversError, UnexpectedDerivationMethod};
 use enum_derives::EnumFromStringify;

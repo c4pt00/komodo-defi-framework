@@ -18,7 +18,7 @@ use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, C
             RefundFundingSecretArgs, RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs,
             SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SendTakerFundingArgs,
             SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash,
-            TakerCoinSwapOpsV2, ToBytes, Transaction, ValidateNftMakerPaymentArgs};
+            TakerCoinSwapOpsV2, ToBytes, Transaction, ValidateNftMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
@@ -1076,7 +1076,6 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
     }
 }
 
-#[ignore]
 #[test]
 fn send_and_spend_erc721_maker_payment() {
     thread::sleep(Duration::from_secs(11));
@@ -1113,7 +1112,6 @@ fn send_and_spend_erc721_maker_payment() {
     assert_eq!(new_owner, taker_address);
 }
 
-#[ignore]
 #[test]
 fn send_and_spend_erc1155_maker_payment() {
     thread::sleep(Duration::from_secs(3));
@@ -1651,7 +1649,6 @@ fn eth_coin_v2_activation_with_random_privkey(
     coin
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     // sepolia test
@@ -1689,6 +1686,21 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
     wait_for_confirmations(&taker_coin, &funding_tx, 100);
 
+    let validate = ValidateTakerFundingArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        taker_pub: &(),
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: trading_amount.clone(),
+        swap_unique_data: &[],
+    };
+
+    block_on(maker_coin.validate_taker_funding(validate)).unwrap();
+
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
         funding_time_lock,
@@ -1715,7 +1727,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
-    // TODO move to sepolia
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
@@ -1775,7 +1786,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_timelock_eth() {
     // sepolia test
@@ -1843,7 +1853,6 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
-    // TODO move to sepolia
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);

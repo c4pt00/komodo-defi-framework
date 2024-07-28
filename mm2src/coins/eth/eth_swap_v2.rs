@@ -1,13 +1,18 @@
 use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
-            Transaction, TransactionErr, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
+            TakerPaymentStateV2, Transaction, TransactionErr, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
+use crate::{ParseCoinAssocTypes, ValidateSwapV2TxError};
 use enum_derives::EnumFromStringify;
-use ethabi::Token;
+use ethabi::{Contract, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, Public, U256};
 use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
+use mm2_err_handle::map_to_mm::MapToMmResult;
+use mm2_err_handle::mm_error::MmError;
+use mm2_number::BigDecimal;
 use std::convert::TryInto;
+use std::num::TryFromIntError;
 
 struct TakerFundingArgs {
     dex_fee: U256,
@@ -140,9 +145,57 @@ impl EthCoin {
 
     pub(crate) async fn validate_taker_funding_impl(
         &self,
-        _args: ValidateTakerFundingArgs<'_, Self>,
+        args: ValidateTakerFundingArgs<'_, Self>,
     ) -> ValidateSwapV2TxResult {
-        todo!()
+        if let EthCoinType::Nft { .. } = self.coin_type {
+            return MmError::err(ValidateSwapV2TxError::Internal(
+                "EthCoinType must be ETH or ERC20".to_string(),
+            ));
+        }
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| {
+                ValidateSwapV2TxError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
+            })?;
+        validate_payment_args(
+            args.taker_secret_hash,
+            args.maker_secret_hash,
+            &args.premium_amount,
+            &args.trading_amount,
+        )
+        .map_err(ValidateSwapV2TxError::Internal)?;
+
+        let _taker_address = public_to_address(args.taker_pub);
+        let _funding_time_lock: u32 = args
+            .funding_time_lock
+            .try_into()
+            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::LocktimeOverflow(e.to_string()))?;
+        let payment_time_lock: u32 = args
+            .payment_time_lock
+            .try_into()
+            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::LocktimeOverflow(e.to_string()))?;
+        let swap_id = self.etomic_swap_id(payment_time_lock, args.maker_secret_hash);
+        let taker_status = self
+            .payment_status_v2(
+                taker_swap_v2_contract,
+                Token::FixedBytes(swap_id.clone()),
+                &TAKER_SWAP_V2,
+                EthPaymentType::TakerPayments,
+                3,
+            )
+            .await?;
+
+        // TODO move it to future validate_from_to_and_status function
+        if taker_status != U256::from(TakerPaymentStateV2::PaymentSent as u8) {
+            return MmError::err(ValidateSwapV2TxError::UnexpectedPaymentState(format!(
+                "Taker Payment state is not PaymentSent, got {}",
+                taker_status
+            )));
+        }
+        // TODO complete validation
+        Ok(())
     }
 
     pub(crate) async fn refund_taker_funding_timelock_impl(
@@ -376,6 +429,38 @@ impl EthCoin {
         ])?;
         Ok(data)
     }
+
+    /// Retrieves the payment status from a given smart contract address based on the swap ID and state type.
+    pub(crate) async fn payment_status_v2(
+        &self,
+        swap_address: Address,
+        swap_id: Token,
+        contract_abi: &Contract,
+        state_type: EthPaymentType,
+        state_index: usize,
+    ) -> Result<U256, PaymentStatusErr> {
+        let function_name = state_type.as_str();
+        let function = contract_abi.function(function_name)?;
+        let data = function.encode_input(&[swap_id])?;
+        let bytes = self
+            .call_request(self.my_addr().await, swap_address, None, Some(data.into()))
+            .await?;
+        let decoded_tokens = function.decode_output(&bytes.0)?;
+
+        let state = decoded_tokens.get(state_index).ok_or_else(|| {
+            PaymentStatusErr::Internal(ERRL!(
+                "Payment status must contain 'state' as the {} token",
+                state_index
+            ))
+        })?;
+        match state {
+            Token::Uint(state) => Ok(*state),
+            _ => Err(PaymentStatusErr::Internal(ERRL!(
+                "Payment status must be Uint, got {:?}",
+                state
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Display, EnumFromStringify)]
@@ -386,4 +471,60 @@ enum PrepareTxDataError {
     #[allow(dead_code)]
     #[display(fmt = "Internal error: {}", _0)]
     Internal(String),
+}
+
+fn validate_payment_args<'a>(
+    taker_secret_hash: &'a [u8],
+    maker_secret_hash: &'a [u8],
+    premium_amount: &BigDecimal,
+    trading_amount: &BigDecimal,
+) -> Result<(), String> {
+    if !is_positive_integer(premium_amount) {
+        return Err("premium_amount must be a positive integer".to_string());
+    }
+    if !is_positive_integer(trading_amount) {
+        return Err("trading_amount must be a positive integer".to_string());
+    }
+    if taker_secret_hash.len() != 32 {
+        return Err("taker_secret_hash must be 32 bytes".to_string());
+    }
+    if maker_secret_hash.len() != 32 {
+        return Err("maker_secret_hash must be 32 bytes".to_string());
+    }
+    Ok(())
+}
+
+/// function to check if BigDecimal is a positive integer
+#[inline(always)]
+pub(crate) fn is_positive_integer(amount: &BigDecimal) -> bool {
+    amount == &amount.with_scale(0) && amount > &BigDecimal::from(0)
+}
+
+#[allow(dead_code)]
+pub(crate) enum EthPaymentType {
+    MakerPayments,
+    TakerPayments,
+}
+
+impl EthPaymentType {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            EthPaymentType::MakerPayments => "makerPayments",
+            EthPaymentType::TakerPayments => "takerPayments",
+        }
+    }
+}
+
+#[derive(Debug, Display, EnumFromStringify)]
+pub(crate) enum PaymentStatusErr {
+    #[from_stringify("ethabi::Error")]
+    #[display(fmt = "Abi error: {}", _0)]
+    AbiError(String),
+    #[from_stringify("web3::Error")]
+    #[display(fmt = "Transport error: {}", _0)]
+    Transport(String),
+    #[display(fmt = "Internal error: {}", _0)]
+    Internal(String),
+    #[display(fmt = "Tx deserialization error: {}", _0)]
+    TxDeserializationError(String),
 }

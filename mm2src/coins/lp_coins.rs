@@ -240,6 +240,7 @@ use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut, Vali
 pub mod coins_tests;
 
 pub mod eth;
+use eth::eth_swap_v2::PaymentStatusErr;
 use eth::GetValidEthWithdrawAddError;
 use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetailsErr, EthTxFeeDetails,
           GetEthAddressError, SignedEthTx};
@@ -1469,6 +1470,8 @@ pub enum ValidateSwapV2TxError {
     LocktimeOverflow(String),
     /// Internal error
     Internal(String),
+    /// Payment transaction is in unexpected state. E.g., `Uninitialized` instead of `PaymentSent` for ETH payment.
+    UnexpectedPaymentState(String),
 }
 
 impl From<NumConversError> for ValidateSwapV2TxError {
@@ -1477,6 +1480,18 @@ impl From<NumConversError> for ValidateSwapV2TxError {
 
 impl From<UtxoRpcError> for ValidateSwapV2TxError {
     fn from(err: UtxoRpcError) -> Self { ValidateSwapV2TxError::Rpc(err.to_string()) }
+}
+
+impl From<PaymentStatusErr> for ValidateSwapV2TxError {
+    fn from(err: PaymentStatusErr) -> Self {
+        match err {
+            PaymentStatusErr::AbiError(e)
+            | PaymentStatusErr::Internal(e)
+            | PaymentStatusErr::TxDeserializationError(e) => ValidateSwapV2TxError::Internal(e),
+
+            PaymentStatusErr::Transport(e) => ValidateSwapV2TxError::Rpc(e),
+        }
+    }
 }
 
 /// Enum covering error cases that can happen during taker funding spend preimage validation.

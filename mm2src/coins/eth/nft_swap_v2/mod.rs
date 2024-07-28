@@ -10,11 +10,12 @@ use std::convert::TryInto;
 use web3::types::{Transaction as Web3Tx, TransactionId};
 
 pub(crate) mod errors;
-use errors::{Erc721FunctionError, HtlcParamsError, PaymentStatusErr, PrepareTxDataError};
+use errors::{Erc721FunctionError, HtlcParamsError, PrepareTxDataError};
 mod structs;
-use structs::{ExpectedHtlcParams, PaymentType, ValidationParams};
+use structs::{ExpectedHtlcParams, ValidationParams};
 
 use super::ContractType;
+use crate::eth::eth_swap_v2::{is_positive_integer, EthPaymentType, PaymentStatusErr};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
@@ -65,6 +66,7 @@ impl EthCoin {
                     contract_type,
                 )
                 .map_err(ValidatePaymentError::InternalError)?;
+                // TODO use swap contract address from self
                 let etomic_swap_contract = args.nft_swap_info.swap_contract_address;
                 let token_address = args.nft_swap_info.token_address;
                 let maker_address = public_to_address(args.maker_pub);
@@ -78,7 +80,8 @@ impl EthCoin {
                         *etomic_swap_contract,
                         Token::FixedBytes(swap_id.clone()),
                         &NFT_MAKER_SWAP_V2,
-                        PaymentType::MakerPayments,
+                        EthPaymentType::MakerPayments,
+                        2,
                     )
                     .await?;
                 let tx_from_rpc = self
@@ -149,7 +152,8 @@ impl EthCoin {
                         &NFT_MAKER_SWAP_V2,
                         &decoded,
                         bytes_index,
-                        PaymentType::MakerPayments,
+                        EthPaymentType::MakerPayments,
+                        2
                     )
                     .await
                 );
@@ -187,7 +191,8 @@ impl EthCoin {
                         &NFT_MAKER_SWAP_V2,
                         &decoded,
                         bytes_index,
-                        PaymentType::MakerPayments,
+                        EthPaymentType::MakerPayments,
+                        2
                     )
                     .await
                 );
@@ -226,7 +231,8 @@ impl EthCoin {
                         &NFT_MAKER_SWAP_V2,
                         &decoded,
                         bytes_index,
-                        PaymentType::MakerPayments,
+                        EthPaymentType::MakerPayments,
+                        2
                     )
                     .await
                 );
@@ -296,34 +302,6 @@ impl EthCoin {
             Token::Uint(U256::from(time_lock_u32)),
         ]);
         Ok(encoded)
-    }
-
-    /// Retrieves the payment status from a given smart contract address based on the swap ID and state type.
-    async fn payment_status_v2(
-        &self,
-        swap_address: Address,
-        swap_id: Token,
-        contract_abi: &Contract,
-        state_type: PaymentType,
-    ) -> Result<U256, PaymentStatusErr> {
-        let function_name = state_type.as_str();
-        let function = contract_abi.function(function_name)?;
-        let data = function.encode_input(&[swap_id])?;
-        let bytes = self
-            .call_request(self.my_addr().await, swap_address, None, Some(data.into()))
-            .await?;
-        let decoded_tokens = function.decode_output(&bytes.0)?;
-
-        let state = decoded_tokens
-            .get(2)
-            .ok_or_else(|| PaymentStatusErr::Internal(ERRL!("Payment status must contain 'state' as the 2nd token")))?;
-        match state {
-            Token::Uint(state) => Ok(*state),
-            _ => Err(PaymentStatusErr::Internal(ERRL!(
-                "Payment status must be Uint, got {:?}",
-                state
-            ))),
-        }
     }
 
     /// Prepares the encoded transaction data for spending a maker's NFT payment on the blockchain.
@@ -428,7 +406,8 @@ impl EthCoin {
         contract_abi: &Contract,
         decoded_data: &[Token],
         index: usize,
-        state_type: PaymentType,
+        state_type: EthPaymentType,
+        state_index: usize,
     ) -> Result<(U256, Vec<Token>), PaymentStatusErr> {
         let data_bytes = match decoded_data.get(index) {
             Some(Token::Bytes(data_bytes)) => data_bytes,
@@ -449,7 +428,13 @@ impl EthCoin {
         };
 
         let state = self
-            .payment_status_v2(swap_address, htlc_params[0].clone(), contract_abi, state_type)
+            .payment_status_v2(
+                swap_address,
+                htlc_params[0].clone(),
+                contract_abi,
+                state_type,
+                state_index,
+            )
             .await?;
 
         Ok((state, htlc_params))
@@ -555,10 +540,6 @@ fn htlc_params() -> &'static [ethabi::ParamType] {
     ]
 }
 
-/// function to check if BigDecimal is a positive integer
-#[inline(always)]
-fn is_positive_integer(amount: &BigDecimal) -> bool { amount == &amount.with_scale(0) && amount > &BigDecimal::from(0) }
-
 fn validate_payment_args<'a>(
     taker_secret_hash: &'a [u8],
     maker_secret_hash: &'a [u8],
@@ -595,7 +576,7 @@ async fn validate_from_to_and_maker_status(
 ) -> ValidatePaymentResult<()> {
     if maker_status != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
         return MmError::err(ValidatePaymentError::UnexpectedPaymentState(format!(
-            "NFT Maker Payment state is not PAYMENT_STATE_SENT, got {}",
+            "NFT Maker Payment state is not PaymentSent, got {}",
             maker_status
         )));
     }
