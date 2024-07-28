@@ -159,13 +159,8 @@ impl EthCoin {
             .ok_or_else(|| {
                 ValidateSwapV2TxError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
             })?;
-        validate_payment_args(
-            args.taker_secret_hash,
-            args.maker_secret_hash,
-            &args.premium_amount,
-            &args.trading_amount,
-        )
-        .map_err(ValidateSwapV2TxError::Internal)?;
+        validate_payment_args(args.taker_secret_hash, args.maker_secret_hash, &args.trading_amount)
+            .map_err(ValidateSwapV2TxError::Internal)?;
 
         let _taker_address = public_to_address(args.taker_pub);
         let _funding_time_lock: u32 = args
@@ -473,15 +468,12 @@ enum PrepareTxDataError {
     Internal(String),
 }
 
+// TODO validate premium when add its support in swap_v2
 fn validate_payment_args<'a>(
     taker_secret_hash: &'a [u8],
     maker_secret_hash: &'a [u8],
-    premium_amount: &BigDecimal,
     trading_amount: &BigDecimal,
 ) -> Result<(), String> {
-    if !is_positive_integer(premium_amount) {
-        return Err("premium_amount must be a positive integer".to_string());
-    }
     if !is_positive_integer(trading_amount) {
         return Err("trading_amount must be a positive integer".to_string());
     }

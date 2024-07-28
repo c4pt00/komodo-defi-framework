@@ -1188,7 +1188,6 @@ fn test_nonce_lock() {
     }
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
     thread::sleep(Duration::from_secs(40));
@@ -1231,7 +1230,6 @@ fn send_and_refund_erc721_maker_payment_timelock() {
     assert_eq!(current_owner, maker_address);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_erc1155_maker_payment_timelock() {
     thread::sleep(Duration::from_secs(29));
@@ -1283,7 +1281,6 @@ fn send_and_refund_erc1155_maker_payment_timelock() {
     assert_eq!(U256::from(amount), balance);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_erc721_maker_payment_secret() {
     thread::sleep(Duration::from_secs(5));
@@ -1326,7 +1323,6 @@ fn send_and_refund_erc721_maker_payment_secret() {
     assert_eq!(current_owner, maker_address);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_erc1155_maker_payment_secret() {
     thread::sleep(Duration::from_secs(4));
