@@ -1052,7 +1052,10 @@ fn wait_pending_transactions(wallet_address: Address) {
         let pending_nonce = block_on(web3.eth().transaction_count(wallet_address, Some(BlockNumber::Pending))).unwrap();
 
         if latest_nonce == pending_nonce {
-            log!("All pending transactions have been confirmed.");
+            log!(
+                "All pending transactions have been confirmed. Latest nonce: {}",
+                latest_nonce
+            );
             break;
         } else {
             log!(
@@ -1726,7 +1729,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
-    thread::sleep(Duration::from_secs(20));
+    thread::sleep(Duration::from_secs(30));
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);

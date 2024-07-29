@@ -490,7 +490,6 @@ fn validate_payment_args<'a>(
 #[inline(always)]
 fn is_positive(amount: &BigDecimal) -> bool { amount > &BigDecimal::from(0) }
 
-#[allow(dead_code)]
 pub(crate) enum EthPaymentType {
     MakerPayments,
     TakerPayments,
