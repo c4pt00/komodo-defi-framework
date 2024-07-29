@@ -486,7 +486,7 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>,) -> MmInitResult<()> {
+async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>) -> MmInitResult<()> {
     fix_directories(ctx, db_id, None)?;
     AsyncSqliteConnPool::init(ctx, db_id)
         .await

@@ -40,9 +40,7 @@ impl SqliteConnPool {
     }
 
     /// Initializes a shared database connection.
-    pub fn init_shared(ctx: &MmCtx) -> Result<(), String> {
-        Self::init_impl(ctx, None, DbIdConnKind::Shared)
-    }
+    pub fn init_shared(ctx: &MmCtx) -> Result<(), String> { Self::init_impl(ctx, None, DbIdConnKind::Shared) }
 
     /// Internal implementation to initialize a database connection.
     fn init_impl(ctx: &MmCtx, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
