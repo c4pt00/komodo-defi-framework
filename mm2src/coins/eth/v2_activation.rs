@@ -744,7 +744,7 @@ pub(crate) async fn build_address_and_priv_key_policy(
             {
                 // Skip the first byte of the uncompressed public key before converting to the eth address.
                 let pubkey = Public::from_slice(&activated_key.public().as_bytes()[1..]);
-                let pubkey = public_to_address(&pubkey).to_string();
+                let pubkey = public_to_address(&pubkey);
                 run_db_migration_for_new_pubkey(ctx, display_eth_address(&pubkey))
                     .await
                     .map_to_mm(EthActivationV2Error::InternalError)?;

@@ -40,8 +40,8 @@ impl SqliteConnPool {
     }
 
     /// Initializes a shared database connection.
-    pub fn init_shared(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
-        Self::init_impl(ctx, db_id, DbIdConnKind::Shared)
+    pub fn init_shared(ctx: &MmCtx) -> Result<(), String> {
+        Self::init_impl(ctx, None, DbIdConnKind::Shared)
     }
 
     /// Internal implementation to initialize a database connection.
@@ -54,11 +54,12 @@ impl SqliteConnPool {
 
         // Connection pool is already initialized, insert new connection.
         if let Some(pool) = ctx.sqlite_conn_pool.as_option() {
-            let conns = pool.connections.read().unwrap();
-            if conns.get(&db_id).is_some() {
-                return Ok(());
+            {
+                let conns = pool.connections.read().unwrap();
+                if conns.get(&db_id).is_some() {
+                    return Ok(());
+                }
             }
-            drop(conns);
 
             let conn = Self::open_connection(sqlite_file_path);
             let mut pool = pool.connections.write().unwrap();
@@ -124,11 +125,12 @@ impl SqliteConnPool {
     /// Internal implementation to retrieve or create a connection.
     fn sqlite_conn_impl(&self, db_id: Option<&str>, kind: DbIdConnKind) -> Arc<Mutex<Connection>> {
         let db_id = self.db_id(db_id, &kind);
-        let connections = self.connections.read().unwrap();
-        if let Some(connection) = connections.get(&db_id) {
-            return Arc::clone(connection);
+        {
+            let connections = self.connections.read().unwrap();
+            if let Some(connection) = connections.get(&db_id) {
+                return Arc::clone(connection);
+            }
         }
-        drop(connections);
 
         let mut connections = self.connections.write().unwrap();
         let sqlite_file_path = self.sqlite_file_path(&db_id, &kind);
@@ -201,9 +203,11 @@ impl AsyncSqliteConnPool {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
-            let conns = pool.connections.read().await;
-            if conns.get(&db_id).is_some() {
-                return Ok(());
+            {
+                let conns = pool.connections.read().await;
+                if conns.get(&db_id).is_some() {
+                    return Ok(());
+                }
             }
 
             let conn = Self::open_connection(&pool.sqlite_file_path).await;
@@ -230,11 +234,12 @@ impl AsyncSqliteConnPool {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
-            let conns = pool.connections.read().await;
-            if conns.get(&db_id).is_some() {
-                return Ok(());
+            {
+                let conns = pool.connections.read().await;
+                if conns.get(&db_id).is_some() {
+                    return Ok(());
+                }
             }
-            drop(conns);
 
             let mut pool = pool.connections.write().await;
             let conn = Arc::new(AsyncMutex::new(AsyncConnection::open_in_memory().await.unwrap()));
@@ -260,10 +265,12 @@ impl AsyncSqliteConnPool {
     pub async fn async_sqlite_conn(&self, db_id: Option<&str>) -> Arc<AsyncMutex<AsyncConnection>> {
         let db_id = db_id.unwrap_or(&self.default_db_id);
 
-        let connections = self.connections.read().await;
-        if let Some(connection) = connections.get(db_id) {
-            return Arc::clone(connection);
-        };
+        {
+            let connections = self.connections.read().await;
+            if let Some(connection) = connections.get(db_id) {
+                return Arc::clone(connection);
+            };
+        }
 
         let mut connections = self.connections.write().await;
         let connection = Self::open_connection(&self.sqlite_file_path).await;
