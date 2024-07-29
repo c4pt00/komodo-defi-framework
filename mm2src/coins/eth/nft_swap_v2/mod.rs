@@ -7,7 +7,7 @@ use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use mm2_number::BigDecimal;
 use std::convert::TryInto;
-use web3::types::{Transaction as Web3Tx, TransactionId};
+use web3::types::TransactionId;
 
 pub(crate) mod errors;
 use errors::{Erc721FunctionError, HtlcParamsError, PrepareTxDataError};
@@ -15,7 +15,7 @@ mod structs;
 use structs::{ExpectedHtlcParams, ValidationParams};
 
 use super::ContractType;
-use crate::eth::eth_swap_v2::{EthPaymentType, PaymentStatusErr};
+use crate::eth::eth_swap_v2::{validate_from_to_and_status, EthPaymentType, PaymentStatusErr};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
@@ -93,7 +93,13 @@ impl EthCoin {
                         args.maker_payment_tx.tx_hash()
                     ))
                 })?;
-                validate_from_to_and_maker_status(tx_from_rpc, maker_address, *token_address, maker_status).await?;
+                validate_from_to_and_status(
+                    tx_from_rpc,
+                    maker_address,
+                    *token_address,
+                    maker_status,
+                    MakerPaymentStateV2::PaymentSent as u8,
+                )?;
 
                 let (decoded, bytes_index) = get_decoded_tx_data_and_bytes_index(contract_type, &tx_from_rpc.input.0)?;
 
@@ -569,34 +575,6 @@ fn validate_payment_args<'a>(
         return Err("maker_secret_hash must be 32 bytes".to_string());
     }
 
-    Ok(())
-}
-
-async fn validate_from_to_and_maker_status(
-    tx_from_rpc: &Web3Tx,
-    expected_from: Address,
-    expected_to: Address,
-    maker_status: U256,
-) -> ValidatePaymentResult<()> {
-    if maker_status != U256::from(MakerPaymentStateV2::PaymentSent as u8) {
-        return MmError::err(ValidatePaymentError::UnexpectedPaymentState(format!(
-            "NFT Maker Payment state is not PaymentSent, got {}",
-            maker_status
-        )));
-    }
-    if tx_from_rpc.from != Some(expected_from) {
-        return MmError::err(ValidatePaymentError::WrongPaymentTx(format!(
-            "NFT Maker Payment tx {:?} was sent from wrong address, expected {:?}",
-            tx_from_rpc, expected_from
-        )));
-    }
-    // As NFT owner calls "safeTransferFrom" directly, then in Transaction 'to' field we expect token_address
-    if tx_from_rpc.to != Some(expected_to) {
-        return MmError::err(ValidatePaymentError::WrongPaymentTx(format!(
-            "NFT Maker Payment tx {:?} was sent to wrong address, expected {:?}",
-            tx_from_rpc, expected_to,
-        )));
-    }
     Ok(())
 }
 

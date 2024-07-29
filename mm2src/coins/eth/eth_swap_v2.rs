@@ -1,18 +1,18 @@
 use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
-use super::{RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash,
-            TakerPaymentStateV2, Transaction, TransactionErr, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
-use crate::{ParseCoinAssocTypes, ValidateSwapV2TxError};
+use super::{ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs,
+            SwapTxTypeWithSecretHash, TakerPaymentStateV2, Transaction, TransactionErr, ValidateSwapV2TxError,
+            ValidateSwapV2TxResult, ValidateTakerFundingArgs};
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, Public, U256};
 use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
-use mm2_err_handle::map_to_mm::MapToMmResult;
-use mm2_err_handle::mm_error::MmError;
+use mm2_err_handle::prelude::{MapToMmResult, MmError};
 use mm2_number::BigDecimal;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
+use web3::types::{Transaction as Web3Tx, TransactionId};
 
 struct TakerFundingArgs {
     dex_fee: U256,
@@ -148,8 +148,7 @@ impl EthCoin {
             })?;
         validate_payment_args(args.taker_secret_hash, args.maker_secret_hash, &args.trading_amount)
             .map_err(ValidateSwapV2TxError::Internal)?;
-
-        let _taker_address = public_to_address(args.taker_pub);
+        let taker_address = public_to_address(args.taker_pub);
         let _funding_time_lock: u32 = args
             .funding_time_lock
             .try_into()
@@ -169,13 +168,20 @@ impl EthCoin {
             )
             .await?;
 
-        // TODO move it to future validate_from_to_and_status function
-        if taker_status != U256::from(TakerPaymentStateV2::PaymentSent as u8) {
-            return MmError::err(ValidateSwapV2TxError::UnexpectedPaymentState(format!(
-                "Taker Payment state is not PaymentSent, got {}",
-                taker_status
-            )));
-        }
+        let tx_from_rpc = self.transaction(TransactionId::Hash(args.funding_tx.tx_hash())).await?;
+        let tx_from_rpc = tx_from_rpc.as_ref().ok_or_else(|| {
+            ValidateSwapV2TxError::TxDoesNotExist(format!(
+                "Didn't find provided tx {:?} on ETH node",
+                args.funding_tx.tx_hash()
+            ))
+        })?;
+        validate_from_to_and_status(
+            tx_from_rpc,
+            taker_address,
+            taker_swap_v2_contract,
+            taker_status,
+            TakerPaymentStateV2::PaymentSent as u8,
+        )?;
         // TODO complete validation
         Ok(())
     }
@@ -476,6 +482,41 @@ fn validate_payment_args<'a>(
 /// function to check if BigDecimal is a positive value
 #[inline(always)]
 fn is_positive(amount: &BigDecimal) -> bool { amount > &BigDecimal::from(0) }
+
+pub(crate) fn validate_from_to_and_status(
+    tx_from_rpc: &Web3Tx,
+    expected_from: Address,
+    expected_to: Address,
+    status: U256,
+    expected_status: u8,
+) -> Result<(), MmError<ValidatePaymentV2Err>> {
+    if status != U256::from(expected_status) {
+        return MmError::err(ValidatePaymentV2Err::UnexpectedPaymentState(format!(
+            "Payment state is not PaymentSent, got {}",
+            status
+        )));
+    }
+    if tx_from_rpc.from != Some(expected_from) {
+        return MmError::err(ValidatePaymentV2Err::WrongPaymentTx(format!(
+            "Payment tx {:?} was sent from wrong address, expected {:?}",
+            tx_from_rpc, expected_from
+        )));
+    }
+    // (in NFT case) as NFT owner calls "safeTransferFrom" directly, then in Transaction 'to' field we expect token_address
+    if tx_from_rpc.to != Some(expected_to) {
+        return MmError::err(ValidatePaymentV2Err::WrongPaymentTx(format!(
+            "Payment tx {:?} was sent to wrong address, expected {:?}",
+            tx_from_rpc, expected_to,
+        )));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Display)]
+pub(crate) enum ValidatePaymentV2Err {
+    UnexpectedPaymentState(String),
+    WrongPaymentTx(String),
+}
 
 pub(crate) enum EthPaymentType {
     MakerPayments,

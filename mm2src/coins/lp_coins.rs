@@ -240,7 +240,7 @@ use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut, Vali
 pub mod coins_tests;
 
 pub mod eth;
-use eth::eth_swap_v2::PaymentStatusErr;
+use eth::eth_swap_v2::{PaymentStatusErr, ValidatePaymentV2Err};
 use eth::GetValidEthWithdrawAddError;
 use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetailsErr, EthTxFeeDetails,
           GetEthAddressError, SignedEthTx};
@@ -1453,13 +1453,14 @@ impl From<UtxoSignWithKeyPairError> for TxGenError {
 }
 
 /// Enum covering error cases that can happen during swap v2 transaction validation.
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum ValidateSwapV2TxError {
     /// Payment sent to wrong address or has invalid amount.
     InvalidDestinationOrAmount(String),
     /// Error during conversion of BigDecimal amount to coin's specific monetary units (satoshis, wei, etc.).
     NumConversion(String),
     /// RPC error.
+    #[from_stringify("web3::Error")]
     Rpc(String),
     /// Serialized tx bytes don't match ones received from coin's RPC.
     #[display(fmt = "Tx bytes {:02x} don't match ones received from rpc {:02x}", actual, from_rpc)]
@@ -1472,6 +1473,10 @@ pub enum ValidateSwapV2TxError {
     Internal(String),
     /// Payment transaction is in unexpected state. E.g., `Uninitialized` instead of `PaymentSent` for ETH payment.
     UnexpectedPaymentState(String),
+    /// Payment transaction doesn't exist on-chain.
+    TxDoesNotExist(String),
+    /// Transaction has wrong properties, for example, it has been sent to a wrong address.
+    WrongPaymentTx(String),
 }
 
 impl From<NumConversError> for ValidateSwapV2TxError {
@@ -1490,6 +1495,15 @@ impl From<PaymentStatusErr> for ValidateSwapV2TxError {
             | PaymentStatusErr::TxDeserializationError(e) => ValidateSwapV2TxError::Internal(e),
 
             PaymentStatusErr::Transport(e) => ValidateSwapV2TxError::Rpc(e),
+        }
+    }
+}
+
+impl From<ValidatePaymentV2Err> for ValidateSwapV2TxError {
+    fn from(err: ValidatePaymentV2Err) -> Self {
+        match err {
+            ValidatePaymentV2Err::UnexpectedPaymentState(e) => ValidateSwapV2TxError::UnexpectedPaymentState(e),
+            ValidatePaymentV2Err::WrongPaymentTx(e) => ValidateSwapV2TxError::WrongPaymentTx(e),
         }
     }
 }
