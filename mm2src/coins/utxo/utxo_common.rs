@@ -891,7 +891,7 @@ pub mod tx_sizes {
         // to prevent certain utxos from being spent in other swaps happening in parallel.
         // We just need to make sure that we deliver the correct trading volume and not less.
 
-        // Inspect `get_sender_trade_fee`, but I don't think it nails it correctly.
+        // FIXME: Inspect `get_sender_trade_fee`, but I don't think it nails it correctly.
         todo!()
     }
 
@@ -4030,7 +4030,7 @@ pub fn get_trade_fee<T: UtxoCommonOps>(coin: T) -> Box<dyn Future<Item = TradeFe
     Box::new(fut.boxed().compat())
 }
 
-// DISCUSS: Why do we inforce such a constraint? And it's now always true if we change the utxo picking algo.
+// FIXME: Why do we inforce such a constraint? And it's now always true if we change the utxo picking algo.
 // E.g. an algo that favors getting rid of small utxos (basically, consolidates whenever possible) might pick
 // more inputs for a smaller amount and one large input for a larger amount, thus fee for the larger amount is less.
 /// To ensure the `get_sender_trade_fee(x) <= get_sender_trade_fee(y)` condition is satisfied for any `x < y`,
