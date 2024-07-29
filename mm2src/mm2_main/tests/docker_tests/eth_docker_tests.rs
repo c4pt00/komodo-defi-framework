@@ -1651,7 +1651,7 @@ fn eth_coin_v2_activation_with_random_privkey(
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(20));
+    thread::sleep(Duration::from_secs(25));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
@@ -1682,6 +1682,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     };
 
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    thread::sleep(Duration::from_secs(2));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
 
