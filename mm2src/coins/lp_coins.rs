@@ -1681,10 +1681,10 @@ pub trait MakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     async fn spend_maker_payment_v2(&self, args: SpendMakerPaymentArgs<'_, Self>) -> Result<Self::Tx, TransactionErr>;
 
     /// Get the fee to be paid for the processing of the maker payment transaction.
-    async fn get_maker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+    async fn get_maker_payment_fee(&self, value: TradePreimageValue) -> TradePreimageResult<TradeFee>;
 
     /// Get the fee to be paid for the processing of the maker payment spend transaction aka the claiming transaction.
-    async fn get_maker_payment_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+    async fn get_maker_payment_spend_fee(&self) -> TradePreimageResult<TradeFee>;
 }
 
 #[async_trait]
@@ -1890,13 +1890,13 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + Send + Sync + 'static {
     /// Txs in success case (no refund) go as follows:
     ///    Chain A: funding -> taker payment -> taker payment spend (aka preimage) (to the maker & dex)
     ///    Chain B:            maker payment -> maker payment spend (aka claiming) (to the taker)
-    async fn get_funding_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+    async fn get_funding_fee(&self, value: TradePreimageValue) -> TradePreimageResult<TradeFee>;
 
     /// Get the fee to be paid for the processing of the taker payment transaction.
-    async fn get_taker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+    async fn get_taker_payment_fee(&self) -> TradePreimageResult<TradeFee>;
 
     /// Get the fee to be paid for the processing of the taker payment spend transaction aka the preimage transaction.
-    async fn get_taker_payment_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee>;
+    async fn get_taker_payment_spend_fee(&self) -> TradePreimageResult<TradeFee>;
 }
 
 /// Operations that coins have independently from the MarketMaker.

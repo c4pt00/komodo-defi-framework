@@ -2,10 +2,10 @@ use super::swap_v2_common::*;
 use super::{LockedAmount, LockedAmountInfo, SavedTradeFee, SwapsContext, TakerSwapPreparedParams,
             NEGOTIATE_SEND_INTERVAL, NEGOTIATION_TIMEOUT_SEC};
 use crate::mm2::lp_swap::swap_lock::SwapLock;
+use crate::mm2::lp_swap::swap_v2_pb::*;
 use crate::mm2::lp_swap::{broadcast_swap_v2_msg_every, check_balance_for_taker_swap, recv_swap_v2_msg, swap_v2_topic,
                           SecretHashAlgo, SwapConfirmationsSettings, TransactionIdentifier, MAX_STARTED_AT_DIFF,
                           TAKER_SWAP_V2_TYPE};
-use crate::mm2::lp_swap::{swap_v2_pb::*, NO_REFUND_FEE};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
 use coins::utxo::sat_from_big_decimal;
@@ -940,11 +940,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        let stage = FeeApproxStage::StartSwap;
-
         // The fee for the taker payment, accounted for in the total payment value.
         // This is so the maker doesn't have to pay it from the trading volume.
-        let taker_payment_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await {
+        let taker_payment_fee = match state_machine.taker_coin.get_taker_payment_fee().await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetTakerPaymentSpendFee(e.to_string());
@@ -952,16 +950,12 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        // TODO: Add the price of maker payment fee (in taker coin) + preimage fee to the total payment value.
+        // TODO: Add the price of maker_payment fee (in taker coin) + taker_payment_spend fee to the total payment value.
         let total_payment_value = &(&state_machine.taker_volume + &state_machine.dex_fee.total_spend_amount())
             + &(&state_machine.taker_premium + &taker_payment_fee.amount);
         let preimage_value = TradePreimageValue::Exact(total_payment_value.to_decimal());
 
-        let funding_fee = match state_machine
-            .taker_coin
-            .get_sender_trade_fee(preimage_value, stage, NO_REFUND_FEE)
-            .await
-        {
+        let funding_fee = match state_machine.taker_coin.get_funding_fee(preimage_value).await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetTakerPaymentFee(e.to_string());
@@ -969,7 +963,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        let maker_payment_spend_fee = match state_machine.maker_coin.get_maker_payment_spend_fee(&stage).await {
+        let maker_payment_spend_fee = match state_machine.maker_coin.get_maker_payment_spend_fee().await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetMakerPaymentSpendFee(e.to_string());
@@ -999,7 +993,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             total_payment_value,
             Some(&state_machine.uuid),
             Some(prepared_params),
-            stage,
+            FeeApproxStage::StartSwap, // Not used since prepared params are provided.
         )
         .await
         {

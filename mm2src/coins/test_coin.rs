@@ -558,9 +558,9 @@ impl TakerCoinSwapOpsV2 for TestCoin {
 
     fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
 
-    async fn get_funding_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
+    async fn get_funding_fee(&self, value: TradePreimageValue) -> TradePreimageResult<TradeFee> { todo!() }
 
-    async fn get_taker_payment_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
+    async fn get_taker_payment_fee(&self) -> TradePreimageResult<TradeFee> { todo!() }
 
-    async fn get_taker_payment_spend_fee(&self, stage: &FeeApproxStage) -> TradePreimageResult<TradeFee> { todo!() }
+    async fn get_taker_payment_spend_fee(&self) -> TradePreimageResult<TradeFee> { todo!() }
 }

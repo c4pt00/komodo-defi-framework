@@ -3,9 +3,9 @@ use super::{swap_v2_topic, LockedAmount, LockedAmountInfo, SavedTradeFee, SwapsC
             NEGOTIATION_TIMEOUT_SEC};
 use crate::mm2::lp_swap::maker_swap::MakerSwapPreparedParams;
 use crate::mm2::lp_swap::swap_lock::SwapLock;
+use crate::mm2::lp_swap::swap_v2_pb::*;
 use crate::mm2::lp_swap::{broadcast_swap_v2_msg_every, check_balance_for_maker_swap, recv_swap_v2_msg, SecretHashAlgo,
                           SwapConfirmationsSettings, TransactionIdentifier, MAKER_SWAP_V2_TYPE, MAX_STARTED_AT_DIFF};
-use crate::mm2::lp_swap::{swap_v2_pb::*, NO_REFUND_FEE};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
 use coins::utxo::utxo_common::big_decimal_from_sat_unsigned;
@@ -799,12 +799,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         };
 
         let preimage_value = TradePreimageValue::Exact(state_machine.maker_volume.to_decimal());
-        let stage = FeeApproxStage::StartSwap;
-        let maker_payment_fee = match state_machine
-            .maker_coin
-            .get_sender_trade_fee(preimage_value, stage, NO_REFUND_FEE)
-            .await
-        {
+        let maker_payment_fee = match state_machine.maker_coin.get_maker_payment_fee(preimage_value).await {
             Ok(fee) => fee,
             Err(e) => {
                 let reason = AbortReason::FailedToGetMakerPaymentFee(e.to_string());
@@ -812,10 +807,10 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             },
         };
 
-        let taker_payment_fee = match state_machine.taker_coin.get_taker_payment_fee(&stage).await {
+        let taker_payment_fee = match state_machine.taker_coin.get_taker_payment_fee().await {
             Ok(fee) => fee,
             Err(e) => {
-                let reason = AbortReason::FailedToGetTakerPaymentSpendFee(e.to_string());
+                let reason = AbortReason::FailedToGetTakerPaymentFee(e.to_string());
                 return Self::change_state(Aborted::new(reason), state_machine).await;
             },
         };
@@ -832,7 +827,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             state_machine.maker_volume.clone(),
             Some(&state_machine.uuid),
             Some(prepared_params),
-            FeeApproxStage::StartSwap,
+            FeeApproxStage::StartSwap, // Not used since prepared params are provided.
         )
         .await
         {
@@ -1813,7 +1808,7 @@ pub enum AbortReason {
     TakerPaymentSpentFeeTooLow(BigDecimal),
     MakerPaymentRefundFailed(String),
     FailedToGetMakerPaymentFee(String),
-    FailedToGetTakerPaymentSpendFee(String),
+    FailedToGetTakerPaymentFee(String),
 }
 
 struct Aborted<MakerCoin, TakerCoin> {

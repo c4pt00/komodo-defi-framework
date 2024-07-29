@@ -884,26 +884,8 @@ enum FundingSpendFeeSetting {
 pub mod tx_sizes {
     use super::*;
 
-    /// Returns the taker funding transaction size in vbytes.
-    pub async fn get_funding_tx_size(_coin: &impl UtxoCommonOps) -> usize {
-        // This depends on what coins being spent so might be a bit clumsy.
-        // Since this is the first tx anyway, we won't need a utxo locking mechanism
-        // to prevent certain utxos from being spent in other swaps happening in parallel.
-        // We just need to make sure that we deliver the correct trading volume and not less.
-
-        // FIXME: Inspect `get_sender_trade_fee`, but I don't think it nails it correctly.
-        todo!()
-    }
-
-    /// Returns the maker payment transaction size in vbytes.
-    pub async fn get_maker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
-        // Maker payment is similar to funding tx in that it spends coins directly from the user's
-        // wallet and sends them to P2SH address.
-        get_funding_tx_size(coin).await
-    }
-
     /// Returns the taker payment transaction size in vbytes.
-    pub async fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
+    pub fn get_taker_payment_tx_size(coin: &impl UtxoCommonOps) -> usize {
         let preimage = TransactionInputSigner {
             lock_time: 0,
             version: coin.as_ref().conf.tx_version,
@@ -961,7 +943,7 @@ pub mod tx_sizes {
     }
 
     /// Returns the taker payment spend transaction size in vbytes.
-    pub async fn get_taker_payment_spend_tx_size(coin: &impl UtxoCommonOps) -> usize {
+    pub fn get_taker_payment_spend_tx_size(coin: &impl UtxoCommonOps) -> usize {
         let preimage = TransactionInputSigner {
             lock_time: 0,
             version: coin.as_ref().conf.tx_version,
@@ -1022,7 +1004,7 @@ pub mod tx_sizes {
     }
 
     /// Returns the maker payment spend transaction size in vbytes.
-    pub async fn get_maker_payment_spend_tx_size(coin: &impl UtxoCommonOps) -> usize {
+    pub fn get_maker_payment_spend_tx_size(coin: &impl UtxoCommonOps) -> usize {
         let preimage = TransactionInputSigner {
             lock_time: 0,
             version: coin.as_ref().conf.tx_version,
@@ -1213,12 +1195,7 @@ where
 
     let fee = match fee {
         FundingSpendFeeSetting::GetFromCoin => {
-            let calculated_fee = coin
-                .get_taker_payment_fee(&FeeApproxStage::WithoutApprox)
-                .await
-                .unwrap()
-                .amount
-                .to_decimal();
+            let calculated_fee = coin.get_taker_payment_fee().await.unwrap().amount.to_decimal();
             let calculated_fee = sat_from_big_decimal(&calculated_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
             let taker_instructed_fee =
                 sat_from_big_decimal(&args.taker_payment_fee, coin.as_ref().decimals).mm_err(|e| e.into())?;
