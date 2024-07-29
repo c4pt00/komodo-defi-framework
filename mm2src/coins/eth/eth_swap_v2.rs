@@ -52,10 +52,7 @@ impl EthCoin {
         match &self.coin_type {
             EthCoinType::Eth => {
                 let data = try_tx_s!(self.prepare_taker_eth_funding_data(&funding_args).await);
-                let eth_total_payment = try_tx_s!(wei_from_big_decimal(
-                    &(args.dex_fee.fee_amount().to_decimal() + args.trading_amount + args.premium_amount),
-                    self.decimals
-                ));
+                let eth_total_payment = dex_fee + payment_amount;
                 self.sign_and_send_transaction(
                     eth_total_payment,
                     Action::Call(taker_swap_v2_contract),
