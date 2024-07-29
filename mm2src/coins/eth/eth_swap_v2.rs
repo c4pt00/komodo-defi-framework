@@ -85,26 +85,16 @@ impl EthCoin {
                                 e
                             ))
                         })?;
-                    self.sign_and_send_transaction(
-                        U256::from(0),
-                        Action::Call(taker_swap_v2_contract),
-                        data,
-                        // TODO need new consts and params for v2 calls. now it uses v1
-                        U256::from(self.gas_limit.erc20_payment),
-                    )
-                    .compat()
-                    .await
-                } else {
-                    self.sign_and_send_transaction(
-                        U256::from(0),
-                        Action::Call(taker_swap_v2_contract),
-                        data,
-                        // TODO need new consts and params for v2 calls. now it uses v1
-                        U256::from(self.gas_limit.erc20_payment),
-                    )
-                    .compat()
-                    .await
                 }
+                self.sign_and_send_transaction(
+                    U256::from(0),
+                    Action::Call(taker_swap_v2_contract),
+                    data,
+                    // TODO need new consts and params for v2 calls. now it uses v1
+                    U256::from(self.gas_limit.erc20_payment),
+                )
+                .compat()
+                .await
             },
             EthCoinType::Nft { .. } => Err(TransactionErr::ProtocolNotSupported(
                 "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
