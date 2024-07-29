@@ -1,9 +1,10 @@
-use super::eth::{addr_from_raw_pubkey, wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
+use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
 use super::{SendTakerFundingArgs, Transaction, TransactionErr};
 use enum_derives::EnumFromStringify;
 use ethabi::Token;
 use ethcore_transaction::Action;
-use ethereum_types::{Address, U256};
+use ethereum_types::{Address, Public, U256};
+use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use std::convert::TryInto;
 
@@ -34,7 +35,7 @@ impl EthCoin {
             &(args.trading_amount.clone() + args.premium_amount.clone()),
             self.decimals
         ));
-        let maker_address = try_tx_s!(addr_from_raw_pubkey(args.maker_pub));
+        let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
 
         let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
         let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
