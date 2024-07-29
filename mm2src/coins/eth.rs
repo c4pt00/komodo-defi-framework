@@ -6799,8 +6799,6 @@ pub enum EthAssocTypesError {
     #[from_stringify("DecoderError")]
     TxParseError(String),
     ParseSignatureError(String),
-    #[from_stringify("secp256k1::Error")]
-    ParsePublicKeyError(String),
 }
 
 #[derive(Debug, Display)]
@@ -6843,9 +6841,9 @@ impl ParseCoinAssocTypes for EthCoin {
         Address::from_str(address).map_to_mm(|e| EthAssocTypesError::InvalidHexString(e.to_string()))
     }
 
+    /// As derive_htlc_pubkey_v2 returns coin specific pubkey we can use [Public::from_slice] directly
     fn parse_pubkey(&self, pubkey: &[u8]) -> Result<Self::Pubkey, Self::PubkeyParseError> {
-        let pubkey = PublicKey::from_slice(pubkey)?;
-        Ok(Public::from_slice(&pubkey.serialize_uncompressed()[1..65]))
+        Ok(Public::from_slice(pubkey))
     }
 
     fn parse_tx(&self, tx: &[u8]) -> Result<Self::Tx, Self::TxParseError> {
