@@ -395,10 +395,6 @@ pub struct V2FileContract {
 
 impl V2FileContract {
     pub fn with_nil_sigs(&self) -> V2FileContract {
-        debug_assert!(
-            Signature::from_bytes(&[0u8; 64]).is_ok(),
-            "nil signature is valid and cannot return Err"
-        );
         V2FileContract {
             renter_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
             host_signature: Signature::from_bytes(&[0u8; 64]).expect("Err unreachable"),
