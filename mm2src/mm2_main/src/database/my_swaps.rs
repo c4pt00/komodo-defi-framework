@@ -56,6 +56,11 @@ pub const ADD_OTHER_P2P_PUBKEY_FIELD: &str = "ALTER TABLE my_swaps ADD COLUMN ot
 // Storing rational numbers as text to maintain precision
 pub const ADD_DEX_FEE_BURN_FIELD: &str = "ALTER TABLE my_swaps ADD COLUMN dex_fee_burn TEXT;";
 
+pub const ADD_COIN_DB_ID_FIELD: &[&str] = &[
+    "ALTER TABLE my_swaps ADD COLUMN taker_coin_db_id TEXT;",
+    "ALTER TABLE my_swaps ADD COLUMN maker_coin_db_id TEXT;",
+];
+
 /// The query to insert swap on migration 1, during this migration swap_type column doesn't exist
 /// in my_swaps table yet.
 const INSERT_MY_SWAP_MIGRATION_1: &str =
@@ -96,7 +101,9 @@ const INSERT_MY_SWAP_V2: &str = r#"INSERT INTO my_swaps (
     maker_coin_nota,
     taker_coin_confs,
     taker_coin_nota,
-    other_p2p_pub
+    other_p2p_pub,
+    taker_coin_db_id,
+    maker_coin_db_id
 ) VALUES (
     :my_coin,
     :other_coin,
@@ -117,7 +124,9 @@ const INSERT_MY_SWAP_V2: &str = r#"INSERT INTO my_swaps (
     :maker_coin_nota,
     :taker_coin_confs,
     :taker_coin_nota,
-    :other_p2p_pub
+    :other_p2p_pub,
+    :taker_coin_db_id,
+    :maker_coin_db_id
 );"#;
 
 pub fn insert_new_swap_v2(conn: &Connection, params: &[(&str, &dyn ToSql)]) -> SqlResult<()> {

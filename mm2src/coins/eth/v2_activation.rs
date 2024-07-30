@@ -742,10 +742,19 @@ pub(crate) async fn build_address_and_priv_key_policy(
 
             #[cfg(not(target_arch = "wasm32"))]
             {
-                // Skip the first byte of the uncompressed public key before converting to the eth address.
-                let pubkey = Public::from_slice(&activated_key.public().as_bytes()[1..]);
-                let pubkey = public_to_address(&pubkey);
-                run_db_migration_for_new_pubkey(ctx, display_eth_address(&pubkey))
+                let pubkey = {
+                    let p_bytes = activated_key.public().as_bytes();
+                    if p_bytes.len() == 65 {
+                        // Skip the first byte of the uncompressed public key before converting to the eth address.
+                        let pubkey = Public::from_slice(&p_bytes[1..]);
+                        display_eth_address(&public_to_address(&pubkey))
+                    } else {
+                        let pubkey = Public::from_slice(&p_bytes);
+                        display_eth_address(&public_to_address(&pubkey))
+                    }
+                };
+
+                run_db_migration_for_new_pubkey(ctx, pubkey)
                     .await
                     .map_to_mm(EthActivationV2Error::InternalError)?;
             }
@@ -1016,9 +1025,15 @@ pub(super) async fn eth_shared_db_id(coin: &EthCoin, ctx: &MmArc) -> Option<Stri
 pub(super) async fn eth_account_db_id(coin: &EthCoin) -> Option<String> {
     match coin.derivation_method() {
         DerivationMethod::HDWallet(hd_wallet) => hd_wallet.get_enabled_address().await.map(|addr| {
-            // Skip the first byte of the uncompressed public key before converting to the eth address.
-            let pubkey = Public::from_slice(&addr.pubkey().as_bytes()[1..]);
-            display_eth_address(&public_to_address(&pubkey))
+            let p_key = addr.pubkey();
+            if p_key.as_bytes().len() == 65 {
+                // Skip the first byte of the uncompressed public key before converting to the eth address.
+                let pubkey = Public::from_slice(&p_key.as_bytes()[1..]);
+                display_eth_address(&public_to_address(&pubkey))
+            } else {
+                let pubkey = Public::from_slice(&p_key.as_bytes());
+                display_eth_address(&public_to_address(&pubkey))
+            }
         }),
         _ => None,
     }

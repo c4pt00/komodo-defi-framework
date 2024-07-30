@@ -186,6 +186,8 @@ impl StateMachineStorage for MakerSwapStorage {
                     ":taker_coin_confs": repr.conf_settings.taker_coin_confs,
                     ":taker_coin_nota": repr.conf_settings.taker_coin_nota,
                     ":other_p2p_pub": repr.taker_p2p_pub.to_bytes(),
+                    ":taker_coin_db_id": repr.taker_coin_db_id,
+                    ":maker_coin_db_id": repr.maker_coin_db_id,
                 };
                 insert_new_swap_v2(&conn, sql_params)
             })?;
