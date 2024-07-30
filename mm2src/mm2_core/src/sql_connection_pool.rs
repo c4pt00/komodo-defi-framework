@@ -1,4 +1,5 @@
-use crate::mm_ctx::{log_sqlite_file_open_attempt, path_to_dbdir, MmArc, MmCtx};
+use crate::mm_ctx::MmCtx;
+use crate::mm_ctx::{log_sqlite_file_open_attempt, path_to_dbdir, MmArc};
 use async_std::sync::RwLock as AsyncRwLock;
 use common::log::error;
 use common::log::info;
@@ -35,15 +36,15 @@ pub struct SqliteConnPool {
 
 impl SqliteConnPool {
     /// Initializes a single-user database connection.
-    pub fn init(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
+    pub fn init(ctx: &MmArc, db_id: Option<&str>) -> Result<(), String> {
         Self::init_impl(ctx, db_id, DbIdConnKind::Single)
     }
 
     /// Initializes a shared database connection.
-    pub fn init_shared(ctx: &MmCtx) -> Result<(), String> { Self::init_impl(ctx, None, DbIdConnKind::Shared) }
+    pub fn init_shared(ctx: &MmArc) -> Result<(), String> { Self::init_impl(ctx, None, DbIdConnKind::Shared) }
 
     /// Internal implementation to initialize a database connection.
-    fn init_impl(ctx: &MmCtx, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
+    fn init_impl(ctx: &MmArc, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
         let db_id = Self::db_id_from_ctx(ctx, db_id, &kind);
         let sqlite_file_path = match kind {
             DbIdConnKind::Shared => ctx.shared_dbdir(Some(&db_id)).join(SQLITE_SHARED_DB_ID),
@@ -81,13 +82,13 @@ impl SqliteConnPool {
     }
 
     /// Test method for initializing a single-user database connection in-memory.
-    pub fn init_test(ctx: &MmCtx) -> Result<(), String> { Self::init_impl_test(ctx, None, DbIdConnKind::Single) }
+    pub fn init_test(ctx: &MmArc) -> Result<(), String> { Self::init_impl_test(ctx, None, DbIdConnKind::Single) }
 
     /// Test method for initializing a shared database connection in-memory.
-    pub fn init_shared_test(ctx: &MmCtx) -> Result<(), String> { Self::init_impl_test(ctx, None, DbIdConnKind::Shared) }
+    pub fn init_shared_test(ctx: &MmArc) -> Result<(), String> { Self::init_impl_test(ctx, None, DbIdConnKind::Shared) }
 
     /// Internal test implementation to initialize a database connection in-memory.
-    fn init_impl_test(ctx: &MmCtx, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
+    fn init_impl_test(ctx: &MmArc, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
         let db_id = Self::db_id_from_ctx(ctx, db_id, &kind);
         if let Some(pool) = ctx.sqlite_conn_pool.as_option() {
             let connection = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
@@ -171,7 +172,7 @@ impl SqliteConnPool {
                 .unwrap_or_else(|| self.default_db_id.to_owned()),
         }
     }
-    fn db_id_from_ctx(ctx: &MmCtx, db_id: Option<&str>, kind: &DbIdConnKind) -> String {
+    fn db_id_from_ctx(ctx: &MmArc, db_id: Option<&str>, kind: &DbIdConnKind) -> String {
         match kind {
             DbIdConnKind::Shared => db_id
                 .map(|e| e.to_owned())
@@ -197,7 +198,7 @@ pub struct AsyncSqliteConnPool {
 
 impl AsyncSqliteConnPool {
     /// Initialize a database connection.
-    pub async fn init(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
+    pub async fn init(ctx: &MmArc, db_id: Option<&str>) -> Result<(), String> {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
@@ -228,7 +229,7 @@ impl AsyncSqliteConnPool {
     }
 
     /// Initialize a database connection.
-    pub async fn init_test(ctx: &MmCtx, db_id: Option<&str>) -> Result<(), String> {
+    pub async fn init_test(ctx: &MmArc, db_id: Option<&str>) -> Result<(), String> {
         let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {

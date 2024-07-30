@@ -469,7 +469,7 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
         }
 
         // run db migration for new db_id.
-        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id)).await {
+        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id), false).await {
             error!("{err:?}");
             continue;
         };
@@ -486,12 +486,19 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>) -> MmInitResult<()> {
+async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>, init_shared: bool) -> MmInitResult<()> {
     fix_directories(ctx, db_id, None)?;
+
     AsyncSqliteConnPool::init(ctx, db_id)
         .await
         .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
     SqliteConnPool::init(ctx, db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+
+    // init shared_db once.
+    if init_shared {
+        SqliteConnPool::init_shared(ctx).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+    }
+
     init_and_migrate_sql_db(ctx, db_id).await?;
     migrate_db(ctx, db_id)?;
 
@@ -508,8 +515,7 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        run_db_migration_impl(&ctx, None).await?;
-        SqliteConnPool::init_shared(&ctx).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        run_db_migration_impl(&ctx, None, true).await?;
         ctx.spawner().spawn(init_db_migration_watcher_loop(ctx.clone()));
     }
 
@@ -592,6 +598,7 @@ async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
             .await
             .map_to_mm(MmInitError::OrdersKickStartError)?,
     );
+
     let mut lock = ctx
         .coins_needed_for_kick_start
         .lock()

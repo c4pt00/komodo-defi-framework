@@ -321,6 +321,10 @@ pub struct TakerSwapDbRepr {
     pub events: Vec<TakerSwapEvent>,
     /// Maker's P2P pubkey
     pub maker_p2p_pub: Secp256k1PubkeySerialize,
+    // Taker's coin db_id.
+    pub taker_coin_db_id: Option<String>,
+    // Maker's coin db_id.
+    pub maker_coin_db_id: Option<String>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -375,6 +379,8 @@ impl TakerSwapDbRepr {
                         .map_err(|e| SqlError::FromSqlConversionFailure(19, SqlType::Blob, Box::new(e)))
                 })?
                 .into(),
+            taker_coin_db_id: row.get(20)?,
+            maker_coin_db_id: row.get(21)?,
         })
     }
 }
@@ -389,6 +395,10 @@ impl GetSwapCoins for TakerSwapDbRepr {
     fn maker_coin(&self) -> &str { &self.maker_coin }
 
     fn taker_coin(&self) -> &str { &self.taker_coin }
+
+    fn taker_coin_db_id(&self) -> &Option<String> { &self.taker_coin_db_id }
+
+    fn maker_coin_db_id(&self) -> &Option<String> { &self.maker_coin_db_id }
 }
 
 /// Represents the state machine for taker's side of the Trading Protocol Upgrade swap (v2).
@@ -464,7 +474,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     type RecreateCtx = SwapRecreateCtx<MakerCoin, TakerCoin>;
     type RecreateError = MmError<SwapRecreateError>;
 
-    fn to_db_repr(&self) -> TakerSwapDbRepr {
+    async fn to_db_repr(&self) -> TakerSwapDbRepr {
         TakerSwapDbRepr {
             maker_coin: self.maker_coin.ticker().into(),
             maker_volume: self.maker_volume.clone(),
@@ -483,6 +493,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             events: Vec::new(),
             maker_p2p_pub: self.maker_p2p_pubkey.into(),
             dex_fee_burn: self.dex_fee.burn_amount().unwrap_or_default(),
+            taker_coin_db_id: self.taker_coin.account_db_id().await,
+            maker_coin_db_id: self.maker_coin.account_db_id().await,
         }
     }
 

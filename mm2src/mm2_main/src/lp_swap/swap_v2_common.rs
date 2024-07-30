@@ -336,6 +336,11 @@ pub(super) trait GetSwapCoins {
     fn maker_coin(&self) -> &str;
 
     fn taker_coin(&self) -> &str;
+
+    // Represenets the taker's coin db_id(coin's pubkey) used for this swap
+    fn taker_coin_db_id(&self) -> &Option<String>;
+    // Represenets the maker's coin db_id(coin's pubkey) used for this swap
+    fn maker_coin_db_id(&self) -> &Option<String>;
 }
 
 /// Generic function for upgraded swaps kickstart handling.
@@ -354,10 +359,19 @@ pub(super) async fn swap_kickstart_handler<
     T::RecreateError: std::fmt::Display,
 {
     let taker_coin_ticker = swap_repr.taker_coin();
-
+    let expected_taker_db_id = swap_repr.taker_coin_db_id();
     let taker_coin = loop {
         match lp_coinfind(&ctx, taker_coin_ticker).await {
-            Ok(Some(c)) => break c,
+            Ok(Some(c)) => {
+                if &c.account_db_id().await == expected_taker_db_id {
+                    break c;
+                }
+                info!(
+                    "Can't kickstart taker swap {} until the coin {} is activated with unexpected pubkey:",
+                    uuid, taker_coin_ticker
+                );
+                Timer::sleep(1.).await;
+            },
             Ok(None) => {
                 info!(
                     "Can't kickstart the swap {} until the coin {} is activated",
@@ -373,10 +387,19 @@ pub(super) async fn swap_kickstart_handler<
     };
 
     let maker_coin_ticker = swap_repr.maker_coin();
-
+    let expected_maker_db_id = swap_repr.maker_coin_db_id();
     let maker_coin = loop {
         match lp_coinfind(&ctx, maker_coin_ticker).await {
-            Ok(Some(c)) => break c,
+            Ok(Some(c)) => {
+                if &c.account_db_id().await == expected_maker_db_id {
+                    break c;
+                }
+                info!(
+                    "Can't kickstart maker swap {} until the coin {} is activated with unexpected_pubkey",
+                    uuid, taker_coin_ticker
+                );
+                Timer::sleep(1.).await;
+            },
             Ok(None) => {
                 info!(
                     "Can't kickstart the swap {} until the coin {} is activated",

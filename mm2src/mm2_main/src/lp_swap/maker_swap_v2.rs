@@ -289,6 +289,10 @@ pub struct MakerSwapDbRepr {
     pub events: Vec<MakerSwapEvent>,
     /// Taker's P2P pubkey
     pub taker_p2p_pub: Secp256k1PubkeySerialize,
+    // Taker's coin db_id.
+    pub taker_coin_db_id: Option<String>,
+    // Maker's coin db_id.
+    pub maker_coin_db_id: Option<String>,
 }
 
 impl StateMachineDbRepr for MakerSwapDbRepr {
@@ -301,6 +305,10 @@ impl GetSwapCoins for MakerSwapDbRepr {
     fn maker_coin(&self) -> &str { &self.maker_coin }
 
     fn taker_coin(&self) -> &str { &self.taker_coin }
+
+    fn taker_coin_db_id(&self) -> &Option<String> { &self.taker_coin_db_id }
+
+    fn maker_coin_db_id(&self) -> &Option<String> { &self.maker_coin_db_id }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -355,6 +363,8 @@ impl MakerSwapDbRepr {
                         .map_err(|e| SqlError::FromSqlConversionFailure(19, SqlType::Blob, Box::new(e)))
                 })?
                 .into(),
+            taker_coin_db_id: row.get(20)?,
+            maker_coin_db_id: row.get(21)?,
         })
     }
 }
@@ -434,7 +444,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     type RecreateCtx = SwapRecreateCtx<MakerCoin, TakerCoin>;
     type RecreateError = MmError<SwapRecreateError>;
 
-    fn to_db_repr(&self) -> MakerSwapDbRepr {
+    async fn to_db_repr(&self) -> MakerSwapDbRepr {
         MakerSwapDbRepr {
             maker_coin: self.maker_coin.ticker().into(),
             maker_volume: self.maker_volume.clone(),
@@ -453,6 +463,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             p2p_keypair: self.p2p_keypair.map(Into::into),
             events: Vec::new(),
             taker_p2p_pub: self.taker_p2p_pubkey.into(),
+            maker_coin_db_id: self.maker_coin.account_db_id().await,
+            taker_coin_db_id: self.taker_coin.account_db_id().await,
         }
     }
 

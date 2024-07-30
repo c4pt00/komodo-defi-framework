@@ -343,7 +343,9 @@ pub const SELECT_MY_SWAP_V2_BY_UUID: &str = r#"SELECT
     taker_coin_confs,
     taker_coin_nota,
     p2p_privkey,
-    other_p2p_pub
+    other_p2p_pub,
+    taker_coin_db_id,
+    maker_coin_db_id
 FROM my_swaps
 WHERE uuid = :uuid;
 "#;
