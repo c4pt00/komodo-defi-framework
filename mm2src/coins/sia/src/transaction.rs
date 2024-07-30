@@ -311,12 +311,6 @@ pub enum SiacoinOutputVersion<'a> {
     V2(&'a SiacoinOutput),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct SiacoinOutput {
-    pub value: Currency,
-    pub address: Address,
-}
-
 impl<'a> Encodable for SiacoinOutputVersion<'a> {
     fn encode(&self, encoder: &mut Encoder) {
         match self {
@@ -330,6 +324,12 @@ impl<'a> Encodable for SiacoinOutputVersion<'a> {
             },
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SiacoinOutput {
+    pub value: Currency,
+    pub address: Address,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
