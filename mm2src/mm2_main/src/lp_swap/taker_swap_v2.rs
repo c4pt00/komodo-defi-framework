@@ -389,11 +389,11 @@ pub struct TakerSwapStateMachine<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCo
     pub started_at: u64,
     /// The duration of HTLC timelock in seconds.
     pub lock_duration: u64,
-    /// Maker coin.
+    /// maker's coin type which Taker trades
     pub maker_coin: MakerCoin,
     /// The amount swapped by maker.
     pub maker_volume: MmNumber,
-    /// Taker coin.
+    /// taker's coin type which Taker trades
     pub taker_coin: TakerCoin,
     /// The amount swapped by taker.
     pub taker_volume: MmNumber,

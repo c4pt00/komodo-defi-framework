@@ -1,9 +1,9 @@
 use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_SWAP_V2};
-use super::{ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs,
-            SwapTxTypeWithSecretHash, TakerPaymentStateV2, Transaction, TransactionErr, ValidateSwapV2TxError,
-            ValidateSwapV2TxResult, ValidateTakerFundingArgs};
+use super::{decode_contract_call, get_function_input_data, ParseCoinAssocTypes, RefundFundingSecretArgs,
+            RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash, TakerPaymentStateV2, Transaction,
+            TransactionErr, ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
 use enum_derives::EnumFromStringify;
-use ethabi::{Contract, Token};
+use ethabi::{Contract, Function, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, Public, U256};
 use ethkey::public_to_address;
@@ -13,6 +13,9 @@ use mm2_number::BigDecimal;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
 use web3::types::{Transaction as Web3Tx, TransactionId};
+
+const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
+const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
 
 struct TakerFundingArgs {
     dex_fee: U256,
@@ -149,7 +152,7 @@ impl EthCoin {
         validate_payment_args(args.taker_secret_hash, args.maker_secret_hash, &args.trading_amount)
             .map_err(ValidateSwapV2TxError::Internal)?;
         let taker_address = public_to_address(args.taker_pub);
-        let _funding_time_lock: u32 = args
+        let funding_time_lock: u32 = args
             .funding_time_lock
             .try_into()
             .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::LocktimeOverflow(e.to_string()))?;
@@ -182,7 +185,31 @@ impl EthCoin {
             taker_status,
             TakerPaymentStateV2::PaymentSent as u8,
         )?;
-        // TODO complete validation
+        let dex_fee = wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals)?;
+        let payment_amount = wei_from_big_decimal(&(args.trading_amount + args.premium_amount), self.decimals)?;
+        let validation_args = TakerValidationArgs {
+            swap_id,
+            amount: payment_amount,
+            dex_fee,
+            receiver: self.my_addr().await,
+            taker_secret_hash: args.taker_secret_hash,
+            maker_secret_hash: args.maker_secret_hash,
+            funding_time_lock,
+            payment_time_lock,
+        };
+        match self.coin_type {
+            EthCoinType::Eth => {
+                let function = TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)?;
+                let decoded = decode_contract_call(function, &tx_from_rpc.input.0)?;
+                validate_eth_taker_payment_data(&decoded, &validation_args, function, tx_from_rpc.value)?;
+            },
+            EthCoinType::Erc20 { token_addr, .. } => {
+                let function = TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)?;
+                let decoded = decode_contract_call(function, &tx_from_rpc.input.0)?;
+                validate_erc20_taker_payment_data(&decoded, &validation_args, function, token_addr)?;
+            },
+            EthCoinType::Nft { .. } => unreachable!(),
+        }
         Ok(())
     }
 
@@ -203,7 +230,6 @@ impl EthCoin {
             &(args.trading_amount + args.premium_amount),
             self.decimals
         ));
-        // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
         let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
         let payment_time_lock: u32 = try_tx_s!(args.time_lock.try_into());
         let (maker_secret_hash, taker_secret_hash) = match args.tx_type_with_secret_hash {
@@ -319,7 +345,7 @@ impl EthCoin {
     ///         uint32 preApproveLockTime,
     ///         uint32 paymentLockTime
     async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs) -> Result<Vec<u8>, PrepareTxDataError> {
-        let function = TAKER_SWAP_V2.function("ethTakerPayment")?;
+        let function = TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)?;
         let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
@@ -349,7 +375,7 @@ impl EthCoin {
         args: &TakerFundingArgs,
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        let function = TAKER_SWAP_V2.function("erc20TakerPayment")?;
+        let function = TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)?;
         let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
@@ -452,11 +478,10 @@ impl EthCoin {
 }
 
 #[derive(Debug, Display, EnumFromStringify)]
-enum PrepareTxDataError {
+pub(crate) enum PrepareTxDataError {
     #[from_stringify("ethabi::Error")]
     #[display(fmt = "Abi error: {}", _0)]
     AbiError(String),
-    #[allow(dead_code)]
     #[display(fmt = "Internal error: {}", _0)]
     Internal(String),
 }
@@ -508,6 +533,88 @@ pub(crate) fn validate_from_to_and_status(
             "Payment tx {:?} was sent to wrong address, expected {:?}",
             tx_from_rpc, expected_to,
         )));
+    }
+    Ok(())
+}
+
+struct TakerValidationArgs<'a> {
+    swap_id: Vec<u8>,
+    amount: U256,
+    dex_fee: U256,
+    receiver: Address,
+    taker_secret_hash: &'a [u8],
+    maker_secret_hash: &'a [u8],
+    funding_time_lock: u32,
+    payment_time_lock: u32,
+}
+
+/// Validation function for ETH taker payment data
+fn validate_eth_taker_payment_data(
+    decoded: &[Token],
+    args: &TakerValidationArgs,
+    func: &Function,
+    tx_value: U256,
+) -> Result<(), MmError<ValidateSwapV2TxError>> {
+    let checks = vec![
+        (0, Token::FixedBytes(args.swap_id.clone()), "id"),
+        (1, Token::Uint(args.dex_fee), "dexFee"),
+        (2, Token::Address(args.receiver), "receiver"),
+        (3, Token::FixedBytes(args.taker_secret_hash.to_vec()), "takerSecretHash"),
+        (4, Token::FixedBytes(args.maker_secret_hash.to_vec()), "makerSecretHash"),
+        (5, Token::Uint(U256::from(args.funding_time_lock)), "preApproveLockTime"),
+        (6, Token::Uint(U256::from(args.payment_time_lock)), "paymentLockTime"),
+    ];
+
+    for (index, expected_token, field_name) in checks {
+        let token = get_function_input_data(decoded, func, index).map_to_mm(ValidateSwapV2TxError::Internal)?;
+        if token != expected_token {
+            return MmError::err(ValidateSwapV2TxError::WrongPaymentTx(format!(
+                "ETH Taker Payment `{}` {:?} is invalid, expected {:?}",
+                field_name,
+                decoded.get(index),
+                expected_token
+            )));
+        }
+    }
+    let total = args.dex_fee + args.amount;
+    if total != tx_value {
+        return MmError::err(ValidateSwapV2TxError::WrongPaymentTx(format!(
+            "ETH Taker Payment amount, is invalid, expected {:?}, got {:?}",
+            total, tx_value
+        )));
+    }
+    Ok(())
+}
+
+/// Validation function for ERC20 taker payment data
+fn validate_erc20_taker_payment_data(
+    decoded: &[Token],
+    args: &TakerValidationArgs,
+    func: &Function,
+    token_addr: Address,
+) -> Result<(), MmError<ValidateSwapV2TxError>> {
+    let checks = vec![
+        (0, Token::FixedBytes(args.swap_id.clone()), "id"),
+        (1, Token::Uint(args.amount), "amount"),
+        (2, Token::Uint(args.dex_fee), "dexFee"),
+        (3, Token::Address(token_addr), "tokenAddress"),
+        (4, Token::Address(args.receiver), "receiver"),
+        (5, Token::FixedBytes(args.taker_secret_hash.to_vec()), "takerSecretHash"),
+        (6, Token::FixedBytes(args.maker_secret_hash.to_vec()), "makerSecretHash"),
+        (7, Token::Uint(U256::from(args.funding_time_lock)), "preApproveLockTime"),
+        (8, Token::Uint(U256::from(args.payment_time_lock)), "paymentLockTime"),
+    ];
+
+    for (index, expected_token, field_name) in checks {
+        let token = get_function_input_data(decoded, func, index).map_to_mm(ValidateSwapV2TxError::Internal)?;
+        if token != expected_token {
+            return MmError::err(ValidateSwapV2TxError::WrongPaymentTx(format!(
+                "ERC20 Taker Payment `{}` {:?} is invalid, expected {:?}",
+                field_name,
+                decoded.get(index),
+                expected_token
+            )));
+        }
     }
     Ok(())
 }

@@ -320,6 +320,7 @@ pub mod z_coin;
 use crate::coin_balance::{BalanceObjectOps, HDWalletBalanceObject};
 use z_coin::{ZCoin, ZcoinProtocolInfo};
 #[cfg(feature = "enable-sia")] pub mod sia;
+use crate::eth::eth_swap_v2::PrepareTxDataError;
 #[cfg(feature = "enable-sia")] use sia::SiaCoin;
 
 pub type TransactionFut = Box<dyn Future<Item = TransactionEnum, Error = TransactionErr> + Send>;
@@ -1470,6 +1471,7 @@ pub enum ValidateSwapV2TxError {
     /// Input payment timelock overflows the type used by specific coin.
     LocktimeOverflow(String),
     /// Internal error
+    #[from_stringify("ethabi::Error")]
     Internal(String),
     /// Payment transaction is in unexpected state. E.g., `Uninitialized` instead of `PaymentSent` for ETH payment.
     UnexpectedPaymentState(String),
@@ -1504,6 +1506,14 @@ impl From<ValidatePaymentV2Err> for ValidateSwapV2TxError {
         match err {
             ValidatePaymentV2Err::UnexpectedPaymentState(e) => ValidateSwapV2TxError::UnexpectedPaymentState(e),
             ValidatePaymentV2Err::WrongPaymentTx(e) => ValidateSwapV2TxError::WrongPaymentTx(e),
+        }
+    }
+}
+
+impl From<PrepareTxDataError> for ValidateSwapV2TxError {
+    fn from(err: PrepareTxDataError) -> Self {
+        match err {
+            PrepareTxDataError::AbiError(e) | PrepareTxDataError::Internal(e) => ValidateSwapV2TxError::Internal(e),
         }
     }
 }
