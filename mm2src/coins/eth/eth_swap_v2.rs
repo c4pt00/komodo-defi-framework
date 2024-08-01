@@ -238,9 +238,19 @@ impl EthCoin {
                 )))
             },
         };
-        let decoded = try_tx_s!(decode_contract_call(send_function, args.funding_tx.unsigned().data()));
+        let (state, decoded) = try_tx_s!(
+            self.status_and_decoded_from_tx_data(
+                taker_swap_v2_contract,
+                &TAKER_SWAP_V2,
+                send_function,
+                args.funding_tx.unsigned().data(),
+                EthPaymentType::TakerPayments,
+                3
+            )
+            .await
+        );
         let data = try_tx_s!(
-            self.prepare_taker_payment_approve_data(args, decoded, token_address)
+            self.prepare_taker_payment_approve_data(args, decoded, token_address, state)
                 .await
         );
         let approve_tx = self
@@ -249,12 +259,10 @@ impl EthCoin {
                 Action::Call(taker_swap_v2_contract),
                 data,
                 // TODO need new consts and params for v2 calls
-                U256::from(self.gas_limit.eth_max_trade_gas),
+                U256::from(self.gas_limit.eth_payment),
             )
             .compat()
             .await?;
-        log!("approve tx: {:?}", approve_tx);
-        log!("approve tx hash: {:02x}", approve_tx.tx_hash());
         Ok(approve_tx)
     }
 
@@ -558,7 +566,9 @@ impl EthCoin {
         args: &GenTakerFundingSpendArgs<'_, Self>,
         decoded: Vec<Token>,
         token_address: Address,
+        state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
+        validate_payment_state(args.funding_tx, state, TakerPaymentStateV2::PaymentSent as u8)?;
         let encoded = match self.coin_type {
             EthCoinType::Eth => {
                 let dex_fee = match &decoded[1] {
