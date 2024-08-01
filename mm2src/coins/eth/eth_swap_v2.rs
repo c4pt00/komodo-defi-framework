@@ -2,6 +2,7 @@ use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_
 use super::{decode_contract_call, get_function_input_data, ParseCoinAssocTypes, RefundFundingSecretArgs,
             RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash, TakerPaymentStateV2, Transaction,
             TransactionErr, ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
+use crate::{GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs};
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Function, Token};
 use ethcore_transaction::Action;
@@ -64,8 +65,6 @@ impl EthCoin {
             &(args.trading_amount.clone() + args.premium_amount.clone()),
             self.decimals
         ));
-        // TODO add maker_pub created by legacy derive_htlc_pubkey support additionally?
-        // as derive_htlc_pubkey_v2 function is used for swap_v2, we can call public_to_address
         let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
 
         let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
@@ -127,9 +126,9 @@ impl EthCoin {
                 .compat()
                 .await
             },
-            EthCoinType::Nft { .. } => Err(TransactionErr::ProtocolNotSupported(
-                "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
-            )),
+            EthCoinType::Nft { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                "NFT protocol is not supported for ETH and ERC20 Swaps"
+            ))),
         }
     }
 
@@ -213,6 +212,59 @@ impl EthCoin {
         Ok(())
     }
 
+    pub(crate) async fn taker_payment_approve(
+        &self,
+        args: &GenTakerFundingSpendArgs<'_, Self>,
+    ) -> Result<SignedEthTx, TransactionErr> {
+        if let EthCoinType::Nft { .. } = self.coin_type {
+            return Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                "NFT protocol is not supported for ETH and ERC20 Swaps"
+            )));
+        }
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
+
+        let (send_function, token_address) = match self.coin_type {
+            EthCoinType::Eth => (try_tx_s!(TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)), Address::default()),
+            EthCoinType::Erc20 { token_addr, .. } => {
+                (try_tx_s!(TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)), token_addr)
+            },
+            EthCoinType::Nft { .. } => {
+                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps"
+                )))
+            },
+        };
+        let (state, decoded) = try_tx_s!(
+            self.status_and_decoded_from_tx_data(
+                taker_swap_v2_contract,
+                &TAKER_SWAP_V2,
+                send_function,
+                args.funding_tx.unsigned().data(),
+                EthPaymentType::TakerPayments,
+                3
+            )
+            .await
+        );
+        let data = try_tx_s!(
+            self.prepare_taker_payment_approve_data(args, decoded, state, token_address)
+                .await
+        );
+        self.sign_and_send_transaction(
+            0.into(),
+            Action::Call(taker_swap_v2_contract),
+            data,
+            // TODO need new consts and params for v2 calls
+            U256::from(self.gas_limit.eth_max_trade_gas),
+        )
+        .compat()
+        .await?;
+        Ok(args.funding_tx.clone())
+    }
+
     pub(crate) async fn refund_taker_funding_timelock_impl(
         &self,
         args: RefundTakerPaymentArgs<'_>,
@@ -253,9 +305,9 @@ impl EthCoin {
                 // TODO need new consts and params for v2 calls. now it uses v1
             } => (*token_addr, self.gas_limit.erc20_sender_refund),
             EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
-                ))
+                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps"
+                )))
             },
         };
         let args = TakerRefundArgs {
@@ -309,9 +361,9 @@ impl EthCoin {
                 // TODO need new consts and params for v2 calls. now it uses v1
             } => (*token_addr, self.gas_limit.erc20_sender_refund),
             EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
-                ))
+                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps"
+                )))
             },
         };
         let refund_args = TakerRefundSecretArgs {
@@ -333,6 +385,14 @@ impl EthCoin {
         )
         .compat()
         .await
+    }
+
+    pub(crate) async fn spend_taker_payment(
+        &self,
+        _gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _secret: &[u8],
+    ) -> Result<SignedEthTx, TransactionErr> {
+        todo!()
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract `ethTakerPayment` method
@@ -444,16 +504,66 @@ impl EthCoin {
         Ok(data)
     }
 
+    /// This function constructs the encoded transaction input data required to approve the taker payment.
+    /// The `decoded` parameter should contain the transaction input data from the `ethTakerPayment` or `erc20TakerPayment` function of the EtomicSwapTakerV2 contract.
+    async fn prepare_taker_payment_approve_data(
+        &self,
+        args: &GenTakerFundingSpendArgs<'_, Self>,
+        decoded: Vec<Token>,
+        state: U256,
+        token_address: Address,
+    ) -> Result<Vec<u8>, PrepareTxDataError> {
+        validate_payment_state(args.funding_tx, state, TakerPaymentStateV2::PaymentSent as u8)?;
+        let encoded = match self.coin_type {
+            EthCoinType::Eth => {
+                let dex_fee = match &decoded[1] {
+                    Token::Uint(value) => value,
+                    _ => return Err(PrepareTxDataError::Internal("Invalid token type for dex fee".into())),
+                };
+                let amount = args
+                    .funding_tx
+                    .unsigned()
+                    .value()
+                    .checked_sub(*dex_fee)
+                    .ok_or_else(|| {
+                        PrepareTxDataError::Internal("Underflow occurred while calculating amount".into())
+                    })?;
+                ethabi::encode(&[
+                    decoded[0].clone(),  // id from ethTakerPayment
+                    Token::Uint(amount), // calculated payment amount (tx value - dexFee)
+                    decoded[1].clone(),  // dexFee from ethTakerPayment
+                    decoded[2].clone(),  // receiver from ethTakerPayment
+                    Token::FixedBytes(args.taker_secret_hash.to_vec()),
+                    Token::FixedBytes(args.maker_secret_hash.to_vec()),
+                    Token::Address(token_address), // should be zero address Address::default()
+                ])
+            },
+            EthCoinType::Erc20 { .. } => ethabi::encode(&[
+                decoded[0].clone(), // id from erc20TakerPayment
+                decoded[1].clone(), // amount from erc20TakerPayment
+                decoded[2].clone(), // dexFee from erc20TakerPayment
+                decoded[4].clone(), // receiver from erc20TakerPayment
+                Token::FixedBytes(args.taker_secret_hash.to_vec()),
+                Token::FixedBytes(args.maker_secret_hash.to_vec()),
+                Token::Address(token_address), // erc20 token address from EthCoinType::Erc20
+            ]),
+            EthCoinType::Nft { .. } => {
+                return Err(PrepareTxDataError::Internal("EthCoinType must be ETH or ERC20".into()))
+            },
+        };
+        Ok(encoded)
+    }
+
     /// Retrieves the payment status from a given smart contract address based on the swap ID and state type.
     pub(crate) async fn payment_status_v2(
         &self,
         swap_address: Address,
         swap_id: Token,
         contract_abi: &Contract,
-        state_type: EthPaymentType,
+        payment_type: EthPaymentType,
         state_index: usize,
     ) -> Result<U256, PaymentStatusErr> {
-        let function_name = state_type.as_str();
+        let function_name = payment_type.as_str();
         let function = contract_abi.function(function_name)?;
         let data = function.encode_input(&[swap_id])?;
         let bytes = self
@@ -474,6 +584,30 @@ impl EthCoin {
                 state
             ))),
         }
+    }
+
+    /// Returns payment status and decoded tx input from bytes of contract call
+    async fn status_and_decoded_from_tx_data(
+        &self,
+        swap_address: Address,
+        contract_abi: &Contract,
+        func: &Function,
+        contract_call_bytes: &[u8],
+        payment_type: EthPaymentType,
+        state_index: usize,
+    ) -> Result<(U256, Vec<Token>), PaymentStatusErr> {
+        let decoded = decode_contract_call(func, contract_call_bytes)?;
+        let state = self
+            .payment_status_v2(
+                swap_address,
+                // swap_id has 0 index
+                decoded[0].clone(),
+                contract_abi,
+                payment_type,
+                state_index,
+            )
+            .await?;
+        Ok((state, decoded))
     }
 }
 
@@ -615,6 +749,22 @@ fn validate_erc20_taker_payment_data(
                 expected_token
             )));
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_payment_state(
+    tx: &SignedEthTx,
+    state: U256,
+    expected_state: u8,
+) -> Result<(), PrepareTxDataError> {
+    if state != U256::from(expected_state) {
+        return Err(PrepareTxDataError::Internal(ERRL!(
+            "Payment {:?} state is not {}, got {}",
+            tx,
+            expected_state,
+            state
+        )));
     }
     Ok(())
 }

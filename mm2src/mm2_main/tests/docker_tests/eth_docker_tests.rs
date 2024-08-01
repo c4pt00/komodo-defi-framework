@@ -696,7 +696,6 @@ pub fn fill_eth_erc20_with_private_key(priv_key: Secp256k1Secret) {
 }
 
 fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
-    thread::sleep(Duration::from_secs(3));
     let eth_coin = eth_coin_with_random_privkey(swap_contract());
     eth_coin.set_swap_transaction_fee_policy(swap_txfee_policy);
 
@@ -770,13 +769,11 @@ fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
     assert_eq!(expected, search_tx);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_eth_maker_payment_internal_gas_policy() {
     send_and_refund_eth_maker_payment_impl(SwapTxFeePolicy::Internal);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_eth_maker_payment_priority_fee() { send_and_refund_eth_maker_payment_impl(SwapTxFeePolicy::Medium); }
 
@@ -857,18 +854,15 @@ fn send_and_spend_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
     assert_eq!(expected, search_tx);
 }
 
-#[ignore]
 #[test]
 fn send_and_spend_eth_maker_payment_internal_gas_policy() {
     send_and_spend_eth_maker_payment_impl(SwapTxFeePolicy::Internal);
 }
 
-#[ignore]
 #[test]
 fn send_and_spend_eth_maker_payment_priority_fee() { send_and_spend_eth_maker_payment_impl(SwapTxFeePolicy::Medium); }
 
 fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
-    thread::sleep(Duration::from_secs(10));
     let erc20_coin = erc20_coin_with_random_privkey(swap_contract());
     erc20_coin.set_swap_transaction_fee_policy(swap_txfee_policy);
 
@@ -954,7 +948,6 @@ fn send_and_refund_erc20_maker_payment_priority_fee() {
 }
 
 fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
-    thread::sleep(Duration::from_secs(5));
     let maker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
     let taker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
 
@@ -1081,7 +1074,6 @@ fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestN
 
 #[test]
 fn send_and_spend_erc721_maker_payment() {
-    thread::sleep(Duration::from_secs(11));
     let token_id = 1u32;
     let time_lock = now_sec() + 1000;
     let activation = NftActivationV2Args::init();
@@ -1117,7 +1109,6 @@ fn send_and_spend_erc721_maker_payment() {
 
 #[test]
 fn send_and_spend_erc1155_maker_payment() {
-    thread::sleep(Duration::from_secs(3));
     let token_id = 1u32;
     let amount = 3u32;
     let time_lock = now_sec() + 1000;
@@ -1193,7 +1184,6 @@ fn test_nonce_lock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(40));
     let token_id = 2u32;
     let time_lock_to_refund = now_sec() - 1000;
     let activation = NftActivationV2Args::init();
@@ -1235,7 +1225,6 @@ fn send_and_refund_erc721_maker_payment_timelock() {
 
 #[test]
 fn send_and_refund_erc1155_maker_payment_timelock() {
-    thread::sleep(Duration::from_secs(29));
     let token_id = 2u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() - 1000;
@@ -1286,7 +1275,6 @@ fn send_and_refund_erc1155_maker_payment_timelock() {
 
 #[test]
 fn send_and_refund_erc721_maker_payment_secret() {
-    thread::sleep(Duration::from_secs(5));
     let token_id = 3u32;
     let time_lock_to_refund = now_sec() + 1000;
     let activation = NftActivationV2Args::init();
@@ -1328,7 +1316,6 @@ fn send_and_refund_erc721_maker_payment_secret() {
 
 #[test]
 fn send_and_refund_erc1155_maker_payment_secret() {
-    thread::sleep(Duration::from_secs(4));
     let token_id = 3u32;
     let amount = 3u32;
     let time_lock_to_refund = now_sec() + 1000;
@@ -1807,7 +1794,8 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 }
 
 #[test]
-fn send_and_refund_taker_funding_timelock_eth() {
+fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
+    thread::sleep(Duration::from_secs(10));
     // sepolia test
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
@@ -1890,7 +1878,7 @@ fn send_and_refund_taker_funding_timelock_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
-    thread::sleep(Duration::from_secs(35));
+    thread::sleep(Duration::from_secs(40));
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);

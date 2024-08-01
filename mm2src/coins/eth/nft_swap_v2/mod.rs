@@ -15,7 +15,7 @@ mod structs;
 use structs::{ExpectedHtlcParams, ValidationParams};
 
 use super::ContractType;
-use crate::eth::eth_swap_v2::{validate_from_to_and_status, EthPaymentType, PaymentStatusErr};
+use crate::eth::eth_swap_v2::{validate_from_to_and_status, validate_payment_state, EthPaymentType, PaymentStatusErr};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
@@ -46,9 +46,9 @@ impl EthCoin {
                 .compat()
                 .await
             },
-            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps".to_string(),
-            )),
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+            ))),
         }
     }
 
@@ -173,9 +173,9 @@ impl EthCoin {
                 .compat()
                 .await
             },
-            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps".to_string(),
-            )),
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+            ))),
         }
     }
 
@@ -213,9 +213,9 @@ impl EthCoin {
                 .compat()
                 .await
             },
-            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps".to_string(),
-            )),
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+            ))),
         }
     }
 
@@ -254,9 +254,9 @@ impl EthCoin {
                 .compat()
                 .await
             },
-            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps".to_string(),
-            )),
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+            ))),
         }
     }
 
@@ -412,7 +412,7 @@ impl EthCoin {
         contract_abi: &Contract,
         decoded_data: &[Token],
         index: usize,
-        state_type: EthPaymentType,
+        payment_type: EthPaymentType,
         state_index: usize,
     ) -> Result<(U256, Vec<Token>), PaymentStatusErr> {
         let data_bytes = match decoded_data.get(index) {
@@ -436,9 +436,10 @@ impl EthCoin {
         let state = self
             .payment_status_v2(
                 swap_address,
+                // swap_id has 0 index
                 htlc_params[0].clone(),
                 contract_abi,
-                state_type,
+                payment_type,
                 state_index,
             )
             .await?;
@@ -618,16 +619,4 @@ fn erc721_transfer_with_data<'a>() -> Result<&'a ethabi::Function, Erc721Functio
             )
         })?;
     Ok(function)
-}
-
-fn validate_payment_state(tx: &SignedEthTx, state: U256, expected_state: u8) -> Result<(), PrepareTxDataError> {
-    if state != U256::from(expected_state) {
-        return Err(PrepareTxDataError::Internal(ERRL!(
-            "Payment {:?} state is not {}, got {}",
-            tx,
-            expected_state,
-            state
-        )));
-    }
-    Ok(())
 }
