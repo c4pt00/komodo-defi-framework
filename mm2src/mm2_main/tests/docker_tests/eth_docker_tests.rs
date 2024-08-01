@@ -1948,6 +1948,7 @@ fn send_approve_and_spend_eth() {
         preimage: funding_tx.clone(),
         signature: taker_coin.parse_signature(&[0u8; 65]).unwrap(),
     };
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let taker_approve_tx =
         block_on(taker_coin.sign_and_send_taker_funding_spend(&preimage, &approve_args, &[])).unwrap();
@@ -1959,7 +1960,7 @@ fn send_approve_and_spend_eth() {
 
     let dex_fee_pub = sepolia_taker_swap_v2();
     let spend_args = GenTakerPaymentSpendArgs {
-        taker_tx: &funding_tx,
+        taker_tx: &taker_approve_tx,
         time_lock: payment_time_lock,
         maker_secret_hash: &maker_secret_hash,
         maker_pub,
@@ -1970,9 +1971,9 @@ fn send_approve_and_spend_eth() {
         premium_amount: Default::default(),
         trading_amount,
     };
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
     let spend_tx =
-        block_on(taker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
+        block_on(maker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
             .unwrap();
     log!("Maker spent ETH payment, tx hash: {:02x}", spend_tx.tx_hash());
     wait_for_confirmations(&maker_coin, &spend_tx, 100);
