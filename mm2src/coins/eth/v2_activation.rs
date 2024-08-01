@@ -749,7 +749,7 @@ pub(crate) async fn build_address_and_priv_key_policy(
                         let pubkey = Public::from_slice(&p_bytes[1..]);
                         display_eth_address(&public_to_address(&pubkey))
                     } else {
-                        let pubkey = Public::from_slice(&p_bytes);
+                        let pubkey = Public::from_slice(p_bytes);
                         display_eth_address(&public_to_address(&pubkey))
                     }
                 };
@@ -1031,7 +1031,7 @@ pub(super) async fn eth_account_db_id(coin: &EthCoin) -> Option<String> {
                 let pubkey = Public::from_slice(&p_key.as_bytes()[1..]);
                 display_eth_address(&public_to_address(&pubkey))
             } else {
-                let pubkey = Public::from_slice(&p_key.as_bytes());
+                let pubkey = Public::from_slice(p_key.as_bytes());
                 display_eth_address(&public_to_address(&pubkey))
             }
         }),

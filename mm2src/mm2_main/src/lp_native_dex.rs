@@ -590,14 +590,18 @@ pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitRes
 }
 
 async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
-    let mut coins_needed_for_kick_start = swap_kick_starts(ctx.clone(), db_id)
-        .await
-        .map_to_mm(MmInitError::SwapsKickStartError)?;
-    coins_needed_for_kick_start.extend(
-        orders_kick_start(&ctx, db_id)
+    let coins_needed_for_kick_start = {
+        let mut coins_needed_for_kick_start = swap_kick_starts(ctx.clone(), db_id)
             .await
-            .map_to_mm(MmInitError::OrdersKickStartError)?,
-    );
+            .map_to_mm(MmInitError::SwapsKickStartError)?;
+        coins_needed_for_kick_start.extend(
+            orders_kick_start(&ctx, db_id)
+                .await
+                .map_to_mm(MmInitError::OrdersKickStartError)?,
+        );
+
+        coins_needed_for_kick_start
+    };
 
     let mut lock = ctx
         .coins_needed_for_kick_start

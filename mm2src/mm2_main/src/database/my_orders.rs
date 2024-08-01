@@ -56,7 +56,7 @@ pub fn insert_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder) -> SqlRes
         0.to_string(),
         "Created".to_string(),
     ];
-    ctx.run_sql_query(order.db_id().as_deref(), move |conn| {
+    ctx.run_sql_query(order.account_id().as_deref(), move |conn| {
         conn.execute(INSERT_MY_ORDER, params_from_iter(params.iter()))
             .map(|_| ())
     })
@@ -83,7 +83,7 @@ pub fn insert_taker_order(ctx: &MmArc, uuid: Uuid, order: &TakerOrder) -> SqlRes
         "Created".to_string(),
     ];
 
-    ctx.run_sql_query(order.db_id().as_deref(), move |conn| {
+    ctx.run_sql_query(order.account_id().as_deref(), move |conn| {
         conn.execute(INSERT_MY_ORDER, params_from_iter(params.iter()))
             .map(|_| ())
     })
@@ -98,7 +98,7 @@ pub fn update_maker_order(ctx: &MmArc, uuid: Uuid, order: &MakerOrder) -> SqlRes
         order.updated_at.unwrap_or(0).to_string(),
         "Updated".to_string(),
     ];
-    ctx.run_sql_query(order.db_id().as_deref(), move |conn| {
+    ctx.run_sql_query(order.account_id().as_deref(), move |conn| {
         conn.execute(UPDATE_MY_ORDER, params_from_iter(params.iter()))
             .map(|_| ())
     })

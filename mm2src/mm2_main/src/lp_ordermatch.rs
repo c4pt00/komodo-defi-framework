@@ -25,8 +25,8 @@ use best_orders::BestOrdersAction;
 use blake2::digest::{Update, VariableOutput};
 use blake2::Blake2bVar;
 use coins::utxo::{compressed_pub_key_from_priv_raw, ChecksumType, UtxoAddressFormat};
-use coins::{coin_conf, find_pair, find_unique_account_ids_active, lp_coinfind, BalanceTradeFeeUpdatedHandler,
-            CoinProtocol, CoinsContext, FeeApproxStage, MarketCoinOps, MmCoinEnum};
+use coins::{coin_conf, find_pair, find_unique_account_ids_active, lp_coinfind, lp_coinfind_any,
+            BalanceTradeFeeUpdatedHandler, CoinProtocol, CoinsContext, FeeApproxStage, MarketCoinOps, MmCoinEnum};
 use common::executor::{simple_map::AbortableSimpleMap, AbortSettings, AbortableSystem, AbortedError, SpawnAbortable,
                        SpawnFuture, Timer};
 use common::log::{error, info, warn, LogOnError};
@@ -1517,7 +1517,8 @@ impl<'a> TakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
-            db_id: self.base_coin.account_db_id().await,
+            base_coin_account_id: self.base_coin.account_db_id().await,
+            rel_coin_account_id: self.rel_coin.account_db_id().await,
         })
     }
 
@@ -1558,7 +1559,8 @@ impl<'a> TakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
-            db_id: self.base_coin.account_db_id().await,
+            base_coin_account_id: self.base_coin.account_db_id().await,
+            rel_coin_account_id: self.rel_coin.account_db_id().await,
         }
     }
 }
@@ -1580,7 +1582,8 @@ pub struct TakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    db_id: Option<String>,
+    base_coin_account_id: Option<String>,
+    rel_coin_account_id: Option<String>,
 }
 
 /// Result of match_reserved function
@@ -1682,7 +1685,12 @@ impl TakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
-    pub fn db_id(&self) -> Option<String> { self.db_id.clone() }
+    pub fn account_id(&self) -> &Option<String> {
+        match self.request.action {
+            TakerAction::Buy => &self.rel_coin_account_id,
+            TakerAction::Sell => &self.base_coin_account_id,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1714,7 +1722,8 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    db_id: Option<String>,
+    base_coin_account_id: Option<String>,
+    rel_coin_account_id: Option<String>,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -1970,7 +1979,8 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
-            db_id: self.base_coin.account_db_id().await,
+            base_coin_account_id: self.base_coin.account_db_id().await,
+            rel_coin_account_id: self.rel_coin.account_db_id().await,
         })
     }
 
@@ -1995,7 +2005,8 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
-            db_id: self.base_coin.account_db_id().await,
+            base_coin_account_id: self.base_coin.account_db_id().await,
+            rel_coin_account_id: self.rel_coin.account_db_id().await,
         }
     }
 }
@@ -2104,7 +2115,7 @@ impl MakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
-    pub fn db_id(&self) -> Option<String> { self.db_id.clone() }
+    pub fn account_id(&self) -> &Option<String> { &self.base_coin_account_id }
 }
 
 impl From<TakerOrder> for MakerOrder {
@@ -2128,7 +2139,8 @@ impl From<TakerOrder> for MakerOrder {
                 base_orderbook_ticker: taker_order.base_orderbook_ticker,
                 rel_orderbook_ticker: taker_order.rel_orderbook_ticker,
                 p2p_privkey: taker_order.p2p_privkey,
-                db_id: taker_order.db_id,
+                base_coin_account_id: taker_order.base_coin_account_id,
+                rel_coin_account_id: taker_order.rel_coin_account_id,
             },
             // The "buy" taker order is recreated with reversed pair as Maker order is always considered as "sell"
             TakerAction::Buy => {
@@ -2151,7 +2163,8 @@ impl From<TakerOrder> for MakerOrder {
                     base_orderbook_ticker: taker_order.rel_orderbook_ticker,
                     rel_orderbook_ticker: taker_order.base_orderbook_ticker,
                     p2p_privkey: taker_order.p2p_privkey,
-                    db_id: taker_order.db_id,
+                    base_coin_account_id: taker_order.base_coin_account_id,
+                    rel_coin_account_id: taker_order.rel_coin_account_id,
                 }
             },
         }
@@ -3417,7 +3430,7 @@ async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchCo
             .error_log_with_msg("!save_new_active_maker_order");
         if maker_order.save_in_history {
             storage
-                .update_was_taker_in_filtering_history(uuid, maker_order.db_id().as_deref())
+                .update_was_taker_in_filtering_history(uuid, maker_order.account_id().as_deref())
                 .await
                 .error_log_with_msg("!update_was_taker_in_filtering_history");
         }
@@ -5039,10 +5052,10 @@ impl Order {
         }
     }
 
-    pub fn db_id(&self) -> Option<String> {
+    pub fn account_id(&self) -> &Option<String> {
         match self {
-            Order::Maker(maker) => maker.db_id(),
-            Order::Taker(taker) => taker.db_id(),
+            Order::Maker(maker) => maker.account_id(),
+            Order::Taker(taker) => taker.account_id(),
         }
     }
 }
@@ -5418,6 +5431,14 @@ pub struct HistoricalOrder {
     conf_settings: Option<OrderConfirmationsSettings>,
 }
 
+/// Initializes and restarts the order matching system by loading saved orders from storage
+/// and populating the order contexts.
+///
+/// # Notes
+/// - For maker orders, only those with matching `rel_coin_account_id` are processed.
+/// - For taker orders, only those with matching `base_coin_account_id` are processed.
+/// - This ensures account consistency for both maker and taker orders.
+/// - Invalid orders are silently skipped and not added to the order contexts.
 pub async fn orders_kick_start(ctx: &MmArc, db_id: Option<&str>) -> Result<HashSet<String>, String> {
     let ordermatch_ctx = try_s!(OrdermatchContext::from_ctx(ctx));
     let storage = MyOrdersStorage::new(ctx.clone());
@@ -5426,19 +5447,77 @@ pub async fn orders_kick_start(ctx: &MmArc, db_id: Option<&str>) -> Result<HashS
     let mut coins = HashSet::with_capacity((saved_maker_orders.len() * 2) + (saved_taker_orders.len() * 2));
 
     {
-        let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
         for order in saved_maker_orders {
-            coins.insert(order.base.clone());
-            coins.insert(order.rel.clone());
-            maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
+            let order_rel_coin_db_id = order.rel_coin_account_id.clone().unwrap_or(ctx.default_db_id());
+
+            loop {
+                match try_s!(lp_coinfind_any(ctx, &order.rel).await) {
+                    Some(rel_coin) => {
+                        let rel_coin_db_id = rel_coin.inner.account_db_id().await.unwrap_or(ctx.default_db_id());
+                        if rel_coin_db_id == order_rel_coin_db_id {
+                            coins.insert(order.base.clone());
+                            coins.insert(order.rel.clone());
+                            let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
+                            maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
+
+                            break;
+                        }
+
+                        info!(
+                            "Failed to add maker order {:?} to kick_start queue. Coin account id mismatch: got=([{rel_coin_db_id}]), expected=([{order_rel_coin_db_id}])",
+                            order.uuid
+                        );
+                        Timer::sleep(5.).await;
+                        continue;
+                    },
+                    None => {
+                        info!(
+                            "Failed to add maker order {:?} to kick_start queue, rel coin:{} with account_id:{order_rel_coin_db_id} needs to be activated!",
+                            order.uuid,
+                            order.rel
+                        );
+                        Timer::sleep(5.).await;
+                        continue;
+                    },
+                }
+            }
         }
     }
 
-    let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
     for order in saved_taker_orders {
-        coins.insert(order.request.base.clone());
-        coins.insert(order.request.rel.clone());
-        taker_orders.insert(order.request.uuid, order);
+        let order_base_coin_account_id = order.base_coin_account_id.clone().unwrap_or(ctx.default_db_id());
+
+        loop {
+            match try_s!(lp_coinfind_any(ctx, &order.request.base).await) {
+                Some(base_coin) => {
+                    let base_coin_account_id = base_coin.inner.account_db_id().await.unwrap_or(ctx.default_db_id());
+                    if base_coin_account_id == order_base_coin_account_id {
+                        coins.insert(order.request.base.clone());
+                        coins.insert(order.request.rel.clone());
+                        let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
+                        taker_orders.insert(order.request.uuid, order);
+
+                        break;
+                    };
+
+                    info!(
+                        "Failed to add taker order {} to kick_start queue. {} Coin account id mismatch: got=([{base_coin_account_id}]), expected=([{order_base_coin_account_id}])",
+                        order.request.uuid,
+                        order.request.base
+                    );
+                },
+                None => {
+                    info!(
+                        "Failed to add taker order {} to kick_start queue. Base coin:{} with account_id:{order_base_coin_account_id} needs to be activated!",
+                        order.request.uuid,
+                        order.request.base
+                    );
+
+                    Timer::sleep(5.).await;
+                    continue;
+                },
+            }
+        }
     }
 
     Ok(coins)
