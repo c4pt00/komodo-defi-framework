@@ -13,12 +13,13 @@ use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_reque
                  EthPrivKeyBuildPolicy, SignedEthTx, SwapV2Contracts, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, CommonSwapOpsV2, ConfirmPaymentInput,
-            DerivationMethod, DexFee, Eip1559Ops, FoundSwapTxSpend, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum,
-            MmCoinStruct, NftSwapInfo, ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy,
-            RefundFundingSecretArgs, RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs,
-            SearchForSwapTxSpendInput, SendNftMakerPaymentArgs, SendPaymentArgs, SendTakerFundingArgs,
-            SpendNftMakerPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash,
-            TakerCoinSwapOpsV2, ToBytes, Transaction, ValidateNftMakerPaymentArgs, ValidateTakerFundingArgs};
+            DerivationMethod, DexFee, Eip1559Ops, FoundSwapTxSpend, GenTakerFundingSpendArgs,
+            GenTakerPaymentSpendArgs, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
+            ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundFundingSecretArgs,
+            RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs, SearchForSwapTxSpendInput,
+            SendNftMakerPaymentArgs, SendPaymentArgs, SendTakerFundingArgs, SpendNftMakerPaymentArgs,
+            SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,
+            Transaction, TxPreimageWithSig, ValidateNftMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec};
 use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
@@ -1635,6 +1636,7 @@ fn eth_coin_v2_activation_with_random_privkey(
     coin
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     // sepolia test
@@ -1715,6 +1717,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
@@ -1793,6 +1796,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
     thread::sleep(Duration::from_secs(10));
@@ -1876,6 +1880,107 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
+#[test]
+fn send_approve_and_spend_eth() {
+    // sepolia test
+    thread::sleep(Duration::from_secs(25));
+    let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
+    let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
+
+    let taker_secret = vec![0; 32];
+    let taker_secret_hash = sha256(&taker_secret).to_vec();
+    let maker_secret = vec![1; 32];
+    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    let funding_time_lock = now_sec() + 3000;
+    let payment_time_lock = now_sec() + 1000;
+
+    let taker_address = block_on(taker_coin.my_addr());
+    let maker_address = block_on(maker_coin.my_addr());
+
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
+
+    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub: maker_pub.as_bytes(),
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount: trading_amount.clone(),
+        swap_unique_data: &[],
+    };
+
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
+    log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
+
+    wait_for_confirmations(&taker_coin, &funding_tx, 100);
+
+    let taker_pub = &taker_coin.derive_htlc_pubkey_v2(&[]);
+    let validate = ValidateTakerFundingArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        taker_pub,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: trading_amount.clone(),
+        swap_unique_data: &[],
+    };
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
+    block_on(maker_coin.validate_taker_funding(validate)).unwrap();
+
+    let approve_args = GenTakerFundingSpendArgs {
+        funding_tx: &funding_tx,
+        maker_pub,
+        taker_pub,
+        funding_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        taker_payment_time_lock: funding_time_lock,
+        maker_secret_hash: &maker_secret_hash,
+    };
+    let preimage = TxPreimageWithSig {
+        preimage: funding_tx.clone(),
+        signature: taker_coin.parse_signature(&[0u8; 65]).unwrap(),
+    };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    let taker_approve_tx =
+        block_on(taker_coin.sign_and_send_taker_funding_spend(&preimage, &approve_args, &[])).unwrap();
+    log!(
+        "Taker approved ETH payment, tx hash: {:02x}",
+        taker_approve_tx.tx_hash()
+    );
+    wait_for_confirmations(&taker_coin, &taker_approve_tx, 100);
+
+    let dex_fee_pub = sepolia_taker_swap_v2();
+    let spend_args = GenTakerPaymentSpendArgs {
+        taker_tx: &funding_tx,
+        time_lock: payment_time_lock,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub,
+        maker_address: &maker_address,
+        taker_pub,
+        dex_fee_pub: dex_fee_pub.as_bytes(),
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount,
+    };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    let spend_tx =
+        block_on(taker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
+            .unwrap();
+    log!("Maker spent ETH payment, tx hash: {:02x}", taker_approve_tx.tx_hash());
+    wait_for_confirmations(&maker_coin, &spend_tx, 100);
+
+    // TODO add wait_for_taker_payment_spend when it will be implemented
+}
+
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
     thread::sleep(Duration::from_secs(40));

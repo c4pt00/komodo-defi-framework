@@ -7129,7 +7129,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// takerPaymentApprove is called here for EVM based chains
+    /// Taker approves payment calling `takerPaymentApprove` here for EVM based chains
     async fn sign_and_send_taker_funding_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
@@ -7177,7 +7177,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         secret: &[u8],
         _swap_unique_data: &[u8],
     ) -> Result<Self::Tx, TransactionErr> {
-        self.spend_taker_payment(gen_args, secret).await
+        self.sign_and_broadcast_taker_payment_spend_impl(gen_args, secret).await
     }
 
     async fn wait_for_taker_payment_spend(
