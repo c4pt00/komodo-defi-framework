@@ -1974,7 +1974,7 @@ fn send_approve_and_spend_eth() {
     let spend_tx =
         block_on(taker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
             .unwrap();
-    log!("Maker spent ETH payment, tx hash: {:02x}", taker_approve_tx.tx_hash());
+    log!("Maker spent ETH payment, tx hash: {:02x}", spend_tx.tx_hash());
     wait_for_confirmations(&maker_coin, &spend_tx, 100);
 
     // TODO add wait_for_taker_payment_spend when it will be implemented

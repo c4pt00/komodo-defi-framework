@@ -7129,7 +7129,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// Taker approves payment calling `takerPaymentApprove` here for EVM based chains
+    /// Taker approves payment calling `takerPaymentApprove` for EVM based chains
     async fn sign_and_send_taker_funding_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
@@ -7169,7 +7169,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// spendTakerPayment is called here for EVM based chains
+    /// Taker swap contract `spendTakerPayment` method is called for EVM based chains
     async fn sign_and_broadcast_taker_payment_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,

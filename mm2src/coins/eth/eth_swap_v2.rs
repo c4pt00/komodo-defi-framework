@@ -243,7 +243,7 @@ impl EthCoin {
             self.prepare_taker_payment_approve_data(args, decoded, token_address)
                 .await
         );
-        self.sign_and_send_transaction(
+        let tx = self.sign_and_send_transaction(
             0.into(),
             Action::Call(taker_swap_v2_contract),
             data,
@@ -252,6 +252,7 @@ impl EthCoin {
         )
         .compat()
         .await?;
+        log!("approve tx: {:?}", tx);
         Ok(args.funding_tx.clone())
     }
 
