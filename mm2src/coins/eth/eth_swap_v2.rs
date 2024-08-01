@@ -238,19 +238,9 @@ impl EthCoin {
                 )))
             },
         };
-        let (state, decoded) = try_tx_s!(
-            self.status_and_decoded_from_tx_data(
-                taker_swap_v2_contract,
-                &TAKER_SWAP_V2,
-                send_function,
-                args.funding_tx.unsigned().data(),
-                EthPaymentType::TakerPayments,
-                3
-            )
-            .await
-        );
+        let decoded = try_tx_s!(decode_contract_call(send_function, args.funding_tx.unsigned().data()));
         let data = try_tx_s!(
-            self.prepare_taker_payment_approve_data(args, decoded, token_address, state)
+            self.prepare_taker_payment_approve_data(args, decoded, token_address)
                 .await
         );
         let approve_tx = self
@@ -566,10 +556,9 @@ impl EthCoin {
         args: &GenTakerFundingSpendArgs<'_, Self>,
         decoded: Vec<Token>,
         token_address: Address,
-        state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        validate_payment_state(args.funding_tx, state, TakerPaymentStateV2::PaymentSent as u8)?;
-        let encoded = match self.coin_type {
+        let function = TAKER_SWAP_V2.function("takerPaymentApprove")?;
+        let data = match self.coin_type {
             EthCoinType::Eth => {
                 let dex_fee = match &decoded[1] {
                     Token::Uint(value) => value,
@@ -583,7 +572,7 @@ impl EthCoin {
                     .ok_or_else(|| {
                         PrepareTxDataError::Internal("Underflow occurred while calculating amount".into())
                     })?;
-                ethabi::encode(&[
+                function.encode_input(&[
                     decoded[0].clone(),  // id from ethTakerPayment
                     Token::Uint(amount), // calculated payment amount (tx value - dexFee)
                     decoded[1].clone(),  // dexFee from ethTakerPayment
@@ -591,9 +580,9 @@ impl EthCoin {
                     Token::FixedBytes(args.taker_secret_hash.to_vec()),
                     Token::FixedBytes(args.maker_secret_hash.to_vec()),
                     Token::Address(token_address), // should be zero address Address::default()
-                ])
+                ])?
             },
-            EthCoinType::Erc20 { .. } => ethabi::encode(&[
+            EthCoinType::Erc20 { .. } => function.encode_input(&[
                 decoded[0].clone(), // id from erc20TakerPayment
                 decoded[1].clone(), // amount from erc20TakerPayment
                 decoded[2].clone(), // dexFee from erc20TakerPayment
@@ -601,12 +590,12 @@ impl EthCoin {
                 Token::FixedBytes(args.taker_secret_hash.to_vec()),
                 Token::FixedBytes(args.maker_secret_hash.to_vec()),
                 Token::Address(token_address), // erc20 token address from EthCoinType::Erc20
-            ]),
+            ])?,
             EthCoinType::Nft { .. } => {
                 return Err(PrepareTxDataError::Internal("EthCoinType must be ETH or ERC20".into()))
             },
         };
-        Ok(encoded)
+        Ok(data)
     }
 
     async fn prepare_spend_taker_payment_data(
@@ -617,8 +606,9 @@ impl EthCoin {
         state: U256,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         validate_payment_state(args.taker_tx, state, TakerPaymentStateV2::TakerApproved as u8)?;
+        let function = TAKER_SWAP_V2.function("spendTakerPayment")?;
         let taker_address = public_to_address(args.taker_pub);
-        let encoded = ethabi::encode(&[
+        let data = function.encode_input(&[
             decoded[0].clone(),                 // id from takerPaymentApprove
             decoded[1].clone(),                 // amount from takerPaymentApprove
             decoded[2].clone(),                 // dexFee from takerPaymentApprove
@@ -626,8 +616,8 @@ impl EthCoin {
             decoded[4].clone(),                 // takerSecretHash from ethTakerPayment
             Token::FixedBytes(secret.to_vec()), // makerSecret
             decoded[6].clone(),                 // tokenAddress from takerPaymentApprove
-        ]);
-        Ok(encoded)
+        ])?;
+        Ok(data)
     }
 
     /// Retrieves the payment status from a given smart contract address based on the swap ID and state type.
