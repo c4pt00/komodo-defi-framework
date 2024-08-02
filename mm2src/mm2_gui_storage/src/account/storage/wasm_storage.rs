@@ -69,7 +69,7 @@ impl WasmAccountStorage {
 
     async fn lock_db_mutex(&self) -> AccountStorageResult<AccountDbLocked> {
         self.account_db
-            .get_or_initialize_shared(None)
+            .get_or_initialize_shared()
             .await
             .mm_err(AccountStorageError::from)
     }

@@ -271,9 +271,7 @@ impl HDWalletIndexedDbStorage {
     }
 
     async fn lock_db_mutex(db: &SharedDb<HDWalletDb>) -> HDWalletStorageResult<HDWalletDbLocked> {
-        db.get_or_initialize_shared(None)
-            .await
-            .mm_err(HDWalletStorageError::from)
+        db.get_or_initialize_shared().await.mm_err(HDWalletStorageError::from)
     }
 
     async fn find_account(
@@ -319,7 +317,7 @@ impl HDWalletIndexedDbStorage {
 #[cfg(any(test, target_arch = "wasm32"))]
 pub(super) async fn get_all_storage_items(ctx: &MmArc) -> Vec<HDAccountStorageItem> {
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
-    let db = coins_ctx.hd_wallet_db.get_or_initialize_shared(None).await.unwrap();
+    let db = coins_ctx.hd_wallet_db.get_or_initialize_shared().await.unwrap();
     let transaction = db.inner.transaction().await.unwrap();
     let table = transaction.table::<HDAccountTable>().await.unwrap();
     table
