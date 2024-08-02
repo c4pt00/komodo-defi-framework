@@ -216,18 +216,13 @@ impl EthCoin {
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        if let EthCoinType::Nft { .. } = self.coin_type {
-            return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                "NFT protocol is not supported for ETH and ERC20 Swaps"
-            )));
-        }
         let taker_swap_v2_contract = self
             .swap_v2_contracts
             .as_ref()
             .map(|contracts| contracts.taker_swap_v2_contract)
             .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
 
-        let (send_function, token_address) = match self.coin_type {
+        let (send_func, token_address) = match self.coin_type {
             EthCoinType::Eth => (try_tx_s!(TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)), Address::default()),
             EthCoinType::Erc20 { token_addr, .. } => {
                 (try_tx_s!(TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)), token_addr)
@@ -238,7 +233,7 @@ impl EthCoin {
                 )))
             },
         };
-        let decoded = try_tx_s!(decode_contract_call(send_function, args.funding_tx.unsigned().data()));
+        let decoded = try_tx_s!(decode_contract_call(send_func, args.funding_tx.unsigned().data()));
         let data = try_tx_s!(
             self.prepare_taker_payment_approve_data(args, decoded, token_address)
                 .await
@@ -383,17 +378,25 @@ impl EthCoin {
         gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
         secret: &[u8],
     ) -> Result<SignedEthTx, TransactionErr> {
-        if let EthCoinType::Nft { .. } = self.coin_type {
-            return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                "NFT protocol is not supported for ETH and ERC20 Swaps"
-            )));
-        }
         let taker_swap_v2_contract = self
             .swap_v2_contracts
             .as_ref()
             .map(|contracts| contracts.taker_swap_v2_contract)
             .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
-        let approve_func = try_tx_s!(TAKER_SWAP_V2.function("takerPaymentApprove"));
+        let (approve_func, token_address) = match self.coin_type {
+            EthCoinType::Eth => (
+                try_tx_s!(TAKER_SWAP_V2.function("takerPaymentApprove")),
+                Address::default(),
+            ),
+            EthCoinType::Erc20 { token_addr, .. } => {
+                (try_tx_s!(TAKER_SWAP_V2.function("takerPaymentApprove")), token_addr)
+            },
+            EthCoinType::Nft { .. } => {
+                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps"
+                )))
+            },
+        };
         let (state, decoded) = try_tx_s!(
             self.status_and_decoded_from_tx_data(
                 taker_swap_v2_contract,
@@ -407,7 +410,7 @@ impl EthCoin {
             .await
         );
         let data = try_tx_s!(
-            self.prepare_spend_taker_payment_data(gen_args, secret, decoded, state)
+            self.prepare_spend_taker_payment_data(gen_args, secret, decoded, state, token_address)
                 .await
         );
         let payment_tx = match self.coin_type {
@@ -604,6 +607,7 @@ impl EthCoin {
         secret: &[u8],
         decoded: Vec<Token>,
         state: U256,
+        token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         validate_payment_state(args.taker_tx, state, TakerPaymentStateV2::TakerApproved as u8)?;
         let function = TAKER_SWAP_V2.function("spendTakerPayment")?;
@@ -615,7 +619,7 @@ impl EthCoin {
             Token::Address(taker_address),      // taker address
             decoded[4].clone(),                 // takerSecretHash from ethTakerPayment
             Token::FixedBytes(secret.to_vec()), // makerSecret
-            decoded[6].clone(),                 // tokenAddress from takerPaymentApprove
+            Token::Address(token_address),      // tokenAddress
         ])?;
         Ok(data)
     }
