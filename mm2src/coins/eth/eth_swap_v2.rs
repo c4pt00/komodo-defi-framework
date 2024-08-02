@@ -65,20 +65,20 @@ impl EthCoin {
             &(args.trading_amount.clone() + args.premium_amount.clone()),
             self.decimals
         ));
-        let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
-
-        let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
-        let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
-        let funding_args = TakerFundingArgs {
-            dex_fee,
-            payment_amount,
-            maker_address,
-            taker_secret_hash: try_tx_s!(args.taker_secret_hash.try_into()),
-            maker_secret_hash: try_tx_s!(args.maker_secret_hash.try_into()),
-            funding_time_lock,
-            payment_time_lock,
+        let funding_args = {
+            let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
+            let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
+            let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
+            TakerFundingArgs {
+                dex_fee,
+                payment_amount,
+                maker_address,
+                taker_secret_hash: try_tx_s!(args.taker_secret_hash.try_into()),
+                maker_secret_hash: try_tx_s!(args.maker_secret_hash.try_into()),
+                funding_time_lock,
+                payment_time_lock,
+            }
         };
-
         match &self.coin_type {
             EthCoinType::Eth => {
                 let data = try_tx_s!(self.prepare_taker_eth_funding_data(&funding_args).await);

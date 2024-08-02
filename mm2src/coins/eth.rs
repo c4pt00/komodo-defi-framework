@@ -7113,11 +7113,10 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         args: &GenTakerFundingSpendArgs<'_, Self>,
         _swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
-        let result = TxPreimageWithSig {
+        Ok(TxPreimageWithSig {
             preimage: args.funding_tx.clone(),
             signature: args.funding_tx.signature(),
-        };
-        Ok(result)
+        })
     }
 
     /// Eth doesnt have preimages
@@ -7153,11 +7152,10 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         args: &GenTakerPaymentSpendArgs<'_, Self>,
         _swap_unique_data: &[u8],
     ) -> GenPreimageResult<Self> {
-        let result = TxPreimageWithSig {
+        Ok(TxPreimageWithSig {
             preimage: args.taker_tx.clone(),
             signature: args.taker_tx.signature(),
-        };
-        Ok(result)
+        })
     }
 
     /// Eth doesnt have preimages
