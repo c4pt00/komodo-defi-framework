@@ -1982,7 +1982,110 @@ fn send_approve_and_spend_eth() {
 }
 
 #[test]
+fn send_approve_and_spend_erc20() {
+    // sepolia test
+    thread::sleep(Duration::from_secs(15));
+    let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
+    let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, erc20_conf, true);
+    let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, erc20_conf, true);
+
+    let taker_secret = vec![0; 32];
+    let taker_secret_hash = sha256(&taker_secret).to_vec();
+    let maker_secret = vec![1; 32];
+    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    let funding_time_lock = now_sec() + 3000;
+    let payment_time_lock = now_sec() + 1000;
+
+    let taker_address = block_on(taker_coin.my_addr());
+    let maker_address = block_on(maker_coin.my_addr());
+
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
+
+    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub: maker_pub.as_bytes(),
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount: trading_amount.clone(),
+        swap_unique_data: &[],
+    };
+
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
+    log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
+
+    wait_for_confirmations(&taker_coin, &funding_tx, 100);
+
+    let taker_pub = &taker_coin.derive_htlc_pubkey_v2(&[]);
+    let validate = ValidateTakerFundingArgs {
+        funding_tx: &funding_tx,
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        taker_pub,
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount: trading_amount.clone(),
+        swap_unique_data: &[],
+    };
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
+    block_on(maker_coin.validate_taker_funding(validate)).unwrap();
+
+    let approve_args = GenTakerFundingSpendArgs {
+        funding_tx: &funding_tx,
+        maker_pub,
+        taker_pub,
+        funding_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        taker_payment_time_lock: funding_time_lock,
+        maker_secret_hash: &maker_secret_hash,
+    };
+    let preimage = TxPreimageWithSig {
+        preimage: funding_tx.clone(),
+        signature: taker_coin.parse_signature(&[0u8; 65]).unwrap(),
+    };
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    let taker_approve_tx =
+        block_on(taker_coin.sign_and_send_taker_funding_spend(&preimage, &approve_args, &[])).unwrap();
+    log!(
+        "Taker approved ERC20 payment, tx hash: {:02x}",
+        taker_approve_tx.tx_hash()
+    );
+    wait_for_confirmations(&taker_coin, &taker_approve_tx, 100);
+
+    let dex_fee_pub = sepolia_taker_swap_v2();
+    let spend_args = GenTakerPaymentSpendArgs {
+        taker_tx: &taker_approve_tx,
+        time_lock: payment_time_lock,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub,
+        maker_address: &maker_address,
+        taker_pub,
+        dex_fee_pub: dex_fee_pub.as_bytes(),
+        dex_fee,
+        premium_amount: Default::default(),
+        trading_amount,
+    };
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
+    let spend_tx =
+        block_on(maker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
+            .unwrap();
+    log!("Maker spent ERC20 payment, tx hash: {:02x}", spend_tx.tx_hash());
+    wait_for_confirmations(&maker_coin, &spend_tx, 100);
+
+    // TODO add wait_for_taker_payment_spend when it will be implemented
+}
+
+#[test]
 fn geth_send_approve_and_spend_eth() {
+    thread::sleep(Duration::from_secs(3));
     let taker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
     let maker_coin = eth_coin_v2_activation_with_random_privkey(ETH, &eth_dev_conf(), SwapAddresses::init(), false);
 

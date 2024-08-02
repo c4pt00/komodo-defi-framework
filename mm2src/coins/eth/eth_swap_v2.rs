@@ -184,17 +184,20 @@ impl EthCoin {
             taker_status,
             TakerPaymentStateV2::PaymentSent as u8,
         )?;
-        let dex_fee = wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals)?;
-        let payment_amount = wei_from_big_decimal(&(args.trading_amount + args.premium_amount), self.decimals)?;
-        let validation_args = TakerValidationArgs {
-            swap_id,
-            amount: payment_amount,
-            dex_fee,
-            receiver: self.my_addr().await,
-            taker_secret_hash: args.taker_secret_hash,
-            maker_secret_hash: args.maker_secret_hash,
-            funding_time_lock,
-            payment_time_lock,
+
+        let validation_args = {
+            let dex_fee = wei_from_big_decimal(&args.dex_fee.fee_amount().into(), self.decimals)?;
+            let payment_amount = wei_from_big_decimal(&(args.trading_amount + args.premium_amount), self.decimals)?;
+            TakerValidationArgs {
+                swap_id,
+                amount: payment_amount,
+                dex_fee,
+                receiver: self.my_addr().await,
+                taker_secret_hash: args.taker_secret_hash,
+                maker_secret_hash: args.maker_secret_hash,
+                funding_time_lock,
+                payment_time_lock,
+            }
         };
         match self.coin_type {
             EthCoinType::Eth => {
@@ -238,14 +241,14 @@ impl EthCoin {
             self.prepare_taker_payment_approve_data(args, decoded, token_address)
                 .await
         );
+        // TODO need new consts and params for v2 calls, create provide approve const
+        let gas_limit = match self.coin_type {
+            EthCoinType::Eth => U256::from(self.gas_limit.eth_payment),
+            EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.eth_payment),
+            EthCoinType::Nft { .. } => unreachable!(), // EthCoinType::Nft case was already checked
+        };
         let approve_tx = self
-            .sign_and_send_transaction(
-                0.into(),
-                Action::Call(taker_swap_v2_contract),
-                data,
-                // TODO need new consts and params for v2 calls
-                U256::from(self.gas_limit.eth_payment),
-            )
+            .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
             .compat()
             .await?;
         Ok(approve_tx)
@@ -413,33 +416,16 @@ impl EthCoin {
             self.prepare_spend_taker_payment_data(gen_args, secret, decoded, state, token_address)
                 .await
         );
-        let payment_tx = match self.coin_type {
-            EthCoinType::Eth => {
-                self.sign_and_send_transaction(
-                    0.into(),
-                    Action::Call(taker_swap_v2_contract),
-                    data,
-                    // TODO need new consts and params for v2 calls
-                    U256::from(self.gas_limit.eth_receiver_spend),
-                )
-                .compat()
-                .await?
-            },
-            EthCoinType::Erc20 { .. } => {
-                self.sign_and_send_transaction(
-                    0.into(),
-                    Action::Call(taker_swap_v2_contract),
-                    data,
-                    // TODO need new consts and params for v2 calls
-                    U256::from(self.gas_limit.erc20_receiver_spend),
-                )
-                .compat()
-                .await?
-            },
-            EthCoinType::Nft { .. } => {
-                unreachable!()
-            },
+        // TODO need new consts and params for v2 calls
+        let gas_limit = match self.coin_type {
+            EthCoinType::Eth => U256::from(self.gas_limit.eth_receiver_spend),
+            EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.erc20_receiver_spend),
+            EthCoinType::Nft { .. } => unreachable!(), // EthCoinType::Nft case was already checked
         };
+        let payment_tx = self
+            .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
+            .compat()
+            .await?;
         Ok(payment_tx)
     }
 
