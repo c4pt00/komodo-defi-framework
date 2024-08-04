@@ -179,7 +179,7 @@ impl EthCoin {
         }
     }
 
-    pub(crate) async fn refund_nft_maker_payment_v2_secret_impl(
+    pub(crate) async fn refund_nft_maker_payment_v2_timelock_impl(
         &self,
         args: RefundNftMakerPaymentArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
@@ -619,16 +619,4 @@ fn erc721_transfer_with_data<'a>() -> Result<&'a ethabi::Function, Erc721Functio
             )
         })?;
     Ok(function)
-}
-
-fn validate_payment_state(tx: &SignedEthTx, state: U256, expected_state: u8) -> Result<(), PrepareTxDataError> {
-    if state != U256::from(expected_state) {
-        return Err(PrepareTxDataError::Internal(ERRL!(
-            "Payment {:?} state is not {}, got {}",
-            tx,
-            expected_state,
-            state
-        )));
-    }
-    Ok(())
 }

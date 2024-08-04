@@ -1639,11 +1639,10 @@ fn eth_coin_v2_activation_with_random_privkey(
     coin
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(25));
+    thread::sleep(Duration::from_secs(6));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
@@ -1720,7 +1719,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
@@ -1799,7 +1797,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
     thread::sleep(Duration::from_secs(10));
@@ -1882,11 +1879,10 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
-#[ignore]
 #[test]
 fn send_approve_and_spend_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(25));
+    thread::sleep(Duration::from_secs(2));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
@@ -1982,11 +1978,10 @@ fn send_approve_and_spend_eth() {
     // TODO add wait_for_taker_payment_spend when it will be implemented
 }
 
-#[ignore]
 #[test]
 fn send_approve_and_spend_erc20() {
     // sepolia test
-    thread::sleep(Duration::from_secs(15));
+    thread::sleep(Duration::from_secs(9));
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, erc20_conf, true);
@@ -2175,7 +2170,6 @@ fn geth_send_approve_and_spend_eth() {
     // TODO add wait_for_taker_payment_spend when it will be implemented
 }
 
-#[ignore]
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
     thread::sleep(Duration::from_secs(40));
@@ -2262,7 +2256,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
 #[test]
 fn send_and_refund_taker_funding_exceed_payment_timelock_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(3));
+    thread::sleep(Duration::from_secs(25));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
