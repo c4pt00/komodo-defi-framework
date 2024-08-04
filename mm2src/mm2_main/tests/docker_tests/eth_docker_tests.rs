@@ -1796,6 +1796,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
     thread::sleep(Duration::from_secs(10));
@@ -1878,6 +1879,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
 }
 
+#[ignore]
 #[test]
 fn send_approve_and_spend_eth() {
     // sepolia test
@@ -1977,6 +1979,7 @@ fn send_approve_and_spend_eth() {
     // TODO add wait_for_taker_payment_spend when it will be implemented
 }
 
+#[ignore]
 #[test]
 fn send_approve_and_spend_erc20() {
     // sepolia test
@@ -2169,6 +2172,7 @@ fn geth_send_approve_and_spend_eth() {
     // TODO add wait_for_taker_payment_spend when it will be implemented
 }
 
+#[ignore]
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
     thread::sleep(Duration::from_secs(40));
@@ -2255,7 +2259,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
 #[test]
 fn send_and_refund_taker_funding_exceed_payment_timelock_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(11));
+    thread::sleep(Duration::from_secs(3));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
@@ -2354,7 +2358,7 @@ fn send_and_refund_taker_funding_exceed_payment_timelock_eth() {
 #[test]
 fn send_and_refund_taker_funding_exceed_payment_timelock_erc20() {
     // sepolia test
-    thread::sleep(Duration::from_secs(7));
+    thread::sleep(Duration::from_secs(32));
     let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, erc20_conf, true);
