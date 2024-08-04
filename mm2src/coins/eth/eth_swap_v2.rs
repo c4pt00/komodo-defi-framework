@@ -667,6 +667,7 @@ impl EthCoin {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Display, EnumFromStringify)]
 pub(crate) enum PrepareTxDataError {
     #[from_stringify("ethabi::Error")]

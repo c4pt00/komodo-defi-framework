@@ -697,6 +697,7 @@ pub fn fill_eth_erc20_with_private_key(priv_key: Secp256k1Secret) {
 }
 
 fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
+    thread::sleep(Duration::from_secs(3));
     let eth_coin = eth_coin_with_random_privkey(swap_contract());
     eth_coin.set_swap_transaction_fee_policy(swap_txfee_policy);
 
@@ -864,6 +865,7 @@ fn send_and_spend_eth_maker_payment_internal_gas_policy() {
 fn send_and_spend_eth_maker_payment_priority_fee() { send_and_spend_eth_maker_payment_impl(SwapTxFeePolicy::Medium); }
 
 fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
+    thread::sleep(Duration::from_secs(10));
     let erc20_coin = erc20_coin_with_random_privkey(swap_contract());
     erc20_coin.set_swap_transaction_fee_policy(swap_txfee_policy);
 
@@ -949,6 +951,7 @@ fn send_and_refund_erc20_maker_payment_priority_fee() {
 }
 
 fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
+    thread::sleep(Duration::from_secs(7));
     let maker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
     let taker_erc20_coin = erc20_coin_with_random_privkey(swap_contract());
 
