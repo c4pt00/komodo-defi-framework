@@ -48,8 +48,8 @@ use crate::rpc_command::{account_balance, get_new_address, init_account_balance,
                          init_scan_for_new_addresses};
 use crate::{coin_balance, scan_for_new_addresses_impl, BalanceResult, CoinWithDerivationMethod, DerivationMethod,
             DexFee, Eip1559Ops, MakerNftSwapOpsV2, ParseCoinAssocTypes, ParseNftAssocTypes, PayForGasParams,
-            PrivKeyPolicy, RefundMakerPaymentArgs, RpcCommonOps, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
-            ToBytes, ValidateNftMakerPaymentArgs, ValidateWatcherSpendInput, WatcherSpendType};
+            PrivKeyPolicy, RpcCommonOps, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs, ToBytes,
+            ValidateNftMakerPaymentArgs, ValidateWatcherSpendInput, WatcherSpendType};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, keccak256, ripemd160, sha256};
 use common::custom_futures::repeatable::{Ready, Retry, RetryOnError};
@@ -76,7 +76,6 @@ use futures::future::{join, join_all, select_ok, try_join_all, Either, FutureExt
 use futures01::Future;
 use http::Uri;
 use instant::Instant;
-use keys::Public as HtlcPubKey;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
 use mm2_net::transport::{KomodefiProxyAuthValidation, ProxyAuthValidationGenerator};
@@ -155,6 +154,7 @@ use eth_withdraw::{EthWithdraw, InitEthWithdraw, StandardEthWithdraw};
 use nonce::ParityNonce;
 use v2_activation::{build_address_and_priv_key_policy, eth_account_db_id, eth_shared_db_id, EthActivationV2Error};
 use web3_transport::{http_transport::HttpTransportNode, Web3Transport};
+mod eth_swap_v2;
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852
@@ -169,6 +169,8 @@ const ERC721_ABI: &str = include_str!("eth/erc721_abi.json");
 const ERC1155_ABI: &str = include_str!("eth/erc1155_abi.json");
 const NFT_SWAP_CONTRACT_ABI: &str = include_str!("eth/nft_swap_contract_abi.json");
 const NFT_MAKER_SWAP_V2_ABI: &str = include_str!("eth/nft_maker_swap_v2_abi.json");
+const MAKER_SWAP_V2_ABI: &str = include_str!("eth/maker_swap_v2_abi.json");
+const TAKER_SWAP_V2_ABI: &str = include_str!("eth/taker_swap_v2_abi.json");
 
 /// Payment states from etomic swap smart contract: https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol#L5
 pub enum PaymentState {
@@ -294,6 +296,8 @@ const ETH_MAX_TX_TYPE: u64 = 0x7f;
 
 lazy_static! {
     pub static ref SWAP_CONTRACT: Contract = Contract::load(SWAP_CONTRACT_ABI.as_bytes()).unwrap();
+    pub static ref MAKER_SWAP_V2: Contract = Contract::load(MAKER_SWAP_V2_ABI.as_bytes()).unwrap();
+    pub static ref TAKER_SWAP_V2: Contract = Contract::load(TAKER_SWAP_V2_ABI.as_bytes()).unwrap();
     pub static ref ERC20_CONTRACT: Contract = Contract::load(ERC20_ABI.as_bytes()).unwrap();
     pub static ref ERC721_CONTRACT: Contract = Contract::load(ERC721_ABI.as_bytes()).unwrap();
     pub static ref ERC1155_CONTRACT: Contract = Contract::load(ERC1155_ABI.as_bytes()).unwrap();
@@ -380,11 +384,11 @@ type GasDetails = (U256, PayForGasOption);
 pub enum Web3RpcError {
     #[display(fmt = "Transport: {}", _0)]
     Transport(String),
-    #[from_stringify("serde_json::Error")]
     #[display(fmt = "Invalid response: {}", _0)]
     InvalidResponse(String),
     #[display(fmt = "Timeout: {}", _0)]
     Timeout(String),
+    #[from_stringify("serde_json::Error")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
     #[display(fmt = "Invalid gas api provider config: {}", _0)]
@@ -645,6 +649,7 @@ pub struct EthCoinImpl {
     derivation_method: Arc<EthDerivationMethod>,
     sign_message_prefix: Option<String>,
     swap_contract_address: Address,
+    swap_v2_contracts: Option<SwapV2Contracts>,
     fallback_swap_contract: Option<Address>,
     contract_supports_watchers: bool,
     web3_instances: AsyncMutex<Vec<Web3Instance>>,
@@ -695,6 +700,13 @@ pub struct Erc20TokenInfo {
     /// The number of decimal places the token uses.
     /// This represents the smallest unit that the token can be divided into.
     pub decimals: u8,
+}
+
+#[derive(Copy, Clone, Deserialize)]
+pub struct SwapV2Contracts {
+    pub maker_swap_v2_contract: Address,
+    pub taker_swap_v2_contract: Address,
+    pub nft_maker_swap_v2_contract: Address,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1027,7 +1039,7 @@ pub async fn withdraw_erc721(ctx: MmArc, withdraw_type: WithdrawErc721) -> Withd
         EthCoinType::Erc20 { .. } => {
             return MmError::err(WithdrawError::InternalError(
                 "Erc20 coin type doesnt support withdraw nft".to_owned(),
-            ));
+            ))
         },
         // TODO: start to use NFT GLOBAL TOKEN for withdraw
         EthCoinType::Nft { .. } => return MmError::err(WithdrawError::NftProtocolNotSupported),
@@ -2086,7 +2098,7 @@ impl WatcherOps for EthCoin {
                     EthCoinType::Nft { .. } => {
                         return MmError::err(WatcherRewardError::InternalError(
                             "Nft Protocol is not supported yet!".to_string(),
-                        ));
+                        ))
                     },
                 }
             },
@@ -2345,7 +2357,7 @@ impl MarketCoinOps for EthCoin {
                 Create => {
                     return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
                         "Invalid payment action: the payment action cannot be create"
-                    ))));
+                    ))))
                 },
             },
         };
@@ -2356,7 +2368,7 @@ impl MarketCoinOps for EthCoin {
             EthCoinType::Nft { .. } => {
                 return Box::new(futures01::future::err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "Nft Protocol is not supported yet!"
-                ))));
+                ))))
             },
         };
 
@@ -2368,7 +2380,7 @@ impl MarketCoinOps for EthCoin {
                 return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
                     "Expected Token::FixedBytes, got {:?}",
                     invalid_token
-                ))));
+                ))))
             },
         };
         let selfi = self.clone();
@@ -3841,7 +3853,7 @@ impl EthCoin {
             Create => {
                 return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
                     "Invalid payment action: the payment action cannot be create"
-                ))));
+                ))))
             },
         };
 
@@ -3960,7 +3972,7 @@ impl EthCoin {
             Create => {
                 return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
                     "Invalid payment action: the payment action cannot be create"
-                ))));
+                ))))
             },
         };
 
@@ -4429,7 +4441,7 @@ impl EthCoin {
             EthCoinType::Erc20 { .. } => {
                 return MmError::err(BalanceError::Internal(
                     "Erc20 coin type doesnt support Erc1155 standard".to_owned(),
-                ));
+                ))
             },
         };
         let wallet_amount = u256_to_big_decimal(wallet_amount_uint, self.decimals)?;
@@ -4459,7 +4471,7 @@ impl EthCoin {
             EthCoinType::Erc20 { .. } => {
                 return MmError::err(GetNftInfoError::Internal(
                     "Erc20 coin type doesnt support Erc721 standard".to_owned(),
-                ));
+                ))
             },
         };
         Ok(owner_address)
@@ -4611,7 +4623,7 @@ impl EthCoin {
                 EthCoinType::Nft { .. } => {
                     return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                         "Nft Protocol is not supported yet!"
-                    )));
+                    )))
                 },
             };
             let function = try_tx_s!(ERC20_CONTRACT.function("approve"));
@@ -5038,7 +5050,7 @@ impl EthCoin {
                         let transaction = match try_s!(self.transaction(TransactionId::Hash(tx_hash)).await) {
                             Some(t) => t,
                             None => {
-                                return ERR!("Found ReceiverSpent event, but transaction {:02x} is missing", tx_hash);
+                                return ERR!("Found ReceiverSpent event, but transaction {:02x} is missing", tx_hash)
                             },
                         };
 
@@ -5063,7 +5075,7 @@ impl EthCoin {
                         let transaction = match try_s!(self.transaction(TransactionId::Hash(tx_hash)).await) {
                             Some(t) => t,
                             None => {
-                                return ERR!("Found SenderRefunded event, but transaction {:02x} is missing", tx_hash);
+                                return ERR!("Found SenderRefunded event, but transaction {:02x} is missing", tx_hash)
                             },
                         };
 
@@ -5929,7 +5941,7 @@ fn validate_fee_impl(coin: EthCoin, validate_fee_args: EthValidateFeeArgs<'_>) -
                         return MmError::err(ValidatePaymentError::WrongPaymentTx(format!(
                             "Should have got uint token but got {:?}",
                             value_input
-                        )));
+                        )))
                     },
                 }
             },
@@ -6421,6 +6433,7 @@ pub async fn eth_coin_from_conf_and_request(
         coin_type,
         sign_message_prefix,
         swap_contract_address,
+        swap_v2_contracts: None,
         fallback_swap_contract,
         contract_supports_watchers,
         decimals,
@@ -6603,7 +6616,7 @@ fn get_valid_nft_addr_to_withdraw(
         _ => {
             return MmError::err(GetValidEthWithdrawAddError::CoinDoesntSupportNftWithdraw {
                 coin: coin_enum.ticker().to_owned(),
-            });
+            })
         },
     };
     let to_addr = valid_addr_from_str(to).map_err(GetValidEthWithdrawAddError::InvalidAddress)?;
@@ -6670,7 +6683,7 @@ async fn get_eth_gas_details_from_withdraw_fee(
                             max_fee_per_gas,
                             max_priority_fee_per_gas,
                         }),
-                    ));
+                    ))
                 },
                 EthGasLimitOption::Calc =>
                 // go to gas estimate code
@@ -6801,20 +6814,12 @@ impl ToBytes for SignedEthTx {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub enum EthAssocTypesError {
     InvalidHexString(String),
+    #[from_stringify("DecoderError")]
     TxParseError(String),
     ParseSignatureError(String),
-    KeysError(keys::Error),
-}
-
-impl From<DecoderError> for EthAssocTypesError {
-    fn from(e: DecoderError) -> Self { EthAssocTypesError::TxParseError(e.to_string()) }
-}
-
-impl From<keys::Error> for EthAssocTypesError {
-    fn from(e: keys::Error) -> Self { EthAssocTypesError::KeysError(e) }
 }
 
 #[derive(Debug, Display)]
@@ -6832,7 +6837,7 @@ impl From<ParseContractTypeError> for EthNftAssocTypesError {
 impl ParseCoinAssocTypes for EthCoin {
     type Address = Address;
     type AddressParseError = MmError<EthAssocTypesError>;
-    type Pubkey = HtlcPubKey;
+    type Pubkey = Public;
     type PubkeyParseError = MmError<EthAssocTypesError>;
     type Tx = SignedEthTx;
     type TxParseError = MmError<EthAssocTypesError>;
@@ -6857,8 +6862,9 @@ impl ParseCoinAssocTypes for EthCoin {
         Address::from_str(address).map_to_mm(|e| EthAssocTypesError::InvalidHexString(e.to_string()))
     }
 
+    /// As derive_htlc_pubkey_v2 returns coin specific pubkey we can use [Public::from_slice] directly
     fn parse_pubkey(&self, pubkey: &[u8]) -> Result<Self::Pubkey, Self::PubkeyParseError> {
-        HtlcPubKey::from_slice(pubkey).map_to_mm(EthAssocTypesError::from)
+        Ok(Public::from_slice(pubkey))
     }
 
     fn parse_tx(&self, tx: &[u8]) -> Result<Self::Tx, Self::TxParseError> {
@@ -6891,6 +6897,10 @@ impl ToBytes for BigUint {
 
 impl ToBytes for ContractType {
     fn to_bytes(&self) -> Vec<u8> { self.to_string().into_bytes() }
+}
+
+impl ToBytes for Public {
+    fn to_bytes(&self) -> Vec<u8> { self.0.to_vec() }
 }
 
 impl ParseNftAssocTypes for EthCoin {
@@ -6943,16 +6953,16 @@ impl MakerNftSwapOpsV2 for EthCoin {
 
     async fn refund_nft_maker_payment_v2_timelock(
         &self,
-        args: RefundPaymentArgs<'_>,
+        args: RefundNftMakerPaymentArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr> {
         self.refund_nft_maker_payment_v2_timelock_impl(args).await
     }
 
     async fn refund_nft_maker_payment_v2_secret(
         &self,
-        _args: RefundMakerPaymentArgs<'_, Self>,
+        args: RefundNftMakerPaymentArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr> {
-        todo!()
+        self.refund_nft_maker_payment_v2_secret_impl(args).await
     }
 }
 
@@ -7080,5 +7090,139 @@ impl Eip1559Ops for EthCoin {
 
     fn set_swap_transaction_fee_policy(&self, swap_txfee_policy: SwapTxFeePolicy) {
         *self.swap_txfee_policy.lock().unwrap() = swap_txfee_policy
+    }
+}
+
+#[async_trait]
+impl TakerCoinSwapOpsV2 for EthCoin {
+    async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        self.send_taker_funding_impl(args).await
+    }
+
+    async fn validate_taker_funding(&self, _args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
+        todo!()
+    }
+
+    async fn refund_taker_funding_timelock(&self, _args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn refund_taker_funding_secret(
+        &self,
+        _args: RefundFundingSecretArgs<'_, Self>,
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn search_for_taker_funding_spend(
+        &self,
+        _tx: &Self::Tx,
+        _from_block: u64,
+        _secret_hash: &[u8],
+    ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
+        todo!()
+    }
+
+    /// Eth doesnt have preimages
+    async fn gen_taker_funding_spend_preimage(
+        &self,
+        args: &GenTakerFundingSpendArgs<'_, Self>,
+        _swap_unique_data: &[u8],
+    ) -> GenPreimageResult<Self> {
+        Ok(TxPreimageWithSig {
+            preimage: args.funding_tx.clone(),
+            signature: args.funding_tx.signature(),
+        })
+    }
+
+    /// Eth doesnt have preimages
+    async fn validate_taker_funding_spend_preimage(
+        &self,
+        _gen_args: &GenTakerFundingSpendArgs<'_, Self>,
+        _preimage: &TxPreimageWithSig<Self>,
+    ) -> ValidateTakerFundingSpendPreimageResult {
+        Ok(())
+    }
+
+    /// Eth doesnt use multisig
+    async fn sign_and_send_taker_funding_spend(
+        &self,
+        _preimage: &TxPreimageWithSig<Self>,
+        _args: &GenTakerFundingSpendArgs<'_, Self>,
+        _swap_unique_data: &[u8],
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn refund_combined_taker_payment(&self, _args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    /// Eth doesnt have preimages
+    async fn gen_taker_payment_spend_preimage(
+        &self,
+        args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _swap_unique_data: &[u8],
+    ) -> GenPreimageResult<Self> {
+        Ok(TxPreimageWithSig {
+            preimage: args.taker_tx.clone(),
+            signature: args.taker_tx.signature(),
+        })
+    }
+
+    /// Eth doesnt have preimages
+    async fn validate_taker_payment_spend_preimage(
+        &self,
+        _gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _preimage: &TxPreimageWithSig<Self>,
+    ) -> ValidateTakerPaymentSpendPreimageResult {
+        Ok(())
+    }
+
+    async fn sign_and_broadcast_taker_payment_spend(
+        &self,
+        _preimage: &TxPreimageWithSig<Self>,
+        _gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
+        _secret: &[u8],
+        _swap_unique_data: &[u8],
+    ) -> Result<Self::Tx, TransactionErr> {
+        todo!()
+    }
+
+    async fn wait_for_taker_payment_spend(
+        &self,
+        _taker_payment: &Self::Tx,
+        _from_block: u64,
+        _wait_until: u64,
+    ) -> MmResult<Self::Tx, WaitForTakerPaymentSpendError> {
+        todo!()
+    }
+}
+
+impl CommonSwapOpsV2 for EthCoin {
+    #[inline(always)]
+    fn derive_htlc_pubkey_v2(&self, _swap_unique_data: &[u8]) -> Self::Pubkey {
+        match self.priv_key_policy {
+            EthPrivKeyPolicy::Iguana(ref key_pair)
+            | EthPrivKeyPolicy::HDWallet {
+                activated_key: ref key_pair,
+                ..
+            } => *key_pair.public(),
+            EthPrivKeyPolicy::Trezor => todo!(),
+            #[cfg(target_arch = "wasm32")]
+            EthPrivKeyPolicy::Metamask(ref metamask_policy) => {
+                // The metamask public key should be uncompressed
+                // Remove the first byte (0x04) from the uncompressed public key
+                let pubkey_bytes: [u8; 64] = metamask_policy.public_key_uncompressed[1..65]
+                    .try_into()
+                    .expect("slice with incorrect length");
+                Public::from_slice(&pubkey_bytes)
+            },
+        }
+    }
+
+    #[inline(always)]
+    fn derive_htlc_pubkey_v2_bytes(&self, swap_unique_data: &[u8]) -> Vec<u8> {
+        self.derive_htlc_pubkey_v2(swap_unique_data).to_bytes()
     }
 }

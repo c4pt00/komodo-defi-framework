@@ -45,7 +45,7 @@ use web3::types::TransactionId;
 #[cfg(not(target_arch = "wasm32"))]
 use mm2_net::native_http::send_request_to_uri;
 
-use crate::eth::v2_activation::generate_signed_message;
+use crate::eth::v2_activation::nft_signed_message;
 #[cfg(target_arch = "wasm32")]
 use mm2_net::wasm::http::send_request_to_uri;
 
@@ -330,7 +330,7 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
                     };
                     let my_address = eth_coin.my_address()?;
                     let signed_message =
-                        generate_signed_message(req.proxy_auth, chain, my_address, &eth_coin.priv_key_policy).await?;
+                        nft_signed_message(req.proxy_auth, chain, my_address, &eth_coin.priv_key_policy).await?;
                     let wrapper = UrlSignWrapper {
                         chain,
                         orig_url: &req.url,
@@ -352,7 +352,7 @@ pub async fn update_nft(ctx: MmArc, req: UpdateNftReq) -> MmResult<(), UpdateNft
                             continue;
                         },
                         Err(_) => {
-                            // if there is an error, then NFT LIST table doesnt exist, so we need to cache nft list from moralis.
+                            // if there is an error, then NFT LIST table doesn't exist, so we need to cache nft list from moralis.
                             NftListStorageOps::init(&storage, chain).await?;
                             let nft_list = cache_nfts_from_moralis(&ctx, &storage, &wrapper).await?;
                             update_meta_in_transfers(&storage, chain, nft_list).await?;
@@ -584,8 +584,7 @@ pub async fn refresh_nft_metadata(ctx: MmArc, req: RefreshMetadataReq) -> MmResu
         },
     };
     let my_address = eth_coin.my_address()?;
-    let signed_message =
-        generate_signed_message(req.proxy_auth, &req.chain, my_address, &eth_coin.priv_key_policy).await?;
+    let signed_message = nft_signed_message(req.proxy_auth, &req.chain, my_address, &eth_coin.priv_key_policy).await?;
     let wrapper = UrlSignWrapper {
         chain: &req.chain,
         orig_url: &req.url,
