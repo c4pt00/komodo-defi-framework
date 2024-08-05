@@ -8,16 +8,12 @@ use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use std::str::FromStr;
 
 pub enum SolanaNet {
-    //Mainnet,
-    Testnet,
-    Devnet,
+    Local,
 }
 
 pub fn solana_net_to_url(net_type: SolanaNet) -> String {
     match net_type {
-        //SolanaNet::Mainnet => "https://api.mainnet-beta.solana.com".to_string(),
-        SolanaNet::Testnet => "https://api.testnet.solana.com/".to_string(),
-        SolanaNet::Devnet => "https://api.devnet.solana.com".to_string(),
+        SolanaNet::Local => "http://localhost:8899".to_string(),
     }
 }
 

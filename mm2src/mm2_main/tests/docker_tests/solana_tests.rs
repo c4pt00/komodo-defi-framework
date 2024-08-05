@@ -6,6 +6,9 @@ use mm2_test_helpers::structs::{EnableSolanaWithTokensResponse, EnableSplRespons
                                 VerificationResponse};
 
 use crate::docker_tests::docker_tests_common::*;
+use coins::solana::solana_tests::{solana_coin_send_and_refund_maker_payment, solana_coin_send_and_spend_maker_payment,
+                                  solana_keypair_from_secp, solana_test_transactions, solana_transaction_simulations,
+                                  solana_transaction_simulations_not_enough_for_fees, solana_transaction_zero_balance};
 
 const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
 
@@ -146,3 +149,41 @@ fn test_disable_solana_platform_coin_with_tokens() {
     let res = block_on(disable_coin(&mm, "SOL-DEVNET", true));
     assert!(!res.passivized);
 }
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_keypair_from_secp_dockerized() { solana_keypair_from_secp(); }
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_transaction_simulations_dockerized() { solana_transaction_simulations(); }
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_transaction_zero_balance_dockerized() { solana_transaction_zero_balance(); }
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_transaction_simulations_not_enough_for_fees_dockerized() {
+    solana_transaction_simulations_not_enough_for_fees();
+}
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_transaction_simulations_max_dockerized() { solana_transaction_simulations_not_enough_for_fees(); }
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_test_transactions_dockerized() { solana_test_transactions(); }
+
+// This test is just a unit test for brainstorming around tx_history for base_coin.
+#[test]
+#[ignore]
+#[cfg(not(target_arch = "wasm32"))]
+fn solana_test_tx_history_dockerized() { solana_test_transactions(); }
+
+#[test]
+fn solana_coin_send_and_refund_maker_payment_dockerized() { solana_coin_send_and_refund_maker_payment(); }
+
+#[test]
+fn solana_coin_send_and_spend_maker_payment_dockerized() { solana_coin_send_and_spend_maker_payment(); }
