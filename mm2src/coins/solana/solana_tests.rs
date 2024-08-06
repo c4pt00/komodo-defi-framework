@@ -1,17 +1,21 @@
-use base58::ToBase58;
-use common::{block_on, Future01CompatExt};
-use rpc::v1::types::Bytes;
-use solana_client::rpc_request::TokenAccountsFilter;
-use solana_sdk::{bs58,
-                 signature::{Signature, Signer}};
-use solana_transaction_status::UiTransactionEncoding;
-use std::{ops::Neg, str::FromStr};
-
+#[allow(unused_imports)]
 use super::solana_common_tests::{generate_key_pair_from_iguana_seed, generate_key_pair_from_seed,
                                  solana_coin_for_test, SolanaNet};
+#[allow(unused_imports)]
 use super::solana_decode_tx_helpers::SolanaConfirmedTransaction;
 use super::*;
 use crate::{MarketCoinOps, SwapTxTypeWithSecretHash};
+#[allow(unused_imports)] use base58::ToBase58;
+use common::{block_on, Future01CompatExt};
+use rpc::v1::types::Bytes;
+#[allow(unused_imports)]
+use solana_client::rpc_request::TokenAccountsFilter;
+#[allow(unused_imports)]
+use solana_sdk::{bs58,
+                 signature::{Signature, Signer}};
+#[allow(unused_imports)]
+use solana_transaction_status::UiTransactionEncoding;
+use std::{ops::Neg, str::FromStr};
 
 pub fn solana_keypair_from_secp() {
     let solana_key_pair = generate_key_pair_from_iguana_seed("federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string());
@@ -285,33 +289,6 @@ pub fn solana_test_transactions() {
     assert_eq!(res, res2);
 
     //log!("{:?}", res);
-}
-
-// This test is just a unit test for brainstorming around tx_history for base_coin.
-#[test]
-#[ignore]
-#[cfg(not(target_arch = "wasm32"))]
-fn solana_test_tx_history() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
-    let res = sol_coin
-        .client
-        .get_signatures_for_address(&sol_coin.key_pair.pubkey())
-        .unwrap();
-    let mut history = Vec::new();
-    for cur in res.iter() {
-        let signature = Signature::from_str(cur.signature.clone().as_str()).unwrap();
-        let res = sol_coin
-            .client
-            .get_transaction(&signature, UiTransactionEncoding::JsonParsed)
-            .unwrap();
-        log!("{}", serde_json::to_string(&res).unwrap());
-        let parsed = serde_json::to_value(&res).unwrap();
-        let tx_infos: SolanaConfirmedTransaction = serde_json::from_value(parsed).unwrap();
-        let mut txs = tx_infos.extract_solana_transactions(&sol_coin).unwrap();
-        history.append(&mut txs);
-    }
-    log!("{}", serde_json::to_string(&history).unwrap());
 }
 
 pub fn solana_coin_send_and_refund_maker_payment() {

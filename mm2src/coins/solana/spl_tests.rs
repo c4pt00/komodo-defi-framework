@@ -28,7 +28,7 @@ fn spl_coin_creation() {
 #[cfg(not(target_arch = "wasm32"))]
 fn test_sign_message() {
     let passphrase = "spice describe gravity federal blast come thank unfair canal monkey style afraid".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Testnet);
+    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),
@@ -46,7 +46,7 @@ fn test_sign_message() {
 #[cfg(not(target_arch = "wasm32"))]
 fn test_verify_message() {
     let passphrase = "spice describe gravity federal blast come thank unfair canal monkey style afraid".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Testnet);
+    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),
@@ -67,7 +67,7 @@ fn test_verify_message() {
 #[cfg(not(target_arch = "wasm32"))]
 fn spl_my_balance() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Testnet);
+    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin.clone(),
         "USDC".to_string(),
@@ -95,7 +95,7 @@ fn spl_my_balance() {
 #[cfg(not(target_arch = "wasm32"))]
 fn test_spl_transactions() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Testnet);
+    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let usdc_sol_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),

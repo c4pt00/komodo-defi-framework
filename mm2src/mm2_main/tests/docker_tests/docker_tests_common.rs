@@ -1,6 +1,7 @@
 pub use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::str;
 use std::str::FromStr;
 use std::sync::Mutex;
 pub use std::thread;
@@ -47,6 +48,7 @@ use serde_json::{self as json, Value as Json};
 use testcontainers::clients::Cli;
 use testcontainers::core::WaitFor;
 use testcontainers::{Container, GenericImage, RunnableImage};
+use tokio::runtime::Runtime;
 use web3::transports::Http;
 use web3::types::Address as EthAddress;
 use web3::types::{BlockId, BlockNumber, TransactionRequest};
@@ -376,6 +378,27 @@ pub fn sol_asset_docker_node<'a>(docker: &'a Cli, ticker: &'static str) -> Docke
     let image = GenericImage::new(SOLANA_CLUSTER_DOCKER_IMAGE, "latest");
     let image = RunnableImage::from((image, vec![])).with_mapped_port((port, port));
     let container = docker.run(image);
+
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+    });
+    let container_id = container.id().to_string();
+    let output = Command::new("docker")
+        .arg("exec")
+        .arg(&container_id)
+        .arg("/bin/sh")
+        .arg("-c")
+        .arg("cd /root && ./mint.sh")
+        .output()
+        .expect("Failed to execute script in the container");
+
+    if !output.status.success() {
+        eprintln!("Failed to execute script: {}", String::from_utf8_lossy(&output.stderr));
+    } else {
+        println!("Script output: {}", String::from_utf8_lossy(&output.stdout));
+    }
+
     DockerNode {
         container,
         ticker: ticker.into(),
@@ -1071,11 +1094,37 @@ pub fn slp_supplied_node() -> MarketMakerIt {
     .unwrap()
 }
 
+fn exec_in_container(container_id: &str, command: &str) -> String {
+    let output = Command::new("docker")
+        .args(["exec", container_id, "sh", "-c", command])
+        .output()
+        .expect("failed to execute command in container");
+
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+fn find_container_id_by_port(port: u16) -> Option<String> {
+    let output = Command::new("docker")
+        .args(["ps", "--filter", &format!("publish={}", port), "--format", "{{.ID}}"])
+        .output()
+        .expect("failed to execute docker ps");
+
+    let container_id = str::from_utf8(&output.stdout).ok()?.trim().to_string();
+    if container_id.is_empty() {
+        None
+    } else {
+        Some(container_id)
+    }
+}
+
 pub fn _solana_supplied_node() -> MarketMakerIt {
+    let container_id = find_container_id_by_port(8899).expect("Failed to find container by port");
+    let adex_token_address = exec_in_container(&container_id, "cat /root/accounts/adex_token_address");
+    println!("adex_token_address: {}", &adex_token_address);
     let coins = json! ([
         {"coin": "SOL-DEVNET","name": "solana","fname": "Solana","rpcport": 80,"mm2": 1,"required_confirmations": 1,"avg_blocktime": 0.25,"protocol": {"type": "SOLANA"}},
         {"coin":"USDC-SOL-DEVNET","protocol":{"type":"SPLTOKEN","protocol_data":{"decimals":6,"token_contract_address":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU","platform":"SOL-DEVNET"}},"mm2": 1},
-        {"coin":"ADEX-SOL-DEVNET","protocol":{"type":"SPLTOKEN","protocol_data":{"decimals":9,"token_contract_address":"5tSm6PqMosy1rz1AqV3kD28yYT5XqZW3QYmZommuFiPJ","platform":"SOL-DEVNET"}},"mm2": 1},
+        {"coin":"ADEX-SOL-DEVNET","protocol":{"type":"SPLTOKEN","protocol_data":{"decimals":9,"token_contract_address": adex_token_address,"platform":"SOL-DEVNET"}},"mm2": 1},
     ]);
 
     MarketMakerIt::start(

@@ -6,10 +6,9 @@ ACCOUNTS_DIR="./accounts"
 MINT_AMOUNT_USDC=1000000000  # 1000 USDC if the token has 6 decimals
 MINT_AMOUNT_ADEX=1000000000  # 1 ADEX if the token has 9 decimals
 # Path to your keypair file
-AUTHORITY_KEYPAIR=~/.config/solana/id.json
+AUTHORITY_KEYPAIR=/root/accounts/iguana
 # Path to the fee payer keypair file
-FEE_PAYER_KEYPAIR=~/.config/solana/id.json
-
+FEE_PAYER_KEYPAIR=/root/accounts/iguana
 # Ensure the solana-test-validator is running and solana-cli is set to use local network
 solana config set --url http://127.0.0.1:8899
 solana config set --keypair /root/accounts/iguana

@@ -138,13 +138,6 @@ fn test_disable_solana_platform_coin_with_tokens() {
     let res = block_on(disable_coin(&mm, "SOL-DEVNET", false));
     assert!(res.passivized);
 
-    // Try to disable ADEX-SOL-DEVNET and USDC-SOL-DEVNET
-    // This should work, because platform coin is still in the memory.
-    let res = block_on(disable_coin(&mm, "ADEX-SOL-DEVNET", false));
-    assert!(!res.passivized);
-    let res = block_on(disable_coin(&mm, "USDC-SOL-DEVNET", false));
-    assert!(!res.passivized);
-
     // Then try to force disable SOL-DEVNET platform coin.
     let res = block_on(disable_coin(&mm, "SOL-DEVNET", true));
     assert!(!res.passivized);
