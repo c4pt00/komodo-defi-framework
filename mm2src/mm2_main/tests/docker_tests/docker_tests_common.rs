@@ -383,7 +383,6 @@ pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) ->
     }
 }
 
-#[allow(dead_code)]
 pub fn nucleus_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
     let nucleus_node_runtime_dir = runtime_dir.join("nucleus-testnet-data");
     assert!(nucleus_node_runtime_dir.exists());
@@ -400,7 +399,6 @@ pub fn nucleus_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
     }
 }
 
-#[allow(dead_code)]
 pub fn atom_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
     let atom_node_runtime_dir = runtime_dir.join("atom-testnet-data");
     assert!(atom_node_runtime_dir.exists());
@@ -417,7 +415,6 @@ pub fn atom_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
     }
 }
 
-#[allow(dead_code)]
 pub fn ibc_relayer_node(docker: &'_ Cli, runtime_dir: PathBuf) -> DockerNode<'_> {
     let relayer_node_runtime_dir = runtime_dir.join("ibc-relayer-data");
     assert!(relayer_node_runtime_dir.exists());
@@ -1154,7 +1151,6 @@ async fn get_current_gas_limit(web3: &Web3<Http>) {
     }
 }
 
-#[allow(dead_code)]
 pub fn wait_until_relayer_container_is_ready(container_id: &str) {
     const Q_RESULT: &str = "0: nucleus-atom         -> chns(✔) clnts(✔) conn(✔) (nucleus-testnet<>cosmoshub-testnet)";
 

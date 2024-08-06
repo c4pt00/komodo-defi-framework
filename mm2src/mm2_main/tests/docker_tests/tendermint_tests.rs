@@ -21,7 +21,6 @@ const NUCLEUS_TESTNET_RPC_URLS: &[&str] = &["http://localhost:26657"];
 const TENDERMINT_TEST_BIP39_SEED: &str =
     "emerge canoe salmon dolphin glow priority random become gasp sell blade argue";
 
-#[ignore]
 #[test]
 fn test_tendermint_balance() {
     let coins = json!([atom_testnet_conf()]);
@@ -45,7 +44,6 @@ fn test_tendermint_balance() {
     assert_eq!(my_balance.coin, coin);
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_activation_without_balance() {
     let coins = json!([atom_testnet_conf()]);
@@ -68,7 +66,6 @@ fn test_tendermint_activation_without_balance() {
     assert!(result.result.tokens_tickers.unwrap().is_empty());
 }
 
-#[ignore]
 #[test]
 fn test_iris_ibc_nucleus_without_balance() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
@@ -96,7 +93,6 @@ fn test_iris_ibc_nucleus_without_balance() {
     );
 }
 
-#[ignore]
 #[test]
 fn test_iris_ibc_nucleus_orderbook() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
@@ -145,7 +141,6 @@ fn test_iris_ibc_nucleus_orderbook() {
     assert_eq!(first_bid.entry.address, expected_address);
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_hd_address() {
     let coins = json!([atom_testnet_conf()]);
@@ -162,7 +157,6 @@ fn test_tendermint_hd_address() {
     assert_eq!(result.result.address, expected_address);
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_withdraw() {
     const MY_ADDRESS: &str = "cosmos150evuj4j7k9kgu38e453jdv9m3u0ft2n53flg6";
@@ -220,7 +214,6 @@ fn test_tendermint_withdraw() {
     log!("Send raw tx {}", serde_json::to_string(&send_raw_tx).unwrap());
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_withdraw_hd() {
     const MY_ADDRESS: &str = "cosmos134h9tv7866jcuw708w5w76lcfx7s3x2ysyalxy";
@@ -288,7 +281,6 @@ fn test_tendermint_withdraw_hd() {
     log!("Send raw tx {}", serde_json::to_string(&send_raw_tx).unwrap());
 }
 
-#[ignore]
 #[test]
 fn test_custom_gas_limit_on_tendermint_withdraw() {
     let coins = json!([atom_testnet_conf()]);
@@ -319,7 +311,6 @@ fn test_custom_gas_limit_on_tendermint_withdraw() {
     assert_eq!(tx_details.fee_details["gas_limit"], 150000);
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_ibc_withdraw() {
     // visit `{swagger_address}/ibc/core/channel/v1/channels?pagination.limit=10000` to see the full list of ibc channels
@@ -366,7 +357,6 @@ fn test_tendermint_ibc_withdraw() {
     log!("Send raw tx {}", serde_json::to_string(&send_raw_tx).unwrap());
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_ibc_withdraw_hd() {
     // visit `{swagger_address}/ibc/core/channel/v1/channels?pagination.limit=10000` to see the full list of ibc channels
@@ -414,7 +404,6 @@ fn test_tendermint_ibc_withdraw_hd() {
     log!("Send raw tx {}", serde_json::to_string(&send_raw_tx).unwrap());
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_token_withdraw() {
     const MY_ADDRESS: &str = "nuc150evuj4j7k9kgu38e453jdv9m3u0ft2n4fgzfr";
@@ -495,7 +484,6 @@ fn test_tendermint_token_withdraw() {
     log!("Send raw tx {}", serde_json::to_string(&send_raw_tx).unwrap());
 }
 
-#[ignore]
 #[test]
 fn test_tendermint_tx_history() {
     const TEST_SEED: &str = "Vdo8Xt8pTAetRlMq3kV0LzE393eVYbPSn5Mhtw4p";
@@ -572,7 +560,6 @@ fn test_tendermint_tx_history() {
     block_on(mm.stop()).unwrap();
 }
 
-#[ignore]
 #[test]
 fn test_disable_tendermint_platform_coin_with_token() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
@@ -609,7 +596,6 @@ fn test_disable_tendermint_platform_coin_with_token() {
     assert!(!res.passivized);
 }
 
-#[ignore]
 #[test]
 fn test_passive_coin_and_force_disable() {
     let coins = json!([nucleus_testnet_conf(), iris_ibc_nucleus_testnet_conf()]);
@@ -686,7 +672,6 @@ mod swap {
     const BOB_PASSPHRASE: &str = "iris test seed";
     const ALICE_PASSPHRASE: &str = "iris test2 seed";
 
-    #[ignore]
     #[test]
     fn swap_nucleus_with_doc() {
         let bob_passphrase = String::from(BOB_PASSPHRASE);
@@ -765,7 +750,6 @@ mod swap {
         ));
     }
 
-    #[ignore]
     #[test]
     fn swap_nucleus_with_eth() {
         let bob_passphrase = String::from(BOB_PASSPHRASE);
@@ -872,7 +856,6 @@ mod swap {
         ));
     }
 
-    #[ignore]
     #[test]
     fn swap_doc_with_iris_ibc_nucleus() {
         let bob_passphrase = String::from(BOB_PASSPHRASE);
