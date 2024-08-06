@@ -1789,6 +1789,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         watcher_reward: false,
     };
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    thread::sleep(Duration::from_secs(1));
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
     log!(
         "Taker refunded ERC20 funding by secret, tx hash: {:02x}",
@@ -1799,7 +1800,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
 
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
-    thread::sleep(Duration::from_secs(10));
+    thread::sleep(Duration::from_secs(12));
     // sepolia test
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
@@ -2152,6 +2153,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
         trading_amount,
     };
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    thread::sleep(Duration::from_secs(3));
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_timelock(refund_args)).unwrap();
     log!(
         "Taker refunded ERC20 funding after pre-approval lock time was exceeded, tx hash: {:02x}",

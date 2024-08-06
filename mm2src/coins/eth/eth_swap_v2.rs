@@ -219,33 +219,20 @@ impl EthCoin {
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        let taker_swap_v2_contract = self
-            .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
-            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
-
-        let (send_func, token_address) = match self.coin_type {
-            EthCoinType::Eth => (try_tx_s!(TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)), Address::default()),
-            EthCoinType::Erc20 { token_addr, .. } => {
-                (try_tx_s!(TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)), token_addr)
-            },
-            EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps"
-                )))
-            },
-        };
+        let (taker_swap_v2_contract, send_func, token_address) = self
+            .taker_swap_v2_details(ETH_TAKER_PAYMENT, ERC20_TAKER_PAYMENT)
+            .await?;
         let decoded = try_tx_s!(decode_contract_call(send_func, args.funding_tx.unsigned().data()));
+        // Note: `PaymentSent` state was checked in `validate_taker_funding`. So we don't have to validate it in prepare function
         let data = try_tx_s!(
             self.prepare_taker_payment_approve_data(args, decoded, token_address)
                 .await
         );
-        // TODO need new consts and params for v2 calls, create provide approve const
+        // TODO need new consts and params for v2 calls, here should be one `gas_limit.taker_approve` param without match
         let gas_limit = match self.coin_type {
             EthCoinType::Eth => U256::from(self.gas_limit.eth_payment),
             EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.eth_payment),
-            EthCoinType::Nft { .. } => unreachable!(), // EthCoinType::Nft case was already checked
+            EthCoinType::Nft { .. } => unreachable!(), // EthCoinType::Nft case was already checked in taker_swap_v2_details
         };
         let approve_tx = self
             .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
@@ -381,46 +368,20 @@ impl EthCoin {
         gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
         secret: &[u8],
     ) -> Result<SignedEthTx, TransactionErr> {
-        let taker_swap_v2_contract = self
-            .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
-            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
-        let (approve_func, token_address) = match self.coin_type {
-            EthCoinType::Eth => (
-                try_tx_s!(TAKER_SWAP_V2.function("takerPaymentApprove")),
-                Address::default(),
-            ),
-            EthCoinType::Erc20 { token_addr, .. } => {
-                (try_tx_s!(TAKER_SWAP_V2.function("takerPaymentApprove")), token_addr)
-            },
-            EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps"
-                )))
-            },
-        };
-        let (state, decoded) = try_tx_s!(
-            self.status_and_decoded_from_tx_data(
-                taker_swap_v2_contract,
-                &TAKER_SWAP_V2,
-                approve_func,
-                // taker_tx should be approved tx
-                gen_args.taker_tx.unsigned().data(),
-                EthPaymentType::TakerPayments,
-                3
-            )
-            .await
-        );
+        let (taker_swap_v2_contract, approve_func, token_address) = self
+            .taker_swap_v2_details("takerPaymentApprove", "takerPaymentApprove")
+            .await?;
+        let decoded = try_tx_s!(decode_contract_call(approve_func, gen_args.taker_tx.unsigned().data()));
+        // Note: `TakerApproved` status will be checked in `search_for_taker_funding_spend` function
         let data = try_tx_s!(
-            self.prepare_spend_taker_payment_data(gen_args, secret, decoded, state, token_address)
+            self.prepare_spend_taker_payment_data(gen_args, secret, decoded, token_address)
                 .await
         );
         // TODO need new consts and params for v2 calls
         let gas_limit = match self.coin_type {
             EthCoinType::Eth => U256::from(self.gas_limit.eth_receiver_spend),
             EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.erc20_receiver_spend),
-            EthCoinType::Nft { .. } => unreachable!(), // EthCoinType::Nft case was already checked
+            EthCoinType::Nft { .. } => unreachable!(), // EthCoinType::Nft case was already checked in taker_swap_v2_details
         };
         let payment_tx = self
             .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
@@ -592,10 +553,8 @@ impl EthCoin {
         args: &GenTakerPaymentSpendArgs<'_, Self>,
         secret: &[u8],
         decoded: Vec<Token>,
-        state: U256,
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        validate_payment_state(args.taker_tx, state, TakerPaymentStateV2::TakerApproved as u8)?;
         let function = TAKER_SWAP_V2.function("spendTakerPayment")?;
         let taker_address = public_to_address(args.taker_pub);
         let data = function.encode_input(&[
@@ -642,28 +601,30 @@ impl EthCoin {
         }
     }
 
-    /// Returns payment status and decoded tx input from bytes of contract call
-    async fn status_and_decoded_from_tx_data(
+    /// Retrieves the taker smart contract address, the corresponding function, and the token address.
+    ///
+    /// Depending on the coin type (ETH or ERC20), it fetches the appropriate function name  and token address.
+    /// Returns an error if the coin type is NFT or if the `swap_v2_contracts` is None.
+    async fn taker_swap_v2_details(
         &self,
-        swap_address: Address,
-        contract_abi: &Contract,
-        func: &Function,
-        contract_call_bytes: &[u8],
-        payment_type: EthPaymentType,
-        state_index: usize,
-    ) -> Result<(U256, Vec<Token>), PaymentStatusErr> {
-        let decoded = decode_contract_call(func, contract_call_bytes)?;
-        let state = self
-            .payment_status_v2(
-                swap_address,
-                // swap_id has 0 index
-                decoded[0].clone(),
-                contract_abi,
-                payment_type,
-                state_index,
-            )
-            .await?;
-        Ok((state, decoded))
+        eth_func_name: &str,
+        erc20_func_name: &str,
+    ) -> Result<(Address, &Function, Address), TransactionErr> {
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
+        let (func, token_address) = match self.coin_type {
+            EthCoinType::Eth => (try_tx_s!(TAKER_SWAP_V2.function(eth_func_name)), Address::default()),
+            EthCoinType::Erc20 { token_addr, .. } => (try_tx_s!(TAKER_SWAP_V2.function(erc20_func_name)), token_addr),
+            EthCoinType::Nft { .. } => {
+                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps"
+                )))
+            },
+        };
+        Ok((taker_swap_v2_contract, func, token_address))
     }
 }
 
