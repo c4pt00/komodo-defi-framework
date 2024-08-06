@@ -2452,7 +2452,7 @@ impl MmCoin for TendermintCoin {
 
     async fn shared_db_id(&self, ctx: &MmArc) -> Option<String> {
         if let TendermintActivationPolicy::PrivateKey(PrivKeyPolicy::HDWallet { .. }) = self.activation_policy {
-            return Some(ctx.default_shared_db_id().to_string());
+            return Some(ctx.default_shared_db_id());
         };
 
         // Fallback to the account db_id for non-HD wallets

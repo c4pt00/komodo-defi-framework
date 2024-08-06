@@ -333,8 +333,11 @@ fn default_seednodes(netid: u16) -> Vec<RelayAddress> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>, shared_db_id: Option<&str>) -> MmInitResult<()> {
-    fix_shared_dbdir(ctx, shared_db_id)?;
+pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>, fix_shared: bool) -> MmInitResult<()> {
+    if fix_shared {
+        fix_shared_dbdir(ctx)?;
+    };
+
     let dbdir = ctx.dbdir(db_id);
     fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
         path: dbdir.clone(),
@@ -393,8 +396,8 @@ pub fn fix_directories(ctx: &MmCtx, db_id: Option<&str>, shared_db_id: Option<&s
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn fix_shared_dbdir(ctx: &MmCtx, db_id: Option<&str>) -> MmInitResult<()> {
-    let shared_db = ctx.shared_dbdir(db_id);
+fn fix_shared_dbdir(ctx: &MmCtx) -> MmInitResult<()> {
+    let shared_db = ctx.shared_dbdir();
     fs::create_dir_all(&shared_db).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
         path: shared_db.clone(),
         error: e.to_string(),
@@ -468,8 +471,13 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
             continue;
         }
 
+        // fix directories for new db_id.
+        if let Err(err) = fix_directories(&ctx, Some(&db_id), false) {
+            error!("{err:?}");
+            continue;
+        };
         // run db migration for new db_id.
-        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id), false).await {
+        if let Err(err) = run_db_migration_impl(&ctx, Some(&db_id)).await {
             error!("{err:?}");
             continue;
         };
@@ -486,60 +494,14 @@ async fn init_db_migration_watcher_loop(ctx: MmArc) {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>, init_shared: bool) -> MmInitResult<()> {
-    fix_directories(ctx, db_id, None)?;
-
+async fn run_db_migration_impl(ctx: &MmArc, db_id: Option<&str>) -> MmInitResult<()> {
     AsyncSqliteConnPool::init(ctx, db_id)
         .await
         .map_to_mm(MmInitError::ErrorSqliteInitializing)?;
     SqliteConnPool::init(ctx, db_id).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
 
-    // init shared_db once.
-    if init_shared {
-        SqliteConnPool::init_shared(ctx).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
-    }
-
     init_and_migrate_sql_db(ctx, db_id).await?;
     migrate_db(ctx, db_id)?;
-
-    Ok(())
-}
-
-pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
-    init_ordermatch_context(&ctx)?;
-    init_p2p(ctx.clone()).await?;
-
-    if !CryptoCtx::is_init(&ctx)? {
-        return Ok(());
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        run_db_migration_impl(&ctx, None, true).await?;
-        ctx.spawner().spawn(init_db_migration_watcher_loop(ctx.clone()));
-    }
-
-    init_message_service(&ctx).await?;
-
-    let balance_update_ordermatch_handler = BalanceUpdateOrdermatchHandler::new(ctx.clone());
-    register_balance_update_handler(ctx.clone(), Box::new(balance_update_ordermatch_handler)).await;
-
-    ctx.initialized.pin(true).map_to_mm(MmInitError::Internal)?;
-
-    // launch kickstart threads before RPC is available, this will prevent the API user to place
-    // an order and start new swap that might get started 2 times because of kick-start
-    kick_start(ctx.clone(), None).await?;
-
-    init_event_streaming(&ctx).await?;
-
-    ctx.spawner().spawn(lp_ordermatch_loop(ctx.clone()));
-
-    ctx.spawner().spawn(broadcast_maker_orders_keep_alive_loop(ctx.clone()));
-
-    #[cfg(target_arch = "wasm32")]
-    init_wasm_event_streaming(&ctx);
-
-    ctx.spawner().spawn(clean_memory_loop(ctx.weak()));
 
     Ok(())
 }
@@ -589,6 +551,52 @@ pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitRes
     Ok(())
 }
 
+pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
+    init_ordermatch_context(&ctx)?;
+    init_p2p(ctx.clone()).await?;
+
+    if !CryptoCtx::is_init(&ctx)? {
+        return Ok(());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // fix directory for shared and global db.
+        fix_directories(&ctx, None, true)?;
+        // init shared_db once.
+        SqliteConnPool::init_shared(&ctx).map_to_mm(MmInitError::ErrorSqliteInitializing)?;
+        run_db_migration_impl(&ctx, None).await?;
+        ctx.spawner().spawn(init_db_migration_watcher_loop(ctx.clone()));
+    }
+
+    init_message_service(&ctx).await?;
+
+    let balance_update_ordermatch_handler = BalanceUpdateOrdermatchHandler::new(ctx.clone());
+    register_balance_update_handler(ctx.clone(), Box::new(balance_update_ordermatch_handler)).await;
+
+    ctx.initialized.pin(true).map_to_mm(MmInitError::Internal)?;
+
+    // launch kickstart threads before RPC is available, this will prevent the API user to place
+    // an order and start new swap that might get started 2 times because of kick-start
+    kick_start(ctx.clone(), None).await?;
+
+    init_event_streaming(&ctx).await?;
+
+    ctx.spawner().spawn(lp_ordermatch_loop(ctx.clone()));
+
+    ctx.spawner().spawn(broadcast_maker_orders_keep_alive_loop(ctx.clone()));
+
+    #[cfg(target_arch = "wasm32")]
+    init_wasm_event_streaming(&ctx);
+
+    ctx.spawner().spawn(clean_memory_loop(ctx.weak()));
+
+    Ok(())
+}
+
+// kick_start calls swap_kick_starts to get list of coins needed for swap kick start,
+// additionally calls orders_kick_start to get list of coins needed for orders and
+// then extend Mmctx::coins_needed_for_kick_start list
 async fn kick_start(ctx: MmArc, db_id: Option<&str>) -> MmInitResult<()> {
     let coins_needed_for_kick_start = {
         let mut coins_needed_for_kick_start = swap_kick_starts(ctx.clone(), db_id)

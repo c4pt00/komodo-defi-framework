@@ -33,7 +33,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     pub fn new(ctx: &MmArc, db_id: Option<&str>) -> Self {
         let default_db_id = ctx.rmd160().to_string();
         let db_id = db_id.unwrap_or(&default_db_id).to_string();
-        let shared_db_id = ctx.default_shared_db_id().to_string();
+        let shared_db_id = ctx.default_shared_db_id();
         let conns = HashMap::from([(db_id.to_owned(), Default::default())]);
 
         ConstructibleDb {
@@ -49,7 +49,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_shared_db(ctx: &MmArc) -> Self {
         let db_id = ctx.default_db_id();
-        let shared_db_id = ctx.default_shared_db_id().to_string();
+        let shared_db_id = ctx.default_shared_db_id();
         let conns = HashMap::from([(shared_db_id.clone(), Default::default())]);
 
         ConstructibleDb {
@@ -64,7 +64,7 @@ impl<Db: DbInstance> ConstructibleDb<Db> {
     /// This can be initialized later using [`ConstructibleDb::get_or_initialize`].
     pub fn new_global_db(ctx: &MmArc) -> Self {
         let db_id = ctx.default_db_id();
-        let shared_db_id = ctx.default_shared_db_id().to_string();
+        let shared_db_id = ctx.default_shared_db_id();
         ConstructibleDb {
             locks: Arc::new(RwLock::new(HashMap::default())),
             db_namespace: ctx.db_namespace,

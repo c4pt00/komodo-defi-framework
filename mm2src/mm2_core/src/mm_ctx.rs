@@ -205,12 +205,14 @@ impl MmCtx {
 
     pub fn db_id_or_default(&self, db_id: Option<&str>) -> String { db_id.unwrap_or(&self.default_db_id()).to_owned() }
 
-    pub fn default_shared_db_id(&self) -> &H160 {
+    pub fn shared_db_id(&self) -> &H160 {
         lazy_static! {
             static ref DEFAULT: H160 = [0; 20].into();
         }
         self.shared_db_id.or(&|| &*DEFAULT)
     }
+
+    pub fn default_shared_db_id(&self) -> String { self.shared_db_id().to_string() }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn rpc_ip_port(&self) -> Result<SocketAddr, String> {
@@ -319,11 +321,8 @@ impl MmCtx {
     ///
     /// No checks in this method, the paths should be checked in the `fn fix_directories` instead.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn shared_dbdir(&self, db_id: Option<&str>) -> PathBuf {
-        let db_id = db_id
-            .map(|d| d.to_owned())
-            .unwrap_or_else(|| hex::encode(self.default_shared_db_id().as_slice()));
-        path_to_dbdir(self.conf["dbdir"].as_str(), &db_id)
+    pub fn shared_dbdir(&self) -> PathBuf {
+        path_to_dbdir(self.conf["dbdir"].as_str(), &self.shared_db_id().to_string())
     }
 
     pub fn is_watcher(&self) -> bool { self.conf["is_watcher"].as_bool().unwrap_or_default() }

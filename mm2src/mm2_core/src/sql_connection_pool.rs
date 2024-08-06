@@ -47,7 +47,7 @@ impl SqliteConnPool {
     fn init_impl(ctx: &MmArc, db_id: Option<&str>, kind: DbIdConnKind) -> Result<(), String> {
         let db_id = Self::db_id_from_ctx(ctx, db_id, &kind);
         let sqlite_file_path = match kind {
-            DbIdConnKind::Shared => ctx.shared_dbdir(Some(&db_id)).join(SQLITE_SHARED_DB_ID),
+            DbIdConnKind::Shared => ctx.shared_dbdir().join(SQLITE_SHARED_DB_ID),
             DbIdConnKind::Single => ctx.dbdir(Some(&db_id)).join(SYNC_SQLITE_DB_ID),
         };
 
@@ -73,8 +73,8 @@ impl SqliteConnPool {
         let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
-            default_db_id: ctx.rmd160.to_string(),
-            shared_db_id: ctx.default_shared_db_id().to_string(),
+            default_db_id: ctx.default_db_id(),
+            shared_db_id: ctx.default_shared_db_id(),
             db_root: db_root.map(|d| d.to_owned())
         }));
 
@@ -103,8 +103,8 @@ impl SqliteConnPool {
         let db_root = ctx.conf["dbdir"].as_str();
         try_s!(ctx.sqlite_conn_pool.pin(Self {
             connections,
-            default_db_id: ctx.rmd160.to_string(),
-            shared_db_id: ctx.default_shared_db_id().to_string(),
+            default_db_id: ctx.default_db_id(),
+            shared_db_id: ctx.default_shared_db_id(),
             db_root: db_root.map(|d| d.to_owned())
         }));
 
@@ -176,8 +176,8 @@ impl SqliteConnPool {
         match kind {
             DbIdConnKind::Shared => db_id
                 .map(|e| e.to_owned())
-                .unwrap_or_else(|| ctx.default_shared_db_id().to_string()),
-            DbIdConnKind::Single => db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string()),
+                .unwrap_or_else(|| ctx.default_shared_db_id()),
+            DbIdConnKind::Single => db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.default_db_id()),
         }
     }
     fn sqlite_file_path(&self, db_id: &str, kind: &DbIdConnKind) -> PathBuf {
@@ -199,7 +199,7 @@ pub struct AsyncSqliteConnPool {
 impl AsyncSqliteConnPool {
     /// Initialize a database connection.
     pub async fn init(ctx: &MmArc, db_id: Option<&str>) -> Result<(), String> {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.default_db_id());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
             {
@@ -222,7 +222,7 @@ impl AsyncSqliteConnPool {
         try_s!(ctx.async_sqlite_conn_pool.pin(Self {
             connections,
             sqlite_file_path,
-            default_db_id: ctx.rmd160.to_string(),
+            default_db_id: ctx.default_db_id(),
         }));
 
         Ok(())
@@ -230,7 +230,7 @@ impl AsyncSqliteConnPool {
 
     /// Initialize a database connection.
     pub async fn init_test(ctx: &MmArc, db_id: Option<&str>) -> Result<(), String> {
-        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.rmd160.to_string());
+        let db_id = db_id.map(|e| e.to_owned()).unwrap_or_else(|| ctx.default_db_id());
 
         if let Some(pool) = ctx.async_sqlite_conn_pool.as_option() {
             {
@@ -255,7 +255,7 @@ impl AsyncSqliteConnPool {
         try_s!(ctx.async_sqlite_conn_pool.pin(Self {
             connections,
             sqlite_file_path: PathBuf::new(),
-            default_db_id: ctx.rmd160.to_string(),
+            default_db_id: ctx.default_db_id(),
         }));
         Ok(())
     }
