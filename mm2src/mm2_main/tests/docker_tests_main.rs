@@ -55,9 +55,9 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
             UTXO_ASSET_DOCKER_IMAGE_WITH_TAG,
             QTUM_REGTEST_DOCKER_IMAGE_WITH_TAG,
             GETH_DOCKER_IMAGE_WITH_TAG,
-            // NUCLEUS_IMAGE,
-            // ATOM_IMAGE,
-            // IBC_RELAYER_IMAGE,
+            NUCLEUS_IMAGE,
+            ATOM_IMAGE,
+            IBC_RELAYER_IMAGE,
         ];
 
         for image in IMAGES {
