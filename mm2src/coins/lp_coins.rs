@@ -1900,6 +1900,7 @@ pub enum SearchForFundingSpendErr {
     Rpc(String),
     /// Variant indicating an error during conversion of the `from_block` argument with associated `TryFromIntError`.
     FromBlockConversionErr(TryFromIntError),
+    Internal(String),
 }
 
 /// Operations specific to taker coin in [Trading Protocol Upgrade implementation](https://github.com/KomodoPlatform/komodo-defi-framework/issues/1895)

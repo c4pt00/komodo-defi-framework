@@ -7097,14 +7097,14 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.refund_taker_funding_secret_impl(args).await
     }
 
-    /// Checks taker payment status in etomic swap contract
+    /// Check if taker payment state is `TakerApproved`
     async fn search_for_taker_funding_spend(
         &self,
-        _tx: &Self::Tx,
+        tx: &Self::Tx,
         _from_block: u64,
         _secret_hash: &[u8],
     ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
-        todo!()
+        self.search_for_taker_funding_spend_impl(tx).await
     }
 
     /// Eth doesnt have preimages

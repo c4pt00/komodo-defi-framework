@@ -2,7 +2,7 @@ use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_
 use super::{decode_contract_call, get_function_input_data, ParseCoinAssocTypes, RefundFundingSecretArgs,
             RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash, TakerPaymentStateV2, Transaction,
             TransactionErr, ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
-use crate::{GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs};
+use crate::{FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, SearchForFundingSpendErr};
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Function, Token};
 use ethcore_transaction::Action;
@@ -17,6 +17,7 @@ use web3::types::{Transaction as Web3Tx, TransactionId};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
+const TAKER_PAYMENT_APPROVE: &str = "takerPaymentApprove";
 
 struct TakerFundingArgs {
     dex_fee: U256,
@@ -363,16 +364,56 @@ impl EthCoin {
         .await
     }
 
+    /// Check if taker payment state is `TakerApproved`
+    pub(crate) async fn search_for_taker_funding_spend_impl(
+        &self,
+        tx: &SignedEthTx,
+    ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| {
+                SearchForFundingSpendErr::Internal(ERRL!("Expected swap_v2_contracts to be Some, but found None"))
+            })?;
+        let approve_func = match self.coin_type {
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2
+                .function(TAKER_PAYMENT_APPROVE)
+                .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("{}", e)))?,
+            EthCoinType::Nft { .. } => {
+                return Err(SearchForFundingSpendErr::Internal(ERRL!(
+                    "NFT protocol is not supported for ETH and ERC20 Swaps"
+                )))
+            },
+        };
+        let decoded = decode_contract_call(approve_func, tx.unsigned().data())
+            .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("Failed to decode tx data:{}", e)))?;
+        let taker_status = self
+            .payment_status_v2(
+                taker_swap_v2_contract,
+                decoded[0].clone(), // id from takerPaymentApprove
+                &TAKER_SWAP_V2,
+                EthPaymentType::TakerPayments,
+                3,
+            )
+            .await
+            .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("{}", e)))?;
+        if taker_status == U256::from(TakerPaymentStateV2::TakerApproved as u8) {
+            return Ok(Some(FundingTxSpend::TransferredToTakerPayment(tx.clone())));
+        }
+        Ok(None)
+    }
+
     pub(crate) async fn sign_and_broadcast_taker_payment_spend_impl(
         &self,
         gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
         secret: &[u8],
     ) -> Result<SignedEthTx, TransactionErr> {
         let (taker_swap_v2_contract, approve_func, token_address) = self
-            .taker_swap_v2_details("takerPaymentApprove", "takerPaymentApprove")
+            .taker_swap_v2_details(TAKER_PAYMENT_APPROVE, TAKER_PAYMENT_APPROVE)
             .await?;
         let decoded = try_tx_s!(decode_contract_call(approve_func, gen_args.taker_tx.unsigned().data()));
-        // Note: `TakerApproved` status will be checked in `search_for_taker_funding_spend` function
+        // Note: `TakerApproved` status was checked in `search_for_taker_funding_spend` function
         let data = try_tx_s!(
             self.prepare_spend_taker_payment_data(gen_args, secret, decoded, token_address)
                 .await
@@ -507,7 +548,7 @@ impl EthCoin {
         decoded: Vec<Token>,
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
-        let function = TAKER_SWAP_V2.function("takerPaymentApprove")?;
+        let function = TAKER_SWAP_V2.function(TAKER_PAYMENT_APPROVE)?;
         let data = match self.coin_type {
             EthCoinType::Eth => {
                 let dex_fee = match &decoded[1] {

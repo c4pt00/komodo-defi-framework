@@ -1358,7 +1358,8 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                     // handling using @ binding to trigger a compiler error when new variant is added
                     e @ SearchForFundingSpendErr::InvalidInputTx(_)
                     | e @ SearchForFundingSpendErr::FailedToProcessSpendTx(_)
-                    | e @ SearchForFundingSpendErr::FromBlockConversionErr(_) => {
+                    | e @ SearchForFundingSpendErr::FromBlockConversionErr(_)
+                    | e @ SearchForFundingSpendErr::Internal(_) => {
                         let next_state = MakerPaymentRefundRequired {
                             maker_coin_start_block: self.maker_coin_start_block,
                             taker_coin_start_block: self.taker_coin_start_block,
