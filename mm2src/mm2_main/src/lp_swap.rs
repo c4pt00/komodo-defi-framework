@@ -2397,7 +2397,7 @@ mod lp_swap_tests {
             .unwrap()
             .mm2_internal_key_pair();
 
-        fix_directories(&maker_ctx, None, None).unwrap();
+        fix_directories(&maker_ctx, None, true).unwrap();
         block_on(init_p2p(maker_ctx.clone())).unwrap();
         SqliteConnPool::init_test(&maker_ctx).unwrap();
 
@@ -2435,7 +2435,7 @@ mod lp_swap_tests {
             .unwrap()
             .mm2_internal_key_pair();
 
-        fix_directories(&taker_ctx, None, None).unwrap();
+        fix_directories(&taker_ctx, None, true).unwrap();
         block_on(init_p2p(taker_ctx.clone())).unwrap();
         SqliteConnPool::init_test(&taker_ctx).unwrap();
 
