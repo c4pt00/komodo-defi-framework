@@ -1,6 +1,7 @@
 pub use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::str;
 use std::str::FromStr;
 use std::sync::Mutex;
 pub use std::thread;
