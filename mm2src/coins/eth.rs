@@ -235,19 +235,28 @@ pub mod gas_limit {
     /// Gas limit for swap payment tx with coins
     /// real values are approx 48,6K by etherscan
     pub const ETH_PAYMENT: u64 = 65_000;
+    pub const ETH_TAKER_PAYMENT_V2: u64 = 65_000;
+    pub const TAKER_APPROVE_V2: u64 = 50_000;
     /// Gas limit for swap payment tx with ERC20 tokens
     /// real values are 98,9K for ERC20 and 135K for ERC-1967 proxied ERC20 contracts (use 'gas_limit' override in coins to tune)
     pub const ERC20_PAYMENT: u64 = 150_000;
+    pub const ERC20_PAYMENT_V2: u64 = 200_000;
     /// Gas limit for swap receiver spend tx with coins
     /// real values are 40,7K
     pub const ETH_RECEIVER_SPEND: u64 = 65_000;
+    pub const ETH_TAKER_SPEND_V2: u64 = 80_000;
     /// Gas limit for swap receiver spend tx with ERC20 tokens
     /// real values are 72,8K
     pub const ERC20_RECEIVER_SPEND: u64 = 150_000;
+    pub const ERC20_TAKER_SPEND_V2: u64 = 85_000;
     /// Gas limit for swap refund tx with coins
     pub const ETH_SENDER_REFUND: u64 = 100_000;
+    pub const ETH_TAKER_TIMELOCK_REFUND_V2: u64 = 100_000;
+    pub const ETH_TAKER_SECRET_REFUND_V2: u64 = 100_000;
     /// Gas limit for swap refund tx with with ERC20 tokens
     pub const ERC20_SENDER_REFUND: u64 = 150_000;
+    pub const ERC20_TAKER_TIMELOCK_REFUND_V2: u64 = 150_000;
+    pub const ERC20_TAKER_SECRET_REFUND_V2: u64 = 150_000;
     /// Gas limit for other operations
     pub const ETH_MAX_TRADE_GAS: u64 = 150_000;
 }
@@ -2277,7 +2286,7 @@ impl MarketCoinOps for EthCoin {
         let fut = async move {
             loop {
                 // Wait for one confirmation and return the transaction confirmation block number
-                let confirmed_at = match selfi
+                let (confirmed_at, _gas_used) = match selfi
                     .transaction_confirmed_at(tx_hash, input.wait_until, check_every)
                     .compat()
                     .await
@@ -2320,9 +2329,10 @@ impl MarketCoinOps for EthCoin {
                     .compat()
                     .await
                 {
-                    Ok(conf) => {
+                    Ok((conf, gas_used)) => {
                         if conf == confirmed_at {
-                            status.append(" Confirmed.");
+                            let str = format!(" Confirmed. Gas used: {}", gas_used);
+                            status.append(str.as_str());
                             break Ok(());
                         }
                     },
@@ -5255,7 +5265,12 @@ impl EthCoin {
         Ok(None)
     }
 
-    fn transaction_confirmed_at(&self, payment_hash: H256, wait_until: u64, check_every: f64) -> Web3RpcFut<U64> {
+    fn transaction_confirmed_at(
+        &self,
+        payment_hash: H256,
+        wait_until: u64,
+        check_every: f64,
+    ) -> Web3RpcFut<(U64, U256)> {
         let selfi = self.clone();
         let fut = async move {
             loop {
@@ -5293,7 +5308,8 @@ impl EthCoin {
                     }
 
                     if let Some(confirmed_at) = receipt.block_number {
-                        break Ok(confirmed_at);
+                        let gas_used = receipt.gas_used.unwrap_or_default();
+                        break Ok((confirmed_at, gas_used));
                     }
                 }
 

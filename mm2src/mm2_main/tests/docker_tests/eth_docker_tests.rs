@@ -1998,8 +1998,8 @@ fn geth_send_approve_and_spend_eth() {
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
 
-    let dex_fee = &DexFee::Standard("0.01".into());
-    let trading_amount = BigDecimal::from_str("1").unwrap();
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
 
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
     let payment_args = SendTakerFundingArgs {
@@ -2089,8 +2089,8 @@ fn geth_send_approve_and_spend_erc20() {
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
 
-    let dex_fee = &DexFee::Standard("0.01".into());
-    let trading_amount = BigDecimal::from_str("1").unwrap();
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
 
     let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
     let payment_args = SendTakerFundingArgs {
