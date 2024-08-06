@@ -7,13 +7,16 @@ use solana_client::rpc_client::RpcClient;
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use std::str::FromStr;
 
+#[allow(dead_code)]
 pub enum SolanaNet {
+    Testnet,
     Local,
 }
 
 pub fn solana_net_to_url(net_type: SolanaNet) -> String {
     match net_type {
         SolanaNet::Local => "http://localhost:8899".to_string(),
+        SolanaNet::Testnet => "https://api.testnet.solana.com/".to_string(),
     }
 }
 
