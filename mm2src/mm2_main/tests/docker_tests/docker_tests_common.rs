@@ -34,6 +34,7 @@ pub use mm2_test_helpers::for_tests::{check_my_swap_status, check_recent_swaps, 
 use mm2_test_helpers::get_passphrase;
 use mm2_test_helpers::structs::TransactionDetails;
 use primitives::hash::{H160, H256};
+use regex::Regex;
 use script::Builder;
 use secp256k1::Secp256k1;
 pub use secp256k1::{PublicKey, SecretKey};
@@ -42,8 +43,7 @@ use std::process::{Command, Stdio};
 use std::str;
 pub use std::{env, thread};
 use std::{path::PathBuf, str::FromStr, sync::Mutex, time::Duration};
-use regex::Regex;
-use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage, core::ExecCommand};
+use testcontainers::{clients::Cli, core::ExecCommand, core::WaitFor, Container, GenericImage, RunnableImage};
 use tokio::runtime::Runtime;
 use web3::types::{Address as EthAddress, BlockId, BlockNumber, TransactionRequest};
 use web3::{transports::Http, Web3};
@@ -389,11 +389,8 @@ pub fn sol_mint_tokens(node: &DockerNode) -> String {
         cmd: "/bin/sh -c cd /root && ./mint.sh".to_owned(),
         ready_conditions: vec![],
     });
-    if minting.stderr.len() > 0 {
-        eprintln!(
-            "Script execution failed: {}",
-            String::from_utf8_lossy(&minting.stderr)
-        );
+    if !minting.stderr.is_empty() {
+        eprintln!("Script execution failed: {}", String::from_utf8_lossy(&minting.stderr));
     }
     let re = Regex::new(r"ADEX Token Address: (\w+)").unwrap();
 

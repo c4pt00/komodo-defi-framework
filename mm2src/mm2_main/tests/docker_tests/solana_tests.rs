@@ -1,23 +1,19 @@
-use std::convert::TryFrom;
-use std::ops::Neg;
-use std::str::FromStr;
-use serde_json as json;
-use mm2_number::bigdecimal::Zero;
-use mm2_test_helpers::for_tests::{disable_coin, enable_solana_with_tokens, enable_spl, sign_message, verify_message};
-use mm2_test_helpers::structs::{EnableSolanaWithTokensResponse, EnableSplResponse, RpcV2Response, SignatureResponse,
-                                VerificationResponse};
-use bitcrypto::sha256;
-use coins::solana::solana_sdk::signer::Signer;
-use coins::solana::solana_common::lamports_to_sol;
 use crate::docker_tests::docker_tests_common::*;
-use coins::solana::solana_common_tests::{generate_key_pair_from_iguana_seed, solana_coin_for_test, SolanaNet};
-use coins::{MarketCoinOps, MmCoin, RefundPaymentArgs, SendPaymentArgs, SpendPaymentArgs, SwapOps, SwapTxTypeWithSecretHash, WithdrawError, WithdrawRequest};
-use coins::solana::solana_sdk::bs58;
-use mm2_number::BigDecimal;
-use rpc::v1::types::Bytes;
+use bitcrypto::sha256;
+use coins::{solana::{solana_common::lamports_to_sol,
+                     solana_common_tests::{generate_key_pair_from_iguana_seed, solana_coin_for_test, SolanaNet},
+                     solana_sdk::{bs58, pubkey::Pubkey, signer::Signer}},
+            MarketCoinOps, MmCoin, RefundPaymentArgs, SendPaymentArgs, SpendPaymentArgs, SwapOps,
+            SwapTxTypeWithSecretHash, WithdrawError, WithdrawRequest};
 use common::{block_on, Future01CompatExt};
-use coins::solana::solana_sdk::pubkey::Pubkey;
 use futures01::Future;
+use mm2_number::{bigdecimal::Zero, BigDecimal};
+use mm2_test_helpers::{for_tests::{disable_coin, enable_solana_with_tokens, enable_spl, sign_message, verify_message},
+                       structs::{EnableSolanaWithTokensResponse, EnableSplResponse, RpcV2Response, SignatureResponse,
+                                 VerificationResponse}};
+use rpc::v1::types::Bytes;
+use serde_json as json;
+use std::{convert::TryFrom, ops::Neg, str::FromStr};
 /*
 1   + use async_std::prelude::Future;
     |
@@ -26,7 +22,6 @@ use futures01::Future;
 1   + use futures01::Future;
 
  */
-
 
 const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
 
@@ -193,11 +188,10 @@ fn solana_transaction_simulations_dockerized() {
                 false,
                 None,
                 None,
-                None,
             ))
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     let (_, fees) = block_on(sol_coin.estimate_withdraw_fees()).unwrap();
     let sol_required = lamports_to_sol(fees);
     let expected_spent_by_me = &request_amount + &sol_required;
@@ -220,7 +214,6 @@ fn solana_transaction_zero_balance_dockerized() {
                 sol_coin.my_address.clone(),
                 BigDecimal::from_str("0.000001").unwrap(),
                 false,
-                None,
                 None,
                 None,
             ))
@@ -250,7 +243,6 @@ fn solana_transaction_simulations_not_enough_for_fees_dockerized() {
                 sol_coin.my_address.clone(),
                 BigDecimal::from(1),
                 false,
-                None,
                 None,
                 None,
             ))
@@ -287,7 +279,6 @@ fn solana_transaction_simulations_max_dockerized() {
                 false,
                 None,
                 None,
-                None,
             ))
             .compat(),
     );
@@ -322,11 +313,10 @@ fn solana_test_transactions_dockerized() {
                 false,
                 None,
                 None,
-                None,
             ))
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     log!("{:?}", valid_tx_details);
 
     let tx_str = hex::encode(&*valid_tx_details.tx.tx_hex().unwrap().0);
@@ -337,7 +327,7 @@ fn solana_test_transactions_dockerized() {
             .send_raw_tx_bytes(&valid_tx_details.tx.tx_hex().unwrap().0)
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     assert_eq!(res, res2);
 }
 
@@ -358,11 +348,10 @@ fn solana_test_tx_history_dockerized() {
                 false,
                 None,
                 None,
-                None,
             ))
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     log!("{:?}", valid_tx_details);
 
     let tx_str = hex::encode(&*valid_tx_details.tx.tx_hex().unwrap().0);
@@ -373,7 +362,7 @@ fn solana_test_tx_history_dockerized() {
             .send_raw_tx_bytes(&valid_tx_details.tx.tx_hex().unwrap().0)
             .compat(),
     )
-        .unwrap();
+    .unwrap();
     assert_eq!(res, res2);
 }
 

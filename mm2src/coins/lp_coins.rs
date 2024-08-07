@@ -2084,8 +2084,6 @@ impl WithdrawRequest {
         max: bool,
         fee: Option<WithdrawFee>,
         memo: Option<String>,
-        ibc_source_channel: Option<String>,
-        #[cfg(target_arch = "wasm32")] broadcast: bool,
     ) -> Self {
         WithdrawRequest {
             coin,
@@ -2095,9 +2093,9 @@ impl WithdrawRequest {
             max,
             fee,
             memo,
-            ibc_source_channel,
+            ibc_source_channel: None,
             #[cfg(target_arch = "wasm32")]
-            broadcast,
+            broadcast: r#false,
         }
     }
 }
