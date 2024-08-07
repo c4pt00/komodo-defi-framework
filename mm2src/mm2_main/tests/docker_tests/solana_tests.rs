@@ -14,14 +14,6 @@ use mm2_test_helpers::{for_tests::{disable_coin, enable_solana_with_tokens, enab
 use rpc::v1::types::Bytes;
 use serde_json as json;
 use std::{convert::TryFrom, ops::Neg, str::FromStr};
-/*
-1   + use async_std::prelude::Future;
-    |
-1   + use core::future::Future;
-    |
-1   + use futures01::Future;
-
- */
 
 const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
 
