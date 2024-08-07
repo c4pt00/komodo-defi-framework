@@ -1585,7 +1585,11 @@ pub struct TakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    /// The pubkey rmd160 for the coin we're offering to trade.
+    /// It's optional as we'll fallback to default account pubkey.
     base_coin_account_id: Option<String>,
+    /// The pubkey rmd160 for the coin we want in return.
+    /// Also optional, just like the base coin's
     rel_coin_account_id: Option<String>,
 }
 
@@ -1748,7 +1752,11 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    /// The pubkey rmd160 for the coin we're offering to trade.
+    /// It's optional as we'll fallback to default account pubkey.
     base_coin_account_id: Option<String>,
+    /// The pubkey rmd160 for the coin we want in return.
+    /// Also optional, just like the base coin's
     rel_coin_account_id: Option<String>,
 }
 
@@ -2791,7 +2799,6 @@ struct OrdermatchContext {
     ordermatch_db: ConstructibleDb<OrdermatchDb>,
 }
 
-#[allow(unused)]
 pub fn init_ordermatch_context(ctx: &MmArc) -> OrdermatchInitResult<()> {
     // Helper
     #[derive(Deserialize)]
@@ -3033,7 +3040,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             },
         };
 
-        let account_db_id = maker_coin.account_db_id().await;
+        let account_db_id = maker_order.account_id();
         if ctx.use_trading_proto_v2() {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
             match (maker_coin, taker_coin) {
@@ -3187,7 +3194,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
         );
 
         let now = now_sec();
-        let account_db_id = taker_coin.account_db_id().await;
+        let account_db_id = taker_order.account_id();
         if ctx.use_trading_proto_v2() {
             let taker_secret = match generate_secret() {
                 Ok(s) => s.into(),
@@ -5048,7 +5055,6 @@ pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
         storage.load_order_from_history(req.uuid, db_id.as_deref()).await,
         &storage.select_order_status(req.uuid, db_id.as_deref()).await,
     ) {
-        info!("Order with UUID=({})", req.uuid);
         let res = json!(OrderForRpcWithCancellationReason {
             order: OrderForRpc::from(&order),
             cancellation_reason,
