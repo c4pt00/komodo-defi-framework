@@ -127,6 +127,9 @@ const TAKER_ORDER_TIMEOUT: u64 = 30;
 const ORDER_MATCH_TIMEOUT: u64 = 30;
 const ORDERBOOK_REQUESTING_TIMEOUT: u64 = MIN_ORDER_KEEP_ALIVE_INTERVAL * 2;
 const MAX_ORDERS_NUMBER_IN_ORDERBOOK_RESPONSE: usize = 1000;
+/// How many times we'll try to check if the other coin is ready before giving up.
+/// We don't want to wait forever, so we'll give it 5 shots.
+const VALIDATE_OTHER_COIN_TIMEOUT: u64 = 5;
 #[cfg(not(test))]
 const TRIE_STATE_HISTORY_TIMEOUT: u64 = 14400;
 #[cfg(test)]
@@ -1685,11 +1688,34 @@ impl TakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
+    /// Gets the account ID for the coin we're trading.
+    /// If we're buying, it's the base coin; if we're selling, it's the rel coin.
     pub fn account_id(&self) -> &Option<String> {
+        match self.request.action {
+            TakerAction::Buy => &self.base_coin_account_id,
+            TakerAction::Sell => &self.rel_coin_account_id,
+        }
+    }
+
+    /// Gets the account ID for the 'other' coin in the trade.
+    /// If we're buying, it's the rel coin; if we're selling, it's the base coin.
+    pub fn other_coin_account_id(&self) -> &Option<String> {
         match self.request.action {
             TakerAction::Buy => &self.rel_coin_account_id,
             TakerAction::Sell => &self.base_coin_account_id,
         }
+    }
+
+    /// Makes sure the 'other' coin in our trade is ready to go.
+    /// It'll keep trying for a bit if it doesn't work right away.
+    pub async fn validate_other_coin_account_id(&self, ctx: &MmArc) -> Result<(), String> {
+        validate_other_coin_account_id_impl(
+            ctx,
+            self.taker_coin_ticker(),
+            self.other_coin_account_id(),
+            "TakerOrder",
+        )
+        .await
     }
 }
 
@@ -2115,7 +2141,15 @@ impl MakerOrder {
 
     fn p2p_keypair(&self) -> Option<&KeyPair> { self.p2p_privkey.as_ref().map(|key| key.key_pair()) }
 
+    /// Gets the account ID for the base coin.
+    /// For maker orders, this is always the coin we're offering to trade.
     pub fn account_id(&self) -> &Option<String> { &self.base_coin_account_id }
+
+    /// Checks if the other coin (the one we want in exchange) is good to go.
+    /// It'll give it a few tries if it doesn't work right away.
+    pub async fn validate_other_coin_account_id(&self, ctx: &MmArc) -> Result<(), String> {
+        validate_other_coin_account_id_impl(ctx, &self.rel, &self.rel_coin_account_id, "MakerOrder").await
+    }
 }
 
 impl From<TakerOrder> for MakerOrder {
@@ -2163,8 +2197,8 @@ impl From<TakerOrder> for MakerOrder {
                     base_orderbook_ticker: taker_order.rel_orderbook_ticker,
                     rel_orderbook_ticker: taker_order.base_orderbook_ticker,
                     p2p_privkey: taker_order.p2p_privkey,
-                    base_coin_account_id: taker_order.base_coin_account_id,
-                    rel_coin_account_id: taker_order.rel_coin_account_id,
+                    base_coin_account_id: taker_order.rel_coin_account_id,
+                    rel_coin_account_id: taker_order.base_coin_account_id,
                 }
             },
         }
@@ -3413,27 +3447,7 @@ async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchCo
         }
 
         // transform the timed out taker order to maker
-
-        delete_my_taker_order(ctx.clone(), order.clone(), TakerOrderCancellationReason::ToMaker)
-            .compat()
-            .await
-            .ok();
-        let maker_order: MakerOrder = order.into();
-        ordermatch_ctx
-            .maker_orders_ctx
-            .lock()
-            .add_order(ctx.weak(), maker_order.clone(), None);
-
-        storage
-            .save_new_active_maker_order(&maker_order)
-            .await
-            .error_log_with_msg("!save_new_active_maker_order");
-        if maker_order.save_in_history {
-            storage
-                .update_was_taker_in_filtering_history(uuid, maker_order.account_id().as_deref())
-                .await
-                .error_log_with_msg("!update_was_taker_in_filtering_history");
-        }
+        let maker_order = handle_transform_my_taker_order(&ctx, uuid, order, ordermatch_ctx, &storage).await;
 
         // notify other peers
         if let Ok(Some((base, rel))) = find_pair(&ctx, &maker_order.base, &maker_order.rel).await {
@@ -3449,6 +3463,39 @@ async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchCo
     *my_taker_orders = my_actual_taker_orders;
 }
 
+/// Transforms a taker order into a maker order,
+/// updating relevant contexts and storage.
+async fn handle_transform_my_taker_order(
+    ctx: &MmArc,
+    uuid: Uuid,
+    order: TakerOrder,
+    ordermatch_ctx: &OrdermatchContext,
+    storage: &MyOrdersStorage,
+) -> MakerOrder {
+    delete_my_taker_order(ctx.clone(), order.clone(), TakerOrderCancellationReason::ToMaker)
+        .compat()
+        .await
+        .ok();
+    let maker_order: MakerOrder = order.into();
+    ordermatch_ctx
+        .maker_orders_ctx
+        .lock()
+        .add_order(ctx.weak(), maker_order.clone(), None);
+
+    storage
+        .save_new_active_maker_order(&maker_order)
+        .await
+        .error_log_with_msg("!save_new_active_maker_order");
+    if maker_order.save_in_history {
+        storage
+            .update_was_taker_in_filtering_history(uuid, maker_order.account_id().as_deref())
+            .await
+            .error_log_with_msg("!update_was_taker_in_filtering_history");
+    };
+
+    maker_order
+}
+
 /// # Safety
 ///
 /// The function locks the [`OrdermatchContext::my_maker_orders`] mutex.
@@ -3457,6 +3504,26 @@ async fn check_balance_for_maker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchC
 
     for (uuid, order) in my_maker_orders {
         let order = order.lock().await;
+        // validate other coin's account id
+        if let Err(err) = order.validate_other_coin_account_id(&ctx).await {
+            warn!("{err:?} while validating other_coin account id for maker order: {uuid}");
+            let removed_order_mutex = ordermatch_ctx.maker_orders_ctx.lock().remove_order(&uuid);
+
+            // This checks that the order hasn't been removed by another process
+            if removed_order_mutex.is_some() {
+                maker_order_cancelled_p2p_notify(ctx.clone(), &order);
+                delete_my_maker_order(
+                    ctx.clone(),
+                    order.clone(),
+                    MakerOrderCancellationReason::OtherCoinIdMisMatch,
+                )
+                .compat()
+                .await
+                .ok();
+            }
+            continue;
+        };
+
         if order.available_amount() >= order.min_base_vol || order.has_ongoing_matches() {
             continue;
         }
@@ -4999,6 +5066,7 @@ pub async fn order_status(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, St
 pub enum MakerOrderCancellationReason {
     Fulfilled,
     InsufficientBalance,
+    OtherCoinIdMisMatch,
     Cancelled,
 }
 
@@ -5447,77 +5515,36 @@ pub async fn orders_kick_start(ctx: &MmArc, db_id: Option<&str>) -> Result<HashS
     let mut coins = HashSet::with_capacity((saved_maker_orders.len() * 2) + (saved_taker_orders.len() * 2));
 
     {
+        let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
         for order in saved_maker_orders {
-            let order_rel_coin_db_id = order.rel_coin_account_id.clone().unwrap_or(ctx.default_db_id());
-
-            loop {
-                match try_s!(lp_coinfind_any(ctx, &order.rel).await) {
-                    Some(rel_coin) => {
-                        let rel_coin_db_id = rel_coin.inner.account_db_id().await.unwrap_or(ctx.default_db_id());
-                        if rel_coin_db_id == order_rel_coin_db_id {
-                            coins.insert(order.base.clone());
-                            coins.insert(order.rel.clone());
-                            let mut maker_orders_ctx = ordermatch_ctx.maker_orders_ctx.lock();
-                            maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
-
-                            break;
-                        }
-
-                        info!(
-                            "Failed to add maker order {:?} to kick_start queue. Coin account id mismatch: got=([{rel_coin_db_id}]), expected=([{order_rel_coin_db_id}])",
-                            order.uuid
-                        );
-                        Timer::sleep(5.).await;
-                        continue;
-                    },
-                    None => {
-                        info!(
-                            "Failed to add maker order {:?} to kick_start queue, rel coin:{} with account_id:{order_rel_coin_db_id} needs to be activated!",
-                            order.uuid,
-                            order.rel
-                        );
-                        Timer::sleep(5.).await;
-                        continue;
-                    },
-                }
-            }
+            coins.insert(order.base.clone());
+            coins.insert(order.rel.clone());
+            maker_orders_ctx.add_order(ctx.weak(), order.clone(), None);
         }
     }
 
+    let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
     for order in saved_taker_orders {
-        let order_base_coin_account_id = order.base_coin_account_id.clone().unwrap_or(ctx.default_db_id());
+        if let Err(err) = order.validate_other_coin_account_id(ctx).await {
+            warn!(
+                "{err:?} while validating other_coin account id for TakerOrder: {:?}",
+                order.request.uuid
+            );
 
-        loop {
-            match try_s!(lp_coinfind_any(ctx, &order.request.base).await) {
-                Some(base_coin) => {
-                    let base_coin_account_id = base_coin.inner.account_db_id().await.unwrap_or(ctx.default_db_id());
-                    if base_coin_account_id == order_base_coin_account_id {
-                        coins.insert(order.request.base.clone());
-                        coins.insert(order.request.rel.clone());
-                        let mut taker_orders = ordermatch_ctx.my_taker_orders.lock().await;
-                        taker_orders.insert(order.request.uuid, order);
-
-                        break;
-                    };
-
-                    info!(
-                        "Failed to add taker order {} to kick_start queue. {} Coin account id mismatch: got=([{base_coin_account_id}]), expected=([{order_base_coin_account_id}])",
-                        order.request.uuid,
-                        order.request.base
-                    );
-                },
-                None => {
-                    info!(
-                        "Failed to add taker order {} to kick_start queue. Base coin:{} with account_id:{order_base_coin_account_id} needs to be activated!",
-                        order.request.uuid,
-                        order.request.base
-                    );
-
-                    Timer::sleep(5.).await;
-                    continue;
-                },
+            if !order.matches.is_empty() || order.order_type != OrderType::GoodTillCancelled {
+                delete_my_taker_order(ctx.clone(), order, TakerOrderCancellationReason::TimedOut)
+                    .compat()
+                    .await
+                    .ok();
+                continue;
             }
+
+            handle_transform_my_taker_order(ctx, order.request.uuid, order, &ordermatch_ctx, &storage).await;
+            continue;
         }
+        coins.insert(order.request.base.clone());
+        coins.insert(order.request.rel.clone());
+        taker_orders.insert(order.request.uuid, order);
     }
 
     Ok(coins)
@@ -5981,4 +6008,38 @@ fn orderbook_address(
         #[cfg(feature = "enable-sia")]
         CoinProtocol::SIA { .. } => MmError::err(OrderbookAddrErr::CoinIsNotSupported(coin.to_owned())),
     }
+}
+
+/// Tries to find a coin and make sure it's activated with the right account ID.
+/// If it doesn't work at first, it'll keep trying for a bit.
+async fn validate_other_coin_account_id_impl(
+    ctx: &MmArc,
+    other_coin_ticker: &str,
+    other_coin_account_id: &Option<String>,
+    order_type: &str,
+) -> Result<(), String> {
+    for attempt in 0..=VALIDATE_OTHER_COIN_TIMEOUT {
+        if let Some(coin) = try_s!(lp_coinfind_any(ctx, other_coin_ticker).await) {
+            if &coin.inner.account_db_id().await == other_coin_account_id {
+                info!("Correct {order_type} coin found: {}", coin.inner.ticker());
+                return Ok(());
+            }
+        }
+
+        if attempt < VALIDATE_OTHER_COIN_TIMEOUT {
+            info!(
+                "{order_type}: validate_other_coin_account_id attempt {} failed: Coin {} not found or not activated with pubkey: {}",
+                attempt + 1,
+                other_coin_ticker,
+                other_coin_account_id.as_deref().unwrap_or(&ctx.default_db_id())
+            );
+            Timer::sleep(2.).await
+        }
+    }
+
+    Err(format!(
+        "{order_type}: Coin {} not found or not activated with the expected account key after {} attempts",
+        other_coin_ticker,
+        VALIDATE_OTHER_COIN_TIMEOUT + 1
+    ))
 }
