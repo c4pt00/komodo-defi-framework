@@ -2075,6 +2075,33 @@ pub struct WithdrawRequest {
     broadcast: bool,
 }
 
+impl WithdrawRequest {
+    pub fn new(
+        coin: String,
+        from: Option<WithdrawFrom>,
+        to: String,
+        amount: BigDecimal,
+        max: bool,
+        fee: Option<WithdrawFee>,
+        memo: Option<String>,
+        ibc_source_channel: Option<String>,
+        #[cfg(target_arch = "wasm32")] broadcast: bool,
+    ) -> Self {
+        WithdrawRequest {
+            coin,
+            from,
+            to,
+            amount,
+            max,
+            fee,
+            memo,
+            ibc_source_channel,
+            #[cfg(target_arch = "wasm32")]
+            broadcast,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum StakingDetails {
@@ -2279,13 +2306,13 @@ pub struct TransactionDetails {
     /// Coins are sent to these addresses
     to: Vec<String>,
     /// Total tx amount
-    total_amount: BigDecimal,
+    pub total_amount: BigDecimal,
     /// The amount spent from "my" address
-    spent_by_me: BigDecimal,
+    pub spent_by_me: BigDecimal,
     /// The amount received by "my" address
-    received_by_me: BigDecimal,
+    pub received_by_me: BigDecimal,
     /// Resulting "my" balance change
-    my_balance_change: BigDecimal,
+    pub my_balance_change: BigDecimal,
     /// Block height
     block_height: u64,
     /// Transaction timestamp

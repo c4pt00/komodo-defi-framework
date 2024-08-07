@@ -50,6 +50,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
     // pretty_env_logger::try_init();
     let docker = Cli::default();
     let mut containers = vec![];
+
     // skip Docker containers initialization if we are intended to run test_mm_start only
     if env::var("_MM2_TEST_CONF").is_err() {
         const IMAGES: &[&str] = &[
@@ -78,6 +79,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         let for_slp_node = utxo_asset_docker_node(&docker, "FORSLP", 10000);
         let geth_node = geth_docker_node(&docker, "ETH", 8545);
         let sol_node = sol_asset_docker_node(&docker, "SOLCLUSTER");
+        env::set_var("ADEX_TOKEN_ADDRESS", &sol_mint_tokens(&sol_node));
 
         let utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
         let utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
@@ -106,6 +108,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         containers.push(atom_node);
         // containers.push(ibc_relayer_node);
     }
+
     // detect if docker is installed
     // skip the tests that use docker if not installed
     let owned_tests: Vec<_> = tests
@@ -122,6 +125,8 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
             _ => panic!("non-static tests passed to lp_coins test runner"),
         })
         .collect();
+
+
     let args: Vec<String> = env::args().collect();
     test_main(&args, owned_tests, None);
 }

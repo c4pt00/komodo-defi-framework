@@ -42,7 +42,8 @@ use std::process::{Command, Stdio};
 use std::str;
 pub use std::{env, thread};
 use std::{path::PathBuf, str::FromStr, sync::Mutex, time::Duration};
-use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage};
+use regex::Regex;
+use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage, core::ExecCommand};
 use tokio::runtime::Runtime;
 use web3::types::{Address as EthAddress, BlockId, BlockNumber, TransactionRequest};
 use web3::{transports::Http, Web3};
@@ -379,32 +380,38 @@ pub fn geth_docker_node<'a>(docker: &'a Cli, ticker: &'static str, port: u16) ->
     }
 }
 
+pub fn sol_mint_tokens(node: &DockerNode) -> String {
+    let rt = Runtime::new().unwrap();
+    rt.block_on(async {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+    });
+    let minting = node.container.exec(ExecCommand {
+        cmd: "/bin/sh -c cd /root && ./mint.sh".to_owned(),
+        ready_conditions: vec![],
+    });
+    if minting.stderr.len() > 0 {
+        eprintln!(
+            "Script execution failed: {}",
+            String::from_utf8_lossy(&minting.stderr)
+        );
+    }
+    let re = Regex::new(r"ADEX Token Address: (\w+)").unwrap();
+
+    let binding = String::from_utf8_lossy(&minting.stdout);
+
+    re.captures(binding.trim())
+        .and_then(|cap| cap.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
 pub fn sol_asset_docker_node<'a>(docker: &'a Cli, ticker: &'static str) -> DockerNode<'a> {
     let port = 8899;
 
     let image = GenericImage::new(SOLANA_CLUSTER_DOCKER_IMAGE, "latest");
     let image = RunnableImage::from((image, vec![])).with_mapped_port((port, port));
     let container = docker.run(image);
-
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
-        tokio::time::sleep(Duration::from_secs(30)).await;
-    });
-    let container_id = container.id().to_string();
-    let output = Command::new("docker")
-        .arg("exec")
-        .arg(&container_id)
-        .arg("/bin/sh")
-        .arg("-c")
-        .arg("cd /root && ./mint.sh")
-        .output()
-        .expect("Failed to execute script in the container");
-
-    if !output.status.success() {
-        eprintln!("Failed to execute script: {}", String::from_utf8_lossy(&output.stderr));
-    } else {
-        println!("Script output: {}", String::from_utf8_lossy(&output.stdout));
-    }
 
     DockerNode {
         container,
@@ -1099,32 +1106,8 @@ pub fn slp_supplied_node() -> MarketMakerIt {
     .unwrap()
 }
 
-fn exec_in_container(container_id: &str, command: &str) -> String {
-    let output = Command::new("docker")
-        .args(["exec", container_id, "sh", "-c", command])
-        .output()
-        .expect("failed to execute command in container");
-
-    String::from_utf8_lossy(&output.stdout).trim().to_string()
-}
-
-fn find_container_id_by_port(port: u16) -> Option<String> {
-    let output = Command::new("docker")
-        .args(["ps", "--filter", &format!("publish={}", port), "--format", "{{.ID}}"])
-        .output()
-        .expect("failed to execute docker ps");
-
-    let container_id = str::from_utf8(&output.stdout).ok()?.trim().to_string();
-    if container_id.is_empty() {
-        None
-    } else {
-        Some(container_id)
-    }
-}
-
 pub fn _solana_supplied_node() -> MarketMakerIt {
-    let container_id = find_container_id_by_port(8899).expect("Failed to find container by port");
-    let adex_token_address = exec_in_container(&container_id, "cat /root/accounts/adex_token_address");
+    let adex_token_address = env::var("ADEX_TOKEN_ADDRESS").expect("ADEX_TOKEN_ADDRESS not set");
     println!("adex_token_address: {}", &adex_token_address);
     let coins = json! ([
         {"coin": "SOL-DEVNET","name": "solana","fname": "Solana","rpcport": 80,"mm2": 1,"required_confirmations": 1,"avg_blocktime": 0.25,"protocol": {"type": "SOLANA"}},
