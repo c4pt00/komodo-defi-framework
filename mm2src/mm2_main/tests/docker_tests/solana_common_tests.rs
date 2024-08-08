@@ -1,11 +1,24 @@
-use super::*;
-use crate::solana::spl::{SplToken, SplTokenFields};
+use coins::solana::{ed25519_dalek,
+                    ed25519_dalek_bip32::{DerivationPath, ExtendedSecretKey},
+                    solana_client::rpc_client::RpcClient,
+                    solana_sdk,
+                    solana_sdk::{commitment_config::{CommitmentConfig, CommitmentLevel},
+                                 pubkey::Pubkey,
+                                 signature::{Keypair as SolKeypair, Signer}},
+                    spl::{SplToken, SplTokenFields},
+                    SolanaCoin};
+use common::executor::abortable_queue::AbortableQueue;
 use crypto::privkey::{bip39_seed_from_passphrase, key_pair_from_seed};
-use ed25519_dalek_bip32::{DerivationPath, ExtendedSecretKey};
-use mm2_core::mm_ctx::MmCtxBuilder;
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-use std::str::FromStr;
+use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
+use std::{collections::HashMap,
+          str::FromStr,
+          sync::{Arc, Mutex}};
+
+pub const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
+pub const SOL: &str = "SOL";
+pub const PASSPHRASE: &str = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron";
+pub const ADDITIONAL_PASSPHRASE: &str =
+    "spice describe gravity federal blast come thank unfair canal monkey style afraid";
 
 pub enum SolanaNet {
     Local,
@@ -13,7 +26,7 @@ pub enum SolanaNet {
 
 pub fn solana_net_to_url(net_type: SolanaNet) -> String {
     match net_type {
-        SolanaNet::Local => "http://localhost:8899".to_string(),
+        SolanaNet::Local => SOLANA_CLIENT_URL.to_string(),
     }
 }
 
@@ -71,24 +84,23 @@ pub fn solana_coin_for_test(seed: String, net_type: SolanaNet) -> (MmArc, Solana
     });
     let conf = json!({
         "coins":[
-           {"coin":"SOL","name":"solana","protocol":{"type":"SOL"},"rpcport":80,"mm2":1}
+           {"coin":SOL,"name":"solana","protocol":{"type":SOL},"rpcport":80,"mm2":1}
         ]
     });
     let ctx = MmCtxBuilder::new().with_conf(conf).into_mm_arc();
-    let (ticker, decimals) = ("SOL".to_string(), 8);
+    let (ticker, decimals) = (SOL.to_string(), 8);
     let key_pair = generate_key_pair_from_iguana_seed(seed);
     let my_address = key_pair.pubkey().to_string();
     let spl_tokens_infos = Arc::new(Mutex::new(HashMap::new()));
     let spawner = AbortableQueue::default();
-
-    let solana_coin = SolanaCoin(Arc::new(SolanaCoinImpl {
+    let solana_coin = SolanaCoin::new(
+        ticker,
+        key_pair,
+        client,
         decimals,
         my_address,
-        key_pair,
-        ticker,
-        client,
         spl_tokens_infos,
-        abortable_system: spawner,
-    }));
+        spawner,
+    );
     (ctx, solana_coin)
 }

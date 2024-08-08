@@ -1,7 +1,8 @@
-use crate::docker_tests::docker_tests_common::*;
+use crate::docker_tests::{docker_tests_common::*,
+                          solana_common_tests::{generate_key_pair_from_iguana_seed, solana_coin_for_test, SolanaNet,
+                                                PASSPHRASE, SOL, SOLANA_CLIENT_URL}};
 use bitcrypto::sha256;
 use coins::{solana::{solana_common::lamports_to_sol,
-                     solana_common_tests::{generate_key_pair_from_iguana_seed, solana_coin_for_test, SolanaNet},
                      solana_sdk::{bs58, pubkey::Pubkey, signer::Signer}},
             MarketCoinOps, MmCoin, RefundPaymentArgs, SendPaymentArgs, SpendPaymentArgs, SwapOps,
             SwapTxTypeWithSecretHash, WithdrawError, WithdrawRequest};
@@ -14,8 +15,6 @@ use mm2_test_helpers::{for_tests::{disable_coin, enable_solana_with_tokens, enab
 use rpc::v1::types::Bytes;
 use serde_json as json;
 use std::{convert::TryFrom, ops::Neg, str::FromStr};
-
-const SOLANA_CLIENT_URL: &str = "http://localhost:8899";
 
 #[test]
 fn test_solana_and_spl_balance_enable_spl_v2() {
@@ -151,7 +150,7 @@ fn test_disable_solana_platform_coin_with_tokens() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_keypair_from_secp() {
-    let solana_key_pair = generate_key_pair_from_iguana_seed("federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string());
+    let solana_key_pair = generate_key_pair_from_iguana_seed(PASSPHRASE.to_string());
     assert_eq!(
         "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf",
         solana_key_pair.pubkey().to_string()
@@ -167,15 +166,14 @@ fn solana_keypair_from_secp() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_transaction_simulation() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let request_amount = BigDecimal::try_from(0.0001).unwrap();
     let valid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
-                "SOL".to_string(),
+                SOL.to_string(),
                 None,
-                sol_coin.my_address.clone(),
+                sol_coin.my_address().unwrap(),
                 request_amount.clone(),
                 false,
                 None,
@@ -201,9 +199,9 @@ fn solana_transaction_zero_balance() {
     let invalid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
-                "SOL".to_string(),
+                SOL.to_string(),
                 None,
-                sol_coin.my_address.clone(),
+                sol_coin.my_address().unwrap(),
                 BigDecimal::from_str("0.000001").unwrap(),
                 false,
                 None,
@@ -230,9 +228,9 @@ fn solana_transaction_simulations_not_enough_for_fees() {
     let invalid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
-                "SOL".to_string(),
+                SOL.to_string(),
                 None,
-                sol_coin.my_address.clone(),
+                sol_coin.my_address().unwrap(),
                 BigDecimal::from(1),
                 false,
                 None,
@@ -264,9 +262,9 @@ fn solana_transaction_simulations_max() {
     let invalid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
-                "SOL".to_string(),
+                SOL.to_string(),
                 None,
-                sol_coin.my_address.clone(),
+                sol_coin.my_address().unwrap(),
                 BigDecimal::from(1),
                 false,
                 None,
@@ -293,14 +291,13 @@ fn solana_transaction_simulations_max() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_test_transactions() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let valid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
-                "SOL".to_string(),
+                SOL.to_string(),
                 None,
-                sol_coin.my_address.clone(),
+                sol_coin.my_address().unwrap(),
                 BigDecimal::try_from(0.0001).unwrap(),
                 false,
                 None,
@@ -328,14 +325,13 @@ fn solana_test_transactions() {
 #[ignore]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_test_tx_history() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let valid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
-                "SOL".to_string(),
+                SOL.to_string(),
                 None,
-                sol_coin.my_address.clone(),
+                sol_coin.my_address().unwrap(),
                 BigDecimal::try_from(0.0001).unwrap(),
                 false,
                 None,
@@ -360,8 +356,7 @@ fn solana_test_tx_history() {
 
 #[test]
 fn solana_coin_send_and_refund_maker_payment() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let solana_program_id = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
     let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
@@ -370,7 +365,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 
     let pk_data = [1; 32];
     let time_lock = now_sec() - 3600;
-    let taker_pub = coin.key_pair.pubkey().to_string();
+    let taker_pub = block_on(coin.get_public_key()).unwrap();
     let taker_pub = Pubkey::from_str(taker_pub.as_str()).unwrap();
     let secret = [0; 32];
     let secret_hash = sha256(&secret);
@@ -407,8 +402,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 
 #[test]
 fn solana_coin_send_and_spend_maker_payment() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let solana_program_id = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
     let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
@@ -417,7 +411,7 @@ fn solana_coin_send_and_spend_maker_payment() {
 
     let pk_data = [1; 32];
     let lock_time = now_sec() - 1000;
-    let taker_pub = coin.key_pair.pubkey().to_string();
+    let taker_pub = block_on(coin.get_public_key()).unwrap();
     let taker_pub = Pubkey::from_str(taker_pub.as_str()).unwrap();
     let secret = [0; 32];
     let secret_hash = sha256(&secret);

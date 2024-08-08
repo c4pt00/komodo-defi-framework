@@ -15,6 +15,8 @@ use common::{async_blocking,
              now_sec};
 use crypto::HDPathToCoin;
 use derive_more::Display;
+pub use ed25519_dalek;
+pub use ed25519_dalek_bip32;
 use futures::{compat::Future01CompatExt,
               {FutureExt, TryFutureExt}};
 use futures01::Future;
@@ -60,9 +62,6 @@ use crate::{BalanceError, BalanceFut, CheckIfMyPaymentSentArgs, CoinFutSpawner, 
 pub mod solana_common;
 mod solana_decode_tx_helpers;
 pub mod spl;
-
-#[cfg(feature = "enable-solana")] pub mod solana_common_tests;
-#[cfg(test)] mod spl_tests;
 
 pub use solana_client;
 pub use solana_sdk;
@@ -344,6 +343,26 @@ impl Transaction for SolTransaction {
 }
 
 impl SolanaCoin {
+    pub fn new(
+        ticker: String,
+        key_pair: SolKeypair,
+        client: RpcClient,
+        decimals: u8,
+        my_address: String,
+        spl_tokens_infos: Arc<Mutex<HashMap<String, SplTokenInfo>>>,
+        abortable_system: AbortableQueue,
+    ) -> Self {
+        SolanaCoin(Arc::new(SolanaCoinImpl {
+            ticker,
+            key_pair,
+            client,
+            decimals,
+            my_address,
+            spl_tokens_infos,
+            abortable_system,
+        }))
+    }
+
     pub async fn estimate_withdraw_fees(&self) -> Result<(solana_sdk::hash::Hash, u64), MmError<ClientError>> {
         let hash = async_blocking({
             let coin = self.clone();

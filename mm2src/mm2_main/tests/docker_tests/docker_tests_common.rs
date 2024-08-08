@@ -48,8 +48,9 @@ use tokio::runtime::Runtime;
 use web3::types::{Address as EthAddress, BlockId, BlockNumber, TransactionRequest};
 use web3::{transports::Http, Web3};
 
-use crate::docker_tests::eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key,
-                                            geth_account, swap_contract};
+use crate::docker_tests::{eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key,
+                                             geth_account, swap_contract},
+                          solana_common_tests::PASSPHRASE};
 
 lazy_static! {
     static ref MY_COIN_LOCK: Mutex<()> = Mutex::new(());
@@ -1117,7 +1118,7 @@ pub fn _solana_supplied_node() -> MarketMakerIt {
             "gui": "nogui",
             "netid": 9000,
             "dht": "on",  // Enable DHT without delay.
-            "passphrase": "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron",
+            "passphrase": PASSPHRASE,
             "coins": coins,
             "rpc_password": "pass",
             "i_am_seed": true,

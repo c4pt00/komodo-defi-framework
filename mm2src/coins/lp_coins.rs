@@ -2314,13 +2314,13 @@ pub struct TransactionDetails {
     /// Block height
     block_height: u64,
     /// Transaction timestamp
-    timestamp: u64,
+    pub timestamp: u64,
     /// Every coin can has specific fee details:
     /// In UTXO tx fee is paid with the coin itself (e.g. 1 BTC and 0.0001 BTC fee).
     /// But for ERC20 token transfer fee is paid with another coin: ETH, because it's ETH smart contract function call that requires gas to be burnt.
     fee_details: Option<TxFeeDetails>,
     /// The coin transaction belongs to
-    coin: String,
+    pub coin: String,
     /// Internal MM2 id used for internal transaction identification, for some coins it might be equal to transaction hash
     internal_id: BytesJson,
     /// Amount of accrued rewards.

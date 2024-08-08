@@ -1,15 +1,14 @@
-use super::*;
-use crate::{solana::solana_common_tests::solana_coin_for_test,
-            solana::solana_common_tests::{spl_coin_for_test, SolanaNet}};
+use crate::docker_tests::solana_common_tests::{solana_coin_for_test, spl_coin_for_test, SolanaNet,
+                                               ADDITIONAL_PASSPHRASE, PASSPHRASE};
+use coins::{solana::solana_sdk, MarketCoinOps, MmCoin, WithdrawRequest};
 use common::{block_on, Future01CompatExt};
-use std::ops::Neg;
-use std::str::FromStr;
+use mm2_number::BigDecimal;
+use std::{env, ops::Neg, str::FromStr};
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn spl_coin_creation() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),
@@ -27,8 +26,7 @@ fn spl_coin_creation() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_sign_message() {
-    let passphrase = "spice describe gravity federal blast come thank unfair canal monkey style afraid".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(ADDITIONAL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),
@@ -45,8 +43,7 @@ fn test_sign_message() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_verify_message() {
-    let passphrase = "spice describe gravity federal blast come thank unfair canal monkey style afraid".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(ADDITIONAL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),
@@ -66,18 +63,18 @@ fn test_verify_message() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn spl_my_balance() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let adex_token_address = env::var("ADEX_TOKEN_ADDRESS").expect("ADEX_TOKEN_ADDRESS not set");
+    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin.clone(),
-        "USDC".to_string(),
-        6,
-        solana_sdk::pubkey::Pubkey::from_str("CpMah17kQEL2wqyMKt3mZBdTnZbkbfx4nqmQMFDP5vwp").unwrap(),
+        "ADEX".to_string(),
+        9,
+        solana_sdk::pubkey::Pubkey::from_str(&adex_token_address).unwrap(),
     );
 
     let res = block_on(sol_spl_usdc_coin.my_balance().compat()).unwrap();
     assert_ne!(res.spendable, BigDecimal::from(0));
-    assert!(res.spendable < BigDecimal::from(10));
+    assert!(res.spendable < BigDecimal::from(1000000001));
 
     let sol_spl_wsol_coin = spl_coin_for_test(
         sol_coin,
@@ -94,27 +91,25 @@ fn spl_my_balance() {
 #[ignore]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_spl_transactions() {
-    let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
     let usdc_sol_coin = spl_coin_for_test(
         sol_coin,
         "USDC".to_string(),
         6,
-        solana_sdk::pubkey::Pubkey::from_str("3e9KpjwQejx9Y7WkfaXJTybH6ecG7AdXoAoxk279hdFh").unwrap(),
+        solana_sdk::pubkey::Pubkey::from_str("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU").unwrap(),
     );
     let withdraw_amount = BigDecimal::from_str("0.0001").unwrap();
     let valid_tx_details = block_on(
         usdc_sol_coin
-            .withdraw(WithdrawRequest {
-                coin: "USDC".to_string(),
-                from: None,
-                to: "AYJmtzc9D4KU6xsDzhKShFyYKUNXY622j9QoQEo4LfpX".to_string(),
-                amount: withdraw_amount.clone(),
-                max: false,
-                fee: None,
-                memo: None,
-                ibc_source_channel: None,
-            })
+            .withdraw(WithdrawRequest::new(
+                "USDC".to_string(),
+                None,
+                "AYJmtzc9D4KU6xsDzhKShFyYKUNXY622j9QoQEo4LfpX".to_string(),
+                withdraw_amount.clone(),
+                false,
+                None,
+                None,
+            ))
             .compat(),
     )
     .unwrap();
