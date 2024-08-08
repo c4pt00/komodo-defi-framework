@@ -47,7 +47,7 @@ impl EthCoin {
                 .await
             },
             EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+                "ETH and ERC20 protocols are not supported for NFT swaps."
             ))),
         }
     }
@@ -174,7 +174,7 @@ impl EthCoin {
                 .await
             },
             EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+                "ETH and ERC20 protocols are not supported for NFT swaps."
             ))),
         }
     }
@@ -214,7 +214,7 @@ impl EthCoin {
                 .await
             },
             EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+                "ETH and ERC20 protocols are not supported for NFT swaps."
             ))),
         }
     }
@@ -255,7 +255,7 @@ impl EthCoin {
                 .await
             },
             EthCoinType::Eth | EthCoinType::Erc20 { .. } => Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                "ETH and ERC20 Protocols are not supported for NFT Swaps"
+                "ETH and ERC20 protocols are not supported for NFT swaps."
             ))),
         }
     }

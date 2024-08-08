@@ -7218,36 +7218,5 @@ impl CommonSwapOpsV2 for EthCoin {
 
 #[cfg(all(feature = "for-tests", not(target_arch = "wasm32")))]
 impl EthCoin {
-    pub async fn set_coin_type(&self, new_coin_type: EthCoinType) -> EthCoin {
-        let coin = EthCoinImpl {
-            ticker: self.ticker.clone(),
-            coin_type: new_coin_type,
-            priv_key_policy: self.priv_key_policy.clone(),
-            derivation_method: Arc::clone(&self.derivation_method),
-            sign_message_prefix: self.sign_message_prefix.clone(),
-            swap_contract_address: self.swap_contract_address,
-            swap_v2_contracts: self.swap_v2_contracts,
-            fallback_swap_contract: self.fallback_swap_contract,
-            contract_supports_watchers: self.contract_supports_watchers,
-            web3_instances: AsyncMutex::new(self.web3_instances.lock().await.clone()),
-            decimals: self.decimals,
-            history_sync_state: Mutex::new(self.history_sync_state.lock().unwrap().clone()),
-            required_confirmations: AtomicU64::new(
-                self.required_confirmations.load(std::sync::atomic::Ordering::SeqCst),
-            ),
-            swap_txfee_policy: Mutex::new(self.swap_txfee_policy.lock().unwrap().clone()),
-            max_eth_tx_type: self.max_eth_tx_type,
-            ctx: self.ctx.clone(),
-            chain_id: self.chain_id,
-            trezor_coin: self.trezor_coin.clone(),
-            logs_block_range: self.logs_block_range,
-            address_nonce_locks: Arc::clone(&self.address_nonce_locks),
-            erc20_tokens_infos: Arc::clone(&self.erc20_tokens_infos),
-            nfts_infos: Arc::clone(&self.nfts_infos),
-            platform_fee_estimator_state: Arc::clone(&self.platform_fee_estimator_state),
-            gas_limit: EthGasLimit::default(),
-            abortable_system: self.abortable_system.create_subsystem().unwrap(),
-        };
-        EthCoin(Arc::new(coin))
-    }
+    pub fn set_coin_type(&mut self, new_coin_type: EthCoinType) { self.coin_type = new_coin_type; }
 }

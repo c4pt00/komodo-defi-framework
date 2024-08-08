@@ -829,22 +829,10 @@ pub fn erc20_dev_conf(contract_address: &str) -> Json {
 }
 
 /// ERC20 token configuration used for dockerized tests on Sepolia
-pub fn seploia_erc20_dev_conf(contract_address: &str) -> Json {
-    json!({
-        "coin": "ERC20DEV",
-        "name": "erc20dev",
-        "chain_id": 11155111,
-        "mm2": 1,
-        "derivation_path": "m/44'/60'",
-        "protocol": {
-            "type": "ERC20",
-            "protocol_data": {
-                "platform": "ETH",
-                "contract_address": contract_address,
-            }
-        },
-        "max_eth_tx_type": 2
-    })
+pub fn sepolia_erc20_dev_conf(contract_address: &str) -> Json {
+    let mut conf = erc20_dev_conf(contract_address);
+    conf["chain_id"] = json!(11155111);
+    conf
 }
 
 /// global NFT configuration used for dockerized Geth dev node
@@ -867,19 +855,9 @@ pub fn nft_dev_conf() -> Json {
 
 /// global NFT configuration used for Sepolia testnet
 pub fn nft_sepolia_conf() -> Json {
-    json!({
-        "coin": "NFT_ETH",
-        "name": "nftdev",
-        "chain_id": 11155111,
-        "mm2": 1,
-        "derivation_path": "m/44'/60'",
-        "protocol": {
-            "type": "NFT",
-            "protocol_data": {
-                "platform": "ETH"
-            }
-        }
-    })
+    let mut conf = nft_dev_conf();
+    conf["chain_id"] = json!(11155111);
+    conf
 }
 
 pub fn eth_sepolia_conf() -> Json {

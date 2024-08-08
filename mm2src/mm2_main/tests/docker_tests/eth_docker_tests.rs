@@ -28,7 +28,7 @@ use futures01::Future;
 use mm2_core::mm_ctx::MmArc;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, eth_sepolia_conf, nft_dev_conf, nft_sepolia_conf,
-                                  seploia_erc20_dev_conf};
+                                  sepolia_erc20_dev_conf};
 use serde_json::Value as Json;
 use std::str::FromStr;
 use std::thread;
@@ -430,7 +430,7 @@ fn global_nft_with_random_privkey(
         gap_limit: None,
     };
 
-    let coin = block_on(eth_coin_from_conf_and_request_v2(
+    let mut coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         nft_ticker.as_str(),
         &nft_dev_conf(),
@@ -442,31 +442,24 @@ fn global_nft_with_random_privkey(
     let coin_type = EthCoinType::Nft {
         platform: platform_ticker,
     };
+    coin.set_coin_type(coin_type);
 
-    let global_nft = block_on(coin.set_coin_type(coin_type));
-
-    let my_address = block_on(global_nft.my_addr());
+    let my_address = block_on(coin.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));
 
     if let Some(nft_type) = nft_type {
         match nft_type {
             TestNftType::Erc1155 { token_id, amount } => {
                 mint_erc1155(my_address, U256::from(token_id), U256::from(amount));
-                block_on(fill_erc1155_info(
-                    &global_nft,
-                    geth_erc1155_contract(),
-                    token_id,
-                    amount,
-                ));
+                block_on(fill_erc1155_info(&coin, geth_erc1155_contract(), token_id, amount));
             },
             TestNftType::Erc721 { token_id } => {
                 mint_erc721(my_address, U256::from(token_id));
-                block_on(fill_erc721_info(&global_nft, geth_erc721_contract(), token_id));
+                block_on(fill_erc721_info(&coin, geth_erc721_contract(), token_id));
             },
         }
     }
-
-    global_nft
+    coin
 }
 
 #[allow(dead_code)]
@@ -554,7 +547,7 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         gap_limit: None,
     };
 
-    let coin = block_on(eth_coin_from_conf_and_request_v2(
+    let mut coin = block_on(eth_coin_from_conf_and_request_v2(
         ctx,
         ticker,
         conf,
@@ -562,15 +555,13 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         build_policy,
     ))
     .unwrap();
-    let coin = if erc20 {
+    if erc20 {
         let coin_type = EthCoinType::Erc20 {
             platform: ETH.to_string(),
             token_addr: sepolia_erc20_contract(),
         };
-        block_on(coin.set_coin_type(coin_type))
-    } else {
-        coin
-    };
+        coin.set_coin_type(coin_type);
+    }
 
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
     let mut coins = block_on(coins_ctx.lock_coins());
@@ -1617,7 +1608,7 @@ fn eth_coin_v2_activation_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    let coin = block_on(eth_coin_from_conf_and_request_v2(
+    let mut coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         ticker,
         conf,
@@ -1633,8 +1624,7 @@ fn eth_coin_v2_activation_with_random_privkey(
             platform: ETH.to_string(),
             token_addr: erc20_contract(),
         };
-        let coin = block_on(coin.set_coin_type(coin_type));
-        return coin;
+        coin.set_coin_type(coin_type);
     }
     coin
 }
@@ -1721,7 +1711,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
-    let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
+    let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
 
@@ -1983,7 +1973,7 @@ fn send_approve_and_spend_eth() {
 fn send_approve_and_spend_erc20() {
     // sepolia test
     thread::sleep(Duration::from_secs(9));
-    let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
+    let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, erc20_conf, true);
 
@@ -2082,7 +2072,7 @@ fn send_approve_and_spend_erc20() {
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
     thread::sleep(Duration::from_secs(50));
-    let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
+    let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
 
@@ -2265,7 +2255,7 @@ fn send_and_refund_taker_funding_exceed_payment_timelock_eth() {
 fn send_and_refund_taker_funding_exceed_payment_timelock_erc20() {
     // sepolia test
     thread::sleep(Duration::from_secs(32));
-    let erc20_conf = &seploia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
+    let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, erc20_conf, true);
 
