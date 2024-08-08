@@ -150,7 +150,7 @@ fn test_disable_solana_platform_coin_with_tokens() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_keypair_from_secp_dockerized() {
+fn solana_keypair_from_secp() {
     let solana_key_pair = generate_key_pair_from_iguana_seed("federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string());
     assert_eq!(
         "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf",
@@ -166,7 +166,7 @@ fn solana_keypair_from_secp_dockerized() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_transaction_simulations_dockerized() {
+fn solana_transaction_simulation() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let request_amount = BigDecimal::try_from(0.0001).unwrap();
@@ -195,7 +195,7 @@ fn solana_transaction_simulations_dockerized() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_transaction_zero_balance_dockerized() {
+fn solana_transaction_zero_balance() {
     let passphrase = "fake passphrase".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let invalid_tx_details = block_on(
@@ -224,7 +224,7 @@ fn solana_transaction_zero_balance_dockerized() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_transaction_simulations_not_enough_for_fees_dockerized() {
+fn solana_transaction_simulations_not_enough_for_fees() {
     let passphrase = "non existent passphrase".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let invalid_tx_details = block_on(
@@ -258,7 +258,7 @@ fn solana_transaction_simulations_not_enough_for_fees_dockerized() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_transaction_simulations_max_dockerized() {
+fn solana_transaction_simulations_max() {
     let passphrase = "non existent passphrase".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let invalid_tx_details = block_on(
@@ -292,7 +292,7 @@ fn solana_transaction_simulations_max_dockerized() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_test_transactions_dockerized() {
+fn solana_test_transactions() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let valid_tx_details = block_on(
@@ -327,7 +327,7 @@ fn solana_test_transactions_dockerized() {
 #[test]
 #[ignore]
 #[cfg(not(target_arch = "wasm32"))]
-fn solana_test_tx_history_dockerized() {
+fn solana_test_tx_history() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let valid_tx_details = block_on(
@@ -359,7 +359,7 @@ fn solana_test_tx_history_dockerized() {
 }
 
 #[test]
-fn solana_coin_send_and_refund_maker_payment_dockerized() {
+fn solana_coin_send_and_refund_maker_payment() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let solana_program_id = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
@@ -406,7 +406,7 @@ fn solana_coin_send_and_refund_maker_payment_dockerized() {
 }
 
 #[test]
-fn solana_coin_send_and_spend_maker_payment_dockerized() {
+fn solana_coin_send_and_spend_maker_payment() {
     let passphrase = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron".to_string();
     let (_, coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let solana_program_id = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
