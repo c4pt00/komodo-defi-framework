@@ -234,10 +234,10 @@ pub async fn solana_coin_with_policy(
 /// pImpl idiom.
 pub struct SolanaCoinImpl {
     ticker: String,
-    pub key_pair: SolKeypair,
+    key_pair: SolKeypair,
     client: RpcClient,
     decimals: u8,
-    pub my_address: String,
+    my_address: String,
     spl_tokens_infos: Arc<Mutex<HashMap<String, SplTokenInfo>>>,
     /// This spawner is used to spawn coin's related futures that should be aborted on coin deactivation
     /// and on [`MmArc::stop`].
