@@ -7218,5 +7218,12 @@ impl CommonSwapOpsV2 for EthCoin {
 
 #[cfg(all(feature = "for-tests", not(target_arch = "wasm32")))]
 impl EthCoin {
-    pub fn set_coin_type(&mut self, new_coin_type: EthCoinType) { self.coin_type = new_coin_type; }
+    pub fn set_coin_type(&mut self, new_coin_type: EthCoinType) {
+        if let Some(inner) = Arc::get_mut(&mut self.0) {
+            inner.coin_type = new_coin_type;
+        } else {
+            let mut inner = Arc::make_mut(&mut self.0);
+            inner.coin_type = new_coin_type;
+        }
+    }
 }
