@@ -430,7 +430,7 @@ fn global_nft_with_random_privkey(
         gap_limit: None,
     };
 
-    let mut coin = block_on(eth_coin_from_conf_and_request_v2(
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         nft_ticker.as_str(),
         &nft_dev_conf(),
@@ -442,8 +442,7 @@ fn global_nft_with_random_privkey(
     let coin_type = EthCoinType::Nft {
         platform: platform_ticker,
     };
-    coin.set_coin_type(coin_type);
-
+    let global_nft = block_on(coin.set_coin_type(coin_type));
     let my_address = block_on(coin.my_addr());
     fill_eth(my_address, U256::from(10).pow(U256::from(20)));
 
@@ -451,15 +450,20 @@ fn global_nft_with_random_privkey(
         match nft_type {
             TestNftType::Erc1155 { token_id, amount } => {
                 mint_erc1155(my_address, U256::from(token_id), U256::from(amount));
-                block_on(fill_erc1155_info(&coin, geth_erc1155_contract(), token_id, amount));
+                block_on(fill_erc1155_info(
+                    &global_nft,
+                    geth_erc1155_contract(),
+                    token_id,
+                    amount,
+                ));
             },
             TestNftType::Erc721 { token_id } => {
                 mint_erc721(my_address, U256::from(token_id));
-                block_on(fill_erc721_info(&coin, geth_erc721_contract(), token_id));
+                block_on(fill_erc721_info(&global_nft, geth_erc721_contract(), token_id));
             },
         }
     }
-    coin
+    global_nft
 }
 
 #[allow(dead_code)]
@@ -547,7 +551,7 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         gap_limit: None,
     };
 
-    let mut coin = block_on(eth_coin_from_conf_and_request_v2(
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
         ctx,
         ticker,
         conf,
@@ -555,13 +559,15 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         build_policy,
     ))
     .unwrap();
-    if erc20 {
+    let coin = if erc20 {
         let coin_type = EthCoinType::Erc20 {
             platform: ETH.to_string(),
             token_addr: sepolia_erc20_contract(),
         };
-        coin.set_coin_type(coin_type);
-    }
+        block_on(coin.set_coin_type(coin_type))
+    } else {
+        coin
+    };
 
     let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
     let mut coins = block_on(coins_ctx.lock_coins());
@@ -1608,7 +1614,7 @@ fn eth_coin_v2_activation_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    let mut coin = block_on(eth_coin_from_conf_and_request_v2(
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         ticker,
         conf,
@@ -1624,7 +1630,8 @@ fn eth_coin_v2_activation_with_random_privkey(
             platform: ETH.to_string(),
             token_addr: erc20_contract(),
         };
-        coin.set_coin_type(coin_type);
+        let coin = block_on(coin.set_coin_type(coin_type));
+        return coin;
     }
     coin
 }
