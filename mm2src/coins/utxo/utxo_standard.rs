@@ -667,16 +667,7 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
         &self,
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<Self::Tx, TransactionErr> {
-        let args = RefundPaymentArgs {
-            payment_tx: args.payment_tx,
-            time_lock: args.time_lock,
-            other_pubkey: args.maker_pub,
-            tx_type_with_secret_hash: args.tx_type_with_secret_hash,
-            swap_contract_address: &None,
-            swap_unique_data: args.swap_unique_data,
-            watcher_reward: args.watcher_reward,
-        };
-        utxo_common::refund_htlc_payment(self.clone(), args).await
+        utxo_common::refund_htlc_payment(self.clone(), args.into()).await
     }
 
     async fn refund_taker_funding_secret(
@@ -791,16 +782,7 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
         &self,
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<Self::Tx, TransactionErr> {
-        let args = RefundPaymentArgs {
-            payment_tx: args.payment_tx,
-            time_lock: args.time_lock,
-            other_pubkey: args.maker_pub,
-            tx_type_with_secret_hash: args.tx_type_with_secret_hash,
-            swap_contract_address: &None,
-            swap_unique_data: args.swap_unique_data,
-            watcher_reward: args.watcher_reward,
-        };
-        utxo_common::refund_htlc_payment(self.clone(), args).await
+        utxo_common::refund_htlc_payment(self.clone(), args.into()).await
     }
 
     async fn gen_taker_payment_spend_preimage(

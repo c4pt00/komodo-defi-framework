@@ -1006,6 +1006,20 @@ pub struct RefundTakerPaymentArgs<'a> {
     pub trading_amount: BigDecimal,
 }
 
+impl<'a> From<RefundTakerPaymentArgs<'a>> for RefundPaymentArgs<'a> {
+    fn from(args: RefundTakerPaymentArgs<'a>) -> RefundPaymentArgs<'a> {
+        RefundPaymentArgs {
+            payment_tx: args.payment_tx,
+            time_lock: args.time_lock,
+            other_pubkey: args.maker_pub,
+            tx_type_with_secret_hash: args.tx_type_with_secret_hash,
+            swap_contract_address: &None,
+            swap_unique_data: args.swap_unique_data,
+            watcher_reward: args.watcher_reward,
+        }
+    }
+}
+
 /// Helper struct wrapping arguments for [SwapOps::check_if_my_payment_sent].
 #[derive(Clone, Debug)]
 pub struct CheckIfMyPaymentSentArgs<'a> {
