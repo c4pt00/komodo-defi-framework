@@ -206,7 +206,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc' 'libudev-dev')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache

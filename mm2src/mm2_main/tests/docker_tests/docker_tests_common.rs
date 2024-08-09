@@ -48,10 +48,12 @@ use tokio::runtime::Runtime;
 use web3::types::{Address as EthAddress, BlockId, BlockNumber, TransactionRequest};
 use web3::{transports::Http, Web3};
 
-use crate::docker_tests::{eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key,
-                                             geth_account, swap_contract},
-                          solana_common_tests::PASSPHRASE};
+use crate::docker_tests::eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key,
+                                            geth_account, swap_contract};
+#[cfg(feature = "enable-solana")]
+use crate::docker_tests::solana_common_tests::PASSPHRASE;
 
+#[cfg(feature = "enable-solana")]
 pub const SOL_USDC_PUBKEY: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 lazy_static! {
@@ -1106,6 +1108,7 @@ pub fn slp_supplied_node() -> MarketMakerIt {
     .unwrap()
 }
 
+#[cfg(feature = "enable-solana")]
 pub fn _solana_supplied_node() -> MarketMakerIt {
     let adex_token_address = env::var("ADEX_TOKEN_ADDRESS").expect("ADEX_TOKEN_ADDRESS not set");
     println!("adex_token_address: {}", &adex_token_address);
