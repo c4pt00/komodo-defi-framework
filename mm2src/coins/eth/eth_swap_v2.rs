@@ -83,7 +83,9 @@ impl EthCoin {
         match &self.coin_type {
             EthCoinType::Eth => {
                 let data = try_tx_s!(self.prepare_taker_eth_funding_data(&funding_args).await);
-                let eth_total_payment = dex_fee + payment_amount;
+                let eth_total_payment = payment_amount.checked_add(dex_fee).ok_or_else(|| {
+                    TransactionErr::Plain(ERRL!("Overflow occurred while calculating eth_total_payment"))
+                })?;
                 self.sign_and_send_transaction(
                     eth_total_payment,
                     Action::Call(taker_swap_v2_contract),
