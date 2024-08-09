@@ -1,6 +1,7 @@
 use crate::docker_tests::{docker_tests_common::*,
                           solana_common_tests::{generate_key_pair_from_iguana_seed, solana_coin_for_test, SolanaNet,
-                                                PASSPHRASE, SOL, SOLANA_CLIENT_URL}};
+                                                ACCOUNT_PUBKEY, NON_EXISTENT_PASSPHRASE, PASSPHRASE, PROGRAM_ID, SOL,
+                                                SOLANA_CLIENT_URL}};
 use bitcrypto::sha256;
 use coins::{solana::{solana_common::lamports_to_sol,
                      solana_sdk::{bs58, pubkey::Pubkey, signer::Signer}},
@@ -16,14 +17,19 @@ use rpc::v1::types::Bytes;
 use serde_json as json;
 use std::{convert::TryFrom, ops::Neg, str::FromStr};
 
+const SOL_DEVNET: &str = "SOL-DEVNET";
+const USDC_SOL_DEVNET: &str = "USDC-SOL-DEVNET";
+const ADEX_SOL_DEVNET: &str = "ADEX-SOL-DEVNET";
+const SIGNATURE: &str = "3AoWCXHq3ACYHYEHUsCzPmRNiXn5c6kodXn9KDd1tz52e1da3dZKYXD5nrJW31XLtN6zzJiwHWtDta52w7Cd7qyE";
+
 #[test]
 fn test_solana_and_spl_balance_enable_spl_v2() {
     let mm = _solana_supplied_node();
     let tx_history = false;
     let enable_solana_with_tokens = block_on(enable_solana_with_tokens(
         &mm,
-        "SOL-DEVNET",
-        &["USDC-SOL-DEVNET"],
+        SOL_DEVNET,
+        &[USDC_SOL_DEVNET],
         SOLANA_CLIENT_URL,
         tx_history,
     ));
@@ -47,10 +53,10 @@ fn test_solana_and_spl_balance_enable_spl_v2() {
         .1
         .balances
         .unwrap();
-    let usdc_spl = spl_balances.get("USDC-SOL-DEVNET").unwrap();
+    let usdc_spl = spl_balances.get(USDC_SOL_DEVNET).unwrap();
     assert!(usdc_spl.spendable.is_zero());
 
-    let enable_spl = block_on(enable_spl(&mm, "ADEX-SOL-DEVNET"));
+    let enable_spl = block_on(enable_spl(&mm, ADEX_SOL_DEVNET));
     let enable_spl: RpcV2Response<EnableSplResponse> = json::from_value(enable_spl).unwrap();
     assert_eq!(1, enable_spl.result.balances.len());
 
@@ -64,27 +70,19 @@ fn test_sign_verify_message_solana() {
     let tx_history = false;
     block_on(enable_solana_with_tokens(
         &mm,
-        "SOL-DEVNET",
-        &["USDC-SOL-DEVNET"],
+        SOL_DEVNET,
+        &[USDC_SOL_DEVNET],
         SOLANA_CLIENT_URL,
         tx_history,
     ));
 
-    let response = block_on(sign_message(&mm, "SOL-DEVNET"));
+    let response = block_on(sign_message(&mm, SOL_DEVNET));
     let response: RpcV2Response<SignatureResponse> = json::from_value(response).unwrap();
     let response = response.result;
 
-    assert_eq!(
-        response.signature,
-        "3AoWCXHq3ACYHYEHUsCzPmRNiXn5c6kodXn9KDd1tz52e1da3dZKYXD5nrJW31XLtN6zzJiwHWtDta52w7Cd7qyE"
-    );
+    assert_eq!(response.signature, SIGNATURE);
 
-    let response = block_on(verify_message(
-        &mm,
-        "SOL-DEVNET",
-        "3AoWCXHq3ACYHYEHUsCzPmRNiXn5c6kodXn9KDd1tz52e1da3dZKYXD5nrJW31XLtN6zzJiwHWtDta52w7Cd7qyE",
-        "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf",
-    ));
+    let response = block_on(verify_message(&mm, SOL_DEVNET, SIGNATURE, ACCOUNT_PUBKEY));
     let response: RpcV2Response<VerificationResponse> = json::from_value(response).unwrap();
     let response = response.result;
 
@@ -97,29 +95,21 @@ fn test_sign_verify_message_spl() {
     let tx_history = false;
     block_on(enable_solana_with_tokens(
         &mm,
-        "SOL-DEVNET",
-        &["USDC-SOL-DEVNET"],
+        SOL_DEVNET,
+        &[USDC_SOL_DEVNET],
         SOLANA_CLIENT_URL,
         tx_history,
     ));
 
-    block_on(enable_spl(&mm, "ADEX-SOL-DEVNET"));
+    block_on(enable_spl(&mm, ADEX_SOL_DEVNET));
 
-    let response = block_on(sign_message(&mm, "ADEX-SOL-DEVNET"));
+    let response = block_on(sign_message(&mm, ADEX_SOL_DEVNET));
     let response: RpcV2Response<SignatureResponse> = json::from_value(response).unwrap();
     let response = response.result;
 
-    assert_eq!(
-        response.signature,
-        "3AoWCXHq3ACYHYEHUsCzPmRNiXn5c6kodXn9KDd1tz52e1da3dZKYXD5nrJW31XLtN6zzJiwHWtDta52w7Cd7qyE"
-    );
+    assert_eq!(response.signature, SIGNATURE);
 
-    let response = block_on(verify_message(
-        &mm,
-        "ADEX-SOL-DEVNET",
-        "3AoWCXHq3ACYHYEHUsCzPmRNiXn5c6kodXn9KDd1tz52e1da3dZKYXD5nrJW31XLtN6zzJiwHWtDta52w7Cd7qyE",
-        "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf",
-    ));
+    let response = block_on(verify_message(&mm, ADEX_SOL_DEVNET, SIGNATURE, ACCOUNT_PUBKEY));
     let response: RpcV2Response<VerificationResponse> = json::from_value(response).unwrap();
     let response = response.result;
 
@@ -131,19 +121,19 @@ fn test_disable_solana_platform_coin_with_tokens() {
     let mm = _solana_supplied_node();
     block_on(enable_solana_with_tokens(
         &mm,
-        "SOL-DEVNET",
-        &["USDC-SOL-DEVNET"],
+        SOL_DEVNET,
+        &[USDC_SOL_DEVNET],
         SOLANA_CLIENT_URL,
         false,
     ));
-    block_on(enable_spl(&mm, "ADEX-SOL-DEVNET"));
+    block_on(enable_spl(&mm, ADEX_SOL_DEVNET));
 
     // Try to passive platform coin, SOL-DEVNET.
-    let res = block_on(disable_coin(&mm, "SOL-DEVNET", false));
+    let res = block_on(disable_coin(&mm, SOL_DEVNET, false));
     assert!(res.passivized);
 
-    // Then try to force disable SOL-DEVNET platform coin.
-    let res = block_on(disable_coin(&mm, "SOL-DEVNET", true));
+    // Then try to force disable SOL_DEVNET platform coin.
+    let res = block_on(disable_coin(&mm, SOL_DEVNET, true));
     assert!(!res.passivized);
 }
 
@@ -151,10 +141,7 @@ fn test_disable_solana_platform_coin_with_tokens() {
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_keypair_from_secp() {
     let solana_key_pair = generate_key_pair_from_iguana_seed(PASSPHRASE.to_string());
-    assert_eq!(
-        "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf",
-        solana_key_pair.pubkey().to_string()
-    );
+    assert_eq!(ACCOUNT_PUBKEY, solana_key_pair.pubkey().to_string());
 
     let other_solana_keypair = generate_key_pair_from_iguana_seed("bob passphrase".to_string());
     assert_eq!(
@@ -194,8 +181,7 @@ fn solana_transaction_simulation() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_transaction_zero_balance() {
-    let passphrase = "fake passphrase".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(NON_EXISTENT_PASSPHRASE.to_string(), SolanaNet::Local);
     let invalid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
@@ -223,8 +209,7 @@ fn solana_transaction_zero_balance() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_transaction_simulations_not_enough_for_fees() {
-    let passphrase = "non existent passphrase".to_string();
-    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(NON_EXISTENT_PASSPHRASE.to_string(), SolanaNet::Local);
     let invalid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
@@ -257,7 +242,7 @@ fn solana_transaction_simulations_not_enough_for_fees() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_transaction_simulations_max() {
-    let passphrase = "non existent passphrase".to_string();
+    let passphrase = NON_EXISTENT_PASSPHRASE.to_string();
     let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
     let invalid_tx_details = block_on(
         sol_coin
@@ -357,8 +342,7 @@ fn solana_test_tx_history() {
 #[test]
 fn solana_coin_send_and_refund_maker_payment() {
     let (_, coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
-    let solana_program_id = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
-    let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
+    let solana_program_id = bs58::decode(PROGRAM_ID).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
         Vec::new()
     });
@@ -403,8 +387,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 #[test]
 fn solana_coin_send_and_spend_maker_payment() {
     let (_, coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
-    let solana_program_id = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
-    let solana_program_id = bs58::decode(solana_program_id).into_vec().unwrap_or_else(|e| {
+    let solana_program_id = bs58::decode(PROGRAM_ID).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
         Vec::new()
     });

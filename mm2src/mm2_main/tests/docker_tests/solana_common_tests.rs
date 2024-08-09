@@ -19,6 +19,9 @@ pub const SOL: &str = "SOL";
 pub const PASSPHRASE: &str = "federal stay trigger hour exist success game vapor become comfort action phone bright ill target wild nasty crumble dune close rare fabric hen iron";
 pub const ADDITIONAL_PASSPHRASE: &str =
     "spice describe gravity federal blast come thank unfair canal monkey style afraid";
+pub const PROGRAM_ID: &str = "GCJUXKH4VeKzEtr9YgwaNWC3dJonFgsM3yMiBa64CZ8m";
+pub const NON_EXISTENT_PASSPHRASE: &str = "non existent passphrase";
+pub const ACCOUNT_PUBKEY: &str = "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf";
 
 pub enum SolanaNet {
     Local,

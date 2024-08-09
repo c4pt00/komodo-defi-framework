@@ -52,6 +52,8 @@ use crate::docker_tests::{eth_docker_tests::{erc20_contract_checksum, fill_eth, 
                                              geth_account, swap_contract},
                           solana_common_tests::PASSPHRASE};
 
+pub const SOL_USDC_PUBKEY: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
 lazy_static! {
     static ref MY_COIN_LOCK: Mutex<()> = Mutex::new(());
     static ref MY_COIN1_LOCK: Mutex<()> = Mutex::new(());
@@ -1109,7 +1111,7 @@ pub fn _solana_supplied_node() -> MarketMakerIt {
     println!("adex_token_address: {}", &adex_token_address);
     let coins = json! ([
         {"coin": "SOL-DEVNET","name": "solana","fname": "Solana","rpcport": 80,"mm2": 1,"required_confirmations": 1,"avg_blocktime": 0.25,"protocol": {"type": "SOLANA"}},
-        {"coin":"USDC-SOL-DEVNET","protocol":{"type":"SPLTOKEN","protocol_data":{"decimals":6,"token_contract_address":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU","platform":"SOL-DEVNET"}},"mm2": 1},
+        {"coin":"USDC-SOL-DEVNET","protocol":{"type":"SPLTOKEN","protocol_data":{"decimals":6,"token_contract_address": SOL_USDC_PUBKEY,"platform":"SOL-DEVNET"}},"mm2": 1},
         {"coin":"ADEX-SOL-DEVNET","protocol":{"type":"SPLTOKEN","protocol_data":{"decimals":9,"token_contract_address": adex_token_address,"platform":"SOL-DEVNET"}},"mm2": 1},
     ]);
 
