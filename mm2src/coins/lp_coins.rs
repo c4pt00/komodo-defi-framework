@@ -2095,7 +2095,7 @@ impl WithdrawRequest {
             memo,
             ibc_source_channel: None,
             #[cfg(target_arch = "wasm32")]
-            broadcast: r#false,
+            broadcast: false,
         }
     }
 }
