@@ -2098,6 +2098,21 @@ impl WithdrawRequest {
             broadcast: false,
         }
     }
+
+    pub fn new_max(coin: String, to: String) -> WithdrawRequest {
+        WithdrawRequest {
+            coin,
+            from: None,
+            to,
+            amount: 0.into(),
+            max: true,
+            fee: None,
+            memo: None,
+            ibc_source_channel: None,
+            #[cfg(target_arch = "wasm32")]
+            broadcast: false,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -2136,23 +2151,6 @@ pub struct VerificationRequest {
     message: String,
     signature: String,
     address: String,
-}
-
-impl WithdrawRequest {
-    pub fn new_max(coin: String, to: String) -> WithdrawRequest {
-        WithdrawRequest {
-            coin,
-            from: None,
-            to,
-            amount: 0.into(),
-            max: true,
-            fee: None,
-            memo: None,
-            ibc_source_channel: None,
-            #[cfg(target_arch = "wasm32")]
-            broadcast: false,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
