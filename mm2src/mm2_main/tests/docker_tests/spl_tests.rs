@@ -1,62 +1,61 @@
 use crate::docker_tests::{docker_tests_common::SOL_USDC_PUBKEY,
                           solana_common_tests::{solana_coin_for_test, spl_coin_for_test, SolanaNet, ACCOUNT_PUBKEY,
-                                                ADDITIONAL_PASSPHRASE, PASSPHRASE}};
+                                                SOL_ADDITIONAL_PASSPHRASE, SOL_PASSPHRASE}};
 use coins::{solana::solana_sdk, MarketCoinOps, MmCoin, WithdrawRequest};
 use common::{block_on, Future01CompatExt};
 use mm2_number::BigDecimal;
 use std::{env, ops::Neg, str::FromStr};
 
 const USDC: &str = "USDC";
-const ADEX: &str = "ADEX";
-const WSOL: &str = "WSOL";
-const ADEX_PUBKEY: &str = "3e9KpjwQejx9Y7WkfaXJTybH6ecG7AdXoAoxk279hdFh";
-const WSOL_PUBKEY: &str = "So11111111111111111111111111111111111111112";
-const SIGNATURE: &str = "4dzKwEteN8nch76zPMEjPX19RsaQwGTxsbtfg2bwGTkGenLfrdm31zvn9GH5rvaJBwivp6ESXx1KYR672ngs3UfF";
-const VERIFY_PUBKEY: &str = "8UF6jSVE1jW8mSiGqt8Hft1rLwPjdKLaTfhkNozFwoAG";
-const VERIFY_MESSAGE: &str = "test";
-const PUBKEY_FOR_USDC: &str = "CpMah17kQEL2wqyMKt3mZBdTnZbkbfx4nqmQMFDP5vwp";
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn spl_coin_creation() {
-    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         USDC.to_string(),
         6,
-        solana_sdk::pubkey::Pubkey::from_str(ADEX_PUBKEY).unwrap(),
+        solana_sdk::pubkey::Pubkey::from_str("3e9KpjwQejx9Y7WkfaXJTybH6ecG7AdXoAoxk279hdFh").unwrap(),
     );
 
     log!("address: {}", sol_spl_usdc_coin.my_address().unwrap());
-    assert_eq!(sol_spl_usdc_coin.my_address().unwrap(), ACCOUNT_PUBKEY,);
+    assert_eq!(sol_spl_usdc_coin.my_address().unwrap(), ACCOUNT_PUBKEY);
 }
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_sign_message() {
-    let (_, sol_coin) = solana_coin_for_test(ADDITIONAL_PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_ADDITIONAL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         USDC.to_string(),
         6,
-        solana_sdk::pubkey::Pubkey::from_str(PUBKEY_FOR_USDC).unwrap(),
+        solana_sdk::pubkey::Pubkey::from_str("CpMah17kQEL2wqyMKt3mZBdTnZbkbfx4nqmQMFDP5vwp").unwrap(),
     );
-    let signature = sol_spl_usdc_coin.sign_message(VERIFY_MESSAGE).unwrap();
-    assert_eq!(signature, SIGNATURE);
+    let signature = sol_spl_usdc_coin.sign_message("TEST").unwrap();
+    assert_eq!(
+        signature,
+        "4dzKwEteN8nch76zPMEjPX19RsaQwGTxsbtfg2bwGTkGenLfrdm31zvn9GH5rvaJBwivp6ESXx1KYR672ngs3UfF"
+    );
 }
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_verify_message() {
-    let (_, sol_coin) = solana_coin_for_test(ADDITIONAL_PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_ADDITIONAL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_usdc_coin = spl_coin_for_test(
         sol_coin,
         USDC.to_string(),
         6,
-        solana_sdk::pubkey::Pubkey::from_str(PUBKEY_FOR_USDC).unwrap(),
+        solana_sdk::pubkey::Pubkey::from_str("CpMah17kQEL2wqyMKt3mZBdTnZbkbfx4nqmQMFDP5vwp").unwrap(),
     );
     let is_valid = sol_spl_usdc_coin
-        .verify_message(SIGNATURE, VERIFY_MESSAGE, VERIFY_PUBKEY)
+        .verify_message(
+            "4dzKwEteN8nch76zPMEjPX19RsaQwGTxsbtfg2bwGTkGenLfrdm31zvn9GH5rvaJBwivp6ESXx1KYR672ngs3UfF",
+            "test",
+            "8UF6jSVE1jW8mSiGqt8Hft1rLwPjdKLaTfhkNozFwoAG",
+        )
         .unwrap();
     assert!(is_valid);
 }
@@ -65,10 +64,10 @@ fn test_verify_message() {
 #[cfg(not(target_arch = "wasm32"))]
 fn spl_my_balance() {
     let adex_token_address = env::var("ADEX_TOKEN_ADDRESS").expect("ADEX_TOKEN_ADDRESS not set");
-    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let sol_spl_adex_coin = spl_coin_for_test(
         sol_coin.clone(),
-        ADEX.to_string(),
+        "ADEX".to_string(),
         9,
         solana_sdk::pubkey::Pubkey::from_str(&adex_token_address).unwrap(),
     );
@@ -79,9 +78,9 @@ fn spl_my_balance() {
 
     let sol_spl_wsol_coin = spl_coin_for_test(
         sol_coin,
-        WSOL.to_string(),
+        "WSOL".to_string(),
         8,
-        solana_sdk::pubkey::Pubkey::from_str(WSOL_PUBKEY).unwrap(),
+        solana_sdk::pubkey::Pubkey::from_str("So11111111111111111111111111111111111111112").unwrap(),
     );
     let res = block_on(sol_spl_wsol_coin.my_balance().compat()).unwrap();
     assert_eq!(res.spendable, BigDecimal::from(0));
@@ -92,7 +91,7 @@ fn spl_my_balance() {
 #[ignore]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_spl_transactions() {
-    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let usdc_sol_coin = spl_coin_for_test(
         sol_coin,
         USDC.to_string(),

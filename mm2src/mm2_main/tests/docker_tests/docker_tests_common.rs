@@ -51,7 +51,7 @@ use web3::{transports::Http, Web3};
 use crate::docker_tests::eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key,
                                             geth_account, swap_contract};
 #[cfg(feature = "enable-solana")]
-use crate::docker_tests::solana_common_tests::PASSPHRASE;
+use crate::docker_tests::solana_common_tests::SOL_PASSPHRASE;
 
 #[cfg(feature = "enable-solana")]
 pub const SOL_USDC_PUBKEY: &str = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
@@ -1123,7 +1123,7 @@ pub fn _solana_supplied_node() -> MarketMakerIt {
             "gui": "nogui",
             "netid": 9000,
             "dht": "on",  // Enable DHT without delay.
-            "passphrase": PASSPHRASE,
+            "passphrase": SOL_PASSPHRASE,
             "coins": coins,
             "rpc_password": "pass",
             "i_am_seed": true,

@@ -1,7 +1,7 @@
 use crate::docker_tests::{docker_tests_common::*,
                           solana_common_tests::{generate_key_pair_from_iguana_seed, solana_coin_for_test, SolanaNet,
-                                                ACCOUNT_PUBKEY, NON_EXISTENT_PASSPHRASE, PASSPHRASE, PROGRAM_ID, SOL,
-                                                SOLANA_CLIENT_URL}};
+                                                ACCOUNT_PUBKEY, NON_EXISTENT_PASSPHRASE, PROGRAM_ID, SOL,
+                                                SOLANA_CLIENT_URL, SOL_PASSPHRASE}};
 use bitcrypto::sha256;
 use coins::{solana::{solana_common::lamports_to_sol,
                      solana_sdk::{bs58, pubkey::Pubkey, signer::Signer}},
@@ -140,7 +140,7 @@ fn test_disable_solana_platform_coin_with_tokens() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_keypair_from_secp() {
-    let solana_key_pair = generate_key_pair_from_iguana_seed(PASSPHRASE.to_string());
+    let solana_key_pair = generate_key_pair_from_iguana_seed(SOL_PASSPHRASE.to_string());
     assert_eq!(ACCOUNT_PUBKEY, solana_key_pair.pubkey().to_string());
 
     let other_solana_keypair = generate_key_pair_from_iguana_seed("bob passphrase".to_string());
@@ -152,8 +152,74 @@ fn solana_keypair_from_secp() {
 
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
+pub fn solana_coin_creation() {
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
+    assert_eq!(
+        sol_coin.my_address().unwrap(),
+        "FJktmyjV9aBHEShT4hfnLpr9ELywdwVtEL1w1rSWgbVf"
+    );
+}
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+pub fn test_sign_message() {
+    let passphrase = "spice describe gravity federal blast come thank unfair canal monkey style afraid".to_string();
+    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let signature = sol_coin.sign_message("test").unwrap();
+    assert_eq!(
+        signature,
+        "4dzKwEteN8nch76zPMEjPX19RsaQwGTxsbtfg2bwGTkGenLfrdm31zvn9GH5rvaJBwivp6ESXx1KYR672ngs3UfF"
+    );
+}
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+pub fn test_verify_message() {
+    let passphrase = "spice describe gravity federal blast come thank unfair canal monkey style afraid".to_string();
+    let (_, sol_coin) = solana_coin_for_test(passphrase, SolanaNet::Local);
+    let is_valid = sol_coin
+        .verify_message(
+            "4dzKwEteN8nch76zPMEjPX19RsaQwGTxsbtfg2bwGTkGenLfrdm31zvn9GH5rvaJBwivp6ESXx1KYR672ngs3UfF",
+            "test",
+            "8UF6jSVE1jW8mSiGqt8Hft1rLwPjdKLaTfhkNozFwoAG",
+        )
+        .unwrap();
+    assert!(is_valid);
+}
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+pub fn solana_validate_address() {
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
+
+    // invalid len
+    let res = sol_coin.validate_address("invalidaddressobviously");
+    assert!(!res.is_valid);
+    let res = sol_coin.validate_address("GMtMFbuVgjDnzsBd3LLBfM4X8RyYcDGCM92tPq2PG6B2");
+    assert!(res.is_valid);
+
+    // Typo
+    let res = sol_coin.validate_address("Fr8fraJXAe1cFU81mF7NhHTrUzXjZAJkQE1gUQ11riH");
+    assert!(!res.is_valid);
+
+    // invalid len
+    let res = sol_coin.validate_address("r8fraJXAe1cFU81mF7NhHTrUzXjZAJkQE1gUQ11riHn");
+    assert!(!res.is_valid);
+}
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
+pub fn solana_block_height() {
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
+    let res = block_on(sol_coin.current_block().compat()).unwrap();
+    log!("block is : {}", res);
+    assert!(res > 0);
+}
+
+#[test]
+#[cfg(not(target_arch = "wasm32"))]
 fn solana_transaction_simulation() {
-    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let request_amount = BigDecimal::try_from(0.0001).unwrap();
     let valid_tx_details = block_on(
         sol_coin
@@ -276,7 +342,7 @@ fn solana_transaction_simulations_max() {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_test_transactions() {
-    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let valid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
@@ -310,7 +376,7 @@ fn solana_test_transactions() {
 #[ignore]
 #[cfg(not(target_arch = "wasm32"))]
 fn solana_test_tx_history() {
-    let (_, sol_coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, sol_coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let valid_tx_details = block_on(
         sol_coin
             .withdraw(WithdrawRequest::new(
@@ -341,7 +407,7 @@ fn solana_test_tx_history() {
 
 #[test]
 fn solana_coin_send_and_refund_maker_payment() {
-    let (_, coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let solana_program_id = bs58::decode(PROGRAM_ID).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
         Vec::new()
@@ -386,7 +452,7 @@ fn solana_coin_send_and_refund_maker_payment() {
 
 #[test]
 fn solana_coin_send_and_spend_maker_payment() {
-    let (_, coin) = solana_coin_for_test(PASSPHRASE.to_owned(), SolanaNet::Local);
+    let (_, coin) = solana_coin_for_test(SOL_PASSPHRASE.to_owned(), SolanaNet::Local);
     let solana_program_id = bs58::decode(PROGRAM_ID).into_vec().unwrap_or_else(|e| {
         log!("Failed to decode program ID: {}", e);
         Vec::new()
