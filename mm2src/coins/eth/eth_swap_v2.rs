@@ -2,14 +2,15 @@ use super::eth::{wei_from_big_decimal, EthCoin, EthCoinType, SignedEthTx, TAKER_
 use super::{decode_contract_call, get_function_input_data, ParseCoinAssocTypes, RefundFundingSecretArgs,
             RefundTakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash, TakerPaymentStateV2, Transaction,
             TransactionErr, ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
-use crate::{FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, SearchForFundingSpendErr};
+use crate::{FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, SearchForFundingSpendErr,
+            WaitForTakerPaymentSpendError};
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Function, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, Public, U256};
 use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
-use mm2_err_handle::prelude::{MapToMmResult, MmError};
+use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use mm2_number::BigDecimal;
 use std::convert::TryInto;
 use std::num::TryFromIntError;
@@ -443,11 +444,19 @@ impl EthCoin {
             )
         };
 
-        let payment_tx = self
+        let spend_payment_tx = self
             .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
             .compat()
             .await?;
-        Ok(payment_tx)
+        Ok(spend_payment_tx)
+    }
+
+    pub(crate) async fn wait_for_taker_payment_spend_impl(
+        &self,
+        _taker_payment: &SignedEthTx,
+        _wait_until: u64,
+    ) -> MmResult<SignedEthTx, WaitForTakerPaymentSpendError> {
+        todo!()
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract `ethTakerPayment` method

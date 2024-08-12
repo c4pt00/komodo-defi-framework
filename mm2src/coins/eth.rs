@@ -7183,14 +7183,15 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.sign_and_broadcast_taker_payment_spend_impl(gen_args, secret).await
     }
 
-    /// Checks that taker payment state is `MakerSpent`. Returns maker spent payment transaction.
+    /// Checks that taker payment state is `MakerSpent`.
+    /// Accepts maker spent payment transaction and returns it if payment status is correct.
     async fn wait_for_taker_payment_spend(
         &self,
-        _taker_payment: &Self::Tx,
+        taker_payment: &Self::Tx,
         _from_block: u64,
-        _wait_until: u64,
+        wait_until: u64,
     ) -> MmResult<Self::Tx, WaitForTakerPaymentSpendError> {
-        todo!()
+        self.wait_for_taker_payment_spend_impl(taker_payment, wait_until).await
     }
 }
 
