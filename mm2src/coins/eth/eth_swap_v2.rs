@@ -373,7 +373,8 @@ impl EthCoin {
         .await
     }
 
-    /// Check if taker payment state is `TakerApproved`
+    /// Checks that taker payment state is `TakerApproved`.
+    /// Accepts a taker-approved payment transaction and returns it if the state is correct.
     pub(crate) async fn search_for_taker_funding_spend_impl(
         &self,
         tx: &SignedEthTx,

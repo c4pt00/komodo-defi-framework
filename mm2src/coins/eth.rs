@@ -7074,11 +7074,13 @@ impl Eip1559Ops for EthCoin {
 
 #[async_trait]
 impl TakerCoinSwapOpsV2 for EthCoin {
+    /// Calls `"ethTakerPayment"` or `"erc20TakerPayment"` swap contract methods.
+    /// Returns taker sent payment transaction.
     async fn send_taker_funding(&self, args: SendTakerFundingArgs<'_>) -> Result<Self::Tx, TransactionErr> {
         self.send_taker_funding_impl(args).await
     }
 
-    /// Validates sent taker payment
+    /// Validates taker payment transaction.
     async fn validate_taker_funding(&self, args: ValidateTakerFundingArgs<'_, Self>) -> ValidateSwapV2TxResult {
         self.validate_taker_funding_impl(args).await
     }
@@ -7097,7 +7099,8 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.refund_taker_funding_secret_impl(args).await
     }
 
-    /// Check if taker payment state is `TakerApproved`
+    /// Checks that taker payment state is `TakerApproved`.
+    /// Accepts taker approve payment transaction and returns it if the state is correct.
     async fn search_for_taker_funding_spend(
         &self,
         tx: &Self::Tx,
@@ -7128,7 +7131,8 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// Taker approves payment calling `takerPaymentApprove` for EVM based chains
+    /// Taker approves payment calling `takerPaymentApprove` for EVM based chains.
+    /// Function accepts taker payment transaction, returns taker approve payment transaction.
     async fn sign_and_send_taker_funding_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
@@ -7167,7 +7171,8 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         Ok(())
     }
 
-    /// Taker swap contract `spendTakerPayment` method is called for EVM based chains
+    /// Taker swap contract `spendTakerPayment` method is called for EVM based chains.
+    /// Returns maker spent payment transaction.
     async fn sign_and_broadcast_taker_payment_spend(
         &self,
         _preimage: &TxPreimageWithSig<Self>,
@@ -7178,6 +7183,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.sign_and_broadcast_taker_payment_spend_impl(gen_args, secret).await
     }
 
+    /// Checks that taker payment state is `MakerSpent`. Returns maker spent payment transaction.
     async fn wait_for_taker_payment_spend(
         &self,
         _taker_payment: &Self::Tx,
