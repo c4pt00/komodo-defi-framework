@@ -1479,7 +1479,10 @@ pub enum ValidateSwapV2TxError {
     Rpc(String),
     /// Serialized tx bytes don't match ones received from coin's RPC.
     #[display(fmt = "Tx bytes {:02x} don't match ones received from rpc {:02x}", actual, from_rpc)]
-    TxBytesMismatch { from_rpc: BytesJson, actual: BytesJson },
+    TxBytesMismatch {
+        from_rpc: BytesJson,
+        actual: BytesJson,
+    },
     /// Provided transaction doesn't have output with specific index
     TxLacksOfOutputs,
     /// Input payment timelock overflows the type used by specific coin.
@@ -1493,6 +1496,7 @@ pub enum ValidateSwapV2TxError {
     TxDoesNotExist(String),
     /// Transaction has wrong properties, for example, it has been sent to a wrong address.
     WrongPaymentTx(String),
+    ProtocolNotSupported(String),
 }
 
 impl From<NumConversError> for ValidateSwapV2TxError {

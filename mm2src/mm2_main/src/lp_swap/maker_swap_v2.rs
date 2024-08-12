@@ -353,7 +353,8 @@ pub struct MakerSwapStateMachine<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCo
     pub ctx: MmArc,
     /// Storage
     pub storage: MakerSwapStorage,
-    /// maker's coin type which Maker trades
+    /// The coin type the Maker uses in the trade.
+    /// This is the coin the Maker offers and manages in the state machine.
     pub maker_coin: MakerCoin,
     /// The amount swapped by maker.
     pub maker_volume: MmNumber,
@@ -365,7 +366,8 @@ pub struct MakerSwapStateMachine<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCo
     pub started_at: u64,
     /// The duration of HTLC timelock in seconds.
     pub lock_duration: u64,
-    /// taker's coin type which Maker trades
+    /// The coin type the Taker uses, but owned by the Maker in the trade.
+    /// This coin is required by the Maker to complete the swap.
     pub taker_coin: TakerCoin,
     /// The amount swapped by taker.
     pub taker_volume: MmNumber,
