@@ -378,13 +378,6 @@ impl EthCoin {
         &self,
         tx: &SignedEthTx,
     ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
-        let taker_swap_v2_contract = self
-            .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
-            .ok_or_else(|| {
-                SearchForFundingSpendErr::Internal(ERRL!("Expected swap_v2_contracts to be Some, but found None"))
-            })?;
         let decoded = {
             let approve_func = match self.coin_type {
                 EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2
@@ -399,6 +392,13 @@ impl EthCoin {
             decode_contract_call(approve_func, tx.unsigned().data())
                 .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("Failed to decode tx data:{}", e)))?
         };
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| {
+                SearchForFundingSpendErr::Internal(ERRL!("Expected swap_v2_contracts to be Some, but found None"))
+            })?;
         let taker_status = self
             .payment_status_v2(
                 taker_swap_v2_contract,
