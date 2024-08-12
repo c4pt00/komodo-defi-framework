@@ -13,7 +13,7 @@ use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_reque
                  EthPrivKeyBuildPolicy, SignedEthTx, SwapV2Contracts, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
 use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, CommonSwapOpsV2, ConfirmPaymentInput,
-            DerivationMethod, DexFee, Eip1559Ops, FoundSwapTxSpend, GenTakerFundingSpendArgs,
+            DerivationMethod, DexFee, Eip1559Ops, FoundSwapTxSpend, FundingTxSpend, GenTakerFundingSpendArgs,
             GenTakerPaymentSpendArgs, MakerNftSwapOpsV2, MarketCoinOps, MmCoinEnum, MmCoinStruct, NftSwapInfo,
             ParseCoinAssocTypes, ParseNftAssocTypes, PrivKeyBuildPolicy, RefundFundingSecretArgs,
             RefundNftMakerPaymentArgs, RefundPaymentArgs, RefundTakerPaymentArgs, SearchForSwapTxSpendInput,
@@ -1953,6 +1953,19 @@ fn send_approve_and_spend_eth() {
     );
     wait_for_confirmations(&taker_coin, &taker_approve_tx, 100);
 
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
+    let check_taker_approved_tx = block_on(maker_coin.search_for_taker_funding_spend(&taker_approve_tx, 0u64, &[]))
+        .unwrap()
+        .unwrap();
+    match check_taker_approved_tx {
+        FundingTxSpend::TransferredToTakerPayment(tx) => {
+            assert_eq!(tx, taker_approve_tx);
+        },
+        FundingTxSpend::RefundedTimelock(_) | FundingTxSpend::RefundedSecret { .. } => {
+            panic!("Wrong FundingTxSpend variant, expected TransferredToTakerPayment")
+        },
+    };
+
     let dex_fee_pub = sepolia_taker_swap_v2();
     let spend_args = GenTakerPaymentSpendArgs {
         taker_tx: &taker_approve_tx,
@@ -2052,6 +2065,19 @@ fn send_approve_and_spend_erc20() {
         taker_approve_tx.tx_hash()
     );
     wait_for_confirmations(&taker_coin, &taker_approve_tx, 100);
+
+    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
+    let check_taker_approved_tx = block_on(maker_coin.search_for_taker_funding_spend(&taker_approve_tx, 0u64, &[]))
+        .unwrap()
+        .unwrap();
+    match check_taker_approved_tx {
+        FundingTxSpend::TransferredToTakerPayment(tx) => {
+            assert_eq!(tx, taker_approve_tx);
+        },
+        FundingTxSpend::RefundedTimelock(_) | FundingTxSpend::RefundedSecret { .. } => {
+            panic!("Wrong FundingTxSpend variant, expected TransferredToTakerPayment")
+        },
+    };
 
     let dex_fee_pub = sepolia_taker_swap_v2();
     let spend_args = GenTakerPaymentSpendArgs {

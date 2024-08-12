@@ -7138,12 +7138,12 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.taker_payment_approve(args).await
     }
 
-    // TODO lets call refund_taker_funding_timelock inside this func?
+    // TODO lets reuse refund_taker_funding_timelock_impl inside this func?
     async fn refund_combined_taker_payment(
         &self,
-        _args: RefundTakerPaymentArgs<'_>,
+        args: RefundTakerPaymentArgs<'_>,
     ) -> Result<Self::Tx, TransactionErr> {
-        todo!()
+        self.refund_taker_funding_timelock_impl(args).await
     }
 
     /// Eth doesnt have preimages
