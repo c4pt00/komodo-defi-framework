@@ -1485,8 +1485,8 @@ pub enum ValidateSwapV2TxError {
     },
     /// Provided transaction doesn't have output with specific index
     TxLacksOfOutputs,
-    /// Input payment timelock overflows the type used by specific coin.
-    LocktimeOverflow(String),
+    /// Indicates that overflow occurred, either while calculating a total payment or converting the timelock.
+    Overflow(String),
     /// Internal error
     #[from_stringify("ethabi::Error")]
     Internal(String),
@@ -1497,6 +1497,8 @@ pub enum ValidateSwapV2TxError {
     /// Transaction has wrong properties, for example, it has been sent to a wrong address.
     WrongPaymentTx(String),
     ProtocolNotSupported(String),
+    /// Got invalid data
+    InvalidData(String),
 }
 
 impl From<NumConversError> for ValidateSwapV2TxError {
@@ -1513,8 +1515,8 @@ impl From<PaymentStatusErr> for ValidateSwapV2TxError {
             PaymentStatusErr::AbiError(e)
             | PaymentStatusErr::Internal(e)
             | PaymentStatusErr::TxDeserializationError(e) => ValidateSwapV2TxError::Internal(e),
-
             PaymentStatusErr::Transport(e) => ValidateSwapV2TxError::Rpc(e),
+            PaymentStatusErr::InvalidData(e) => ValidateSwapV2TxError::InvalidData(e),
         }
     }
 }

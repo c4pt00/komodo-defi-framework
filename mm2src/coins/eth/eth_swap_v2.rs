@@ -149,11 +149,11 @@ impl EthCoin {
         let funding_time_lock: u32 = args
             .funding_time_lock
             .try_into()
-            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::LocktimeOverflow(e.to_string()))?;
+            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::Overflow(e.to_string()))?;
         let payment_time_lock: u32 = args
             .payment_time_lock
             .try_into()
-            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::LocktimeOverflow(e.to_string()))?;
+            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::Overflow(e.to_string()))?;
         let swap_id = self.etomic_swap_id(payment_time_lock, args.maker_secret_hash);
         let taker_status = self
             .payment_status_v2(
@@ -656,7 +656,7 @@ impl EthCoin {
         })?;
         match state {
             Token::Uint(state) => Ok(*state),
-            _ => Err(PaymentStatusErr::Internal(ERRL!(
+            _ => Err(PaymentStatusErr::InvalidData(ERRL!(
                 "Payment status must be Uint, got {:?}",
                 state
             ))),
@@ -790,7 +790,9 @@ fn validate_eth_taker_payment_data(
             )));
         }
     }
-    let total = args.dex_fee + args.amount;
+    let total = args.amount.checked_add(args.dex_fee).ok_or_else(|| {
+        ValidateSwapV2TxError::Overflow("Overflow occurred while calculating total payment".to_string())
+    })?;
     if total != tx_value {
         return MmError::err(ValidateSwapV2TxError::WrongPaymentTx(format!(
             "ETH Taker Payment amount, is invalid, expected {:?}, got {:?}",
@@ -881,4 +883,6 @@ pub(crate) enum PaymentStatusErr {
     Internal(String),
     #[display(fmt = "Tx deserialization error: {}", _0)]
     TxDeserializationError(String),
+    #[display(fmt = "Invalid data error: {}", _0)]
+    InvalidData(String),
 }
