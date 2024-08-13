@@ -1813,7 +1813,6 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
 
     // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
     let funding_time_lock = now_sec() - 3000;
-    // TODO need to impl taker approve to test exceeded payment_time_lock
     let payment_time_lock = now_sec() + 1000;
 
     let dex_fee = &DexFee::Standard("0.00001".into());
@@ -1890,7 +1889,7 @@ fn send_approve_and_spend_eth() {
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
     let funding_time_lock = now_sec() + 3000;
-    let payment_time_lock = now_sec() + 1000;
+    let payment_time_lock = now_sec() + 600;
 
     let taker_address = block_on(taker_coin.my_addr());
     let maker_address = block_on(maker_coin.my_addr());
@@ -1986,8 +1985,7 @@ fn send_approve_and_spend_eth() {
             .unwrap();
     log!("Maker spent ETH payment, tx hash: {:02x}", spend_tx.tx_hash());
     wait_for_confirmations(&maker_coin, &spend_tx, 100);
-
-    // TODO add wait_for_taker_payment_spend when it will be implemented
+    block_on(taker_coin.wait_for_taker_payment_spend(&spend_tx, 0u64, payment_time_lock)).unwrap();
 }
 
 #[test]
@@ -2003,7 +2001,7 @@ fn send_approve_and_spend_erc20() {
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
     let funding_time_lock = now_sec() + 3000;
-    let payment_time_lock = now_sec() + 1000;
+    let payment_time_lock = now_sec() + 600;
 
     let taker_address = block_on(taker_coin.my_addr());
     let maker_address = block_on(maker_coin.my_addr());
@@ -2098,9 +2096,7 @@ fn send_approve_and_spend_erc20() {
         block_on(maker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
             .unwrap();
     log!("Maker spent ERC20 payment, tx hash: {:02x}", spend_tx.tx_hash());
-    wait_for_confirmations(&maker_coin, &spend_tx, 100);
-
-    // TODO add wait_for_taker_payment_spend when it will be implemented
+    block_on(taker_coin.wait_for_taker_payment_spend(&spend_tx, 0u64, payment_time_lock)).unwrap();
 }
 
 #[test]

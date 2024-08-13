@@ -1843,7 +1843,7 @@ pub trait MakerNftSwapOpsV2: ParseCoinAssocTypes + ParseNftAssocTypes + Send + S
 }
 
 /// Enum representing errors that can occur while waiting for taker payment spend.
-#[derive(Display, EnumFromStringify)]
+#[derive(Display, Debug, EnumFromStringify)]
 pub enum WaitForTakerPaymentSpendError {
     /// Timeout error variant, indicating that the wait for taker payment spend has timed out.
     #[display(
