@@ -2871,13 +2871,12 @@ pub async fn wait_for_output_spend_impl(
     wait_until: u64,
     check_every: f64,
 ) -> MmResult<UtxoTx, WaitForOutputSpendErr> {
+    let script_pubkey = &tx
+        .outputs
+        .get(output_index)
+        .or_mm_err(|| WaitForOutputSpendErr::NoOutputWithIndex(output_index))?
+        .script_pubkey;
     loop {
-        let script_pubkey = &tx
-            .outputs
-            .get(output_index)
-            .or_mm_err(|| WaitForOutputSpendErr::NoOutputWithIndex(output_index))?
-            .script_pubkey;
-
         match coin
             .rpc_client
             .find_output_spend(
