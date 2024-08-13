@@ -1,6 +1,6 @@
 #![allow(clippy::all)]
 
-use super::{CoinBalance, FundingTxSpend, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
+use super::{CoinBalance, CommonSwapOpsV2, FundingTxSpend, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
             RawTransactionRequest, SearchForFundingSpendErr, SwapOps, TradeFee, TransactionEnum, TransactionFut,
             WaitForTakerPaymentSpendError};
 use crate::coin_errors::ValidatePaymentResult;
@@ -556,11 +556,15 @@ impl TakerCoinSwapOpsV2 for TestCoin {
         unimplemented!()
     }
 
-    fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
-
     async fn get_funding_fee(&self, value: TradePreimageValue) -> TradePreimageResult<TradeFee> { todo!() }
 
     async fn get_taker_payment_fee(&self) -> TradePreimageResult<TradeFee> { todo!() }
 
     async fn get_taker_payment_spend_fee(&self) -> TradePreimageResult<TradeFee> { todo!() }
+}
+
+impl CommonSwapOpsV2 for TestCoin {
+    fn derive_htlc_pubkey_v2(&self, swap_unique_data: &[u8]) -> Self::Pubkey { todo!() }
+
+    fn derive_htlc_pubkey_v2_bytes(&self, _swap_unique_data: &[u8]) -> Vec<u8> { todo!() }
 }

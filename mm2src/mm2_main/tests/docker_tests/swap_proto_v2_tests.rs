@@ -23,15 +23,17 @@ use uuid::Uuid;
 fn send_and_refund_taker_funding_timelock() {
     let (_mm_arc, coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
 
-    let time_lock = now_sec() - 1000;
+    let funding_time_lock = now_sec() - 1000;
     let taker_secret_hash = &[0; 20];
     let maker_pub = coin.my_public_key().unwrap();
     let dex_fee = &DexFee::Standard("0.01".into());
     let taker_payment_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash: &[0; 20],
         maker_pub,
         dex_fee,
         taker_payment_fee: taker_payment_fee.clone(),
@@ -56,7 +58,7 @@ fn send_and_refund_taker_funding_timelock() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock,
+        time_lock: funding_time_lock,
         taker_secret_hash,
         other_pub: maker_pub,
         dex_fee,
@@ -69,7 +71,7 @@ fn send_and_refund_taker_funding_timelock() {
 
     let refund_args = RefundPaymentArgs {
         payment_tx: &serialize(&taker_funding_utxo_tx).take(),
-        time_lock,
+        time_lock: funding_time_lock,
         other_pubkey: coin.my_public_key().unwrap(),
         tx_type_with_secret_hash: SwapTxTypeWithSecretHash::TakerFunding {
             taker_secret_hash: &[0; 20],
@@ -104,7 +106,7 @@ fn send_and_refund_taker_funding_timelock() {
 fn send_and_refund_taker_funding_secret() {
     let (_mm_arc, coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
 
-    let time_lock = now_sec() - 1000;
+    let funding_time_lock = now_sec() - 1000;
     let taker_secret = [0; 32];
     let taker_secret_hash_owned = dhash160(&taker_secret);
     let taker_secret_hash = taker_secret_hash_owned.as_slice();
@@ -113,8 +115,10 @@ fn send_and_refund_taker_funding_secret() {
     let taker_payment_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash: &[0; 20],
         maker_pub,
         dex_fee,
         taker_payment_fee: taker_payment_fee.clone(),
@@ -139,7 +143,7 @@ fn send_and_refund_taker_funding_secret() {
 
     let validate_args = ValidateTakerFundingArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock,
+        time_lock: funding_time_lock,
         taker_secret_hash,
         other_pub: maker_pub,
         dex_fee,
@@ -152,12 +156,17 @@ fn send_and_refund_taker_funding_secret() {
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &taker_funding_utxo_tx,
-        time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         maker_pubkey: maker_pub,
         taker_secret: &taker_secret,
         taker_secret_hash,
-        swap_unique_data: &[],
+        maker_secret_hash: &[],
         swap_contract_address: &None,
+        dex_fee,
+        premium_amount: "0.1".parse().unwrap(),
+        trading_amount: 1.into(),
+        swap_unique_data: &[],
         watcher_reward: false,
     };
 
@@ -200,8 +209,10 @@ fn send_and_spend_taker_funding() {
     let taker_payment_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash: &[0; 20],
         maker_pub,
         dex_fee,
         taker_payment_fee: taker_payment_fee.clone(),
@@ -287,8 +298,10 @@ fn maker_rejects_funding_low_fee() {
     let taker_payment_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash: &[],
         maker_pub,
         dex_fee,
         // The taker uses a lower taker payment spend fee in the taker funding tx
@@ -337,8 +350,10 @@ fn taker_rejects_taker_payment_preimage_low_fee() {
     let taker_payment_fee: BigDecimal = "0.002".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash,
         maker_pub,
         dex_fee,
         taker_payment_fee: taker_payment_fee.clone(),
@@ -408,8 +423,10 @@ fn send_and_spend_taker_payment_dex_fee_burn() {
     let taker_payment_fee: BigDecimal = "0.2".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash,
         maker_pub,
         dex_fee,
         taker_payment_fee: taker_payment_fee.clone(),
@@ -516,8 +533,10 @@ fn send_and_spend_taker_payment_standard_dex_fee() {
     let taker_payment_fee: BigDecimal = "0.2".parse().unwrap();
 
     let send_args = SendTakerFundingArgs {
-        time_lock: funding_time_lock,
+        funding_time_lock,
+        payment_time_lock: 0,
         taker_secret_hash,
+        maker_secret_hash,
         maker_pub,
         dex_fee,
         taker_payment_fee: taker_payment_fee.clone(),

@@ -17,7 +17,7 @@ use ethereum_types::H160;
 use futures01::Future;
 use http::StatusCode;
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
-use mm2_main::mm2::lp_swap::{dex_fee_amount, max_taker_vol_from_available};
+use mm2_main::lp_swap::{dex_fee_amount, max_taker_vol_from_available};
 use mm2_number::BigDecimal;
 use mm2_rpc::data::legacy::{CoinInitResponse, OrderbookResponse};
 use mm2_test_helpers::structs::{trade_preimage_error, RpcErrorResponse, RpcSuccessResponse, TransactionDetails};
@@ -1064,6 +1064,7 @@ fn test_get_max_taker_vol_and_trade_with_dynamic_trade_fee(coin: QtumCoin, priv_
     // where `available = balance - locked_amount - max_trade_fee - max_fee_to_send_taker_fee`
     let available = &qtum_balance - &max_trade_fee - &max_fee_to_send_taker_fee;
     debug!("total_available: {}", available);
+    #[allow(clippy::redundant_clone)] // This is a false-possitive bug from clippy
     let min_tx_amount = qtum_min_tx_amount.clone();
     let expected_max_taker_vol =
         max_taker_vol_from_available(MmNumber::from(available), "QTUM", "MYCOIN", &min_tx_amount)
