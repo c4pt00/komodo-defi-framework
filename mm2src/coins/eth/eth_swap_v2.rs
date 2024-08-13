@@ -30,20 +30,11 @@ struct TakerFundingArgs {
     payment_time_lock: u32,
 }
 
-struct TakerRefundSecretArgs {
-    dex_fee: U256,
-    payment_amount: U256,
-    maker_address: Address,
-    taker_secret: [u8; 32],
-    maker_secret_hash: [u8; 32],
-    payment_time_lock: u32,
-    token_address: Address,
-}
-
 struct TakerRefundArgs {
     dex_fee: U256,
     payment_amount: U256,
     maker_address: Address,
+    taker_secret: [u8; 32],
     taker_secret_hash: [u8; 32],
     maker_secret_hash: [u8; 32],
     payment_time_lock: u32,
@@ -300,6 +291,7 @@ impl EthCoin {
             dex_fee,
             payment_amount,
             maker_address,
+            taker_secret: [0u8; 32],
             taker_secret_hash: try_tx_s!(taker_secret_hash.try_into()),
             maker_secret_hash: try_tx_s!(maker_secret_hash.try_into()),
             payment_time_lock,
@@ -353,11 +345,12 @@ impl EthCoin {
         let maker_address = public_to_address(args.maker_pubkey);
         let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
 
-        let refund_args = TakerRefundSecretArgs {
+        let refund_args = TakerRefundArgs {
             dex_fee,
             payment_amount,
             maker_address,
             taker_secret,
+            taker_secret_hash: [0u8; 32],
             maker_secret_hash,
             payment_time_lock,
             token_address,
@@ -552,7 +545,7 @@ impl EthCoin {
     ///         address tokenAddress
     async fn prepare_taker_refund_payment_secret_data(
         &self,
-        args: &TakerRefundSecretArgs,
+        args: &TakerRefundArgs,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentSecret")?;
         let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
