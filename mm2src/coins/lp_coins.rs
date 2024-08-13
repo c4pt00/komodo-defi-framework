@@ -1843,7 +1843,7 @@ pub trait MakerNftSwapOpsV2: ParseCoinAssocTypes + ParseNftAssocTypes + Send + S
 }
 
 /// Enum representing errors that can occur while waiting for taker payment spend.
-#[derive(Display)]
+#[derive(Display, EnumFromStringify)]
 pub enum WaitForTakerPaymentSpendError {
     /// Timeout error variant, indicating that the wait for taker payment spend has timed out.
     #[display(
@@ -1857,9 +1857,14 @@ pub enum WaitForTakerPaymentSpendError {
         /// The current timestamp when the timeout occurred.
         now: u64,
     },
-
     /// Invalid input transaction error variant, containing additional information about the error.
     InvalidInputTx(String),
+    Internal(String),
+    #[from_stringify("ethabi::Error")]
+    #[display(fmt = "Abi error: {}", _0)]
+    AbiError(String),
+    InvalidData(String),
+    Transport(String),
 }
 
 impl From<WaitForOutputSpendErr> for WaitForTakerPaymentSpendError {
@@ -1871,6 +1876,17 @@ impl From<WaitForOutputSpendErr> for WaitForTakerPaymentSpendError {
             WaitForOutputSpendErr::NoOutputWithIndex(index) => {
                 WaitForTakerPaymentSpendError::InvalidInputTx(format!("Tx doesn't have output with index {}", index))
             },
+        }
+    }
+}
+
+impl From<PaymentStatusErr> for WaitForTakerPaymentSpendError {
+    fn from(e: PaymentStatusErr) -> Self {
+        match e {
+            PaymentStatusErr::AbiError(e) => Self::AbiError(e),
+            PaymentStatusErr::Transport(e) => Self::Transport(e),
+            PaymentStatusErr::Internal(e) | PaymentStatusErr::TxDeserializationError(e) => Self::Internal(e),
+            PaymentStatusErr::InvalidData(e) => Self::InvalidData(e),
         }
     }
 }

@@ -4,6 +4,8 @@ use super::{decode_contract_call, get_function_input_data, ParseCoinAssocTypes, 
             TransactionErr, ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs};
 use crate::{FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, SearchForFundingSpendErr,
             WaitForTakerPaymentSpendError};
+use common::executor::Timer;
+use common::now_sec;
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Function, Token};
 use ethcore_transaction::Action;
@@ -446,10 +448,48 @@ impl EthCoin {
 
     pub(crate) async fn wait_for_taker_payment_spend_impl(
         &self,
-        _taker_payment: &SignedEthTx,
-        _wait_until: u64,
+        taker_payment: &SignedEthTx,
+        wait_until: u64,
     ) -> MmResult<SignedEthTx, WaitForTakerPaymentSpendError> {
-        todo!()
+        let decoded = {
+            let spend_func = match self.coin_type {
+                EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2.function("spendTakerPayment")?,
+                EthCoinType::Nft { .. } => {
+                    return MmError::err(WaitForTakerPaymentSpendError::Internal(
+                        "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
+                    ));
+                },
+            };
+            decode_contract_call(spend_func, taker_payment.unsigned().data())?
+        };
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| {
+                WaitForTakerPaymentSpendError::Internal(
+                    "Expected swap_v2_contracts to be Some, but found None".to_string(),
+                )
+            })?;
+        loop {
+            let taker_status = self
+                .payment_status_v2(
+                    taker_swap_v2_contract,
+                    decoded[0].clone(), // id from spendTakerPayment
+                    &TAKER_SWAP_V2,
+                    EthPaymentType::TakerPayments,
+                    3,
+                )
+                .await?;
+            if taker_status == U256::from(TakerPaymentStateV2::MakerSpent as u8) {
+                return Ok(taker_payment.clone());
+            }
+            let now = now_sec();
+            if now > wait_until {
+                return MmError::err(WaitForTakerPaymentSpendError::Timeout { wait_until, now });
+            }
+            Timer::sleep(10.).await;
+        }
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract `ethTakerPayment` method
@@ -690,7 +730,6 @@ impl EthCoin {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Display, EnumFromStringify)]
 pub(crate) enum PrepareTxDataError {
     #[from_stringify("ethabi::Error")]
