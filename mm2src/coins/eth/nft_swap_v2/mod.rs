@@ -6,7 +6,6 @@ use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use mm2_number::BigDecimal;
-use std::convert::TryInto;
 use web3::types::TransactionId;
 
 pub(crate) mod errors;
@@ -70,11 +69,7 @@ impl EthCoin {
                 let etomic_swap_contract = args.nft_swap_info.swap_contract_address;
                 let token_address = args.nft_swap_info.token_address;
                 let maker_address = public_to_address(args.maker_pub);
-                let time_lock_u32 = args
-                    .time_lock
-                    .try_into()
-                    .map_err(ValidatePaymentError::TimelockOverflow)?;
-                let swap_id = self.etomic_swap_id(time_lock_u32, args.maker_secret_hash);
+                let swap_id = self.etomic_swap_id_v2(args.time_lock, args.maker_secret_hash);
                 let maker_status = self
                     .payment_status_v2(
                         *etomic_swap_contract,
@@ -294,18 +289,14 @@ impl EthCoin {
 
     fn prepare_htlc_data(&self, args: &SendNftMakerPaymentArgs<'_, Self>) -> Result<Vec<u8>, PrepareTxDataError> {
         let taker_address = public_to_address(args.taker_pub);
-        let time_lock_u32 = args
-            .time_lock
-            .try_into()
-            .map_err(|e| PrepareTxDataError::Internal(ERRL!("{}", e)))?;
-        let id = self.etomic_swap_id(time_lock_u32, args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.time_lock, args.maker_secret_hash);
         let encoded = ethabi::encode(&[
             Token::FixedBytes(id),
             Token::Address(taker_address),
             Token::Address(*args.nft_swap_info.token_address),
             Token::FixedBytes(args.taker_secret_hash.to_vec()),
             Token::FixedBytes(args.maker_secret_hash.to_vec()),
-            Token::Uint(U256::from(time_lock_u32)),
+            Token::Uint(U256::from(args.time_lock)),
         ]);
         Ok(encoded)
     }

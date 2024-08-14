@@ -15,7 +15,6 @@ use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use mm2_number::BigDecimal;
 use std::convert::TryInto;
-use std::num::TryFromIntError;
 use web3::types::{Transaction as Web3Tx, TransactionId};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
@@ -28,8 +27,8 @@ struct TakerFundingArgs {
     maker_address: Address,
     taker_secret_hash: [u8; 32],
     maker_secret_hash: [u8; 32],
-    funding_time_lock: u32,
-    payment_time_lock: u32,
+    funding_time_lock: u64,
+    payment_time_lock: u64,
 }
 
 struct TakerRefundArgs {
@@ -39,7 +38,7 @@ struct TakerRefundArgs {
     taker_secret: [u8; 32],
     taker_secret_hash: [u8; 32],
     maker_secret_hash: [u8; 32],
-    payment_time_lock: u32,
+    payment_time_lock: u64,
     token_address: Address,
 }
 
@@ -64,16 +63,14 @@ impl EthCoin {
         ));
         let funding_args = {
             let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
-            let funding_time_lock: u32 = try_tx_s!(args.funding_time_lock.try_into());
-            let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
             TakerFundingArgs {
                 dex_fee,
                 payment_amount,
                 maker_address,
                 taker_secret_hash: try_tx_s!(args.taker_secret_hash.try_into()),
                 maker_secret_hash: try_tx_s!(args.maker_secret_hash.try_into()),
-                funding_time_lock,
-                payment_time_lock,
+                funding_time_lock: args.funding_time_lock,
+                payment_time_lock: args.payment_time_lock,
             }
         };
         match &self.coin_type {
@@ -150,15 +147,7 @@ impl EthCoin {
         validate_payment_args(args.taker_secret_hash, args.maker_secret_hash, &args.trading_amount)
             .map_err(ValidateSwapV2TxError::Internal)?;
         let taker_address = public_to_address(args.taker_pub);
-        let funding_time_lock: u32 = args
-            .funding_time_lock
-            .try_into()
-            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::Overflow(e.to_string()))?;
-        let payment_time_lock: u32 = args
-            .payment_time_lock
-            .try_into()
-            .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::Overflow(e.to_string()))?;
-        let swap_id = self.etomic_swap_id(payment_time_lock, args.maker_secret_hash);
+        let swap_id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let taker_status = self
             .payment_status_v2(
                 taker_swap_v2_contract,
@@ -194,8 +183,8 @@ impl EthCoin {
                 receiver: self.my_addr().await,
                 taker_secret_hash: args.taker_secret_hash,
                 maker_secret_hash: args.maker_secret_hash,
-                funding_time_lock,
-                payment_time_lock,
+                funding_time_lock: args.funding_time_lock,
+                payment_time_lock: args.payment_time_lock,
             }
         };
         match self.coin_type {
@@ -280,7 +269,6 @@ impl EthCoin {
             self.decimals
         ));
         let maker_address = public_to_address(&Public::from_slice(args.maker_pub));
-        let payment_time_lock: u32 = try_tx_s!(args.time_lock.try_into());
         let (maker_secret_hash, taker_secret_hash) = match args.tx_type_with_secret_hash {
             SwapTxTypeWithSecretHash::TakerPaymentV2 {
                 maker_secret_hash,
@@ -300,7 +288,7 @@ impl EthCoin {
             taker_secret: [0u8; 32],
             taker_secret_hash: try_tx_s!(taker_secret_hash.try_into()),
             maker_secret_hash: try_tx_s!(maker_secret_hash.try_into()),
-            payment_time_lock,
+            payment_time_lock: args.time_lock,
             token_address,
         };
         let data = try_tx_s!(self.prepare_taker_refund_payment_timelock_data(args).await);
@@ -349,7 +337,6 @@ impl EthCoin {
             self.decimals
         ));
         let maker_address = public_to_address(args.maker_pubkey);
-        let payment_time_lock: u32 = try_tx_s!(args.payment_time_lock.try_into());
 
         let refund_args = TakerRefundArgs {
             dex_fee,
@@ -358,7 +345,7 @@ impl EthCoin {
             taker_secret,
             taker_secret_hash: [0u8; 32],
             maker_secret_hash,
-            payment_time_lock,
+            payment_time_lock: args.payment_time_lock,
             token_address,
         };
         let data = try_tx_s!(self.prepare_taker_refund_payment_secret_data(&refund_args).await);
@@ -477,7 +464,7 @@ impl EthCoin {
     ///         uint32 paymentLockTime
     async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)?;
-        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.dex_fee),
@@ -507,7 +494,7 @@ impl EthCoin {
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)?;
-        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -535,7 +522,7 @@ impl EthCoin {
         args: TakerRefundArgs,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentTimelock")?;
-        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -562,7 +549,7 @@ impl EthCoin {
         args: &TakerRefundArgs,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentSecret")?;
-        let id = self.etomic_swap_id(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -798,8 +785,8 @@ struct TakerValidationArgs<'a> {
     receiver: Address,
     taker_secret_hash: &'a [u8],
     maker_secret_hash: &'a [u8],
-    funding_time_lock: u32,
-    payment_time_lock: u32,
+    funding_time_lock: u64,
+    payment_time_lock: u64,
 }
 
 /// Validation function for ETH taker payment data

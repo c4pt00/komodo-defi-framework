@@ -831,9 +831,18 @@ impl EthCoinImpl {
     /// The id used to differentiate payments on Etomic swap smart contract
     pub(crate) fn etomic_swap_id(&self, time_lock: u32, secret_hash: &[u8]) -> Vec<u8> {
         let timelock_bytes = time_lock.to_le_bytes();
+        self.generate_etomic_swap_id(&timelock_bytes, secret_hash)
+    }
 
-        let mut input = Vec::with_capacity(timelock_bytes.len() + secret_hash.len());
-        input.extend_from_slice(&timelock_bytes);
+    /// The id used to differentiate payments on Etomic swap v2 smart contracts
+    pub(crate) fn etomic_swap_id_v2(&self, time_lock: u64, secret_hash: &[u8]) -> Vec<u8> {
+        let timelock_bytes = time_lock.to_le_bytes();
+        self.generate_etomic_swap_id(&timelock_bytes, secret_hash)
+    }
+
+    fn generate_etomic_swap_id(&self, time_lock_bytes: &[u8], secret_hash: &[u8]) -> Vec<u8> {
+        let mut input = Vec::with_capacity(time_lock_bytes.len() + secret_hash.len());
+        input.extend_from_slice(time_lock_bytes);
         input.extend_from_slice(secret_hash);
         sha256(&input).to_vec()
     }
