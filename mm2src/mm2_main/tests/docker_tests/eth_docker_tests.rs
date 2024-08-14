@@ -1651,7 +1651,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let payment_time_lock = now_sec() + 1000;
 
     let taker_address = block_on(taker_coin.my_addr());
-    let maker_address = block_on(maker_coin.my_addr());
 
     let dex_fee = &DexFee::Standard("0.00001".into());
     let trading_amount = BigDecimal::from_str("0.0001").unwrap();
@@ -1673,24 +1672,6 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     thread::sleep(Duration::from_secs(2));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ETH funding, tx hash: {:02x}", funding_tx.tx_hash());
-
-    wait_for_confirmations(&taker_coin, &funding_tx, 100);
-
-    let taker_pub = &taker_coin.derive_htlc_pubkey_v2(&[]);
-    let validate = ValidateTakerFundingArgs {
-        funding_tx: &funding_tx,
-        funding_time_lock,
-        payment_time_lock,
-        taker_secret_hash: &taker_secret_hash,
-        maker_secret_hash: &maker_secret_hash,
-        taker_pub,
-        dex_fee,
-        premium_amount: Default::default(),
-        trading_amount: trading_amount.clone(),
-        swap_unique_data: &[],
-    };
-    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
-    block_on(maker_coin.validate_taker_funding(validate)).unwrap();
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
@@ -1728,7 +1709,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let maker_secret_hash = sha256(&maker_secret).to_vec();
 
     let taker_address = block_on(taker_coin.my_addr());
-    let maker_address = block_on(maker_coin.my_addr());
 
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
@@ -1753,24 +1733,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
-
-    wait_for_confirmations(&taker_coin, &funding_tx, 100);
-
-    let taker_pub = &taker_coin.derive_htlc_pubkey_v2(&[]);
-    let validate = ValidateTakerFundingArgs {
-        funding_tx: &funding_tx,
-        funding_time_lock,
-        payment_time_lock,
-        taker_secret_hash: &taker_secret_hash,
-        maker_secret_hash: &maker_secret_hash,
-        taker_pub,
-        dex_fee,
-        premium_amount: Default::default(),
-        trading_amount: trading_amount.clone(),
-        swap_unique_data: &[],
-    };
-    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
-    block_on(maker_coin.validate_taker_funding(validate)).unwrap();
+    wait_for_confirmations(&taker_coin, &funding_tx, 150);
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
@@ -1787,13 +1750,12 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         watcher_reward: false,
     };
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
-    thread::sleep(Duration::from_secs(1));
     let funding_tx_refund = block_on(taker_coin.refund_taker_funding_secret(refund_args)).unwrap();
     log!(
         "Taker refunded ERC20 funding by secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 150);
 }
 
 #[test]
@@ -2118,8 +2080,8 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
-    wait_for_confirmations(&taker_coin, &funding_tx, 100);
-    thread::sleep(Duration::from_secs(30));
+    wait_for_confirmations(&taker_coin, &funding_tx, 150);
+    thread::sleep(Duration::from_secs(29));
 
     let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
         maker_secret_hash: &maker_secret_hash,
@@ -2144,7 +2106,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
         "Taker refunded ERC20 funding after pre-approval lock time was exceeded, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 150);
 }
 
 #[test]

@@ -44,6 +44,8 @@ struct TakerRefundArgs {
 }
 
 impl EthCoin {
+    /// Calls `"ethTakerPayment"` or `"erc20TakerPayment"` swap contract methods.
+    /// Returns taker sent payment transaction.
     pub(crate) async fn send_taker_funding_impl(
         &self,
         args: SendTakerFundingArgs<'_>,
@@ -212,6 +214,8 @@ impl EthCoin {
         Ok(())
     }
 
+    /// Taker approves payment calling `takerPaymentApprove` for EVM based chains.
+    /// Function accepts taker payment transaction, returns taker approve payment transaction.
     pub(crate) async fn taker_payment_approve(
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
@@ -395,6 +399,8 @@ impl EthCoin {
         Ok(None)
     }
 
+    /// Taker swap contract `spendTakerPayment` method is called for EVM based chains.
+    /// Returns maker spent payment transaction.
     pub(crate) async fn sign_and_broadcast_taker_payment_spend_impl(
         &self,
         gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
@@ -429,6 +435,8 @@ impl EthCoin {
         Ok(spend_payment_tx)
     }
 
+    /// Checks that taker payment state is `MakerSpent`.
+    /// Accepts maker spent payment transaction and returns it if payment status is correct.
     pub(crate) async fn wait_for_taker_payment_spend_impl(
         &self,
         taker_payment: &SignedEthTx,
