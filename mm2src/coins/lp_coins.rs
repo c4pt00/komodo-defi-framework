@@ -1891,6 +1891,15 @@ impl From<PaymentStatusErr> for WaitForTakerPaymentSpendError {
     }
 }
 
+impl From<PrepareTxDataError> for WaitForTakerPaymentSpendError {
+    fn from(e: PrepareTxDataError) -> Self {
+        match e {
+            PrepareTxDataError::AbiError(e) => Self::AbiError(e),
+            PrepareTxDataError::Internal(e) => Self::Internal(e),
+        }
+    }
+}
+
 /// Enum representing different ways a funding transaction can be spent.
 ///
 /// This enum is generic over types that implement the `ParseCoinAssocTypes` trait.

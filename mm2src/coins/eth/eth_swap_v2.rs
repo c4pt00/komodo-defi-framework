@@ -375,27 +375,10 @@ impl EthCoin {
         &self,
         tx: &SignedEthTx,
     ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
-        let decoded = {
-            let approve_func = match self.coin_type {
-                EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2
-                    .function(TAKER_PAYMENT_APPROVE)
-                    .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("{}", e)))?,
-                EthCoinType::Nft { .. } => {
-                    return Err(SearchForFundingSpendErr::Internal(ERRL!(
-                        "NFT protocol is not supported for ETH and ERC20 Swaps"
-                    )))
-                },
-            };
-            decode_contract_call(approve_func, tx.unsigned().data())
-                .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("Failed to decode tx data:{}", e)))?
-        };
-        let taker_swap_v2_contract = self
-            .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
-            .ok_or_else(|| {
-                SearchForFundingSpendErr::Internal(ERRL!("Expected swap_v2_contracts to be Some, but found None"))
-            })?;
+        let (decoded, taker_swap_v2_contract) = self
+            .get_decoded_and_swap_contract(tx, TAKER_PAYMENT_APPROVE)
+            .await
+            .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("{}", e)))?;
         let taker_status = self
             .payment_status_v2(
                 taker_swap_v2_contract,
@@ -451,26 +434,9 @@ impl EthCoin {
         taker_payment: &SignedEthTx,
         wait_until: u64,
     ) -> MmResult<SignedEthTx, WaitForTakerPaymentSpendError> {
-        let decoded = {
-            let spend_func = match self.coin_type {
-                EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2.function("spendTakerPayment")?,
-                EthCoinType::Nft { .. } => {
-                    return MmError::err(WaitForTakerPaymentSpendError::Internal(
-                        "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
-                    ));
-                },
-            };
-            decode_contract_call(spend_func, taker_payment.unsigned().data())?
-        };
-        let taker_swap_v2_contract = self
-            .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
-            .ok_or_else(|| {
-                WaitForTakerPaymentSpendError::Internal(
-                    "Expected swap_v2_contracts to be Some, but found None".to_string(),
-                )
-            })?;
+        let (decoded, taker_swap_v2_contract) = self
+            .get_decoded_and_swap_contract(taker_payment, "spendTakerPayment")
+            .await?;
         loop {
             let taker_status = self
                 .payment_status_v2(
@@ -689,14 +655,14 @@ impl EthCoin {
         let decoded_tokens = function.decode_output(&bytes.0)?;
 
         let state = decoded_tokens.get(state_index).ok_or_else(|| {
-            PaymentStatusErr::Internal(ERRL!(
+            PaymentStatusErr::Internal(format!(
                 "Payment status must contain 'state' as the {} token",
                 state_index
             ))
         })?;
         match state {
             Token::Uint(state) => Ok(*state),
-            _ => Err(PaymentStatusErr::InvalidData(ERRL!(
+            _ => Err(PaymentStatusErr::InvalidData(format!(
                 "Payment status must be Uint, got {:?}",
                 state
             ))),
@@ -727,6 +693,33 @@ impl EthCoin {
             },
         };
         Ok((taker_swap_v2_contract, func, token_address))
+    }
+
+    async fn get_decoded_and_swap_contract(
+        &self,
+        tx: &SignedEthTx,
+        function_name: &str,
+    ) -> Result<(Vec<Token>, Address), PrepareTxDataError> {
+        let decoded = {
+            let func = match self.coin_type {
+                EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2.function(function_name)?,
+                EthCoinType::Nft { .. } => {
+                    return Err(PrepareTxDataError::Internal(
+                        "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),
+                    ));
+                },
+            };
+            decode_contract_call(func, tx.unsigned().data())?
+        };
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| {
+                PrepareTxDataError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
+            })?;
+
+        Ok((decoded, taker_swap_v2_contract))
     }
 }
 
