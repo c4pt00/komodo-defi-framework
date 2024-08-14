@@ -998,7 +998,6 @@ pub struct RefundTakerPaymentArgs<'a> {
     pub tx_type_with_secret_hash: SwapTxTypeWithSecretHash<'a>,
     pub swap_unique_data: &'a [u8],
     pub watcher_reward: bool,
-    /// DEX fee
     pub dex_fee: &'a DexFee,
     /// Additional reward for maker (premium)
     pub premium_amount: BigDecimal,
@@ -1345,7 +1344,6 @@ pub struct RefundFundingSecretArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     pub taker_secret: &'a [u8],
     pub taker_secret_hash: &'a [u8],
     pub maker_secret_hash: &'a [u8],
-    /// DEX fee
     pub dex_fee: &'a DexFee,
     /// Additional reward for maker (premium)
     pub premium_amount: BigDecimal,
@@ -1497,7 +1495,6 @@ pub enum ValidateSwapV2TxError {
     /// Transaction has wrong properties, for example, it has been sent to a wrong address.
     WrongPaymentTx(String),
     ProtocolNotSupported(String),
-    /// Got invalid data
     InvalidData(String),
 }
 
@@ -1512,7 +1509,7 @@ impl From<UtxoRpcError> for ValidateSwapV2TxError {
 impl From<PaymentStatusErr> for ValidateSwapV2TxError {
     fn from(err: PaymentStatusErr) -> Self {
         match err {
-            PaymentStatusErr::AbiError(e)
+            PaymentStatusErr::ABIError(e)
             | PaymentStatusErr::Internal(e)
             | PaymentStatusErr::TxDeserializationError(e) => ValidateSwapV2TxError::Internal(e),
             PaymentStatusErr::Transport(e) => ValidateSwapV2TxError::Rpc(e),
@@ -1533,7 +1530,7 @@ impl From<ValidatePaymentV2Err> for ValidateSwapV2TxError {
 impl From<PrepareTxDataError> for ValidateSwapV2TxError {
     fn from(err: PrepareTxDataError) -> Self {
         match err {
-            PrepareTxDataError::AbiError(e) | PrepareTxDataError::Internal(e) => ValidateSwapV2TxError::Internal(e),
+            PrepareTxDataError::ABIError(e) | PrepareTxDataError::Internal(e) => ValidateSwapV2TxError::Internal(e),
         }
     }
 }
@@ -1861,8 +1858,8 @@ pub enum WaitForTakerPaymentSpendError {
     InvalidInputTx(String),
     Internal(String),
     #[from_stringify("ethabi::Error")]
-    #[display(fmt = "Abi error: {}", _0)]
-    AbiError(String),
+    #[display(fmt = "ABI error: {}", _0)]
+    ABIError(String),
     InvalidData(String),
     Transport(String),
 }
@@ -1883,7 +1880,7 @@ impl From<WaitForOutputSpendErr> for WaitForTakerPaymentSpendError {
 impl From<PaymentStatusErr> for WaitForTakerPaymentSpendError {
     fn from(e: PaymentStatusErr) -> Self {
         match e {
-            PaymentStatusErr::AbiError(e) => Self::AbiError(e),
+            PaymentStatusErr::ABIError(e) => Self::ABIError(e),
             PaymentStatusErr::Transport(e) => Self::Transport(e),
             PaymentStatusErr::Internal(e) | PaymentStatusErr::TxDeserializationError(e) => Self::Internal(e),
             PaymentStatusErr::InvalidData(e) => Self::InvalidData(e),
@@ -1894,7 +1891,7 @@ impl From<PaymentStatusErr> for WaitForTakerPaymentSpendError {
 impl From<PrepareTxDataError> for WaitForTakerPaymentSpendError {
     fn from(e: PrepareTxDataError) -> Self {
         match e {
-            PrepareTxDataError::AbiError(e) => Self::AbiError(e),
+            PrepareTxDataError::ABIError(e) => Self::ABIError(e),
             PrepareTxDataError::Internal(e) => Self::Internal(e),
         }
     }

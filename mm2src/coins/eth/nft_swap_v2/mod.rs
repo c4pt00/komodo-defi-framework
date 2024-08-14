@@ -601,7 +601,7 @@ pub(crate) fn get_decoded_tx_data_and_bytes_index(
 fn erc721_transfer_with_data<'a>() -> Result<&'a ethabi::Function, Erc721FunctionError> {
     let functions = ERC721_CONTRACT
         .functions_by_name("safeTransferFrom")
-        .map_err(|e| Erc721FunctionError::AbiError(ERRL!("{}", e)))?;
+        .map_err(|e| Erc721FunctionError::ABIError(ERRL!("{}", e)))?;
 
     // Find the correct function variant by inspecting the input parameters.
     let function = functions

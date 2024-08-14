@@ -51,7 +51,6 @@ pub enum ValidatePaymentError {
     TimelockOverflow(TryFromIntError),
     #[display(fmt = "Nft Protocol is not supported yet!")]
     NftProtocolNotSupported,
-    /// Got invalid data
     InvalidData(String),
 }
 
@@ -87,7 +86,7 @@ impl From<PaymentStatusErr> for ValidatePaymentError {
     fn from(err: PaymentStatusErr) -> Self {
         match err {
             PaymentStatusErr::Transport(e) => Self::Transport(e),
-            PaymentStatusErr::AbiError(e)
+            PaymentStatusErr::ABIError(e)
             | PaymentStatusErr::Internal(e)
             | PaymentStatusErr::TxDeserializationError(e) => Self::InternalError(e),
             PaymentStatusErr::InvalidData(e) => Self::InvalidData(e),

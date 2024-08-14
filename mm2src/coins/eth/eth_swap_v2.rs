@@ -726,8 +726,8 @@ impl EthCoin {
 #[derive(Debug, Display, EnumFromStringify)]
 pub(crate) enum PrepareTxDataError {
     #[from_stringify("ethabi::Error")]
-    #[display(fmt = "Abi error: {}", _0)]
-    AbiError(String),
+    #[display(fmt = "ABI error: {}", _0)]
+    ABIError(String),
     #[display(fmt = "Internal error: {}", _0)]
     Internal(String),
 }
@@ -906,8 +906,8 @@ impl EthPaymentType {
 #[derive(Debug, Display, EnumFromStringify)]
 pub(crate) enum PaymentStatusErr {
     #[from_stringify("ethabi::Error")]
-    #[display(fmt = "Abi error: {}", _0)]
-    AbiError(String),
+    #[display(fmt = "ABI error: {}", _0)]
+    ABIError(String),
     #[from_stringify("web3::Error")]
     #[display(fmt = "Transport error: {}", _0)]
     Transport(String),
