@@ -116,7 +116,7 @@ impl EthCoin {
                         })?;
                 }
                 self.sign_and_send_transaction(
-                    0.into(),
+                    U256::from(0),
                     Action::Call(taker_swap_v2_contract),
                     data,
                     // TODO need new consts and params for v2 calls. now it uses v1
@@ -242,7 +242,7 @@ impl EthCoin {
             )
         };
         let approve_tx = self
-            .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
+            .sign_and_send_transaction(U256::from(0), Action::Call(taker_swap_v2_contract), data, gas_limit)
             .compat()
             .await?;
         Ok(approve_tx)
@@ -306,7 +306,7 @@ impl EthCoin {
         let data = try_tx_s!(self.prepare_taker_refund_payment_timelock_data(args).await);
 
         self.sign_and_send_transaction(
-            0.into(),
+            U256::from(0),
             Action::Call(taker_swap_v2_contract),
             data,
             U256::from(gas_limit),
@@ -364,7 +364,7 @@ impl EthCoin {
         let data = try_tx_s!(self.prepare_taker_refund_payment_secret_data(&refund_args).await);
 
         self.sign_and_send_transaction(
-            0.into(),
+            U256::from(0),
             Action::Call(taker_swap_v2_contract),
             data,
             U256::from(gas_limit),
@@ -429,7 +429,7 @@ impl EthCoin {
         };
 
         let spend_payment_tx = self
-            .sign_and_send_transaction(0.into(), Action::Call(taker_swap_v2_contract), data, gas_limit)
+            .sign_and_send_transaction(U256::from(0), Action::Call(taker_swap_v2_contract), data, gas_limit)
             .compat()
             .await?;
         Ok(spend_payment_tx)
@@ -462,7 +462,7 @@ impl EthCoin {
             if now > wait_until {
                 return MmError::err(WaitForTakerPaymentSpendError::Timeout { wait_until, now });
             }
-            Timer::sleep(10.).await;
+            Timer::sleep(1.).await;
         }
     }
 
