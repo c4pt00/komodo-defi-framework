@@ -678,11 +678,6 @@ impl EthCoin {
         eth_func_name: &str,
         erc20_func_name: &str,
     ) -> Result<(Address, &Function, Address), TransactionErr> {
-        let taker_swap_v2_contract = self
-            .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
-            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
         let (func, token_address) = match self.coin_type {
             EthCoinType::Eth => (try_tx_s!(TAKER_SWAP_V2.function(eth_func_name)), Address::default()),
             EthCoinType::Erc20 { token_addr, .. } => (try_tx_s!(TAKER_SWAP_V2.function(erc20_func_name)), token_addr),
@@ -692,6 +687,11 @@ impl EthCoin {
                 )))
             },
         };
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| TransactionErr::Plain(ERRL!("Expected swap_v2_contracts to be Some, but found None")))?;
         Ok((taker_swap_v2_contract, func, token_address))
     }
 
