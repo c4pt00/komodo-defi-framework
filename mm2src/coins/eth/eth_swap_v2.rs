@@ -222,14 +222,23 @@ impl EthCoin {
         let (taker_swap_v2_contract, send_func, token_address) = self
             .taker_swap_v2_details(ETH_TAKER_PAYMENT, ERC20_TAKER_PAYMENT)
             .await?;
-        // Note: `PaymentSent` state was checked in `validate_taker_funding`. So we don't have to validate it in prepare function
-        let data = {
-            let decoded = try_tx_s!(decode_contract_call(send_func, args.funding_tx.unsigned().data()));
-            try_tx_s!(
-                self.prepare_taker_payment_approve_data(args, decoded, token_address)
-                    .await
+        let decoded = try_tx_s!(decode_contract_call(send_func, args.funding_tx.unsigned().data()));
+        let taker_status = try_tx_s!(
+            self.payment_status_v2(
+                taker_swap_v2_contract,
+                decoded[0].clone(),
+                &TAKER_SWAP_V2,
+                EthPaymentType::TakerPayments,
+                3,
             )
-        };
+            .await
+        );
+        validate_payment_state(args.funding_tx, taker_status, TakerPaymentStateV2::PaymentSent as u8)
+            .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
+        let data = try_tx_s!(
+            self.prepare_taker_payment_approve_data(args, decoded, token_address)
+                .await
+        );
         let approve_tx = self
             .sign_and_send_transaction(U256::from(0), Action::Call(taker_swap_v2_contract), data, gas_limit)
             .compat()
@@ -406,15 +415,27 @@ impl EthCoin {
         let (taker_swap_v2_contract, approve_func, token_address) = self
             .taker_swap_v2_details(TAKER_PAYMENT_APPROVE, TAKER_PAYMENT_APPROVE)
             .await?;
-        // Note: `TakerApproved` status was checked in `search_for_taker_funding_spend` function
-        let data = {
-            let decoded = try_tx_s!(decode_contract_call(approve_func, gen_args.taker_tx.unsigned().data()));
-            try_tx_s!(
-                self.prepare_spend_taker_payment_data(gen_args, secret, decoded, token_address)
-                    .await
+        let decoded = try_tx_s!(decode_contract_call(approve_func, gen_args.taker_tx.unsigned().data()));
+        let taker_status = try_tx_s!(
+            self.payment_status_v2(
+                taker_swap_v2_contract,
+                decoded[0].clone(),
+                &TAKER_SWAP_V2,
+                EthPaymentType::TakerPayments,
+                3,
             )
-        };
-
+            .await
+        );
+        validate_payment_state(
+            gen_args.taker_tx,
+            taker_status,
+            TakerPaymentStateV2::TakerApproved as u8,
+        )
+        .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
+        let data = try_tx_s!(
+            self.prepare_spend_taker_payment_data(gen_args, secret, decoded, token_address)
+                .await
+        );
         let spend_payment_tx = self
             .sign_and_send_transaction(U256::from(0), Action::Call(taker_swap_v2_contract), data, gas_limit)
             .compat()
@@ -758,7 +779,7 @@ pub(crate) fn validate_from_to_and_status(
 ) -> Result<(), MmError<ValidatePaymentV2Err>> {
     if status != U256::from(expected_status) {
         return MmError::err(ValidatePaymentV2Err::UnexpectedPaymentState(format!(
-            "Payment state is not PaymentSent, got {}",
+            "Payment state is not `PaymentSent`, got {}",
             status
         )));
     }
@@ -868,11 +889,9 @@ pub(crate) fn validate_payment_state(
     expected_state: u8,
 ) -> Result<(), PrepareTxDataError> {
     if state != U256::from(expected_state) {
-        return Err(PrepareTxDataError::Internal(ERRL!(
-            "Payment {:?} state is not {}, got {}",
-            tx,
-            expected_state,
-            state
+        return Err(PrepareTxDataError::Internal(format!(
+            "Payment {:?} state is not `{}`, got `{}`",
+            tx, expected_state, state
         )));
     }
     Ok(())

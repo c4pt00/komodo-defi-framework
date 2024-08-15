@@ -1733,7 +1733,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
-    wait_for_confirmations(&taker_coin, &funding_tx, 150);
+    wait_for_confirmations(&taker_coin, &funding_tx, 200);
 
     let refund_args = RefundFundingSecretArgs {
         funding_tx: &funding_tx,
@@ -1755,7 +1755,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         "Taker refunded ERC20 funding by secret, tx hash: {:02x}",
         funding_tx_refund.tx_hash()
     );
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 150);
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 200);
 }
 
 #[test]
@@ -2211,7 +2211,7 @@ fn send_and_refund_taker_funding_exceed_payment_timelock_erc20() {
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
     // sepolia test
-    thread::sleep(Duration::from_secs(70));
+    thread::sleep(Duration::from_secs(200));
     let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
