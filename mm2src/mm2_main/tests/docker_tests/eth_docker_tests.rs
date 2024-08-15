@@ -1699,6 +1699,7 @@ fn send_and_refund_taker_funding_by_secret_eth() {
 
 #[test]
 fn send_and_refund_taker_funding_by_secret_erc20() {
+    thread::sleep(Duration::from_secs(90));
     let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
@@ -1729,7 +1730,6 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
         swap_unique_data: &[],
     };
 
-    thread::sleep(Duration::from_secs(4));
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
     log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
