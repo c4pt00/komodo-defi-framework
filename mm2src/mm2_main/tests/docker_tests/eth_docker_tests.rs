@@ -1639,7 +1639,7 @@ fn eth_coin_v2_activation_with_random_privkey(
 #[test]
 fn send_and_refund_taker_funding_by_secret_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(6));
+    thread::sleep(Duration::from_secs(5));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
@@ -2041,70 +2041,6 @@ fn send_approve_and_spend_erc20() {
 }
 
 #[test]
-fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
-    let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
-    let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
-    let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
-
-    let taker_secret = vec![0; 32];
-    let taker_secret_hash = sha256(&taker_secret).to_vec();
-    let maker_secret = vec![1; 32];
-    let maker_secret_hash = sha256(&maker_secret).to_vec();
-
-    let taker_address = block_on(taker_coin.my_addr());
-
-    // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
-    let funding_time_lock = now_sec() + 29;
-    let payment_time_lock = now_sec() + 1000;
-
-    let dex_fee = &DexFee::Standard("0.00001".into());
-    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
-
-    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
-    let payment_args = SendTakerFundingArgs {
-        funding_time_lock,
-        payment_time_lock,
-        taker_secret_hash: &taker_secret_hash,
-        maker_secret_hash: &maker_secret_hash,
-        maker_pub: maker_pub.as_bytes(),
-        dex_fee,
-        premium_amount: BigDecimal::default(),
-        trading_amount: trading_amount.clone(),
-        swap_unique_data: &[],
-    };
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
-    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
-    log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
-    wait_for_confirmations(&taker_coin, &funding_tx, 150);
-    thread::sleep(Duration::from_secs(29));
-
-    let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
-        maker_secret_hash: &maker_secret_hash,
-        taker_secret_hash: &taker_secret_hash,
-    };
-
-    let refund_args = RefundTakerPaymentArgs {
-        payment_tx: &funding_tx.to_bytes(),
-        time_lock: payment_time_lock,
-        maker_pub: maker_pub.as_bytes(),
-        tx_type_with_secret_hash,
-        swap_unique_data: &[],
-        watcher_reward: false,
-        dex_fee,
-        premium_amount: BigDecimal::default(),
-        trading_amount,
-    };
-    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
-    thread::sleep(Duration::from_secs(3));
-    let funding_tx_refund = block_on(taker_coin.refund_taker_funding_timelock(refund_args)).unwrap();
-    log!(
-        "Taker refunded ERC20 funding after pre-approval lock time was exceeded, tx hash: {:02x}",
-        funding_tx_refund.tx_hash()
-    );
-    wait_for_confirmations(&taker_coin, &funding_tx_refund, 150);
-}
-
-#[test]
 fn send_and_refund_taker_funding_exceed_payment_timelock_eth() {
     // sepolia test
     thread::sleep(Duration::from_secs(25));
@@ -2270,4 +2206,70 @@ fn send_and_refund_taker_funding_exceed_payment_timelock_erc20() {
         funding_tx_refund.tx_hash()
     );
     wait_for_confirmations(&taker_coin, &funding_tx_refund, 100);
+}
+
+#[test]
+fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
+    // sepolia test
+    thread::sleep(Duration::from_secs(70));
+    let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
+    let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
+    let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
+
+    let taker_secret = vec![0; 32];
+    let taker_secret_hash = sha256(&taker_secret).to_vec();
+    let maker_secret = vec![1; 32];
+    let maker_secret_hash = sha256(&maker_secret).to_vec();
+
+    let taker_address = block_on(taker_coin.my_addr());
+
+    // if TakerPaymentState is `PaymentSent` then timestamp should exceed payment pre-approve lock time (funding_time_lock)
+    let funding_time_lock = now_sec() + 29;
+    let payment_time_lock = now_sec() + 1000;
+
+    let dex_fee = &DexFee::Standard("0.00001".into());
+    let trading_amount = BigDecimal::from_str("0.0001").unwrap();
+
+    let maker_pub = &maker_coin.derive_htlc_pubkey_v2(&[]);
+    let payment_args = SendTakerFundingArgs {
+        funding_time_lock,
+        payment_time_lock,
+        taker_secret_hash: &taker_secret_hash,
+        maker_secret_hash: &maker_secret_hash,
+        maker_pub: maker_pub.as_bytes(),
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount: trading_amount.clone(),
+        swap_unique_data: &[],
+    };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    let funding_tx = block_on(taker_coin.send_taker_funding(payment_args)).unwrap();
+    log!("Taker sent ERC20 funding, tx hash: {:02x}", funding_tx.tx_hash());
+    wait_for_confirmations(&taker_coin, &funding_tx, 150);
+    thread::sleep(Duration::from_secs(29));
+
+    let tx_type_with_secret_hash = SwapTxTypeWithSecretHash::TakerPaymentV2 {
+        maker_secret_hash: &maker_secret_hash,
+        taker_secret_hash: &taker_secret_hash,
+    };
+
+    let refund_args = RefundTakerPaymentArgs {
+        payment_tx: &funding_tx.to_bytes(),
+        time_lock: payment_time_lock,
+        maker_pub: maker_pub.as_bytes(),
+        tx_type_with_secret_hash,
+        swap_unique_data: &[],
+        watcher_reward: false,
+        dex_fee,
+        premium_amount: BigDecimal::default(),
+        trading_amount,
+    };
+    wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
+    thread::sleep(Duration::from_secs(3));
+    let funding_tx_refund = block_on(taker_coin.refund_taker_funding_timelock(refund_args)).unwrap();
+    log!(
+        "Taker refunded ERC20 funding after pre-approval lock time was exceeded, tx hash: {:02x}",
+        funding_tx_refund.tx_hash()
+    );
+    wait_for_confirmations(&taker_coin, &funding_tx_refund, 150);
 }
