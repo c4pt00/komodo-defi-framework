@@ -14,7 +14,8 @@ mod structs;
 use structs::{ExpectedHtlcParams, ValidationParams};
 
 use super::ContractType;
-use crate::eth::eth_swap_v2::{validate_from_to_and_status, validate_payment_state, EthPaymentType, PaymentStatusErr};
+use crate::eth::eth_swap_v2::{validate_from_to_and_status, validate_payment_state, EthPaymentType, PaymentStatusErr,
+                              ZERO_VALUE};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
@@ -37,7 +38,7 @@ impl EthCoin {
 
                 let data = try_tx_s!(self.prepare_nft_maker_payment_v2_data(&args, htlc_data).await);
                 self.sign_and_send_transaction(
-                    0.into(),
+                    ZERO_VALUE.into(),
                     Action::Call(*args.nft_swap_info.token_address),
                     data,
                     U256::from(self.gas_limit.eth_max_trade_gas), // TODO: fix to a more accurate const or estimated value
@@ -160,7 +161,7 @@ impl EthCoin {
                 );
                 let data = try_tx_s!(self.prepare_spend_nft_maker_v2_data(&args, decoded, htlc_params, state));
                 self.sign_and_send_transaction(
-                    0.into(),
+                    ZERO_VALUE.into(),
                     Action::Call(*etomic_swap_contract),
                     data,
                     U256::from(self.gas_limit.eth_max_trade_gas), // TODO: fix to a more accurate const or estimated value
@@ -200,7 +201,7 @@ impl EthCoin {
                 let data =
                     try_tx_s!(self.prepare_refund_nft_maker_payment_v2_timelock(&args, decoded, htlc_params, state));
                 self.sign_and_send_transaction(
-                    0.into(),
+                    ZERO_VALUE.into(),
                     Action::Call(*etomic_swap_contract),
                     data,
                     U256::from(self.gas_limit.eth_max_trade_gas), // TODO: fix to a more accurate const or estimated value
@@ -241,7 +242,7 @@ impl EthCoin {
                 let data =
                     try_tx_s!(self.prepare_refund_nft_maker_payment_v2_secret(&args, decoded, htlc_params, state));
                 self.sign_and_send_transaction(
-                    0.into(),
+                    ZERO_VALUE.into(),
                     Action::Call(*etomic_swap_contract),
                     data,
                     U256::from(self.gas_limit.eth_max_trade_gas), // TODO: fix to a more accurate const or estimated value

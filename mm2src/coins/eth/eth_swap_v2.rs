@@ -17,6 +17,11 @@ use mm2_number::BigDecimal;
 use std::convert::TryInto;
 use web3::types::{Transaction as Web3Tx, TransactionId};
 
+/// ZERO_VALUE is used to represent a 0 amount in transactions where the value is encoded in the transaction input data.
+/// This is typically used in function calls where the value is not directly transferred with the transaction, such as in
+/// `spendTakerPayment` where the [amount](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L166)
+/// is provided as part of the input data rather than as an Ether value
+pub(crate) const ZERO_VALUE: u32 = 0;
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
 const TAKER_PAYMENT_APPROVE: &str = "takerPaymentApprove";
@@ -113,7 +118,7 @@ impl EthCoin {
                         })?;
                 }
                 self.sign_and_send_transaction(
-                    U256::from(0),
+                    U256::from(ZERO_VALUE),
                     Action::Call(taker_swap_v2_contract),
                     data,
                     // TODO need new consts and params for v2 calls. now it uses v1
@@ -240,7 +245,12 @@ impl EthCoin {
                 .await
         );
         let approve_tx = self
-            .sign_and_send_transaction(U256::from(0), Action::Call(taker_swap_v2_contract), data, gas_limit)
+            .sign_and_send_transaction(
+                U256::from(ZERO_VALUE),
+                Action::Call(taker_swap_v2_contract),
+                data,
+                gas_limit,
+            )
             .compat()
             .await?;
         Ok(approve_tx)
@@ -303,7 +313,7 @@ impl EthCoin {
         let data = try_tx_s!(self.prepare_taker_refund_payment_timelock_data(args).await);
 
         self.sign_and_send_transaction(
-            U256::from(0),
+            U256::from(ZERO_VALUE),
             Action::Call(taker_swap_v2_contract),
             data,
             U256::from(gas_limit),
@@ -360,7 +370,7 @@ impl EthCoin {
         let data = try_tx_s!(self.prepare_taker_refund_payment_secret_data(&refund_args).await);
 
         self.sign_and_send_transaction(
-            U256::from(0),
+            U256::from(ZERO_VALUE),
             Action::Call(taker_swap_v2_contract),
             data,
             U256::from(gas_limit),
@@ -437,7 +447,12 @@ impl EthCoin {
                 .await
         );
         let spend_payment_tx = self
-            .sign_and_send_transaction(U256::from(0), Action::Call(taker_swap_v2_contract), data, gas_limit)
+            .sign_and_send_transaction(
+                U256::from(ZERO_VALUE),
+                Action::Call(taker_swap_v2_contract),
+                data,
+                gas_limit,
+            )
             .compat()
             .await?;
         Ok(spend_payment_tx)
