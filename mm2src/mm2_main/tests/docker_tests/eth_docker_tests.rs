@@ -1872,7 +1872,6 @@ fn send_approve_and_spend_eth() {
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
     };
-    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
     block_on(maker_coin.validate_taker_funding(validate)).unwrap();
 
     let approve_args = GenTakerFundingSpendArgs {
@@ -1888,7 +1887,6 @@ fn send_approve_and_spend_eth() {
         preimage: funding_tx.clone(),
         signature: taker_coin.parse_signature(&[0u8; 65]).unwrap(),
     };
-    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let taker_approve_tx =
         block_on(taker_coin.sign_and_send_taker_funding_spend(&preimage, &approve_args, &[])).unwrap();
@@ -1984,7 +1982,6 @@ fn send_approve_and_spend_erc20() {
         trading_amount: trading_amount.clone(),
         swap_unique_data: &[],
     };
-    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
     block_on(maker_coin.validate_taker_funding(validate)).unwrap();
 
     let approve_args = GenTakerFundingSpendArgs {
@@ -2000,7 +1997,6 @@ fn send_approve_and_spend_erc20() {
         preimage: funding_tx.clone(),
         signature: taker_coin.parse_signature(&[0u8; 65]).unwrap(),
     };
-    wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
     wait_pending_transactions(Address::from_slice(taker_address.as_bytes()));
     let taker_approve_tx =
         block_on(taker_coin.sign_and_send_taker_funding_spend(&preimage, &approve_args, &[])).unwrap();
@@ -2046,7 +2042,6 @@ fn send_approve_and_spend_erc20() {
 
 #[test]
 fn send_and_refund_taker_funding_exceed_pre_approve_timelock_erc20() {
-    thread::sleep(Duration::from_secs(70));
     let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
