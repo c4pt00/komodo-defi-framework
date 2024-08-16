@@ -148,7 +148,7 @@ pub struct TxpoolBroadcastRequest {
 }
 
 impl SiaApiRequest for TxpoolBroadcastRequest {
-    type Response = TxpoolBroadcastResponse;
+    type Response = EmptyResponse;
 
     fn to_http_request(&self, client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError> {
         let endpoint_path = "api/txpool/broadcast";
@@ -166,7 +166,7 @@ impl SiaApiRequest for TxpoolBroadcastRequest {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct TxpoolBroadcastResponse;
+#[derive(Deserialize, Serialize, Debug, Default)]
+pub struct EmptyResponse;
 
-impl SiaApiResponse for TxpoolBroadcastResponse {}
+impl SiaApiResponse for EmptyResponse {}
