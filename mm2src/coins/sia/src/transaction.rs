@@ -1029,13 +1029,13 @@ impl V2TransactionBuilder {
             for si in &mut self.siacoin_inputs {
                 match &si.satisfied_policy.policy {
                     SpendPolicy::PublicKey(pk) if pk == &keypair.public => {
-                        si.satisfied_policy.signatures.push(sig.clone())
+                        si.satisfied_policy.signatures.push(sig)
                     },
                     SpendPolicy::UnlockConditions(uc) => {
                         for p in &uc.unlock_keys {
                             match p {
                                 UnlockKey::Ed25519(pk) if pk == &keypair.public => {
-                                    si.satisfied_policy.signatures.push(sig.clone())
+                                    si.satisfied_policy.signatures.push(sig)
                                 },
                                 _ => (),
                             }
