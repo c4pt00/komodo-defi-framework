@@ -1,8 +1,9 @@
 use crate::blake2b_internal::{public_key_leaf, sigs_required_leaf, standard_unlock_hash, timelock_leaf, Accumulator};
 use crate::encoding::{Encodable, Encoder, PrefixedH256, PrefixedPublicKey};
 use crate::specifier::Specifier;
+use crate::transaction::{Preimage, SatisfiedPolicy};
 use crate::types::Address;
-use ed25519_dalek::PublicKey;
+use crate::{PublicKey, Signature};
 use nom::bytes::complete::{take_until, take_while, take_while_m_n};
 use nom::character::complete::char;
 use nom::combinator::all_consuming;
@@ -169,9 +170,56 @@ impl SpendPolicy {
     pub fn opaque(p: &SpendPolicy) -> Self { SpendPolicy::Opaque(p.address()) }
 
     pub fn anyone_can_spend() -> Self { SpendPolicy::threshold(0, vec![]) }
+
+    pub fn opacify(&self) -> Self { SpendPolicy::Opaque(self.address()) }
+
+    pub fn satisfy<T: SatisfyPolicy>(&self, data: T) -> Result<SatisfiedPolicy, String> {
+        data.satisfy(self)
+    }
 }
 
-pub fn opacify_policy(p: &SpendPolicy) -> SpendPolicy { SpendPolicy::Opaque(p.address()) }
+pub trait SatisfyPolicy {
+    fn satisfy(self, policy: &SpendPolicy) -> Result<SatisfiedPolicy, String>;
+}
+
+impl SatisfyPolicy for Signature {
+    fn satisfy(self, policy: &SpendPolicy) -> Result<SatisfiedPolicy, String> {
+        match policy {
+            SpendPolicy::PublicKey(_) | SpendPolicy::UnlockConditions(_)=> Ok(SatisfiedPolicy {
+                policy: policy.clone(),
+                signatures: vec![self],
+                preimages: vec![],
+            }),
+            _ => Err("Failed to satisfy. Policy is not PublicKey or UnlockConditions".to_string()),
+        }
+    }
+}
+
+impl SatisfyPolicy for Preimage {
+    fn satisfy(self, policy: &SpendPolicy) -> Result<SatisfiedPolicy, String> {
+        match policy {
+            SpendPolicy::Hash(_) => Ok(SatisfiedPolicy {
+                policy: policy.clone(),
+                signatures: vec![],
+                preimages: vec![self],
+            }),
+            _ => Err("Failed to satisfy. Policy is not Hash".to_string()),
+        }
+    }
+}
+
+impl SatisfyPolicy for () {
+    fn satisfy(self, policy: &SpendPolicy) -> Result<SatisfiedPolicy, String> {
+        match policy {
+            SpendPolicy::Above(_) | SpendPolicy::After(_) | SpendPolicy::Opaque(_) => Ok(SatisfiedPolicy {
+                policy: policy.clone(),
+                signatures: vec![],
+                preimages: vec![],
+            }),
+            _ => Err("Failed to satisfy. Policy is not Above, After or Opaque".to_string()),
+        }
+    }
+}
 
 pub fn spend_policy_atomic_swap(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
     let policy_after = SpendPolicy::After(lock_time);
@@ -196,7 +244,7 @@ pub fn spend_policy_atomic_swap(alice: PublicKey, bob: PublicKey, lock_time: u64
 pub fn spend_policy_atomic_swap_success(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
     match spend_policy_atomic_swap(alice, bob, lock_time, hash) {
         SpendPolicy::Threshold { n, mut of } => {
-            of[1] = opacify_policy(&of[1]);
+            of[1] = of[1].opacify();
             SpendPolicy::Threshold { n, of }
         },
         _ => unreachable!(),
@@ -206,7 +254,7 @@ pub fn spend_policy_atomic_swap_success(alice: PublicKey, bob: PublicKey, lock_t
 pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_time: u64, hash: H256) -> SpendPolicy {
     match spend_policy_atomic_swap(alice, bob, lock_time, hash) {
         SpendPolicy::Threshold { n, mut of } => {
-            of[0] = opacify_policy(&of[0]);
+            of[0] = of[0].opacify();
             SpendPolicy::Threshold { n, of }
         },
         _ => unreachable!(),
