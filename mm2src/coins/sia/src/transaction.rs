@@ -98,6 +98,8 @@ impl<'a> Encodable for CurrencyVersion<'a> {
     }
 }
 
+pub type Preimage = Vec<u8>;
+
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -108,7 +110,7 @@ pub struct SatisfiedPolicy {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub signatures: Vec<Signature>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub preimages: Vec<Vec<u8>>,
+    pub preimages: Vec<Preimage>,
 }
 
 impl Encodable for Signature {
