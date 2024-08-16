@@ -1,7 +1,8 @@
 use crate::encoding::{Encodable, Encoder, HexArray64, PrefixedH256, PrefixedPublicKey, PrefixedSignature};
 use crate::spend_policy::{SpendPolicy, SpendPolicyHelper, UnlockCondition, UnlockKey};
 use crate::types::{Address, ChainIndex};
-use ed25519_dalek::{PublicKey, Signature};
+use crate::Keypair;
+use ed25519_dalek::{PublicKey, Signature, Signer};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
@@ -850,5 +851,210 @@ impl Encodable for V2Transaction {
             None => (),
         }
         CurrencyVersion::V2(&self.miner_fee).encode(encoder);
+    }
+}
+
+pub struct V2TransactionBuilder {
+    siacoin_inputs: Vec<SiacoinInputV2>,
+    siacoin_outputs: Vec<SiacoinOutput>,
+    siafund_inputs: Vec<SiafundInputV2>,
+    siafund_outputs: Vec<SiafundOutput>,
+    file_contracts: Vec<V2FileContract>,
+    file_contract_revisions: Vec<FileContractRevisionV2>,
+    file_contract_resolutions: Vec<V2FileContractResolution>,
+    attestations: Vec<Attestation>,
+    arbitrary_data: Vec<u8>,
+    new_foundation_address: Option<Address>,
+    miner_fee: Currency,
+}
+
+impl Encodable for V2TransactionBuilder {
+    fn encode(&self, encoder: &mut Encoder) {
+        encoder.write_u64(self.siacoin_inputs.len() as u64);
+        for si in &self.siacoin_inputs {
+            si.parent.state_element.id.encode(encoder);
+        }
+
+        encoder.write_u64(self.siacoin_outputs.len() as u64);
+        for so in &self.siacoin_outputs {
+            SiacoinOutputVersion::V2(so).encode(encoder);
+        }
+
+        encoder.write_u64(self.siafund_inputs.len() as u64);
+        for si in &self.siafund_inputs {
+            si.parent.state_element.id.encode(encoder);
+        }
+
+        encoder.write_u64(self.siafund_outputs.len() as u64);
+        for so in &self.siafund_outputs {
+            SiafundOutputVersion::V2(so).encode(encoder);
+        }
+
+        encoder.write_u64(self.file_contracts.len() as u64);
+        for fc in &self.file_contracts {
+            fc.with_nil_sigs().encode(encoder);
+        }
+
+        encoder.write_u64(self.file_contract_revisions.len() as u64);
+        for fcr in &self.file_contract_revisions {
+            fcr.parent.state_element.id.encode(encoder);
+            fcr.revision.with_nil_sigs().encode(encoder);
+        }
+
+        encoder.write_u64(self.file_contract_resolutions.len() as u64);
+        for fcr in &self.file_contract_resolutions {
+            fcr.parent.state_element.id.encode(encoder);
+            fcr.with_nil_sigs().encode(encoder);
+            // FIXME .encode() leads to unimplemented!()
+        }
+
+        encoder.write_u64(self.attestations.len() as u64);
+        for att in &self.attestations {
+            att.encode(encoder);
+        }
+
+        encoder.write_len_prefixed_bytes(&self.arbitrary_data);
+
+        encoder.write_bool(self.new_foundation_address.is_some());
+        match &self.new_foundation_address {
+            Some(addr) => addr.encode(encoder),
+            None => (),
+        }
+        CurrencyVersion::V2(&self.miner_fee).encode(encoder);
+    }
+}
+
+impl V2TransactionBuilder {
+    pub fn new(miner_fee: Currency) -> Self {
+        Self {
+            siacoin_inputs: Vec::new(),
+            siacoin_outputs: Vec::new(),
+            siafund_inputs: Vec::new(),
+            siafund_outputs: Vec::new(),
+            file_contracts: Vec::new(),
+            file_contract_revisions: Vec::new(),
+            file_contract_resolutions: Vec::new(),
+            attestations: Vec::new(),
+            arbitrary_data: Vec::new(),
+            new_foundation_address: None,
+            miner_fee,
+        }
+    }
+
+    pub fn siacoin_inputs(mut self, inputs: Vec<SiacoinInputV2>) -> Self {
+        self.siacoin_inputs = inputs;
+        self
+    }
+
+    pub fn siacoin_outputs(mut self, outputs: Vec<SiacoinOutput>) -> Self {
+        self.siacoin_outputs = outputs;
+        self
+    }
+
+    pub fn siafund_inputs(mut self, inputs: Vec<SiafundInputV2>) -> Self {
+        self.siafund_inputs = inputs;
+        self
+    }
+
+    pub fn siafund_outputs(mut self, outputs: Vec<SiafundOutput>) -> Self {
+        self.siafund_outputs = outputs;
+        self
+    }
+
+    pub fn file_contracts(mut self, contracts: Vec<V2FileContract>) -> Self {
+        self.file_contracts = contracts;
+        self
+    }
+
+    pub fn file_contract_revisions(mut self, revisions: Vec<FileContractRevisionV2>) -> Self {
+        self.file_contract_revisions = revisions;
+        self
+    }
+
+    pub fn file_contract_resolutions(mut self, resolutions: Vec<V2FileContractResolution>) -> Self {
+        self.file_contract_resolutions = resolutions;
+        self
+    }
+
+    pub fn attestations(mut self, attestations: Vec<Attestation>) -> Self {
+        self.attestations = attestations;
+        self
+    }
+
+    pub fn arbitrary_data(mut self, data: Vec<u8>) -> Self {
+        self.arbitrary_data = data;
+        self
+    }
+
+    pub fn new_foundation_address(mut self, address: Address) -> Self {
+        self.new_foundation_address = Some(address);
+        self
+    }
+
+    // input is a special case becuase we cannot generate signatures until after fully constructing the transaction
+    // only the parent field is utilized while encoding the transaction to calculate the signature hash
+    pub fn add_siacoin_input(mut self, parent: SiacoinElement, policy: SpendPolicy) -> Self {
+        self.siacoin_inputs.push(SiacoinInputV2 {
+            parent,
+            satisfied_policy: SatisfiedPolicy {
+                policy,
+                signatures: Vec::new(),
+                preimages: Vec::new(),
+            },
+        });
+        self
+    }
+
+    pub fn add_siacoin_output(mut self, output: SiacoinOutput) -> Self {
+        self.siacoin_outputs.push(output);
+        self
+    }
+
+    pub fn input_sig_hash(&self) -> H256 {
+        let mut encoder = Encoder::default();
+        encoder.write_distinguisher("sig/input");
+        encoder.write_u8(V2_REPLAY_PREFIX);
+        self.encode(&mut encoder);
+        encoder.hash()
+    }
+
+    // Sign all PublicKey or UnlockConditions policies with the provided keypairs
+    // Incapable of handling threshold policies
+    pub fn sign_simple(mut self, keypairs: Vec<&Keypair>) -> Result<Self, String> {
+        let sig_hash = self.input_sig_hash();
+        for keypair in keypairs {
+            let sig = keypair.try_sign(&sig_hash.0).map_err(|e| format!("signature creation error: {}", e))?;
+            for si in &mut self.siacoin_inputs {
+                match &si.satisfied_policy.policy {
+                    SpendPolicy::PublicKey(pk) if pk == &keypair.public => si.satisfied_policy.signatures.push(sig.clone()),
+                    SpendPolicy::UnlockConditions(uc) => {
+                        for p in &uc.unlock_keys {
+                            match p {
+                                UnlockKey::Ed25519(pk) if pk == &keypair.public => si.satisfied_policy.signatures.push(sig.clone()),
+                                _ => (),
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn build(self) -> V2Transaction {
+        V2Transaction {
+            siacoin_inputs: self.siacoin_inputs,
+            siacoin_outputs: self.siacoin_outputs,
+            siafund_inputs: self.siafund_inputs,
+            siafund_outputs: self.siafund_outputs,
+            file_contracts: self.file_contracts,
+            file_contract_revisions: self.file_contract_revisions,
+            file_contract_resolutions: self.file_contract_resolutions,
+            attestations: self.attestations,
+            arbitrary_data: self.arbitrary_data,
+            new_foundation_address: self.new_foundation_address,
+            miner_fee: self.miner_fee,
+        }
     }
 }
