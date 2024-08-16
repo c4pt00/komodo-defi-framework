@@ -54,6 +54,7 @@ pub enum SiaApiClientError {
     UnexpectedHttpStatus(u16),
     ApiInternalError(String),
     SerializationError(serde_json::Error),
+    UnexpectedEmptyResponse{ expected_type: String},
 }
 
 impl From<SiaApiClientError> for String {
@@ -90,6 +91,14 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, request: Request)
             .to_string(),
         )
     })?;
+
+    // Handle status 200 empty responses with marker types
+    if response_text.trim().is_empty() {
+        // Attempt to deserialize as EmptyResponse marker struct
+        if let Ok(parsed) = serde_json::from_str::<T>("null") {
+            return Ok(parsed);
+        }
+    }
 
     let json: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
         SiaApiClientError::ReqwestParseInvalidJsonError(format!(
