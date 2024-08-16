@@ -4,6 +4,8 @@ pub mod z_balance_streaming;
 mod z_coin_errors;
 #[cfg(all(test, feature = "zhtlc-native-tests"))]
 mod z_coin_native_tests;
+#[cfg(all(test, feature = "zhtlc-wasm-tests"))]
+mod z_coin_wasm_tests;
 mod z_htlc;
 mod z_rpc;
 mod z_tx_history;
@@ -762,13 +764,19 @@ pub struct ZcoinActivationParams {
 impl Default for ZcoinActivationParams {
     fn default() -> Self {
         Self {
-            mode: ZcoinRpcMode::Native,
-            required_confirmations: None,
-            requires_notarization: None,
-            zcash_params_path: None,
+            mode: ZcoinRpcMode::Light {
+                electrum_servers: Default::default(),
+                light_wallet_d_servers: Default::default(),
+                sync_params: Default::default(),
+                skip_sync_params: Default::default(),
+            },
+            required_confirmations: Default::default(),
+            requires_notarization: Default::default(),
+            zcash_params_path: Default::default(),
+            // Use 1000 blocks per iteration as a default value.
             scan_blocks_per_iteration: NonZeroU32::new(1000).expect("1000 is a valid value"),
-            scan_interval_ms: 0,
-            account: 0,
+            scan_interval_ms: Default::default(),
+            account: Default::default(),
         }
     }
 }

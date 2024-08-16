@@ -5,6 +5,7 @@ edition = "2018"
 
 [features]
 zhtlc-native-tests = []
+zhtlc-wasm-tests = []
 # TODO
 enable-solana = [
 	"dep:bincode",
