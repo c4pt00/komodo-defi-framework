@@ -173,9 +173,7 @@ impl SpendPolicy {
 
     pub fn opacify(&self) -> Self { SpendPolicy::Opaque(self.address()) }
 
-    pub fn satisfy<T: SatisfyPolicy>(&self, data: T) -> Result<SatisfiedPolicy, String> {
-        data.satisfy(self)
-    }
+    pub fn satisfy<T: SatisfyPolicy>(&self, data: T) -> Result<SatisfiedPolicy, String> { data.satisfy(self) }
 }
 
 pub trait SatisfyPolicy {
@@ -185,7 +183,7 @@ pub trait SatisfyPolicy {
 impl SatisfyPolicy for Signature {
     fn satisfy(self, policy: &SpendPolicy) -> Result<SatisfiedPolicy, String> {
         match policy {
-            SpendPolicy::PublicKey(_) | SpendPolicy::UnlockConditions(_)=> Ok(SatisfiedPolicy {
+            SpendPolicy::PublicKey(_) | SpendPolicy::UnlockConditions(_) => Ok(SatisfiedPolicy {
                 policy: policy.clone(),
                 signatures: vec![self],
                 preimages: vec![],

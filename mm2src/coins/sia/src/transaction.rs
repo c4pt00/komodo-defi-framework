@@ -1023,18 +1023,24 @@ impl V2TransactionBuilder {
     pub fn sign_simple(mut self, keypairs: Vec<&Keypair>) -> Result<Self, String> {
         let sig_hash = self.input_sig_hash();
         for keypair in keypairs {
-            let sig = keypair.try_sign(&sig_hash.0).map_err(|e| format!("signature creation error: {}", e))?;
+            let sig = keypair
+                .try_sign(&sig_hash.0)
+                .map_err(|e| format!("signature creation error: {}", e))?;
             for si in &mut self.siacoin_inputs {
                 match &si.satisfied_policy.policy {
-                    SpendPolicy::PublicKey(pk) if pk == &keypair.public => si.satisfied_policy.signatures.push(sig.clone()),
+                    SpendPolicy::PublicKey(pk) if pk == &keypair.public => {
+                        si.satisfied_policy.signatures.push(sig.clone())
+                    },
                     SpendPolicy::UnlockConditions(uc) => {
                         for p in &uc.unlock_keys {
                             match p {
-                                UnlockKey::Ed25519(pk) if pk == &keypair.public => si.satisfied_policy.signatures.push(sig.clone()),
+                                UnlockKey::Ed25519(pk) if pk == &keypair.public => {
+                                    si.satisfied_policy.signatures.push(sig.clone())
+                                },
                                 _ => (),
                             }
                         }
-                    }
+                    },
                     _ => (),
                 }
             }

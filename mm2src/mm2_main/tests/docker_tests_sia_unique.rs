@@ -52,9 +52,7 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         .unwrap_or(false);
     // skip Docker containers initialization if we are intended to run test_mm_start only
     if !skip_docker_tests_runner {
-        const IMAGES: &[&str] = &[
-            SIA_DOCKER_IMAGE_WITH_TAG
-        ];
+        const IMAGES: &[&str] = &[SIA_DOCKER_IMAGE_WITH_TAG];
 
         for image in IMAGES {
             pull_docker_image(image);

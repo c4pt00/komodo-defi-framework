@@ -54,7 +54,7 @@ pub enum SiaApiClientError {
     UnexpectedHttpStatus(u16),
     ApiInternalError(String),
     SerializationError(serde_json::Error),
-    UnexpectedEmptyResponse{ expected_type: String},
+    UnexpectedEmptyResponse { expected_type: String },
 }
 
 impl From<SiaApiClientError> for String {

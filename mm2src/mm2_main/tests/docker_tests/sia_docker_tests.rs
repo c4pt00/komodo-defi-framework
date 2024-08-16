@@ -1,10 +1,10 @@
 use mm2_number::MmNumber;
-use sia::{Keypair, PublicKey, SecretKey};
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia::http_endpoints::{AddressBalanceRequest, AddressUtxosRequest, ConsensusTipRequest, TxpoolBroadcastRequest};
-use sia::types::Address;
 use sia::spend_policy::SpendPolicy;
 use sia::transaction::{SiacoinOutput, V2TransactionBuilder};
+use sia::types::Address;
+use sia::{Keypair, PublicKey, SecretKey};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
@@ -81,16 +81,24 @@ async fn test_sia_client_build_tx() {
         password: "password".to_string(),
     };
     let api_client = SiaApiClient::new(conf).await.unwrap();
-    let sk: SecretKey = SecretKey::from_bytes(&hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap()).unwrap();
+    let sk: SecretKey = SecretKey::from_bytes(
+        &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
     let pk: PublicKey = (&sk).into();
     let keypair = Keypair { public: pk, secret: sk };
     let spend_policy = SpendPolicy::PublicKey(pk);
-    
+
     let address = spend_policy.address();
 
     mine_blocks(201, &address);
 
-    let utxos = api_client.dispatcher(AddressUtxosRequest { address: address.clone() }).await.unwrap();
+    let utxos = api_client
+        .dispatcher(AddressUtxosRequest {
+            address: address.clone(),
+        })
+        .await
+        .unwrap();
     let spend_this = utxos[0].clone();
     let vin = spend_this.clone();
     println!("utxo[0]: {:?}", spend_this);
@@ -105,6 +113,9 @@ async fn test_sia_client_build_tx() {
         .unwrap()
         .build();
 
-    let req = TxpoolBroadcastRequest { transactions: vec![], v2transactions: vec![tx] };
+    let req = TxpoolBroadcastRequest {
+        transactions: vec![],
+        v2transactions: vec![tx],
+    };
     let _response = api_client.dispatcher(req).await.unwrap();
 }
