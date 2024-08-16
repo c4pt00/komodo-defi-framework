@@ -1,8 +1,10 @@
 pub mod storage;
 pub mod tx_history_events;
+#[cfg_attr(not(target_arch = "wasm32"), cfg(test))]
+mod tx_streaming_tests;
 pub mod z_balance_streaming;
 mod z_coin_errors;
-#[cfg(all(test, feature = "zhtlc-native-tests"))]
+#[cfg(all(test, not(target_arch = "wasm32"), feature = "zhtlc-native-tests"))]
 mod z_coin_native_tests;
 mod z_htlc;
 mod z_rpc;
@@ -780,8 +782,8 @@ impl Default for ZcoinActivationParams {
             requires_notarization: None,
             zcash_params_path: None,
             scan_blocks_per_iteration: NonZeroU32::new(1000).expect("1000 is a valid value"),
-            scan_interval_ms: 0,
-            account: 0,
+            scan_interval_ms: Default::default(),
+            account: Default::default(),
         }
     }
 }
