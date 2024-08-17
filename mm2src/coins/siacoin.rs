@@ -29,6 +29,8 @@ use std::sync::Arc;
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia::types::v1_standard_address_from_pubkey;
 
+pub mod sia_hd_wallet;
+
 #[derive(Clone)]
 pub struct SiaCoin(SiaArc);
 #[derive(Clone)]

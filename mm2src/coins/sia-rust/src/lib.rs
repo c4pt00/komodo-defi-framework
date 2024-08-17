@@ -1,4 +1,5 @@
 pub use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature};
+pub use types::Address;
 
 pub mod blake2b_internal;
 pub mod encoding;
