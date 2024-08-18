@@ -1162,7 +1162,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             payment_time_lock: self.negotiation_data.taker_payment_locktime,
             funding_time_lock: self.negotiation_data.taker_funding_locktime,
             taker_secret_hash: &self.negotiation_data.taker_secret_hash,
-            maker_secret_hash: &[],
+            maker_secret_hash: &state_machine.secret_hash(),
             taker_pub: &self.negotiation_data.taker_coin_htlc_pub_from_taker,
             dex_fee: &state_machine.dex_fee,
             premium_amount: state_machine.taker_premium.to_decimal(),

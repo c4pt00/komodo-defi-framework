@@ -216,8 +216,7 @@ impl EthCoin {
     ) -> Result<SignedEthTx, TransactionErr> {
         // TODO need new consts and params for v2 calls, here should be common `gas_limit.taker_approve` param for Eth and Erc20
         let gas_limit = match self.coin_type {
-            EthCoinType::Eth => U256::from(self.gas_limit.eth_payment),
-            EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.eth_payment),
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.eth_payment),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "NFT protocol is not supported for ETH and ERC20 Swaps"
