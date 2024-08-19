@@ -9,8 +9,8 @@ use crate::lp_swap::{swap_v2_pb::*, NO_REFUND_FEE};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
 use coins::{CanRefundHtlc, ConfirmPaymentInput, DexFee, FeeApproxStage, FundingTxSpend, GenTakerFundingSpendArgs,
-            GenTakerPaymentSpendArgs, MakerCoinSwapOpsV2, MmCoin, ParseCoinAssocTypes, RefundMakerPaymentArgs,
-            RefundPaymentArgs, SearchForFundingSpendErr, SendMakerPaymentArgs, SwapTxTypeWithSecretHash,
+            GenTakerPaymentSpendArgs, MakerCoinSwapOpsV2, MmCoin, ParseCoinAssocTypes, RefundMakerPaymentSecretArgs,
+            RefundMakerPaymentTimelockArgs, SearchForFundingSpendErr, SendMakerPaymentArgs, SwapTxTypeWithSecretHash,
             TakerCoinSwapOpsV2, ToBytes, TradePreimageValue, Transaction, TxPreimageWithSig, ValidateTakerFundingArgs};
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, Timer};
@@ -1451,7 +1451,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         );
 
         if let MakerPaymentRefundReason::TakerFundingReclaimedSecret(secret) = &self.reason {
-            let args = RefundMakerPaymentArgs {
+            let args = RefundMakerPaymentSecretArgs {
                 maker_payment_tx: &self.maker_payment,
                 time_lock: state_machine.maker_payment_locktime(),
                 taker_secret_hash: &self.negotiation_data.taker_secret_hash,
@@ -1495,14 +1495,14 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             }
         }
 
-        let other_pub = self.negotiation_data.maker_coin_htlc_pub_from_taker.to_bytes();
+        let taker_pub = self.negotiation_data.maker_coin_htlc_pub_from_taker.to_bytes();
         let unique_data = state_machine.unique_data();
         let secret_hash = state_machine.secret_hash();
 
-        let refund_args = RefundPaymentArgs {
+        let refund_args = RefundMakerPaymentTimelockArgs {
             payment_tx: &self.maker_payment.tx_hex(),
             time_lock: state_machine.maker_payment_locktime(),
-            other_pubkey: &other_pub,
+            taker_pub: &taker_pub,
             tx_type_with_secret_hash: SwapTxTypeWithSecretHash::MakerPaymentV2 {
                 maker_secret_hash: &secret_hash,
                 taker_secret_hash: &self.negotiation_data.taker_secret_hash,

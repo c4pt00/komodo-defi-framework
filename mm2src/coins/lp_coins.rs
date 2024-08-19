@@ -991,6 +991,17 @@ pub struct RefundPaymentArgs<'a> {
 }
 
 #[derive(Debug)]
+pub struct RefundMakerPaymentTimelockArgs<'a> {
+    pub payment_tx: &'a [u8],
+    pub time_lock: u64,
+    pub taker_pub: &'a [u8],
+    pub tx_type_with_secret_hash: SwapTxTypeWithSecretHash<'a>,
+    pub swap_contract_address: &'a Option<BytesJson>,
+    pub swap_unique_data: &'a [u8],
+    pub watcher_reward: bool,
+}
+
+#[derive(Debug)]
 pub struct RefundTakerPaymentArgs<'a> {
     pub payment_tx: &'a [u8],
     pub time_lock: u64,
@@ -1003,20 +1014,6 @@ pub struct RefundTakerPaymentArgs<'a> {
     pub premium_amount: BigDecimal,
     /// Actual volume of taker's payment
     pub trading_amount: BigDecimal,
-}
-
-impl<'a> From<RefundTakerPaymentArgs<'a>> for RefundPaymentArgs<'a> {
-    fn from(args: RefundTakerPaymentArgs<'a>) -> RefundPaymentArgs<'a> {
-        RefundPaymentArgs {
-            payment_tx: args.payment_tx,
-            time_lock: args.time_lock,
-            other_pubkey: args.maker_pub,
-            tx_type_with_secret_hash: args.tx_type_with_secret_hash,
-            swap_contract_address: &None,
-            swap_unique_data: args.swap_unique_data,
-            watcher_reward: args.watcher_reward,
-        }
-    }
 }
 
 /// Helper struct wrapping arguments for [SwapOps::check_if_my_payment_sent].
@@ -1714,7 +1711,7 @@ pub struct ValidateNftMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ParseNftA
     pub nft_swap_info: &'a NftSwapInfo<'a, Coin>,
 }
 
-pub struct RefundMakerPaymentArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
+pub struct RefundMakerPaymentSecretArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     /// Maker payment tx
     pub maker_payment_tx: &'a Coin::Tx,
     /// Maker will be able to refund the payment after this timestamp
@@ -1796,12 +1793,15 @@ pub trait MakerCoinSwapOpsV2: ParseCoinAssocTypes + CommonSwapOpsV2 + Send + Syn
     async fn validate_maker_payment_v2(&self, args: ValidateMakerPaymentArgs<'_, Self>) -> ValidatePaymentResult<()>;
 
     /// Refund maker payment transaction using timelock path
-    async fn refund_maker_payment_v2_timelock(&self, args: RefundPaymentArgs<'_>) -> Result<Self::Tx, TransactionErr>;
+    async fn refund_maker_payment_v2_timelock(
+        &self,
+        args: RefundMakerPaymentTimelockArgs<'_>,
+    ) -> Result<Self::Tx, TransactionErr>;
 
     /// Refund maker payment transaction using immediate refund path
     async fn refund_maker_payment_v2_secret(
         &self,
-        args: RefundMakerPaymentArgs<'_, Self>,
+        args: RefundMakerPaymentSecretArgs<'_, Self>,
     ) -> Result<Self::Tx, TransactionErr>;
 
     /// Spend maker payment transaction

@@ -15,7 +15,7 @@ use crate::watcher_common::validate_watcher_reward;
 use crate::{scan_for_new_addresses_impl, CanRefundHtlc, CoinBalance, CoinWithDerivationMethod, ConfirmPaymentInput,
             DexFee, GenPreimageResult, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, GetWithdrawSenderAddress,
             RawTransactionError, RawTransactionRequest, RawTransactionRes, RawTransactionResult,
-            RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RewardTarget,
+            RefundFundingSecretArgs, RefundMakerPaymentSecretArgs, RefundPaymentArgs, RewardTarget,
             SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
             SendTakerFundingArgs, SignRawTransactionEnum, SignRawTransactionRequest, SignUtxoTransactionParams,
             SignatureError, SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs, SwapOps,
@@ -5068,7 +5068,7 @@ pub async fn spend_maker_payment_v2<T: UtxoCommonOps + SwapOps>(
 /// Common implementation of maker payment v2 reclaim for UTXO coins using immediate refund path with secret reveal.
 pub async fn refund_maker_payment_v2_secret<T>(
     coin: T,
-    args: RefundMakerPaymentArgs<'_, T>,
+    args: RefundMakerPaymentSecretArgs<'_, T>,
 ) -> Result<UtxoTx, TransactionErr>
 where
     T: UtxoCommonOps + SwapOps,

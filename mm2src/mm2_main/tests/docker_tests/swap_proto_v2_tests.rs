@@ -2,10 +2,10 @@ use crate::{generate_utxo_coin_with_random_privkey, MYCOIN, MYCOIN1};
 use bitcrypto::dhash160;
 use coins::utxo::UtxoCommonOps;
 use coins::{ConfirmPaymentInput, DexFee, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
-            MakerCoinSwapOpsV2, MarketCoinOps, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundMakerPaymentArgs,
-            RefundPaymentArgs, RefundTakerPaymentArgs, SendMakerPaymentArgs, SendTakerFundingArgs,
-            SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, Transaction, ValidateMakerPaymentArgs,
-            ValidateTakerFundingArgs};
+            MakerCoinSwapOpsV2, MarketCoinOps, ParseCoinAssocTypes, RefundFundingSecretArgs,
+            RefundMakerPaymentSecretArgs, RefundMakerPaymentTimelockArgs, RefundPaymentArgs, RefundTakerPaymentArgs,
+            SendMakerPaymentArgs, SendTakerFundingArgs, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, Transaction,
+            ValidateMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec, DEX_FEE_ADDR_RAW_PUBKEY};
 use futures01::Future;
 use mm2_number::MmNumber;
@@ -540,10 +540,10 @@ fn send_and_refund_maker_payment_timelock() {
     };
     block_on(coin.validate_maker_payment_v2(validate_args)).unwrap();
 
-    let refund_args = RefundPaymentArgs {
+    let refund_args = RefundMakerPaymentTimelockArgs {
         payment_tx: &serialize(&maker_payment).take(),
         time_lock,
-        other_pubkey: coin.my_public_key().unwrap(),
+        taker_pub: coin.my_public_key().unwrap(),
         tx_type_with_secret_hash: SwapTxTypeWithSecretHash::MakerPaymentV2 {
             taker_secret_hash,
             maker_secret_hash,
@@ -604,7 +604,7 @@ fn send_and_refund_maker_payment_taker_secret() {
     };
     block_on(coin.validate_maker_payment_v2(validate_args)).unwrap();
 
-    let refund_args = RefundMakerPaymentArgs {
+    let refund_args = RefundMakerPaymentSecretArgs {
         maker_payment_tx: &maker_payment,
         time_lock,
         taker_secret_hash,
