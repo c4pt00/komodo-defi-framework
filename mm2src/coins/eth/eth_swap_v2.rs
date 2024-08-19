@@ -484,7 +484,7 @@ impl EthCoin {
             if now > wait_until {
                 return MmError::err(WaitForTakerPaymentSpendError::Timeout { wait_until, now });
             }
-            Timer::sleep(1.).await;
+            Timer::sleep(10.).await;
         }
     }
 

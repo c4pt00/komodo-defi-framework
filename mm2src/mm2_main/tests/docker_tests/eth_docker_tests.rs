@@ -1825,7 +1825,6 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
 #[test]
 fn send_approve_and_spend_eth() {
     // sepolia test
-    thread::sleep(Duration::from_secs(2));
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
