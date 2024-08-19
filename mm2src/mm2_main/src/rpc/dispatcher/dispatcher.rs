@@ -57,6 +57,7 @@ use http::Response;
 use mm2_core::data_asker::send_asked_data_rpc;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
+use mm2_net::is_peer_connected_rpc::is_peer_connected;
 use mm2_rpc::mm_protocol::{MmRpcBuilder, MmRpcRequest, MmRpcVersion};
 use nft::{clear_nft_db, get_nft_list, get_nft_metadata, get_nft_transfers, refresh_nft_metadata, update_nft,
           withdraw_nft};
@@ -213,6 +214,7 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "withdraw" => handle_mmrpc(ctx, request, withdraw).await,
         "ibc_chains" => handle_mmrpc(ctx, request, ibc_chains).await,
         "ibc_transfer_channels" => handle_mmrpc(ctx, request, ibc_transfer_channels).await,
+        "is_peer_connected" => handle_mmrpc(ctx, request, is_peer_connected).await,
         "withdraw_nft" => handle_mmrpc(ctx, request, withdraw_nft).await,
         "start_eth_fee_estimator" => handle_mmrpc(ctx, request, start_eth_fee_estimator).await,
         "stop_eth_fee_estimator" => handle_mmrpc(ctx, request, stop_eth_fee_estimator).await,

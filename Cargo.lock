@@ -4707,6 +4707,7 @@ dependencies = [
  "prost",
  "rand 0.7.3",
  "rustls 0.21.10",
+ "ser_error_derive",
  "serde",
  "serde_json",
  "thiserror",
