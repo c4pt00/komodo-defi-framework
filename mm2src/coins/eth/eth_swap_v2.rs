@@ -255,7 +255,7 @@ impl EthCoin {
         Ok(approve_tx)
     }
 
-    pub(crate) async fn refund_taker_funding_timelock_impl(
+    pub(crate) async fn refund_taker_payment_with_timelock_impl(
         &self,
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<SignedEthTx, TransactionErr> {

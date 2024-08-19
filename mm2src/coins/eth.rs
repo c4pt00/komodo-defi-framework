@@ -7097,7 +7097,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         &self,
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<Self::Tx, TransactionErr> {
-        self.refund_taker_funding_timelock_impl(args).await
+        self.refund_taker_payment_with_timelock_impl(args).await
     }
 
     async fn refund_taker_funding_secret(
@@ -7152,7 +7152,7 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         &self,
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<Self::Tx, TransactionErr> {
-        self.refund_taker_funding_timelock_impl(args).await
+        self.refund_taker_payment_with_timelock_impl(args).await
     }
 
     /// Eth doesnt have preimages
