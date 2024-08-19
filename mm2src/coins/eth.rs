@@ -7148,7 +7148,6 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.taker_payment_approve(args).await
     }
 
-    // TODO lets reuse refund_taker_funding_timelock_impl inside this func?
     async fn refund_combined_taker_payment(
         &self,
         args: RefundTakerPaymentArgs<'_>,
