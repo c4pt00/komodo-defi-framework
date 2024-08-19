@@ -410,20 +410,14 @@ impl EthCoin {
         let data_bytes = match decoded_data.get(index) {
             Some(Token::Bytes(data_bytes)) => data_bytes,
             _ => {
-                return Err(PaymentStatusErr::TxDeserializationError(ERRL!(
+                return Err(PaymentStatusErr::InvalidData(ERRL!(
                     "Failed to decode HTLCParams from data_bytes"
                 )))
             },
         };
 
-        let htlc_params = match ethabi::decode(htlc_params(), data_bytes) {
-            Ok(htlc_params) => htlc_params,
-            Err(_) => {
-                return Err(PaymentStatusErr::TxDeserializationError(ERRL!(
-                    "Failed to decode HTLCParams from data_bytes"
-                )))
-            },
-        };
+        let htlc_params =
+            ethabi::decode(htlc_params(), data_bytes).map_err(|e| PaymentStatusErr::ABIError(ERRL!("{}", e)))?;
 
         let state = self
             .payment_status_v2(
@@ -479,20 +473,13 @@ fn decode_and_validate_htlc_params(
     let data_bytes = match decoded.get(index) {
         Some(Token::Bytes(bytes)) => bytes,
         _ => {
-            return MmError::err(HtlcParamsError::TxDeserializationError(
+            return MmError::err(HtlcParamsError::InvalidData(
                 "Expected Bytes for HTLCParams data".to_string(),
             ))
         },
     };
 
-    let decoded_params = match ethabi::decode(htlc_params(), data_bytes) {
-        Ok(params) => params,
-        Err(_) => {
-            return MmError::err(HtlcParamsError::TxDeserializationError(
-                "Failed to decode HTLCParams from data_bytes".to_string(),
-            ))
-        },
-    };
+    let decoded_params = ethabi::decode(htlc_params(), data_bytes)?;
 
     let expected_taker_secret_hash = Token::FixedBytes(expected_params.taker_secret_hash.clone());
     let expected_maker_secret_hash = Token::FixedBytes(expected_params.maker_secret_hash.clone());

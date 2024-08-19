@@ -941,8 +941,6 @@ pub(crate) enum PaymentStatusErr {
     Transport(String),
     #[display(fmt = "Internal error: {}", _0)]
     Internal(String),
-    #[display(fmt = "Tx deserialization error: {}", _0)]
-    TxDeserializationError(String),
     #[display(fmt = "Invalid data error: {}", _0)]
     InvalidData(String),
 }

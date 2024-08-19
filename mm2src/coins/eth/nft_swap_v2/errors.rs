@@ -1,4 +1,5 @@
 pub(crate) use crate::eth::eth_swap_v2::PrepareTxDataError;
+use enum_derives::EnumFromStringify;
 
 #[derive(Debug, Display)]
 pub(crate) enum Erc721FunctionError {
@@ -7,10 +8,13 @@ pub(crate) enum Erc721FunctionError {
     FunctionNotFound(String),
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, EnumFromStringify)]
 pub(crate) enum HtlcParamsError {
     WrongPaymentTx(String),
-    TxDeserializationError(String),
+    #[from_stringify("ethabi::Error")]
+    #[display(fmt = "ABI error: {}", _0)]
+    ABIError(String),
+    InvalidData(String),
 }
 
 impl From<Erc721FunctionError> for PrepareTxDataError {

@@ -86,9 +86,7 @@ impl From<PaymentStatusErr> for ValidatePaymentError {
     fn from(err: PaymentStatusErr) -> Self {
         match err {
             PaymentStatusErr::Transport(e) => Self::Transport(e),
-            PaymentStatusErr::ABIError(e)
-            | PaymentStatusErr::Internal(e)
-            | PaymentStatusErr::TxDeserializationError(e) => Self::InternalError(e),
+            PaymentStatusErr::ABIError(e) | PaymentStatusErr::Internal(e) => Self::InternalError(e),
             PaymentStatusErr::InvalidData(e) => Self::InvalidData(e),
         }
     }
@@ -98,7 +96,7 @@ impl From<HtlcParamsError> for ValidatePaymentError {
     fn from(err: HtlcParamsError) -> Self {
         match err {
             HtlcParamsError::WrongPaymentTx(e) => ValidatePaymentError::WrongPaymentTx(e),
-            HtlcParamsError::TxDeserializationError(e) => ValidatePaymentError::TxDeserializationError(e),
+            HtlcParamsError::ABIError(e) | HtlcParamsError::InvalidData(e) => ValidatePaymentError::InvalidData(e),
         }
     }
 }
