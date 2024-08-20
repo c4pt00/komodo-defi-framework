@@ -26,7 +26,7 @@ use ethcore_transaction::Action;
 use ethereum_types::U256;
 use futures::channel::mpsc;
 use futures01::Future;
-use mm2_core::mm_ctx::MmArc;
+use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
 use mm2_libp2p::behaviours::atomicdex::generate_ed25519_keypair;
 use mm2_net::p2p::P2PContext;
 use mm2_number::{BigDecimal, BigUint};
@@ -406,7 +406,10 @@ fn init_p2p_context(ctx: &MmArc) {
     let (cmd_tx, _) = mpsc::channel(10);
 
     let p2p_key = {
-        let crypto_ctx = CryptoCtx::from_ctx(ctx).unwrap();
+        let crypto_ctx = match CryptoCtx::from_ctx(ctx) {
+            Ok(crypto_ctx) => crypto_ctx,
+            Err(_) => CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap(),
+        };
         let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
         key.take()
     };
@@ -452,10 +455,14 @@ fn global_nft_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-
-    ensure_p2p_context(&MM_CTX1);
+    let ctx = MmCtxBuilder::new()
+        .with_conf(json!({"use_trading_proto_v2": true}))
+        .into_mm_arc();
+    ctx.init_metrics().unwrap();
+    CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap();
+    ensure_p2p_context(&ctx);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
-        &MM_CTX1,
+        &ctx,
         nft_ticker.as_str(),
         &nft_dev_conf(),
         platform_request,
@@ -1639,7 +1646,6 @@ fn eth_coin_v2_activation_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    ensure_p2p_context(&MM_CTX1);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         ticker,
