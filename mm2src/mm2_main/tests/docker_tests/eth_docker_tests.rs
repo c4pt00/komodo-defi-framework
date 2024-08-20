@@ -413,7 +413,7 @@ fn global_nft_with_random_privkey(
     let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret());
     let node = EthNode {
         url: GETH_RPC_URL.to_string(),
-        gui_auth: false,
+        komodo_proxy: false,
     };
     let platform_request = EthActivationV2Request {
         nodes: vec![node],
@@ -534,7 +534,7 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
 
     let node = EthNode {
         url: SEPOLIA_RPC_URL.to_string(),
-        gui_auth: false,
+        komodo_proxy: false,
     };
     let platform_request = EthActivationV2Request {
         nodes: vec![node],
@@ -1598,7 +1598,7 @@ fn eth_coin_v2_activation_with_random_privkey(
     let build_policy = EthPrivKeyBuildPolicy::IguanaPrivKey(random_secp256k1_secret());
     let node = EthNode {
         url: GETH_RPC_URL.to_string(),
-        gui_auth: false,
+        komodo_proxy: false,
     };
     let platform_request = EthActivationV2Request {
         nodes: vec![node],
