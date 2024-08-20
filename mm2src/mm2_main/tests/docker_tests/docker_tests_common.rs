@@ -24,7 +24,7 @@ use coins::utxo::{coin_daemon_data_dir, sat_from_big_decimal, zcash_params_path,
                   UtxoAddressFormat, UtxoCoinFields, UtxoCommonOps};
 use coins::{ConfirmPaymentInput, MarketCoinOps, Transaction};
 use crypto::privkey::key_pair_from_seed;
-use crypto::Secp256k1Secret;
+use crypto::{CryptoCtx, Secp256k1Secret};
 use ethabi::Token;
 use ethereum_types::{H160 as H160Eth, U256};
 use futures::TryFutureExt;
@@ -64,7 +64,11 @@ lazy_static! {
     /// This means that different instances of the same coin should have separate global nonce locks.
     /// Utilizing different `MmCtx` instances allows us to assign Maker and Taker coins to separate `CoinsCtx`.
     /// This approach addresses the `replacement transaction` issue, which occurs when different transactions share the same nonce.
-    pub static ref MM_CTX1: MmArc = MmCtxBuilder::new().with_conf(json!({"use_trading_proto_v2": true})).into_mm_arc();
+    pub static ref MM_CTX1: MmArc = {
+        let ctx = MmCtxBuilder::new().with_conf(json!({"use_trading_proto_v2": true})).into_mm_arc();
+        CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap();
+        ctx
+    };
     pub static ref GETH_WEB3: Web3<Http> = Web3::new(Http::new(GETH_RPC_URL).unwrap());
     pub static ref SEPOLIA_WEB3: Web3<Http> = Web3::new(Http::new(SEPOLIA_RPC_URL).unwrap());
     // Mutex used to prevent nonce re-usage during funding addresses used in tests
