@@ -2910,6 +2910,7 @@ pub async fn enable_tendermint(
     tx_history: bool,
 ) -> Json {
     let ibc_requests: Vec<_> = ibc_assets.iter().map(|ticker| json!({ "ticker": ticker })).collect();
+    let nodes: Vec<Json> = rpc_urls.iter().map(|u| json!({"url": u, "komodo_proxy": false })).collect();
 
     let request = json!({
         "userpass": mm.userpass,
@@ -2918,7 +2919,7 @@ pub async fn enable_tendermint(
         "params": {
             "ticker": coin,
             "tokens_params": ibc_requests,
-            "rpc_urls": rpc_urls,
+            "nodes": nodes,
             "tx_history": tx_history
         }
     });
@@ -2946,6 +2947,7 @@ pub async fn enable_tendermint_without_balance(
     tx_history: bool,
 ) -> Json {
     let ibc_requests: Vec<_> = ibc_assets.iter().map(|ticker| json!({ "ticker": ticker })).collect();
+    let nodes: Vec<Json> = rpc_urls.iter().map(|u| json!({"url": u, "komodo_proxy": false })).collect();
 
     let request = json!({
         "userpass": mm.userpass,
@@ -2954,7 +2956,7 @@ pub async fn enable_tendermint_without_balance(
         "params": {
             "ticker": coin,
             "tokens_params": ibc_requests,
-            "rpc_urls": rpc_urls,
+            "nodes": nodes,
             "tx_history": tx_history,
             "get_balances": false
         }
