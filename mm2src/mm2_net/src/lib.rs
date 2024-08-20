@@ -1,7 +1,7 @@
 pub mod grpc_web;
-pub mod is_peer_connected_rpc;
 #[cfg(feature = "event-stream")] pub mod network_event;
 #[cfg(feature = "p2p")] pub mod p2p;
+pub mod peer_connection_healthcheck;
 pub mod transport;
 
 #[cfg(not(target_arch = "wasm32"))] pub mod ip_addr;

@@ -113,6 +113,11 @@ pub enum AdexBehaviourCmd {
         msg: Vec<u8>,
         from: PeerId,
     },
+    /// TODO
+    PeerConnectionHealth {
+        peer: PeerId,
+        response_tx: oneshot::Sender<()>,
+    },
     /// Request relays sequential until a response is received.
     RequestAnyRelay {
         req: Vec<u8>,
@@ -162,6 +167,13 @@ pub enum AdexBehaviourCmd {
     },
 }
 
+pub async fn peer_connection_healthcheck(mut cmd_tx: AdexCmdTx, peer: PeerId) -> bool {
+    let (response_tx, rx) = oneshot::channel();
+    let cmd = AdexBehaviourCmd::PeerConnectionHealth { peer, response_tx };
+    cmd_tx.send(cmd).await.expect("Rx should be present");
+    rx.await.is_ok()
+}
+
 /// Returns info about connected peers
 pub async fn get_peers_info(mut cmd_tx: AdexCmdTx) -> HashMap<String, Vec<String>> {
     let (result_tx, rx) = oneshot::channel();
@@ -197,6 +209,21 @@ pub async fn get_relay_mesh(mut cmd_tx: AdexCmdTx) -> Vec<String> {
     let cmd = AdexBehaviourCmd::GetRelayMesh { result_tx };
     cmd_tx.send(cmd).await.expect("Rx should be present");
     rx.await.expect("Tx should be present")
+}
+
+async fn peer_connection_healthcheck_inner(
+    peer: PeerId,
+    request_response_tx: RequestResponseSender,
+    response_tx: oneshot::Sender<()>,
+) {
+    match request_one_peer(peer, vec![], request_response_tx).await {
+        PeerResponse::Ok { .. } if response_tx.send(()).is_ok() => {
+            info!("Connection is healthy for '{peer}' peer.");
+        },
+        response => {
+            error!("Connection isn't healthy for '{peer}' peer, response {response:?}");
+        },
+    }
 }
 
 async fn request_one_peer(peer: PeerId, req: Vec<u8>, mut request_response_tx: RequestResponseSender) -> PeerResponse {
@@ -342,6 +369,10 @@ impl AtomicDexBehaviour {
                 self.core
                     .gossipsub
                     .publish_from(TopicHash::from_raw(topic), msg, from)?;
+            },
+            AdexBehaviourCmd::PeerConnectionHealth { peer, response_tx } => {
+                let future = peer_connection_healthcheck_inner(peer, self.core.request_response.sender(), response_tx);
+                self.spawn(future);
             },
             AdexBehaviourCmd::RequestAnyRelay { req, response_tx } => {
                 let relays = self.core.gossipsub.get_relay_mesh();

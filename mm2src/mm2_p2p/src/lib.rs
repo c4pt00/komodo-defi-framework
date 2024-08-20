@@ -17,9 +17,10 @@ pub use crate::swarm_runtime::SwarmRuntime;
 
 // atomicdex related re-exports
 pub use behaviours::atomicdex::{get_gossip_mesh, get_gossip_peer_topics, get_gossip_topic_peers, get_peers_info,
-                                get_relay_mesh, spawn_gossipsub, AdexBehaviourCmd, AdexBehaviourError,
-                                AdexBehaviourEvent, AdexCmdTx, AdexEventRx, AdexResponse, AdexResponseChannel,
-                                GossipsubEvent, GossipsubMessage, MessageId, NodeType, TopicHash, WssCerts};
+                                get_relay_mesh, peer_connection_healthcheck, spawn_gossipsub, AdexBehaviourCmd,
+                                AdexBehaviourError, AdexBehaviourEvent, AdexCmdTx, AdexEventRx, AdexResponse,
+                                AdexResponseChannel, GossipsubEvent, GossipsubMessage, MessageId, NodeType, TopicHash,
+                                WssCerts};
 
 // peers-exchange re-exports
 pub use behaviours::peers_exchange::PeerAddresses;
