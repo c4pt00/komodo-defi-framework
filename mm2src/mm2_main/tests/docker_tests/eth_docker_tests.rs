@@ -21,11 +21,14 @@ use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, C
             SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,
             Transaction, TxPreimageWithSig, ValidateNftMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec};
-use crypto::Secp256k1Secret;
+use crypto::{CryptoCtx, Secp256k1Secret};
 use ethcore_transaction::Action;
 use ethereum_types::U256;
+use futures::channel::mpsc;
 use futures01::Future;
 use mm2_core::mm_ctx::MmArc;
+use mm2_libp2p::behaviours::atomicdex::generate_ed25519_keypair;
+use mm2_net::p2p::P2PContext;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, eth_sepolia_conf, nft_dev_conf, nft_sepolia_conf,
                                   sepolia_erc20_dev_conf};
@@ -399,6 +402,29 @@ pub enum TestNftType {
     Erc721 { token_id: u32 },
 }
 
+fn init_p2p_context(ctx: &MmArc) {
+    let (cmd_tx, _) = mpsc::channel(10);
+
+    let p2p_key = {
+        let crypto_ctx = match CryptoCtx::from_ctx(ctx) {
+            Ok(crypto_ctx) => crypto_ctx,
+            Err(_) => CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap(),
+        };
+        let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
+        key.take()
+    };
+
+    let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
+    p2p_context.store_to_mm_arc(ctx);
+}
+
+fn ensure_p2p_context(ctx: &MmArc) {
+    let p2p_ctx_lock = ctx.p2p_ctx.lock().unwrap();
+    if p2p_ctx_lock.is_none() {
+        init_p2p_context(ctx);
+    }
+}
+
 /// Generates a global NFT coin instance with a random private key and an initial 100 ETH balance.
 /// Optionally mints a specified NFT (either ERC721 or ERC1155) to the global NFT address,
 /// with details recorded in the `nfts_infos` field based on the provided `nft_type`.
@@ -430,6 +456,7 @@ fn global_nft_with_random_privkey(
         gap_limit: None,
     };
 
+    ensure_p2p_context(&MM_CTX1);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         nft_ticker.as_str(),
@@ -551,6 +578,7 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         gap_limit: None,
     };
 
+    ensure_p2p_context(ctx);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         ctx,
         ticker,
@@ -1614,6 +1642,7 @@ fn eth_coin_v2_activation_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
+    ensure_p2p_context(&MM_CTX1);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         ticker,
@@ -1823,7 +1852,7 @@ fn send_and_refund_taker_funding_exceed_pre_approve_timelock_eth() {
 }
 
 #[test]
-fn send_approve_and_spend_eth() {
+fn taker_send_approve_and_spend_eth() {
     // sepolia test
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
@@ -1931,7 +1960,7 @@ fn send_approve_and_spend_eth() {
 }
 
 #[test]
-fn send_approve_and_spend_erc20() {
+fn taker_send_approve_and_spend_erc20() {
     // sepolia test
     thread::sleep(Duration::from_secs(9));
     let erc20_conf = &sepolia_erc20_dev_conf(&sepolia_erc20_contract_checksum());
