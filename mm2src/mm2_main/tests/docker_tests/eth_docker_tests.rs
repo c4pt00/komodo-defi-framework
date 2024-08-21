@@ -456,7 +456,6 @@ fn global_nft_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    ensure_p2p_context(&MM_CTX1);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         nft_ticker.as_str(),
@@ -577,7 +576,6 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    ensure_p2p_context(ctx);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         ctx,
         ticker,
