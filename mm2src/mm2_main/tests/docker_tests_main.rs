@@ -79,12 +79,12 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         let utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
         let utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
         let qtum_ops = QtumDockerOps::new();
-        // let for_slp_ops = BchDockerOps::from_ticker("FORSLP");
+        let for_slp_ops = BchDockerOps::from_ticker("FORSLP");
 
         qtum_ops.wait_ready(2);
         qtum_ops.initialize_contracts();
-        // for_slp_ops.wait_ready(4);
-        // for_slp_ops.initialize_slp();
+        for_slp_ops.wait_ready(4);
+        for_slp_ops.initialize_slp();
         utxo_ops.wait_ready(4);
         utxo_ops1.wait_ready(4);
 
