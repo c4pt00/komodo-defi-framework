@@ -403,10 +403,13 @@ pub enum TestNftType {
 }
 
 pub(crate) fn init_p2p_context(ctx: &MmArc) {
-    let (cmd_tx, _) = mpsc::channel(10);
+    let (cmd_tx, _) = mpsc::channel(512);
 
     let p2p_key = {
-        let crypto_ctx = CryptoCtx::from_ctx(ctx).unwrap();
+        let crypto_ctx = match CryptoCtx::from_ctx(ctx) {
+            Ok(crypto_ctx) => crypto_ctx,
+            Err(_) => CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap(),
+        };
         let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
         key.take()
     };
@@ -453,6 +456,7 @@ fn global_nft_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
+    ensure_p2p_context(&MM_CTX1);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         nft_ticker.as_str(),
@@ -573,6 +577,7 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         path_to_address: Default::default(),
         gap_limit: None,
     };
+    ensure_p2p_context(ctx);
     let coin = block_on(eth_coin_from_conf_and_request_v2(
         ctx,
         ticker,
