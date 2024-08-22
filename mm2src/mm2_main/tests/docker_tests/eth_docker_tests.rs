@@ -21,11 +21,14 @@ use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, C
             SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,
             Transaction, TxPreimageWithSig, ValidateNftMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec};
-use crypto::Secp256k1Secret;
+use crypto::{CryptoCtx, Secp256k1Secret};
 use ethcore_transaction::Action;
 use ethereum_types::U256;
+use futures::channel::mpsc;
 use futures01::Future;
 use mm2_core::mm_ctx::MmArc;
+use mm2_libp2p::behaviours::atomicdex::generate_ed25519_keypair;
+use mm2_net::p2p::P2PContext;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, eth_sepolia_conf, nft_dev_conf, nft_sepolia_conf,
                                   sepolia_erc20_dev_conf};
@@ -397,6 +400,30 @@ pub fn erc20_coin_with_random_privkey(swap_contract_address: Address) -> EthCoin
 pub enum TestNftType {
     Erc1155 { token_id: u32, amount: u32 },
     Erc721 { token_id: u32 },
+}
+
+pub(crate) fn init_p2p_context(ctx: &MmArc) {
+    let (cmd_tx, _) = mpsc::channel(512);
+
+    let p2p_key = {
+        let crypto_ctx = match CryptoCtx::from_ctx(ctx) {
+            Ok(crypto_ctx) => crypto_ctx,
+            Err(_) => CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap(),
+        };
+        let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
+        key.take()
+    };
+
+    let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
+    p2p_context.store_to_mm_arc(ctx);
+}
+
+#[allow(dead_code)]
+fn ensure_p2p_context(ctx: &MmArc) {
+    let p2p_ctx_lock = ctx.p2p_ctx.lock().unwrap();
+    if p2p_ctx_lock.is_none() {
+        init_p2p_context(ctx);
+    }
 }
 
 /// Generates a global NFT coin instance with a random private key and an initial 100 ETH balance.
