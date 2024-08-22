@@ -796,6 +796,7 @@ async fn build_web3_instances(
 
     let event_handlers = rpc_event_handlers_for_eth_transport(ctx, coin_ticker.clone());
 
+    #[cfg(not(test))]
     let p2p_ctx = P2PContext::fetch_from_mm_arc(ctx);
     let mut web3_instances = Vec::with_capacity(eth_nodes.len());
     for eth_node in eth_nodes {
@@ -810,11 +811,15 @@ async fn build_web3_instances(
 
                 let node = WebsocketTransportNode { uri: uri.clone() };
 
+                #[cfg(not(test))]
                 let mut websocket_transport = WebsocketTransport::with_event_handlers(node, event_handlers.clone());
-
+                #[cfg(not(test))]
                 if eth_node.komodo_proxy {
                     websocket_transport.proxy_sign_keypair = Some(p2p_ctx.keypair().clone());
                 }
+
+                #[cfg(test)]
+                let websocket_transport = WebsocketTransport::with_event_handlers(node, event_handlers.clone());
 
                 // Temporarily start the connection loop (we close the connection once we have the client version below).
                 // Ideally, it would be much better to not do this workaround, which requires a lot of refactoring or
@@ -833,12 +838,17 @@ async fn build_web3_instances(
                     komodo_proxy: eth_node.komodo_proxy,
                 };
 
+                #[cfg(not(test))]
                 let komodo_proxy = node.komodo_proxy;
+                #[cfg(not(test))]
                 let mut http_transport = HttpTransport::with_event_handlers(node, event_handlers.clone());
-
+                #[cfg(not(test))]
                 if komodo_proxy {
                     http_transport.proxy_sign_keypair = Some(p2p_ctx.keypair().clone());
                 }
+
+                #[cfg(test)]
+                let http_transport = HttpTransport::with_event_handlers(node, event_handlers.clone());
 
                 Web3Transport::from(http_transport)
             },

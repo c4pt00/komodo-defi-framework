@@ -46,6 +46,7 @@ pub struct HttpTransport {
 #[derive(Clone, Debug)]
 pub struct HttpTransportNode {
     pub(crate) uri: http::Uri,
+    #[cfg_attr(test, allow(dead_code))]
     pub(crate) komodo_proxy: bool,
 }
 
