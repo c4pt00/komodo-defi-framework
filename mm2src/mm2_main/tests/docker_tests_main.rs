@@ -76,17 +76,17 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         let for_slp_node = utxo_asset_docker_node(&docker, "FORSLP", 10000);
         let geth_node = geth_docker_node(&docker, "ETH", 8545);
 
-        let utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
-        let utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
-        let qtum_ops = QtumDockerOps::new();
-        let for_slp_ops = BchDockerOps::from_ticker("FORSLP");
+        let _utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
+        let _utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
+        let _qtum_ops = QtumDockerOps::new();
+        let _for_slp_ops = BchDockerOps::from_ticker("FORSLP");
 
-        qtum_ops.wait_ready(2);
-        qtum_ops.initialize_contracts();
-        for_slp_ops.wait_ready(4);
-        for_slp_ops.initialize_slp();
-        utxo_ops.wait_ready(4);
-        utxo_ops1.wait_ready(4);
+        // qtum_ops.wait_ready(2);
+        // qtum_ops.initialize_contracts();
+        // for_slp_ops.wait_ready(4);
+        // for_slp_ops.initialize_slp();
+        // utxo_ops.wait_ready(4);
+        // utxo_ops1.wait_ready(4);
 
         wait_for_geth_node_ready();
         init_geth_node();

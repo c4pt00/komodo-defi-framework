@@ -214,6 +214,7 @@ pub struct BchDockerOps {
     coin: BchCoin,
 }
 
+#[allow(dead_code)]
 impl BchDockerOps {
     pub fn from_ticker(ticker: &str) -> BchDockerOps {
         let conf = json!({"asset": ticker,"txfee":1000,"network": "regtest","txversion":4,"overwintered":1});
