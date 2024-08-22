@@ -937,3 +937,209 @@ fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Erro
     let compressed = public_key.serialize();
     Ok(H264::from(compressed))
 }
+
+/// Eth from coin conf v2 activation for `eth_docker_tests.rs`
+/// It uses special `build_web3_instances_for_test` function
+#[cfg(all(feature = "for-tests", not(target_arch = "wasm32")))]
+pub async fn eth_coin_from_conf_and_request_v2_for_test(
+    ctx: &MmArc,
+    ticker: &str,
+    conf: &Json,
+    req: EthActivationV2Request,
+    priv_key_build_policy: EthPrivKeyBuildPolicy,
+) -> MmResult<EthCoin, EthActivationV2Error> {
+    if req.swap_contract_address == Address::default() {
+        return Err(EthActivationV2Error::InvalidSwapContractAddr(
+            "swap_contract_address can't be zero address".to_string(),
+        )
+        .into());
+    }
+
+    if ctx.use_trading_proto_v2() {
+        let contracts = req.swap_v2_contracts.as_ref().ok_or_else(|| {
+            EthActivationV2Error::InvalidPayload(
+                "swap_v2_contracts must be provided when using trading protocol v2".to_string(),
+            )
+        })?;
+        if contracts.maker_swap_v2_contract == Address::default()
+            || contracts.taker_swap_v2_contract == Address::default()
+            || contracts.nft_maker_swap_v2_contract == Address::default()
+        {
+            return Err(EthActivationV2Error::InvalidSwapContractAddr(
+                "All swap_v2_contracts addresses must be non-zero".to_string(),
+            )
+            .into());
+        }
+    }
+
+    if let Some(fallback) = req.fallback_swap_contract {
+        if fallback == Address::default() {
+            return Err(EthActivationV2Error::InvalidFallbackSwapContract(
+                "fallback_swap_contract can't be zero address".to_string(),
+            )
+            .into());
+        }
+    }
+
+    let (priv_key_policy, derivation_method) = build_address_and_priv_key_policy(
+        ctx,
+        ticker,
+        conf,
+        priv_key_build_policy,
+        &req.path_to_address,
+        req.gap_limit,
+    )
+    .await?;
+
+    let chain_id = conf["chain_id"].as_u64().ok_or(EthActivationV2Error::ChainIdNotSet)?;
+    let web3_instances = match (req.rpc_mode, &priv_key_policy) {
+        (EthRpcMode::Default, EthPrivKeyPolicy::Iguana(_) | EthPrivKeyPolicy::HDWallet { .. })
+        | (EthRpcMode::Default, EthPrivKeyPolicy::Trezor) => {
+            build_web3_instances_for_test(ctx, ticker.to_string(), req.nodes.clone()).await?
+        },
+    };
+
+    let required_confirmations = req
+        .required_confirmations
+        .unwrap_or_else(|| {
+            conf["required_confirmations"]
+                .as_u64()
+                .unwrap_or(DEFAULT_REQUIRED_CONFIRMATIONS as u64)
+        })
+        .into();
+
+    let sign_message_prefix: Option<String> = json::from_value(conf["sign_message_prefix"].clone()).ok();
+
+    let trezor_coin: Option<String> = json::from_value(conf["trezor_coin"].clone()).ok();
+
+    let address_nonce_locks = {
+        let mut map = NONCE_LOCK.lock().unwrap();
+        Arc::new(AsyncMutex::new(
+            map.entry(ticker.to_string()).or_insert_with(new_nonce_lock).clone(),
+        ))
+    };
+
+    let abortable_system = ctx.abortable_system.create_subsystem()?;
+    let coin_type = EthCoinType::Eth;
+    let platform_fee_estimator_state = FeeEstimatorState::init_fee_estimator(ctx, conf, &coin_type).await?;
+    let max_eth_tx_type = get_max_eth_tx_type_conf(ctx, conf, &coin_type).await?;
+    let gas_limit = extract_gas_limit_from_conf(conf)
+        .map_to_mm(|e| EthActivationV2Error::InternalError(format!("invalid gas_limit config {}", e)))?;
+
+    let coin = EthCoinImpl {
+        priv_key_policy,
+        derivation_method: Arc::new(derivation_method),
+        coin_type,
+        sign_message_prefix,
+        swap_contract_address: req.swap_contract_address,
+        swap_v2_contracts: req.swap_v2_contracts,
+        fallback_swap_contract: req.fallback_swap_contract,
+        contract_supports_watchers: req.contract_supports_watchers,
+        decimals: ETH_DECIMALS,
+        ticker: ticker.to_string(),
+        web3_instances: AsyncMutex::new(web3_instances),
+        history_sync_state: Mutex::new(HistorySyncState::NotEnabled),
+        swap_txfee_policy: Mutex::new(SwapTxFeePolicy::Internal),
+        max_eth_tx_type,
+        ctx: ctx.weak(),
+        required_confirmations,
+        chain_id,
+        trezor_coin,
+        logs_block_range: conf["logs_block_range"].as_u64().unwrap_or(DEFAULT_LOGS_BLOCK_RANGE),
+        address_nonce_locks,
+        erc20_tokens_infos: Default::default(),
+        nfts_infos: Default::default(),
+        platform_fee_estimator_state,
+        gas_limit,
+        abortable_system,
+    };
+
+    let coin = EthCoin(Arc::new(coin));
+    coin.spawn_balance_stream_if_enabled(ctx)
+        .await
+        .map_err(EthActivationV2Error::FailedSpawningBalanceEvents)?;
+
+    Ok(coin)
+}
+
+/// Builds web3 instances without using [P2PContext]
+#[cfg(all(feature = "for-tests", not(target_arch = "wasm32")))]
+async fn build_web3_instances_for_test(
+    ctx: &MmArc,
+    coin_ticker: String,
+    mut eth_nodes: Vec<EthNode>,
+) -> MmResult<Vec<Web3Instance>, EthActivationV2Error> {
+    if eth_nodes.is_empty() {
+        return MmError::err(EthActivationV2Error::AtLeastOneNodeRequired);
+    }
+
+    let mut rng = small_rng();
+    eth_nodes.as_mut_slice().shuffle(&mut rng);
+    drop_mutability!(eth_nodes);
+
+    let event_handlers = rpc_event_handlers_for_eth_transport(ctx, coin_ticker.clone());
+
+    let mut web3_instances = Vec::with_capacity(eth_nodes.len());
+    for eth_node in eth_nodes {
+        let uri: Uri = eth_node
+            .url
+            .parse()
+            .map_err(|_| EthActivationV2Error::InvalidPayload(format!("{} could not be parsed.", eth_node.url)))?;
+
+        let transport = match uri.scheme_str() {
+            Some("ws") | Some("wss") => {
+                const TMP_SOCKET_CONNECTION: Duration = Duration::from_secs(20);
+                let node = WebsocketTransportNode { uri: uri.clone() };
+                let websocket_transport = WebsocketTransport::with_event_handlers(node, event_handlers.clone());
+
+                // Temporarily start the connection loop (we close the connection once we have the client version below).
+                // Ideally, it would be much better to not do this workaround, which requires a lot of refactoring or
+                // dropping websocket support on parity nodes.
+                let fut = websocket_transport
+                    .clone()
+                    .start_connection_loop(Some(Instant::now() + TMP_SOCKET_CONNECTION));
+                let settings = AbortSettings::info_on_abort(format!("connection loop stopped for {:?}", uri));
+                ctx.spawner().spawn_with_settings(fut, settings);
+
+                Web3Transport::Websocket(websocket_transport)
+            },
+            Some("http") | Some("https") => {
+                let node = HttpTransportNode {
+                    uri,
+                    komodo_proxy: eth_node.komodo_proxy,
+                };
+
+                let http_transport = HttpTransport::with_event_handlers(node, event_handlers.clone());
+
+                Web3Transport::from(http_transport)
+            },
+            _ => {
+                return MmError::err(EthActivationV2Error::InvalidPayload(format!(
+                    "Invalid node address '{uri}'. Only http(s) and ws(s) nodes are supported"
+                )));
+            },
+        };
+
+        let web3 = Web3::new(transport);
+        let version = match web3.web3().client_version().await {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Couldn't get client version for url {}: {}", eth_node.url, e);
+                continue;
+            },
+        };
+
+        web3_instances.push(Web3Instance {
+            web3,
+            is_parity: version.contains("Parity") || version.contains("parity"),
+        });
+    }
+
+    if web3_instances.is_empty() {
+        return Err(
+            EthActivationV2Error::UnreachableNodes("Failed to get client version for all nodes".to_string()).into(),
+        );
+    }
+
+    Ok(web3_instances)
+}
