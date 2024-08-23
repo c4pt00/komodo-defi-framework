@@ -27,7 +27,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia::types::v1_standard_address_from_pubkey;
+use sia::spend_policy::SpendPolicy;
 
 pub mod sia_hd_wallet;
 
@@ -299,8 +299,7 @@ impl MarketCoinOps for SiaCoin {
                 .into());
             },
         };
-
-        let address = v1_standard_address_from_pubkey(&key_pair.public);
+        let address = SpendPolicy::PublicKey(key_pair.public).address();
         Ok(address.to_string())
     }
 
