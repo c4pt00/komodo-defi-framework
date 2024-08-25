@@ -1,9 +1,8 @@
 use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC721_TEST_ABI, GETH_ACCOUNT,
                                  GETH_ERC1155_CONTRACT, GETH_ERC20_CONTRACT, GETH_ERC721_CONTRACT, GETH_MAKER_SWAP_V2,
-                                 GETH_NFT_MAKER_SWAP_V2, GETH_NFT_SWAP_CONTRACT, GETH_NONCE_LOCK, GETH_RPC_URL,
-                                 GETH_SWAP_CONTRACT, GETH_TAKER_SWAP_V2, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3,
-                                 MM_CTX, MM_CTX1, SEPOLIA_ERC1155_CONTRACT, SEPOLIA_ERC20_CONTRACT,
-                                 SEPOLIA_ERC721_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2, SEPOLIA_MAKER_SWAP_V2,
+                                 GETH_NFT_MAKER_SWAP_V2, GETH_NONCE_LOCK, GETH_RPC_URL, GETH_SWAP_CONTRACT,
+                                 GETH_TAKER_SWAP_V2, GETH_WATCHERS_SWAP_CONTRACT, GETH_WEB3, MM_CTX, MM_CTX1,
+                                 SEPOLIA_ERC20_CONTRACT, SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2, SEPOLIA_MAKER_SWAP_V2,
                                  SEPOLIA_NONCE_LOCK, SEPOLIA_RPC_URL, SEPOLIA_TAKER_SWAP_V2, SEPOLIA_WEB3};
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
@@ -21,14 +20,11 @@ use coins::{lp_coinfind, CoinProtocol, CoinWithDerivationMethod, CoinsContext, C
             SpendPaymentArgs, SwapOps, SwapTxFeePolicy, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, ToBytes,
             Transaction, TxPreimageWithSig, ValidateNftMakerPaymentArgs, ValidateTakerFundingArgs};
 use common::{block_on, now_sec};
-use crypto::{CryptoCtx, Secp256k1Secret};
+use crypto::Secp256k1Secret;
 use ethcore_transaction::Action;
 use ethereum_types::U256;
-use futures::channel::mpsc;
 use futures01::Future;
 use mm2_core::mm_ctx::MmArc;
-use mm2_libp2p::behaviours::atomicdex::generate_ed25519_keypair;
-use mm2_net::p2p::P2PContext;
 use mm2_number::{BigDecimal, BigUint};
 use mm2_test_helpers::for_tests::{erc20_dev_conf, eth_dev_conf, eth_sepolia_conf, nft_dev_conf, nft_sepolia_conf,
                                   sepolia_erc20_dev_conf};
@@ -40,9 +36,7 @@ use web3::contract::{Contract, Options};
 use web3::ethabi::Token;
 use web3::types::{Address, BlockNumber, TransactionRequest, H256};
 
-#[allow(dead_code)]
 const SEPOLIA_MAKER_PRIV: &str = "6e2f3a6223b928a05a3a3622b0c3f3573d03663b704a61a6eb73326de0487928";
-#[allow(dead_code)]
 const SEPOLIA_TAKER_PRIV: &str = "e0be82dca60ff7e4c6d6db339ac9e1ae249af081dba2110bddd281e711608f16";
 const NFT_ETH: &str = "NFT_ETH";
 const ETH: &str = "ETH";
@@ -52,83 +46,48 @@ const ERC20: &str = "ERC20DEV";
 ///
 /// GETH_ACCOUNT is set once during initialization before tests start
 pub fn geth_account() -> Address { unsafe { GETH_ACCOUNT } }
-
 /// # Safety
 ///
 /// GETH_SWAP_CONTRACT is set once during initialization before tests start
 pub fn swap_contract() -> Address { unsafe { GETH_SWAP_CONTRACT } }
-
 /// # Safety
 ///
 /// GETH_MAKER_SWAP_V2 is set once during initialization before tests start
 pub fn maker_swap_v2() -> Address { unsafe { GETH_MAKER_SWAP_V2 } }
-
 /// # Safety
 ///
 /// GETH_TAKER_SWAP_V2 is set once during initialization before tests start
 pub fn taker_swap_v2() -> Address { unsafe { GETH_TAKER_SWAP_V2 } }
-#[allow(dead_code)]
 pub fn sepolia_taker_swap_v2() -> Address { unsafe { SEPOLIA_TAKER_SWAP_V2 } }
-#[allow(dead_code)]
 pub fn sepolia_maker_swap_v2() -> Address { unsafe { SEPOLIA_MAKER_SWAP_V2 } }
-
-#[allow(dead_code)]
-/// # Safety
-///
-/// GETH_NFT_SWAP_CONTRACT is set once during initialization before tests start
-pub fn nft_swap_contract() -> Address { unsafe { GETH_NFT_SWAP_CONTRACT } }
-
 /// # Safety
 ///
 /// GETH_NFT_MAKER_SWAP_V2 is set once during initialization before tests start
 pub fn geth_nft_maker_swap_v2() -> Address { unsafe { GETH_NFT_MAKER_SWAP_V2 } }
-
 /// # Safety
 ///
 /// GETH_WATCHERS_SWAP_CONTRACT is set once during initialization before tests start
 pub fn watchers_swap_contract() -> Address { unsafe { GETH_WATCHERS_SWAP_CONTRACT } }
-
 /// # Safety
 ///
 /// GETH_ERC20_CONTRACT is set once during initialization before tests start
 pub fn erc20_contract() -> Address { unsafe { GETH_ERC20_CONTRACT } }
-#[allow(dead_code)]
 pub fn sepolia_erc20_contract() -> Address { unsafe { SEPOLIA_ERC20_CONTRACT } }
-
 /// Return ERC20 dev token contract address in checksum format
 pub fn erc20_contract_checksum() -> String { checksum_address(&format!("{:02x}", erc20_contract())) }
-#[allow(dead_code)]
 pub fn sepolia_erc20_contract_checksum() -> String { checksum_address(&format!("{:02x}", sepolia_erc20_contract())) }
-
-#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_ERC721_CONTRACT is set once during initialization before tests start
 pub fn geth_erc721_contract() -> Address { unsafe { GETH_ERC721_CONTRACT } }
-
-#[allow(dead_code)]
 /// # Safety
 ///
 /// GETH_ERC1155_CONTRACT is set once during initialization before tests start
 pub fn geth_erc1155_contract() -> Address { unsafe { GETH_ERC1155_CONTRACT } }
-
-#[allow(dead_code)]
 /// # Safety
 ///
 /// SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 address is set once during initialization before tests start
 pub fn sepolia_etomic_maker_nft() -> Address { unsafe { SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 } }
-
-#[allow(dead_code)]
-/// # Safety
-///
-/// SEPOLIA_ERC721_CONTRACT address is set once during initialization before tests start
-pub fn sepolia_erc721() -> Address { unsafe { SEPOLIA_ERC721_CONTRACT } }
-
-#[allow(dead_code)]
-/// # Safety
-///
-/// SEPOLIA_ERC1155_CONTRACT address is set once during initialization before tests start
-pub fn sepolia_erc1155() -> Address { unsafe { SEPOLIA_ERC1155_CONTRACT } }
 
 fn wait_for_confirmation(tx_hash: H256) {
     thread::sleep(Duration::from_millis(2000));
@@ -177,32 +136,6 @@ fn fill_erc20(to_addr: Address, amount: U256) {
     ))
     .unwrap();
     wait_for_confirmation(tx_hash);
-}
-
-#[allow(dead_code)]
-fn check_eth_balance(address: Address) -> U256 {
-    let _guard = GETH_NONCE_LOCK.lock().unwrap();
-    block_on(GETH_WEB3.eth().balance(address, None)).unwrap()
-}
-
-#[allow(dead_code)]
-fn sepolia_check_eth_balance(address: Address) -> U256 {
-    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
-    block_on(SEPOLIA_WEB3.eth().balance(address, None)).unwrap()
-}
-
-#[allow(dead_code)]
-fn check_erc20_balance(address: Address) -> U256 {
-    let _guard = GETH_NONCE_LOCK.lock().unwrap();
-    let erc20_contract = Contract::from_json(GETH_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
-    block_on(erc20_contract.query("balanceOf", (address,), None, Options::default(), None)).unwrap()
-}
-
-#[allow(dead_code)]
-fn sepolia_check_erc20_balance(address: Address) -> U256 {
-    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
-    let erc20_contract = Contract::from_json(SEPOLIA_WEB3.eth(), erc20_contract(), ERC20_ABI.as_bytes()).unwrap();
-    block_on(erc20_contract.query("balanceOf", (address,), None, Options::default(), None)).unwrap()
 }
 
 fn mint_erc721(to_addr: Address, token_id: U256) {
@@ -402,30 +335,6 @@ pub enum TestNftType {
     Erc721 { token_id: u32 },
 }
 
-pub(crate) fn init_p2p_context(ctx: &MmArc) {
-    let (cmd_tx, _) = mpsc::channel(512);
-
-    let p2p_key = {
-        let crypto_ctx = match CryptoCtx::from_ctx(ctx) {
-            Ok(crypto_ctx) => crypto_ctx,
-            Err(_) => CryptoCtx::init_with_iguana_passphrase(ctx.clone(), "passphrase").unwrap(),
-        };
-        let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
-        key.take()
-    };
-
-    let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
-    p2p_context.store_to_mm_arc(ctx);
-}
-
-#[allow(dead_code)]
-fn ensure_p2p_context(ctx: &MmArc) {
-    let p2p_ctx_lock = ctx.p2p_ctx.lock().unwrap();
-    if p2p_ctx_lock.is_none() {
-        init_p2p_context(ctx);
-    }
-}
-
 /// Generates a global NFT coin instance with a random private key and an initial 100 ETH balance.
 /// Optionally mints a specified NFT (either ERC721 or ERC1155) to the global NFT address,
 /// with details recorded in the `nfts_infos` field based on the provided `nft_type`.
@@ -492,57 +401,6 @@ fn global_nft_with_random_privkey(
     global_nft
 }
 
-#[allow(dead_code)]
-/// Can be used to generate global NFT from Sepolia Maker/Taker priv keys.
-fn global_nft_from_privkey(
-    ctx: &MmArc,
-    swap_contract_address: Address,
-    secret: &'static str,
-    nft_type: Option<TestNftType>,
-) -> EthCoin {
-    let nft_conf = nft_sepolia_conf();
-    let req = json!({
-        "method": "enable",
-        "coin": "NFT_ETH",
-        "urls": [SEPOLIA_RPC_URL],
-        "swap_contract_address": swap_contract_address,
-    });
-
-    let priv_key = Secp256k1Secret::from(secret);
-    let global_nft = block_on(eth_coin_from_conf_and_request(
-        ctx,
-        NFT_ETH,
-        &nft_conf,
-        &req,
-        CoinProtocol::NFT {
-            platform: "ETH".to_string(),
-        },
-        PrivKeyBuildPolicy::IguanaPrivKey(priv_key),
-    ))
-    .unwrap();
-
-    let coins_ctx = CoinsContext::from_ctx(ctx).unwrap();
-    let mut coins = block_on(coins_ctx.lock_coins());
-    coins.insert(
-        global_nft.ticker().into(),
-        MmCoinStruct::new(MmCoinEnum::EthCoin(global_nft.clone())),
-    );
-
-    if let Some(nft_type) = nft_type {
-        match nft_type {
-            TestNftType::Erc1155 { token_id, amount } => {
-                block_on(fill_erc1155_info(&global_nft, sepolia_erc1155(), token_id, amount));
-            },
-            TestNftType::Erc721 { token_id } => {
-                block_on(fill_erc721_info(&global_nft, sepolia_erc721(), token_id));
-            },
-        }
-    }
-
-    global_nft
-}
-
-#[allow(dead_code)]
 /// Can be used to generate coin from Sepolia Maker/Taker priv keys.
 fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, conf: &Json, erc20: bool) -> EthCoin {
     let swap_addr = SwapAddresses {
@@ -603,7 +461,6 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
     coin
 }
 
-#[allow(dead_code)]
 fn get_or_create_sepolia_coin(ctx: &MmArc, priv_key: &'static str, ticker: &str, conf: &Json, erc20: bool) -> EthCoin {
     match block_on(lp_coinfind(ctx, ticker)).unwrap() {
         None => sepolia_coin_from_privkey(ctx, priv_key, ticker, conf, erc20),
@@ -612,62 +469,6 @@ fn get_or_create_sepolia_coin(ctx: &MmArc, priv_key: &'static str, ticker: &str,
             _ => panic!("Unexpected coin type found. Expected MmCoinEnum::EthCoin"),
         },
     }
-}
-
-#[allow(dead_code)]
-fn send_safe_transfer_from(
-    global_nft: &EthCoin,
-    token_address: Address,
-    from_address: Address,
-    to_address: Address,
-    nft_type: TestNftType,
-) -> web3::Result<SignedEthTx> {
-    let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
-
-    let contract = match nft_type {
-        TestNftType::Erc1155 { .. } => {
-            Contract::from_json(SEPOLIA_WEB3.eth(), token_address, ERC1155_TEST_ABI.as_bytes()).unwrap()
-        },
-        TestNftType::Erc721 { .. } => {
-            Contract::from_json(SEPOLIA_WEB3.eth(), token_address, ERC721_TEST_ABI.as_bytes()).unwrap()
-        },
-    };
-    let tokens = match nft_type {
-        TestNftType::Erc1155 { token_id, amount } => vec![
-            Token::Address(from_address),
-            Token::Address(to_address),
-            Token::Uint(U256::from(token_id)),
-            Token::Uint(U256::from(amount)),
-            Token::Bytes(vec![]),
-        ],
-        TestNftType::Erc721 { token_id } => vec![
-            Token::Address(from_address),
-            Token::Address(to_address),
-            Token::Uint(U256::from(token_id)),
-        ],
-    };
-
-    let data = contract
-        .abi()
-        .function("safeTransferFrom")
-        .unwrap()
-        .encode_input(&tokens)
-        .unwrap();
-
-    let result = block_on(
-        global_nft
-            .sign_and_send_transaction(
-                0.into(),
-                Action::Call(token_address),
-                data,
-                U256::from(ETH_MAX_TRADE_GAS),
-            )
-            .compat(),
-    )
-    .unwrap();
-
-    log!("Transaction sent: {:?}", result);
-    Ok(result)
 }
 
 /// Fills the private key's public address with ETH and ERC20 tokens
@@ -1060,7 +861,6 @@ fn send_and_spend_erc20_maker_payment_priority_fee() {
     send_and_spend_erc20_maker_payment_impl(SwapTxFeePolicy::Medium);
 }
 
-#[allow(dead_code)]
 /// Wait for all pending transactions for the given address to be confirmed
 fn wait_pending_transactions(wallet_address: Address) {
     let _guard = SEPOLIA_NONCE_LOCK.lock().unwrap();
@@ -1084,17 +884,6 @@ fn wait_pending_transactions(wallet_address: Address) {
             );
             thread::sleep(Duration::from_secs(1));
         }
-    }
-}
-
-#[allow(dead_code)]
-fn get_or_create_nft(ctx: &MmArc, priv_key: &'static str, nft_type: Option<TestNftType>) -> EthCoin {
-    match block_on(lp_coinfind(ctx, NFT_ETH)).unwrap() {
-        None => global_nft_from_privkey(ctx, sepolia_etomic_maker_nft(), priv_key, nft_type),
-        Some(mm_coin) => match mm_coin {
-            MmCoinEnum::EthCoin(nft) => nft,
-            _ => panic!("Unexpected coin type found. Expected MmCoinEnum::EthCoin"),
-        },
     }
 }
 
@@ -1599,6 +1388,7 @@ struct SwapAddresses {
 }
 
 #[allow(dead_code)]
+/// Needed for Geth taker or maker swap v2 tests
 impl SwapAddresses {
     fn init() -> Self {
         Self {
@@ -1614,6 +1404,7 @@ impl SwapAddresses {
 }
 
 #[allow(dead_code)]
+/// Needed for eth or erc20 v2 activation in Geth tests
 fn eth_coin_v2_activation_with_random_privkey(
     ticker: &str,
     conf: &Json,
