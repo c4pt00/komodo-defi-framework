@@ -853,13 +853,6 @@ pub fn nft_dev_conf() -> Json {
     })
 }
 
-/// global NFT configuration used for Sepolia testnet
-pub fn nft_sepolia_conf() -> Json {
-    let mut conf = nft_dev_conf();
-    set_chain_id(&mut conf, ETH_SEPOLIA_CHAIN_ID);
-    conf
-}
-
 fn set_chain_id(conf: &mut Json, chain_id: u64) {
     conf["chain_id"] = json!(chain_id);
 }
