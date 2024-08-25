@@ -541,7 +541,12 @@ impl EthCoin {
 }
 
 /// Activate eth coin from coin config and private key build policy,
-/// version 2 of the activation function, with no intrinsic tokens creation
+/// version 2 of the activation function, with no intrinsic tokens creation.
+///
+/// # Note
+/// If you make any changes to this function, do not forget to apply the same changes
+/// to the test function [eth_coin_from_conf_and_request_v2_for_test].
+/// The test function is used in configurations where the `for-tests` feature is enabled.
 pub async fn eth_coin_from_conf_and_request_v2(
     ctx: &MmArc,
     ticker: &str,
@@ -781,6 +786,10 @@ pub(crate) async fn build_address_and_priv_key_policy(
     }
 }
 
+/// # Note
+/// If you make any changes to this function, ensure that the same updates are applied
+/// to the corresponding test function [build_web3_instances_for_test].
+/// The test function is used in configurations where the `for-tests` feature is enabled.
 async fn build_web3_instances(
     ctx: &MmArc,
     coin_ticker: String,
