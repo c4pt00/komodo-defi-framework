@@ -53,7 +53,6 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
             UTXO_ASSET_DOCKER_IMAGE_WITH_TAG,
             QTUM_REGTEST_DOCKER_IMAGE_WITH_TAG,
             GETH_DOCKER_IMAGE_WITH_TAG,
-            SIA_DOCKER_IMAGE_WITH_TAG,
             NUCLEUS_IMAGE,
             ATOM_IMAGE,
             IBC_RELAYER_IMAGE,
@@ -74,7 +73,6 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         let qtum_node = qtum_docker_node(&docker, 9000);
         let for_slp_node = utxo_asset_docker_node(&docker, "FORSLP", 10000);
         let geth_node = geth_docker_node(&docker, "ETH", 8545);
-        let sia_node = sia_docker_node(&docker, "SIA", 9980);
 
         let utxo_ops = UtxoAssetDockerOps::from_ticker("MYCOIN");
         let utxo_ops1 = UtxoAssetDockerOps::from_ticker("MYCOIN1");
@@ -96,7 +94,6 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         containers.push(qtum_node);
         containers.push(for_slp_node);
         containers.push(geth_node);
-        containers.push(sia_node);
         containers.push(nucleus_node);
         containers.push(atom_node);
         containers.push(ibc_relayer_node);
