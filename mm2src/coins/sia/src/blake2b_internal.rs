@@ -92,7 +92,7 @@ pub fn public_key_leaf(unlock_key: &UnlockKey) -> H256 {
             combined.extend_from_slice(&32u64.to_le_bytes());
             combined.extend_from_slice(pubkey.as_bytes());
         },
-        UnlockKey::Unsupported { algorithm, public_key } => {
+        UnlockKey::NonStandard { algorithm, public_key } => {
             combined.extend_from_slice(algorithm.as_bytes());
             combined.extend_from_slice(&(public_key.len() as u64).to_le_bytes());
             combined.extend_from_slice(public_key);

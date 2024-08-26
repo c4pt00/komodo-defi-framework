@@ -265,7 +265,7 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnlockKey {
     Ed25519(PublicKey),
-    Unsupported { algorithm: Specifier, public_key: Vec<u8> },
+    NonStandard { algorithm: Specifier, public_key: Vec<u8> },
 }
 
 impl<'de> Deserialize<'de> for UnlockKey {
@@ -331,7 +331,7 @@ fn parse_unlock_key(input: &str) -> IResult<&str, UnlockKey> {
                 all_consuming(map_res(take_while(|c: char| c.is_ascii_hexdigit()), |hex_str: &str| {
                     hex::decode(hex_str)
                 }))(input)?;
-            Ok((input, UnlockKey::Unsupported {
+            Ok((input, UnlockKey::NonStandard {
                 algorithm: specifier,
                 public_key,
             }))
@@ -357,7 +357,7 @@ impl fmt::Display for UnlockKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UnlockKey::Ed25519(public_key) => write!(f, "ed25519:{}", hex::encode(public_key.as_bytes())),
-            UnlockKey::Unsupported { algorithm, public_key } => {
+            UnlockKey::NonStandard { algorithm, public_key } => {
                 write!(f, "{}:{}", algorithm, hex::encode(public_key))
             },
         }
@@ -376,7 +376,7 @@ impl Encodable for UnlockKey {
                 encoder.write_u64(32); // ed25519 public key length
                 public_key.encode(encoder);
             },
-            UnlockKey::Unsupported { algorithm, public_key } => {
+            UnlockKey::NonStandard { algorithm, public_key } => {
                 algorithm.encode(encoder);
                 encoder.write_u64(public_key.len() as u64);
                 encoder.write_slice(public_key);
