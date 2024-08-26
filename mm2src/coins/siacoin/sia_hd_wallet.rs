@@ -1,6 +1,6 @@
-use bip32::{ExtendedPublicKey, PublicKey as bip32PublicKey, PublicKeyBytes, PrivateKeyBytes, Result as bip32Result};
-use sia::{PublicKey, Address};
-use crate::hd_wallet::{HDAddress, HDAccount, HDWallet};
+use crate::hd_wallet::{HDAccount, HDAddress, HDWallet};
+use bip32::{ExtendedPublicKey, PrivateKeyBytes, PublicKey as bip32PublicKey, PublicKeyBytes, Result as bip32Result};
+use sia::{Address, PublicKey};
 
 pub struct SiaPublicKey(pub PublicKey);
 
@@ -10,7 +10,7 @@ pub type SiaHDWallet = HDWallet<SiaHDAccount>;
 pub type Ed25519ExtendedPublicKey = ExtendedPublicKey<SiaPublicKey>;
 
 impl bip32PublicKey for SiaPublicKey {
-    fn from_bytes(bytes: PublicKeyBytes) -> bip32Result<Self> {
+    fn from_bytes(_bytes: PublicKeyBytes) -> bip32Result<Self> {
         todo!()
         //Ok(secp256k1_ffi::PublicKey::from_slice(&bytes)?)
     }
@@ -20,7 +20,7 @@ impl bip32PublicKey for SiaPublicKey {
         // self.serialize()
     }
 
-    fn derive_child(&self, other: PrivateKeyBytes) -> bip32Result<Self> {
+    fn derive_child(&self, _other: PrivateKeyBytes) -> bip32Result<Self> {
         todo!()
         // use secp256k1_ffi::{Secp256k1, VerifyOnly};
         // let engine = Secp256k1::<VerifyOnly>::verification_only();

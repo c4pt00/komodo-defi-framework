@@ -1,8 +1,7 @@
-use mm2_number::MmNumber;
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia::http_endpoints::{AddressBalanceRequest, AddressUtxosRequest, ConsensusTipRequest, TxpoolBroadcastRequest};
 use sia::spend_policy::SpendPolicy;
-use sia::transaction::{SiacoinOutput, V2TransactionBuilder};
+use sia::transaction::{Currency, SiacoinOutput, V2TransactionBuilder};
 use sia::types::Address;
 use sia::{Keypair, PublicKey, SecretKey};
 use std::process::Command;
@@ -68,10 +67,9 @@ async fn test_sia_client_address_balance() {
     let request = AddressBalanceRequest { address };
     let response = api_client.dispatcher(request).await.unwrap();
 
-    assert_eq!(
-        response.siacoins,
-        MmNumber::from("1000000000000000000000000000000000000")
-    )
+    let expected = Currency::new(12919594847110692864, 54210108624275221);
+    assert_eq!(response.siacoins, expected);
+    assert_eq!(expected.to_u128(), 1000000000000000000000000000000000000);
 }
 
 #[tokio::test]

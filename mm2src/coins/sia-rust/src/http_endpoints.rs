@@ -1,7 +1,6 @@
 use crate::http_client::SiaApiClientError;
-use crate::transaction::{SiacoinElement, V1Transaction, V2Transaction};
+use crate::transaction::{Currency, SiacoinElement, V1Transaction, V2Transaction};
 use crate::types::{Address, BlockID, Event};
-use mm2_number::MmNumber;
 use reqwest::{Client, Method, Request, Url};
 use rpc::v1::types::H256;
 use serde::de::DeserializeOwned;
@@ -65,10 +64,10 @@ impl SiaApiRequest for AddressBalanceRequest {
 // https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/wallet/wallet.go#L25
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressBalanceResponse {
-    pub siacoins: MmNumber,
+    pub siacoins: Currency,
     #[serde(rename = "immatureSiacoins")]
-    pub immature_siacoins: MmNumber,
-    pub siafunds: MmNumber,
+    pub immature_siacoins: Currency,
+    pub siafunds: u64,
 }
 
 impl SiaApiResponse for AddressBalanceResponse {}
