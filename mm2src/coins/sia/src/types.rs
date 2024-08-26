@@ -15,6 +15,9 @@ use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
+const ADDRESS_HASH_LENGTH: usize = 32;
+const ADDRESS_CHECKSUM_LENGTH: usize = 6;
+
 // TODO this could probably include the checksum within the data type
 // generating the checksum on the fly is how Sia Go does this however
 #[derive(Debug, Clone, PartialEq)]
@@ -97,20 +100,20 @@ impl FromStr for Address {
             return Err(ParseAddressError::MissingPrefix);
         }
 
-        let without_prefix = &s[5..];
-        if without_prefix.len() != (32 + 6) * 2 {
+        let without_prefix = &s[ADDRESS_CHECKSUM_LENGTH-1..];
+        if without_prefix.len() != (ADDRESS_HASH_LENGTH + ADDRESS_CHECKSUM_LENGTH) * 2 {
             return Err(ParseAddressError::InvalidLength);
         }
 
-        let (address_hex, checksum_hex) = without_prefix.split_at(32 * 2);
+        let (address_hex, checksum_hex) = without_prefix.split_at(ADDRESS_HASH_LENGTH * 2);
 
-        let address_bytes: [u8; 32] = hex::decode(address_hex)
+        let address_bytes: [u8; ADDRESS_HASH_LENGTH] = hex::decode(address_hex)
             .map_err(ParseAddressError::from)?
             .try_into()
-            .expect("length is 32 bytes");
+            .map_err(|_| ParseAddressError::InvalidLength)?;
 
         let checksum = hex::decode(checksum_hex).map_err(ParseAddressError::from)?;
-        let checksum_bytes: [u8; 6] = checksum.try_into().expect("length is 6 bytes");
+        let checksum_bytes: [u8; ADDRESS_CHECKSUM_LENGTH] = checksum.try_into().map_err(|_| ParseAddressError::InvalidLength)?;
 
         if checksum_bytes != blake2b_checksum(&address_bytes) {
             return Err(ParseAddressError::InvalidChecksum);
