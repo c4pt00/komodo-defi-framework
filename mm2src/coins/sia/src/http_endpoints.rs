@@ -5,7 +5,7 @@ use mm2_number::MmNumber;
 use reqwest::{Client, Method, Request, Url};
 use rpc::v1::types::H256;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 const ENDPOINT_CONSENSUS_TIP: &str = "api/consensus/tip";
 
@@ -166,7 +166,21 @@ impl SiaApiRequest for TxpoolBroadcastRequest {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Default)]
+#[derive(Serialize, Debug, Default)]
 pub struct EmptyResponse;
+
+impl<'de> Deserialize<'de> for EmptyResponse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        if s.is_empty() {
+            Ok(EmptyResponse)
+        } else {
+            Err(serde::de::Error::custom("expected an empty string"))
+        }
+    }
+}
 
 impl SiaApiResponse for EmptyResponse {}
