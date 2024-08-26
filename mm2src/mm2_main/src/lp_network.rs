@@ -216,7 +216,9 @@ async fn process_p2p_message(
             }
         },
         Some(lp_healthcheck::PEER_HEALTHCHECK_PREFIX) => {
-            // ..
+            let sender_peer_id = PeerId::from_bytes(&message.data).expect("TODO");
+            println!("0000000000 COMING FROM {:?}", sender_peer_id.to_string());
+
             todo!()
         },
         None | Some(_) => (),
