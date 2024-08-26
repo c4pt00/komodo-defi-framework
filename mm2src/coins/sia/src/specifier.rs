@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::str::FromStr;
 
-// this macro allows us to define the byte arrays as constants at compile time
+/// this macro allows us to define the byte arrays as constants at compile time
 macro_rules! define_byte_array_const {
     ($name:ident, $size:expr, $value:expr) => {
         pub const $name: [u8; $size] = {
@@ -31,7 +31,7 @@ define_byte_array_const!(ENTROPY, 16, "entropy");
 define_byte_array_const!(UNKNOWN, 16, "unknown");
 
 // https://github.com/SiaFoundation/core/blob/6c19657baf738c6b730625288e9b5413f77aa659/types/types.go#L40-L49
-// A Specifier is a fixed-size, 0-padded identifier.
+/// A Specifier is a fixed-size, 0-padded identifier.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum Specifier {
     Ed25519,

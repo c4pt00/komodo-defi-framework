@@ -27,7 +27,7 @@ pub enum SpendPolicy {
     UnlockConditions(UnlockCondition), // For v1 compatibility
 }
 
-// Helper to serialize/deserialize SpendPolicy with prefixed PublicKey and H256
+/// Helper to serialize/deserialize SpendPolicy with prefixed PublicKey and H256
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", content = "policy", rename_all = "camelCase")]
 pub enum SpendPolicyHelper {
@@ -259,9 +259,9 @@ pub fn spend_policy_atomic_swap_refund(alice: PublicKey, bob: PublicKey, lock_ti
     }
 }
 
-// Sia Go v1 technically supports arbitrary length public keys
-// We only support ed25519 but must be able to deserialize others
-// This data structure deviates from the Go implementation
+/// Sia Go v1 technically supports arbitrary length public keys
+/// We only support ed25519 but must be able to deserialize others
+/// This data structure deviates from the Go implementation
 #[derive(Clone, Debug, PartialEq)]
 pub enum UnlockKey {
     Ed25519(PublicKey),

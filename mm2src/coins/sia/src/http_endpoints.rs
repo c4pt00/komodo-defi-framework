@@ -43,7 +43,7 @@ pub struct ConsensusTipResponse {
 
 impl SiaApiResponse for ConsensusTipResponse {}
 
-// GET /addresses/:addr/balance
+/// GET /addresses/:addr/balance
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressBalanceRequest {
     pub address: Address,
@@ -73,7 +73,7 @@ pub struct AddressBalanceResponse {
 
 impl SiaApiResponse for AddressBalanceResponse {}
 
-// GET /events/:id
+/// GET /events/:id
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EventsTxidRequest {
     pub txid: H256,
@@ -96,7 +96,7 @@ pub struct EventsTxidResponse(pub Event);
 
 impl SiaApiResponse for EventsTxidResponse {}
 
-// GET /addresses/:addr/events
+/// GET /addresses/:addr/events
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressesEventsRequest {
     pub address: Address,
@@ -118,7 +118,7 @@ pub type AddressesEventsResponse = Vec<Event>;
 
 impl SiaApiResponse for Vec<Event> {}
 
-// GET /addresses/:addr/outputs/siacoin
+/// GET /addresses/:addr/outputs/siacoin
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressUtxosRequest {
     pub address: Address,
@@ -140,7 +140,7 @@ impl SiaApiRequest for AddressUtxosRequest {
     }
 }
 
-// POST /txpool/broadcast
+/// POST /txpool/broadcast
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TxpoolBroadcastRequest {
     pub transactions: Vec<V1Transaction>,
