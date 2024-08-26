@@ -51,7 +51,7 @@ pub trait Encodable {
     fn encode(&self, encoder: &mut Encoder);
 }
 
-// This wrapper allows us to use Signature internally but still serde as "sig:" prefixed string
+/// This wrapper allows us to use Signature internally but still serde as "sig:" prefixed string
 #[derive(Debug)]
 pub struct PrefixedSignature(pub Signature);
 
@@ -108,7 +108,7 @@ impl From<Signature> for PrefixedSignature {
     fn from(signature: Signature) -> Self { PrefixedSignature(signature) }
 }
 
-// This wrapper allows us to use PublicKey internally but still serde as "ed25519:" prefixed string
+/// This wrapper allows us to use PublicKey internally but still serde as "ed25519:" prefixed string
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrefixedPublicKey(pub PublicKey);
 
@@ -163,7 +163,7 @@ impl From<PublicKey> for PrefixedPublicKey {
     fn from(public_key: PublicKey) -> Self { PrefixedPublicKey(public_key) }
 }
 
-// This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
+/// This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrefixedH256(pub H256);
 
