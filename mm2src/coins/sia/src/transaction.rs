@@ -1028,9 +1028,7 @@ impl V2TransactionBuilder {
                 .map_err(|e| format!("signature creation error: {}", e))?;
             for si in &mut self.siacoin_inputs {
                 match &si.satisfied_policy.policy {
-                    SpendPolicy::PublicKey(pk) if pk == &keypair.public => {
-                        si.satisfied_policy.signatures.push(sig)
-                    },
+                    SpendPolicy::PublicKey(pk) if pk == &keypair.public => si.satisfied_policy.signatures.push(sig),
                     SpendPolicy::UnlockConditions(uc) => {
                         for p in &uc.unlock_keys {
                             match p {

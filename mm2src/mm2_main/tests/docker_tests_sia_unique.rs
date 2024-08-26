@@ -1,4 +1,4 @@
-#![allow(unused_imports,dead_code)]
+#![allow(unused_imports, dead_code)]
 #![cfg(feature = "enable-sia")]
 #![feature(async_closure)]
 #![feature(custom_test_frameworks)]
