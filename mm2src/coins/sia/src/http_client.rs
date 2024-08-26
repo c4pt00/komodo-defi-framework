@@ -72,38 +72,23 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, request: Request)
     })?;
 
     let status = fetched.status().as_u16();
-    match status {
-        200 => {},
-        500 => {
-            // FIXME handle unwrap gracefully
-            return fetched
-                .text()
-                .await
-                .map_err(|e| {
-                    SiaApiClientError::ReqwestParseInvalidEncodingError(
-                        ReqwestErrorWithUrl {
-                            error: e,
-                            url: url.clone(),
-                        }
-                        .to_string(),
-                    )
-                })
-                .and_then(|body| Err(SiaApiClientError::ApiInternalError(body)));
-        },
-        _ => {
-            return Err(SiaApiClientError::UnexpectedHttpStatus(status));
-        },
-    }
-    let response_text = fetched.text().await.map_err(|e| {
-        SiaApiClientError::ReqwestParseInvalidEncodingError(
-            ReqwestErrorWithUrl {
-                error: e,
-                url: url.clone(),
-            }
-            .to_string(),
-        )
-    })?;
+    let response_text = match status {
+        200 | 500 => fetched.text().await.map_err(|e| {
+            SiaApiClientError::ReqwestParseInvalidEncodingError(
+                ReqwestErrorWithUrl {
+                    error: e,
+                    url: url.clone(),
+                }
+                .to_string(),
+            )
+        })?,
+        s => return Err(SiaApiClientError::UnexpectedHttpStatus(s)),
+    };
 
+    if status == 500 {
+        return Err(SiaApiClientError::ApiInternalError(response_text));
+    }
+    
     // Handle status 200 empty responses with marker types
     if response_text.trim().is_empty() {
         // Attempt to deserialize as EmptyResponse marker struct
