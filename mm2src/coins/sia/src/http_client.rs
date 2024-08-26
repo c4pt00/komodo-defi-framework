@@ -76,7 +76,19 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, request: Request)
         200 => {},
         500 => {
             // FIXME handle unwrap gracefully
-            return Err(SiaApiClientError::ApiInternalError(fetched.text().await.unwrap()));
+            return fetched
+                .text()
+                .await
+                .map_err(|e| {
+                    SiaApiClientError::ReqwestParseInvalidEncodingError(
+                        ReqwestErrorWithUrl {
+                            error: e,
+                            url: url.clone(),
+                        }
+                        .to_string(),
+                    )
+                })
+                .and_then(|body| Err(SiaApiClientError::ApiInternalError(body)));
         },
         _ => {
             return Err(SiaApiClientError::UnexpectedHttpStatus(status));
