@@ -74,6 +74,7 @@ use mm2_err_handle::prelude::*;
 
 pub mod heartbeat_event;
 pub mod lp_dispatcher;
+pub mod lp_healthcheck;
 pub mod lp_message_service;
 pub mod lp_network;
 pub mod lp_ordermatch;

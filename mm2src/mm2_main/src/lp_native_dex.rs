@@ -47,8 +47,9 @@ use std::{fs, usize};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::database::init_and_migrate_sql_db;
 use crate::heartbeat_event::HeartbeatEvent;
+use crate::lp_healthcheck::peer_healthcheck_topic;
 use crate::lp_message_service::{init_message_service, InitMessageServiceError};
-use crate::lp_network::{lp_network_ports, p2p_event_process_loop, NetIdError};
+use crate::lp_network::{lp_network_ports, p2p_event_process_loop, subscribe_to_topic, NetIdError};
 use crate::lp_ordermatch::{broadcast_maker_orders_keep_alive_loop, clean_memory_loop, init_ordermatch_context,
                            lp_ordermatch_loop, orders_kick_start, BalanceUpdateOrdermatchHandler, OrdermatchInitError};
 use crate::lp_swap::{running_swaps_num, swap_kick_starts};
@@ -633,7 +634,11 @@ pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
         );
     })
     .await;
-    let (cmd_tx, event_rx, _peer_id) = spawn_result?;
+
+    let (cmd_tx, event_rx, peer_id) = spawn_result?;
+
+    // Listen for health check messages.
+    subscribe_to_topic(&ctx, peer_healthcheck_topic(&peer_id));
 
     let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
     p2p_context.store_to_mm_arc(&ctx);

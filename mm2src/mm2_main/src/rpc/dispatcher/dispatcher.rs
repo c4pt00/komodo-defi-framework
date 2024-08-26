@@ -1,4 +1,5 @@
 use super::{DispatcherError, DispatcherResult, PUBLIC_METHODS};
+use crate::lp_healthcheck::peer_connection_healthcheck_rpc;
 use crate::lp_native_dex::init_hw::{cancel_init_trezor, init_trezor, init_trezor_status, init_trezor_user_action};
 #[cfg(target_arch = "wasm32")]
 use crate::lp_native_dex::init_metamask::{cancel_connect_metamask, connect_metamask, connect_metamask_status};
@@ -57,7 +58,6 @@ use http::Response;
 use mm2_core::data_asker::send_asked_data_rpc;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
-use mm2_net::peer_connection_healthcheck::peer_connection_healthcheck_rpc;
 use mm2_rpc::mm_protocol::{MmRpcBuilder, MmRpcRequest, MmRpcVersion};
 use nft::{clear_nft_db, get_nft_list, get_nft_metadata, get_nft_transfers, refresh_nft_metadata, update_nft,
           withdraw_nft};
