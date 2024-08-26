@@ -183,7 +183,7 @@ impl Serialize for BlockID {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&format!("{}", self))
+        serializer.serialize_str(&self.to_string())
     }
 }
 
