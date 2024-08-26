@@ -47,6 +47,37 @@ pub struct Encoder {
     pub buffer: Vec<u8>,
 }
 
+impl Encoder {
+    pub fn reset(&mut self) { self.buffer.clear(); }
+
+    /// writes a length-prefixed []byte to the underlying stream.
+    pub fn write_len_prefixed_bytes(&mut self, data: &[u8]) {
+        self.buffer.extend_from_slice(&data.len().to_le_bytes());
+        self.buffer.extend_from_slice(data);
+    }
+
+    pub fn write_slice(&mut self, data: &[u8]) { self.buffer.extend_from_slice(data); }
+
+    pub fn write_u8(&mut self, u: u8) { self.buffer.extend_from_slice(&[u]) }
+
+    pub fn write_u64(&mut self, u: u64) { self.buffer.extend_from_slice(&u.to_le_bytes()); }
+
+    pub fn write_string(&mut self, p: &str) { self.write_len_prefixed_bytes(p.to_string().as_bytes()); }
+
+    pub fn write_distinguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
+
+    pub fn write_bool(&mut self, b: bool) { self.buffer.push(b as u8) }
+
+    pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
+
+    // Utility method to create, encode, and hash
+    pub fn encode_and_hash<T: Encodable>(item: &T) -> H256 {
+        let mut encoder = Encoder::default();
+        item.encode(&mut encoder);
+        encoder.hash()
+    }
+}
+
 pub trait Encodable {
     fn encode(&self, encoder: &mut Encoder);
 }
@@ -223,37 +254,6 @@ impl From<H256> for PrefixedH256 {
 
 impl Encodable for H256 {
     fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.0); }
-}
-
-impl Encoder {
-    pub fn reset(&mut self) { self.buffer.clear(); }
-
-    /// writes a length-prefixed []byte to the underlying stream.
-    pub fn write_len_prefixed_bytes(&mut self, data: &[u8]) {
-        self.buffer.extend_from_slice(&data.len().to_le_bytes());
-        self.buffer.extend_from_slice(data);
-    }
-
-    pub fn write_slice(&mut self, data: &[u8]) { self.buffer.extend_from_slice(data); }
-
-    pub fn write_u8(&mut self, u: u8) { self.buffer.extend_from_slice(&[u]) }
-
-    pub fn write_u64(&mut self, u: u64) { self.buffer.extend_from_slice(&u.to_le_bytes()); }
-
-    pub fn write_string(&mut self, p: &str) { self.write_len_prefixed_bytes(p.to_string().as_bytes()); }
-
-    pub fn write_distinguisher(&mut self, p: &str) { self.buffer.extend_from_slice(format!("sia/{}|", p).as_bytes()); }
-
-    pub fn write_bool(&mut self, b: bool) { self.buffer.push(b as u8) }
-
-    pub fn hash(&self) -> H256 { hash_blake2b_single(&self.buffer) }
-
-    // Utility method to create, encode, and hash
-    pub fn encode_and_hash<T: Encodable>(item: &T) -> H256 {
-        let mut encoder = Encoder::default();
-        item.encode(&mut encoder);
-        encoder.hash()
-    }
 }
 
 #[test]
