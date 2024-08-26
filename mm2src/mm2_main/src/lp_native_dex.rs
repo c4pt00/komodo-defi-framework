@@ -637,14 +637,14 @@ pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
 
     let (cmd_tx, event_rx, peer_id) = spawn_result?;
 
-    // Listen for health check messages.
-    subscribe_to_topic(&ctx, peer_healthcheck_topic(&peer_id));
-
     let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
     p2p_context.store_to_mm_arc(&ctx);
 
     let fut = p2p_event_process_loop(ctx.weak(), event_rx, i_am_seed);
     ctx.spawner().spawn(fut);
+
+    // Listen for health check messages.
+    subscribe_to_topic(&ctx, peer_healthcheck_topic(&peer_id));
 
     Ok(())
 }
