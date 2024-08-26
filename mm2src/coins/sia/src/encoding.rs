@@ -3,40 +3,33 @@ use crate::{PublicKey, Signature};
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct HexArray64(pub [u8; 64]);
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct HexArray64(#[serde(with = "hex")] pub [u8; 64]);
 
-impl<'de> Deserialize<'de> for HexArray64 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let hex_str: String = Deserialize::deserialize(deserializer)?;
-        let decoded_vec = hex::decode(hex_str).map_err(serde::de::Error::custom)?;
+impl AsRef<[u8]> for HexArray64 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 
-        if decoded_vec.len() != 64 {
-            return Err(serde::de::Error::custom("Invalid length: expected 64 byte hex string"));
-        }
+impl TryFrom<String> for HexArray64 {
+    type Error = hex::FromHexError;
 
-        let array: [u8; 64] = decoded_vec
-            .try_into()
-            .map_err(|_| serde::de::Error::custom("Failed to convert Vec<u8> to [u8; 64]"))?;
-
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let bytes = hex::decode(value)?;
+        let array = bytes.try_into().map_err(|_| hex::FromHexError::InvalidStringLength)?;
         Ok(HexArray64(array))
     }
 }
 
-impl Serialize for HexArray64 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let hex_str = hex::encode(self.0);
-        serializer.serialize_str(&hex_str)
+impl From<HexArray64> for String {
+    fn from(value: HexArray64) -> Self {
+        hex::encode(value.0)
     }
 }
 
