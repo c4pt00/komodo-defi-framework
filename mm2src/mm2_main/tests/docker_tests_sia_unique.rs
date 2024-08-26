@@ -1,4 +1,5 @@
-#![cfg(feature = "run-docker-tests")]
+#![allow(unused_imports,dead_code)]
+#![cfg(feature = "enable-sia")]
 #![feature(async_closure)]
 #![feature(custom_test_frameworks)]
 #![feature(test)]
