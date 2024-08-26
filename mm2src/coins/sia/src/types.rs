@@ -100,7 +100,7 @@ impl FromStr for Address {
             return Err(ParseAddressError::MissingPrefix);
         }
 
-        let without_prefix = &s[ADDRESS_CHECKSUM_LENGTH-1..];
+        let without_prefix = &s[ADDRESS_CHECKSUM_LENGTH - 1..];
         if without_prefix.len() != (ADDRESS_HASH_LENGTH + ADDRESS_CHECKSUM_LENGTH) * 2 {
             return Err(ParseAddressError::InvalidLength);
         }
@@ -113,7 +113,8 @@ impl FromStr for Address {
             .map_err(|_| ParseAddressError::InvalidLength)?;
 
         let checksum = hex::decode(checksum_hex).map_err(ParseAddressError::from)?;
-        let checksum_bytes: [u8; ADDRESS_CHECKSUM_LENGTH] = checksum.try_into().map_err(|_| ParseAddressError::InvalidLength)?;
+        let checksum_bytes: [u8; ADDRESS_CHECKSUM_LENGTH] =
+            checksum.try_into().map_err(|_| ParseAddressError::InvalidLength)?;
 
         if checksum_bytes != blake2b_checksum(&address_bytes) {
             return Err(ParseAddressError::InvalidChecksum);

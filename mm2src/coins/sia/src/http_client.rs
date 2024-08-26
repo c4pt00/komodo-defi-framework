@@ -3,7 +3,7 @@ use crate::types::Address;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _; // required for .encode() method
 use core::fmt::Display;
-use core::time::Duration;
+#[cfg(not(target_arch = "wasm32"))] use core::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Error as ReqwestError, Request, Url};
 // use reqwest::Proxy; TODO remove debugging code
@@ -123,10 +123,15 @@ impl SiaApiClient {
             HeaderValue::from_str(&auth_value).map_err(|e| SiaApiClientError::BuildError(e.to_string()))?,
         );
         //let proxy = Proxy::http("http://127.0.0.1:8080").unwrap(); TODO remove debugging code
-        let client = Client::builder()
+        let client_builder = Client::builder()
             //.proxy(proxy)
-            .default_headers(headers)
-            .timeout(Duration::from_secs(10)) // TODO make this configurable
+            .default_headers(headers);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        // TODO make this configurable and add timeout for wasm using `fetch_and_parse`
+        let client_builder = client_builder.timeout(Duration::from_secs(10));
+
+        let client = client_builder
             .build()
             // covering this with a unit test seems to require altering the system's ssl certificates
             .map_err(|e| {

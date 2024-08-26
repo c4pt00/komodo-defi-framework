@@ -12,9 +12,7 @@ use std::str::FromStr;
 pub struct HexArray64(#[serde(with = "hex")] pub [u8; 64]);
 
 impl AsRef<[u8]> for HexArray64 {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
+    fn as_ref(&self) -> &[u8] { &self.0 }
 }
 
 impl TryFrom<String> for HexArray64 {
@@ -28,9 +26,7 @@ impl TryFrom<String> for HexArray64 {
 }
 
 impl From<HexArray64> for String {
-    fn from(value: HexArray64) -> Self {
-        hex::encode(value.0)
-    }
+    fn from(value: HexArray64) -> Self { hex::encode(value.0) }
 }
 
 // https://github.com/SiaFoundation/core/blob/092850cc52d3d981b19c66cd327b5d945b3c18d3/types/encoding.go#L16
