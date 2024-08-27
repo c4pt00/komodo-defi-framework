@@ -19,7 +19,7 @@ enable-solana = [
 enable-sia = [
 	"dep:reqwest",
 	"dep:blake2b_simd",
-	"dep:sia"
+	"dep:sia-rust"
 ]
 default = []
 run-docker-tests = []
@@ -107,7 +107,7 @@ serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 serde_with = "1.14.0"
 serialization = { path = "../mm2_bitcoin/serialization" }
 serialization_derive = { path = "../mm2_bitcoin/serialization_derive" }
-sia = { path = "sia", optional = true }
+sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust", rev = "d398387", optional = true }
 spv_validation = { path = "../mm2_bitcoin/spv_validation" }
 sha2 = "0.10"
 sha3 = "0.9"

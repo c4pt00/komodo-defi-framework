@@ -1,11 +1,10 @@
 use common::block_on;
-use mm2_number::MmNumber;
-use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia::http_endpoints::{AddressBalanceRequest, AddressUtxosRequest, ConsensusTipRequest, TxpoolBroadcastRequest};
-use sia::spend_policy::SpendPolicy;
-use sia::transaction::{SiacoinOutput, V2TransactionBuilder};
-use sia::types::Address;
-use sia::{Keypair, PublicKey, SecretKey};
+use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
+use sia_rust::http_endpoints::{AddressBalanceRequest, AddressUtxosRequest, ConsensusTipRequest, TxpoolBroadcastRequest};
+use sia_rust::spend_policy::SpendPolicy;
+use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
+use sia_rust::types::{Address, Currency};
+use sia_rust::{Keypair, PublicKey, SecretKey};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
