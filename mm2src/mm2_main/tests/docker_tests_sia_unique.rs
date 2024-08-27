@@ -35,23 +35,15 @@ use docker_tests::docker_tests_common::*;
 
 #[allow(dead_code)] mod integration_tests_common;
 
-// AP: custom test runner is intended to initialize the required environment (e.g. coin daemons in the docker containers)
-// and then gracefully clear it by dropping the RAII docker container handlers
-// I've tried to use static for such singleton initialization but it turned out that despite
-// rustc allows to use Drop as static the drop fn won't ever be called
-// NB: https://github.com/rust-lang/rfcs/issues/1111
-// the only preparation step required is Zcash params files downloading:
-// Windows - https://github.com/KomodoPlatform/komodo/blob/master/zcutil/fetch-params.bat
-// Linux and MacOS - https://github.com/KomodoPlatform/komodo/blob/master/zcutil/fetch-params.sh
+/// Custom test runner intended to initialize the SIA coin daemon in a Docker container.
 pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
-    // pretty_env_logger::try_init();
     let docker = Cli::default();
     let mut containers = vec![];
 
     let skip_docker_tests_runner = std::env::var("SKIP_DOCKER_TESTS_RUNNER")
         .map(|v| v == "1")
         .unwrap_or(false);
-    // skip Docker containers initialization if we are intended to run test_mm_start only
+
     if !skip_docker_tests_runner {
         const IMAGES: &[&str] = &[SIA_DOCKER_IMAGE_WITH_TAG];
 

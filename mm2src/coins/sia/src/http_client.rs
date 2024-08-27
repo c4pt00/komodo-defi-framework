@@ -1,13 +1,12 @@
 use crate::http_endpoints::{AddressBalanceRequest, AddressBalanceResponse, ConsensusTipRequest, SiaApiRequest};
 use crate::types::Address;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::Engine as _; // required for .encode() method
+use base64::Engine;
 use core::fmt::Display;
 #[cfg(not(target_arch = "wasm32"))] use core::time::Duration;
+use derive_more::Display;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::{Client, Error as ReqwestError, Request, Url};
-// use reqwest::Proxy; TODO remove debugging code
-use derive_more::Display;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +16,7 @@ pub struct SiaHttpConf {
     pub password: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SiaApiClient {
     client: Client,
     conf: SiaHttpConf,
@@ -91,18 +90,17 @@ async fn fetch_and_parse<T: DeserializeOwned>(client: &Client, request: Request)
 
     let json: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
         SiaApiClientError::ReqwestParseInvalidJsonError(format!(
-            "Response text: {} is not JSON as expected. {}",
-            response_text,
-            e.to_string()
+            "Failed to parse response as JSON. Response: '{}'. Error: {}",
+            response_text, e
         ))
     })?;
 
     let parsed: T = serde_json::from_value(json.clone()).map_err(|e| {
         SiaApiClientError::ReqwestParseUnexpectedTypeError(format!(
-            "Response text: {} is not the expected type {:?} . {}",
-            json.to_string(),
+            "JSON response does not match the expected type '{:?}'. Response: '{}'. Error: {}",
             std::any::type_name::<T>(),
-            e.to_string()
+            json.to_string(),
+            e
         ))
     })?;
 

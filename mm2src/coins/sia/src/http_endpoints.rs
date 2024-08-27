@@ -15,7 +15,9 @@ pub trait SiaApiRequest {
     fn to_http_request(&self, client: &Client, base_url: &Url) -> Result<Request, SiaApiClientError>;
 }
 
-// marker trait
+/// Marker trait for Sia API responses.
+///
+/// This trait is used to indicate that a type can be used as a response
 pub trait SiaApiResponse {}
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -34,7 +36,9 @@ impl SiaApiRequest for ConsensusTipRequest {
     }
 }
 
-// https://github.com/SiaFoundation/core/blob/4e46803f702891e7a83a415b7fcd7543b13e715e/types/types.go#L181
+/// The current consensus tip of the Sia network.
+/// It's a ChainIndex pairing a block's height with its ID.
+/// https://github.com/SiaFoundation/core/blob/4e46803f702891e7a83a415b7fcd7543b13e715e/types/types.go#L181
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ConsensusTipResponse {
     pub height: u64,
@@ -61,8 +65,9 @@ impl SiaApiRequest for AddressBalanceRequest {
     }
 }
 
-// https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/api/api.go#L36
-// https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/wallet/wallet.go#L25
+/// The balance response of for a Sia address.
+/// https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/api/api.go#L36
+/// https://github.com/SiaFoundation/walletd/blob/9574e69ff0bf84de1235b68e78db2a41d5e27516/wallet/wallet.go#L25
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressBalanceResponse {
     pub siacoins: MmNumber,
@@ -118,6 +123,7 @@ pub type AddressesEventsResponse = Vec<Event>;
 
 impl SiaApiResponse for Vec<Event> {}
 
+/// The request to get the unspent transaction outputs (UTXOs) for a Sia address.
 /// GET /addresses/:addr/outputs/siacoin
 #[derive(Deserialize, Serialize, Debug)]
 pub struct AddressUtxosRequest {
