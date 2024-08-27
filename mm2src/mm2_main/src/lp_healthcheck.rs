@@ -1,9 +1,10 @@
+use chrono::Utc;
 use common::HttpStatusCode;
 use crypto::CryptoCtx;
 use derive_more::Display;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::MmError;
-use mm2_libp2p::{encode_and_sign, pub_sub_topic, PeerId, TopicPrefix};
+use mm2_libp2p::{encode_and_sign, pub_sub_topic, Libp2pPublic, PeerId, SigningError, TopicPrefix};
 use mm2_net::p2p::P2PContext;
 use ser_error_derive::SerializeErrorType;
 use serde::{Deserialize, Serialize};
@@ -13,10 +14,68 @@ use crate::lp_network::broadcast_p2p_msg;
 
 pub const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 
-struct HealtCheckMsg {
-    peer_id: String,
-    public_key_encoded: Vec<u8>,
-    signature_bytes: Vec<u8>,
+struct HealthCheckMessage {
+    signature: Vec<u8>,
+    data: HealthCheckData,
+}
+
+impl HealthCheckMessage {
+    pub fn generate_message(ctx: &MmArc, target_peer: PeerId, expires_in_seconds: i64) -> Result<Self, SigningError> {
+        let p2p_ctx = P2PContext::fetch_from_mm_arc(ctx);
+        let sender_peer = p2p_ctx.peer_id().to_string();
+        let keypair = p2p_ctx.keypair();
+        let sender_public_key = keypair.public().encode_protobuf();
+        let target_peer = target_peer.to_string();
+
+        let data = HealthCheckData {
+            sender_peer,
+            sender_public_key,
+            target_peer,
+            expires_at: Utc::now().timestamp() + expires_in_seconds,
+        };
+
+        let signature = keypair.sign(&data.encode())?;
+
+        Ok(Self { signature, data })
+    }
+
+    fn is_received_message_valid(&self, my_peer_id: PeerId) -> bool {
+        if Utc::now().timestamp() > self.data.expires_at {
+            return false;
+        }
+
+        if self.data.target_peer != my_peer_id.to_string() {
+            return false;
+        }
+
+        let Ok(public_key) = Libp2pPublic::try_decode_protobuf(&self.data.sender_public_key) else { return false };
+
+        if self.data.sender_peer != public_key.to_peer_id().to_string() {
+            return false;
+        }
+
+        public_key.verify(&self.data.encode(), &self.signature)
+    }
+}
+
+struct HealthCheckData {
+    sender_peer: String,
+    sender_public_key: Vec<u8>,
+    target_peer: String,
+    expires_at: i64,
+}
+
+impl HealthCheckData {
+    fn encode(&self) -> Vec<u8> {
+        let mut bytes = vec![];
+
+        bytes.extend(self.sender_peer.as_bytes());
+        bytes.extend(&self.sender_public_key);
+        bytes.extend(self.target_peer.as_bytes());
+        bytes.extend(self.expires_at.to_ne_bytes());
+
+        bytes
+    }
 }
 
 #[inline]
