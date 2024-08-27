@@ -7,7 +7,7 @@ use super::docker_tests_common::{random_secp256k1_secret, ERC1155_TEST_ABI, ERC7
 use crate::common::Future01CompatExt;
 use bitcrypto::{dhash160, sha256};
 use coins::eth::gas_limit::ETH_MAX_TRADE_GAS;
-use coins::eth::v2_activation::{eth_coin_from_conf_and_request_v2_for_test, EthActivationV2Request, EthNode};
+use coins::eth::v2_activation::{eth_coin_from_conf_and_request_v2, EthActivationV2Request, EthNode};
 use coins::eth::{checksum_address, eth_addr_to_hex, eth_coin_from_conf_and_request, EthCoin, EthCoinType,
                  EthPrivKeyBuildPolicy, SignedEthTx, SwapV2Contracts, ERC20_ABI};
 use coins::nft::nft_structs::{Chain, ContractType, NftInfo};
@@ -363,7 +363,7 @@ fn global_nft_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    let coin = block_on(eth_coin_from_conf_and_request_v2_for_test(
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         nft_ticker.as_str(),
         &nft_dev_conf(),
@@ -432,7 +432,7 @@ fn sepolia_coin_from_privkey(ctx: &MmArc, secret: &'static str, ticker: &str, co
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    let coin = block_on(eth_coin_from_conf_and_request_v2_for_test(
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
         ctx,
         ticker,
         conf,
@@ -1428,7 +1428,7 @@ fn eth_coin_v2_activation_with_random_privkey(
         path_to_address: Default::default(),
         gap_limit: None,
     };
-    let coin = block_on(eth_coin_from_conf_and_request_v2_for_test(
+    let coin = block_on(eth_coin_from_conf_and_request_v2(
         &MM_CTX1,
         ticker,
         conf,
