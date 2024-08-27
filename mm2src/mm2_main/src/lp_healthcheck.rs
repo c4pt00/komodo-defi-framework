@@ -1,10 +1,10 @@
 use chrono::Utc;
-use common::HttpStatusCode;
+use common::{executor::Timer, HttpStatusCode};
 use crypto::CryptoCtx;
 use derive_more::Display;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::MmError;
-use mm2_libp2p::{encode_and_sign, pub_sub_topic, Libp2pPublic, PeerId, SigningError, TopicPrefix};
+use mm2_libp2p::{decode_message, encode_message, pub_sub_topic, Libp2pPublic, PeerId, SigningError, TopicPrefix};
 use mm2_net::p2p::P2PContext;
 use ser_error_derive::SerializeErrorType;
 use serde::{Deserialize, Serialize};
@@ -14,13 +14,19 @@ use crate::lp_network::broadcast_p2p_msg;
 
 pub const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 
-struct HealthCheckMessage {
+#[derive(Deserialize, Serialize)]
+pub(crate) struct HealthCheckMessage {
     signature: Vec<u8>,
     data: HealthCheckData,
 }
 
 impl HealthCheckMessage {
-    pub fn generate_message(ctx: &MmArc, target_peer: PeerId, expires_in_seconds: i64) -> Result<Self, SigningError> {
+    pub fn generate_message(
+        ctx: &MmArc,
+        target_peer: PeerId,
+        is_a_reply: bool,
+        expires_in_seconds: i64,
+    ) -> Result<Self, SigningError> {
         let p2p_ctx = P2PContext::fetch_from_mm_arc(ctx);
         let sender_peer = p2p_ctx.peer_id().to_string();
         let keypair = p2p_ctx.keypair();
@@ -32,14 +38,15 @@ impl HealthCheckMessage {
             sender_public_key,
             target_peer,
             expires_at: Utc::now().timestamp() + expires_in_seconds,
+            is_a_reply,
         };
 
-        let signature = keypair.sign(&data.encode())?;
+        let signature = keypair.sign(&data.encode().unwrap())?;
 
         Ok(Self { signature, data })
     }
 
-    fn is_received_message_valid(&self, my_peer_id: PeerId) -> bool {
+    pub(crate) fn is_received_message_valid(&self, my_peer_id: PeerId) -> bool {
         if Utc::now().timestamp() > self.data.expires_at {
             return false;
         }
@@ -54,28 +61,31 @@ impl HealthCheckMessage {
             return false;
         }
 
-        public_key.verify(&self.data.encode(), &self.signature)
+        public_key.verify(&self.data.encode().unwrap(), &self.signature)
     }
+
+    pub(crate) fn encode(&self) -> Result<Vec<u8>, rmp_serde::encode::Error> { encode_message(self) }
+
+    pub(crate) fn decode(bytes: &[u8]) -> Result<Self, rmp_serde::decode::Error> { decode_message(bytes) }
+
+    pub(crate) fn should_reply(&self) -> bool { !self.data.is_a_reply }
+
+    pub(crate) fn sender_peer(&self) -> &str { &self.data.sender_peer }
+
+    pub(crate) fn target_peer(&self) -> &str { &self.data.target_peer }
 }
 
+#[derive(Deserialize, Serialize)]
 struct HealthCheckData {
     sender_peer: String,
     sender_public_key: Vec<u8>,
     target_peer: String,
     expires_at: i64,
+    is_a_reply: bool,
 }
 
 impl HealthCheckData {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = vec![];
-
-        bytes.extend(self.sender_peer.as_bytes());
-        bytes.extend(&self.sender_public_key);
-        bytes.extend(self.target_peer.as_bytes());
-        bytes.extend(self.expires_at.to_ne_bytes());
-
-        bytes
-    }
+    fn encode(&self) -> Result<Vec<u8>, rmp_serde::encode::Error> { encode_message(self) }
 }
 
 #[inline]
@@ -99,15 +109,36 @@ impl HttpStatusCode for QueryError {
 pub async fn peer_connection_healthcheck_rpc(ctx: MmArc, req: RequestPayload) -> Result<bool, MmError<QueryError>> {
     let target_peer_id = PeerId::from_str(&req.peer_id).unwrap();
     let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
-    let crypto_ctx = CryptoCtx::from_ctx(&ctx).expect("CryptoCtx must be initialized already");
     let my_peer_id = p2p_ctx.peer_id();
 
-    let secret = crypto_ctx.mm2_internal_privkey_secret().take();
-    let msg = encode_and_sign(&my_peer_id.to_bytes(), &secret).expect("TODO");
+    let msg = HealthCheckMessage::generate_message(&ctx, target_peer_id, false, 10).unwrap();
 
-    println!("0000000000 SENDING FROM {:?}", my_peer_id.to_string());
-    broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), msg, None);
-    // TODO: wait (timeout is 5 seconds) for peer's answer.
+    broadcast_p2p_msg(
+        &ctx,
+        peer_healthcheck_topic(&target_peer_id),
+        msg.encode().unwrap(),
+        None,
+    );
 
-    todo!()
+    const MAX_ATTEMPTS: usize = 5;
+    let mut attempts = 0;
+    loop {
+        if attempts > MAX_ATTEMPTS {
+            // timeout
+            return Ok(false);
+        }
+
+        {
+            let mut book = ctx.healthcheck_book.lock().await;
+            book.clear_expired_entries();
+            if book.remove(&target_peer_id.to_string()).is_some() {
+                break;
+            }
+        }
+
+        attempts += 1;
+        Timer::sleep(1.0).await;
+    }
+
+    Ok(true)
 }

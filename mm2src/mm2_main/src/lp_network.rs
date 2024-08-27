@@ -25,7 +25,7 @@ use common::executor::SpawnFuture;
 use common::{log, Future01CompatExt};
 use derive_more::Display;
 use futures::{channel::oneshot, StreamExt};
-use instant::Instant;
+use instant::{Duration, Instant};
 use keys::KeyPair;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
@@ -37,7 +37,9 @@ use mm2_metrics::{mm_label, mm_timing};
 use mm2_net::p2p::P2PContext;
 use serde::de;
 use std::net::ToSocketAddrs;
+use std::str::FromStr;
 
+use crate::lp_healthcheck::{peer_healthcheck_topic, HealthCheckMessage};
 use crate::{lp_healthcheck, lp_ordermatch, lp_stats, lp_swap};
 
 pub type P2PRequestResult<T> = Result<T, MmError<P2PRequestError>>;
@@ -216,10 +218,23 @@ async fn process_p2p_message(
             }
         },
         Some(lp_healthcheck::PEER_HEALTHCHECK_PREFIX) => {
-            let sender_peer_id = PeerId::from_bytes(&message.data).expect("TODO");
-            println!("0000000000 COMING FROM {:?}", sender_peer_id.to_string());
+            let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
 
-            todo!()
+            let data = HealthCheckMessage::decode(&message.data).expect("!!TODO");
+            assert!(data.is_received_message_valid(p2p_ctx.peer_id()), "must ve valid, TODO");
+
+            if data.should_reply() {
+                // reply
+                let target_peer_id = PeerId::from_str(data.sender_peer()).expect("!!!! TODO");
+                let topic = peer_healthcheck_topic(&target_peer_id);
+                let msg = HealthCheckMessage::generate_message(&ctx, target_peer_id, true, 10).unwrap();
+                broadcast_p2p_msg(&ctx, topic, msg.encode().unwrap(), None);
+            } else {
+                // save it to healthcheck book
+                let mut book = ctx.healthcheck_book.lock().await;
+                book.clear_expired_entries();
+                book.insert(data.sender_peer().to_owned(), (), Duration::from_secs(5));
+            }
         },
         None | Some(_) => (),
     }
