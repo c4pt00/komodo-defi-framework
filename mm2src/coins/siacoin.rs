@@ -296,6 +296,13 @@ impl MarketCoinOps for SiaCoin {
                 )
                 .into());
             },
+            #[cfg(target_arch = "wasm32")]
+            PrivKeyPolicy::Metamask(_) => {
+                return Err(MyAddressError::UnexpectedDerivationMethod(
+                    "Metamask not supported. Must use iguana seed.".to_string(),
+                )
+                .into());
+            },
         };
 
         let address = v1_standard_address_from_pubkey(&key_pair.public);
