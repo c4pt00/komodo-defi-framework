@@ -1,5 +1,6 @@
 use crate::blake2b_internal::hash_blake2b_single;
 use crate::{PublicKey, Signature};
+use hex::ToHex;
 use rpc::v1::types::H256;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
@@ -71,175 +72,99 @@ pub trait Encodable {
     fn encode(&self, encoder: &mut Encoder);
 }
 
-/// This wrapper allows us to use Signature internally but still serde as "sig:" prefixed string
-#[derive(Debug)]
-pub struct PrefixedSignature(pub Signature);
+macro_rules! define_prefixed_type {
+    ($name:ident, $inner:ty, $prefix:expr, $hex_len:expr, $from_str:expr, $to_hex:expr) => {
+        #[doc = concat!("This wrapper allows us to use ", stringify!($inner), " internally but still serde as \"", $prefix, ":\" prefixed string")]
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct $name(pub $inner);
 
-impl<'de> Deserialize<'de> for PrefixedSignature {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PrefixedSignatureVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for PrefixedSignatureVisitor {
-            type Value = PrefixedSignature;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a string prefixed with 'sig:' and followed by a 128-character hex string")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
-                E: serde::de::Error,
+                D: Deserializer<'de>,
             {
-                if let Some(hex_str) = value.strip_prefix("sig:") {
-                    Signature::from_str(hex_str)
-                        .map(PrefixedSignature)
-                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
-                } else {
-                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                struct PrefixedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for PrefixedVisitor {
+                    type Value = $name;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str(concat!(
+                            "a string prefixed with '",
+                            $prefix,
+                            ":' and followed by a ",
+                            $hex_len,
+                            "-character hex string"
+                        ))
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        if let Some(hex_str) = value.strip_prefix(concat!($prefix, ":")) {
+                            $from_str(hex_str)
+                                .map($name)
+                                .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                        } else {
+                            Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
+                        }
+                    }
                 }
+
+                deserializer.deserialize_str(PrefixedVisitor)
             }
         }
 
-        deserializer.deserialize_str(PrefixedSignatureVisitor)
-    }
-}
-
-impl Serialize for PrefixedSignature {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", self))
-    }
-}
-
-impl fmt::Display for PrefixedSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "sig:{:x}", self.0) }
-}
-
-impl From<PrefixedSignature> for Signature {
-    fn from(sia_hash: PrefixedSignature) -> Self { sia_hash.0 }
-}
-
-impl From<Signature> for PrefixedSignature {
-    fn from(signature: Signature) -> Self { PrefixedSignature(signature) }
-}
-
-/// This wrapper allows us to use PublicKey internally but still serde as "ed25519:" prefixed string
-#[derive(Clone, Debug, PartialEq)]
-pub struct PrefixedPublicKey(pub PublicKey);
-
-impl<'de> Deserialize<'de> for PrefixedPublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PrefixedPublicKeyVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for PrefixedPublicKeyVisitor {
-            type Value = PrefixedPublicKey;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a string prefixed with 'ed25519:' and followed by a 64-character hex string")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        impl Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
-                E: serde::de::Error,
+                S: Serializer,
             {
-                if let Some(hex_str) = value.strip_prefix("ed25519:") {
-                    let bytes =
-                        hex::decode(hex_str).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))?;
-                    PublicKey::from_bytes(&bytes)
-                        .map(PrefixedPublicKey)
-                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
-                } else {
-                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
-                }
+                serializer.serialize_str(&format!("{}", self))
             }
         }
 
-        deserializer.deserialize_str(PrefixedPublicKeyVisitor)
-    }
-}
-
-impl Serialize for PrefixedPublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("ed25519:{}", hex::encode(self.0.as_bytes())))
-    }
-}
-
-impl From<PrefixedPublicKey> for PublicKey {
-    fn from(sia_public_key: PrefixedPublicKey) -> Self { sia_public_key.0 }
-}
-
-impl From<PublicKey> for PrefixedPublicKey {
-    fn from(public_key: PublicKey) -> Self { PrefixedPublicKey(public_key) }
-}
-
-/// This wrapper allows us to use H256 internally but still serde as "h:" prefixed string
-#[derive(Clone, Debug, PartialEq)]
-pub struct PrefixedH256(pub H256);
-
-// FIXME this code pattern is reoccuring in many places and should be generalized with helpers or macros
-impl<'de> Deserialize<'de> for PrefixedH256 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PrefixedH256Visitor;
-
-        impl<'de> serde::de::Visitor<'de> for PrefixedH256Visitor {
-            type Value = PrefixedH256;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a string prefixed with 'h:' and followed by a 64-character hex string")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                if let Some(hex_str) = value.strip_prefix("h:") {
-                    H256::from_str(hex_str)
-                        .map(PrefixedH256)
-                        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
-                } else {
-                    Err(E::invalid_value(serde::de::Unexpected::Str(value), &self))
-                }
-            }
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}:{}", $prefix, $to_hex(&self.0)) }
         }
 
-        deserializer.deserialize_str(PrefixedH256Visitor)
-    }
+        impl From<$name> for $inner {
+            fn from(prefixed: $name) -> Self { prefixed.0 }
+        }
+
+        impl From<$inner> for $name {
+            fn from(inner: $inner) -> Self { $name(inner) }
+        }
+    };
 }
 
-impl Serialize for PrefixedH256 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", self))
-    }
+// Custom function to convert hex string to PublicKey
+fn public_key_from_hex(hex_str: &str) -> Result<PublicKey, ed25519_dalek::SignatureError> {
+    let bytes = hex::decode(hex_str).map_err(|_| ed25519_dalek::SignatureError::default())?;
+    PublicKey::from_bytes(&bytes)
 }
 
-impl fmt::Display for PrefixedH256 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "h:{}", self.0) }
-}
+// Custom function to convert PublicKey to hex string
+fn public_key_to_hex(public_key: &PublicKey) -> String { public_key.to_bytes().encode_hex() }
 
-impl From<PrefixedH256> for H256 {
-    fn from(sia_hash: PrefixedH256) -> Self { sia_hash.0 }
-}
-
-impl From<H256> for PrefixedH256 {
-    fn from(h256: H256) -> Self { PrefixedH256(h256) }
-}
+define_prefixed_type!(
+    PrefixedSignature,
+    Signature,
+    "sig",
+    128,
+    Signature::from_str,
+    |sig: &Signature| sig.to_string()
+);
+define_prefixed_type!(
+    PrefixedPublicKey,
+    PublicKey,
+    "ed25519",
+    64,
+    public_key_from_hex,
+    public_key_to_hex
+);
+define_prefixed_type!(PrefixedH256, H256, "h", 64, H256::from_str, |h: &H256| h.to_string());
 
 impl Encodable for H256 {
     fn encode(&self, encoder: &mut Encoder) { encoder.write_slice(&self.0); }
