@@ -70,7 +70,7 @@ fn test_sia_client_address_balance() {
 
     assert_eq!(
         response.siacoins,
-        MmNumber::from("1000000000000000000000000000000000000")
+        Currency::from(1000000000000000000000000000000000000u128)
     )
 }
 
@@ -104,7 +104,7 @@ fn test_sia_client_build_tx() {
         value: spend_this.siacoin_output.value,
         address,
     };
-    let tx = V2TransactionBuilder::new(0.into())
+    let tx = V2TransactionBuilder::new(0u64.into())
         .add_siacoin_input(vin, spend_policy)
         .add_siacoin_output(vout)
         .sign_simple(vec![&keypair])

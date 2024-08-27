@@ -132,7 +132,7 @@ ethabi = { version = "17.0.0" }
 rlp = { version = "0.5" }
 ethcore-transaction = { git = "https://github.com/KomodoPlatform/mm2-parity-ethereum.git", rev = "mm2-v2.1.1" }
 rustc-hex = "2"
-sia = { path = "../coins/sia" }
+sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust", rev = "d398387" }
 url = { version = "2.2.2", features = ["serde"] }
 
 [build-dependencies]
