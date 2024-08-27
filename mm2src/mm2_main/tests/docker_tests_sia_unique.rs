@@ -60,8 +60,6 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
             remove_docker_containers(image);
         }
 
-        let _runtime_dir = prepare_runtime_dir().unwrap();
-
         let sia_node = sia_docker_node(&docker, "SIA", 9980);
         println!("ran container?");
         containers.push(sia_node);
@@ -113,26 +111,4 @@ fn remove_docker_containers(name: &str) {
             .status()
             .expect("Failed to execute docker command");
     }
-}
-fn prepare_runtime_dir() -> std::io::Result<PathBuf> {
-    let project_root = {
-        let mut current_dir = std::env::current_dir().unwrap();
-        current_dir.pop();
-        current_dir.pop();
-        current_dir
-    };
-
-    let containers_state_dir = project_root.join(".docker/container-state");
-    assert!(containers_state_dir.exists());
-    let containers_runtime_dir = project_root.join(".docker/container-runtime");
-
-    // Remove runtime directory if it exists to copy containers files to a clean directory
-    if containers_runtime_dir.exists() {
-        std::fs::remove_dir_all(&containers_runtime_dir).unwrap();
-    }
-
-    // Copy container files to runtime directory
-    mm2_io::fs::copy_dir_all(&containers_state_dir, &containers_runtime_dir).unwrap();
-
-    Ok(containers_runtime_dir)
 }

@@ -1,3 +1,4 @@
+use common::block_on;
 use mm2_number::MmNumber;
 use sia::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia::http_endpoints::{AddressBalanceRequest, AddressUtxosRequest, ConsensusTipRequest, TxpoolBroadcastRequest};
@@ -22,51 +23,51 @@ fn mine_blocks(n: u64, addr: &Address) {
         .expect("Failed to execute docker command");
 }
 
-#[tokio::test]
-async fn test_sia_new_client() {
+#[test]
+fn test_sia_new_client() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:9980/").unwrap(),
         password: "password".to_string(),
     };
-    let _api_client = SiaApiClient::new(conf).await.unwrap();
+    let _api_client = block_on(SiaApiClient::new(conf)).unwrap();
 }
 
-#[tokio::test]
-async fn test_sia_client_bad_auth() {
+#[test]
+fn test_sia_client_bad_auth() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:9980/").unwrap(),
         password: "foo".to_string(),
     };
-    let result = SiaApiClient::new(conf).await;
+    let result = block_on(SiaApiClient::new(conf));
     assert!(matches!(result, Err(SiaApiClientError::UnexpectedHttpStatus(401))));
 }
 
-#[tokio::test]
-async fn test_sia_client_consensus_tip() {
+#[test]
+fn test_sia_client_consensus_tip() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:9980/").unwrap(),
         password: "password".to_string(),
     };
-    let api_client = SiaApiClient::new(conf).await.unwrap();
-    let _response = api_client.dispatcher(ConsensusTipRequest).await.unwrap();
+    let api_client = block_on(SiaApiClient::new(conf)).unwrap();
+    let _response = block_on(api_client.dispatcher(ConsensusTipRequest)).unwrap();
 }
 
-// This test likely needs to be removed because mine_blocks has possibility of interferring with other async tests
+// This test likely needs to be removed because mine_blocks has possibility of interfering with other async tests
 // related to block height
-#[tokio::test]
-async fn test_sia_client_address_balance() {
+#[test]
+fn test_sia_client_address_balance() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:9980/").unwrap(),
         password: "password".to_string(),
     };
-    let api_client = SiaApiClient::new(conf).await.unwrap();
+    let api_client = block_on(SiaApiClient::new(conf)).unwrap();
 
     let address =
         Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
     mine_blocks(10, &address);
 
     let request = AddressBalanceRequest { address };
-    let response = api_client.dispatcher(request).await.unwrap();
+    let response = block_on(api_client.dispatcher(request)).unwrap();
 
     assert_eq!(
         response.siacoins,
@@ -74,13 +75,13 @@ async fn test_sia_client_address_balance() {
     )
 }
 
-#[tokio::test]
-async fn test_sia_client_build_tx() {
+#[test]
+fn test_sia_client_build_tx() {
     let conf = SiaHttpConf {
         url: Url::parse("http://localhost:9980/").unwrap(),
         password: "password".to_string(),
     };
-    let api_client = SiaApiClient::new(conf).await.unwrap();
+    let api_client = block_on(SiaApiClient::new(conf)).unwrap();
     let sk: SecretKey = SecretKey::from_bytes(
         &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
     )
@@ -93,21 +94,19 @@ async fn test_sia_client_build_tx() {
 
     mine_blocks(201, &address);
 
-    let utxos = api_client
-        .dispatcher(AddressUtxosRequest {
-            address: address.clone(),
-        })
-        .await
-        .unwrap();
+    let utxos = block_on(api_client.dispatcher(AddressUtxosRequest {
+        address: address.clone(),
+    }))
+    .unwrap();
     let spend_this = utxos[0].clone();
     let vin = spend_this.clone();
     println!("utxo[0]: {:?}", spend_this);
     let vout = SiacoinOutput {
         value: spend_this.siacoin_output.value,
-        address: address.clone(),
+        address,
     };
     let tx = V2TransactionBuilder::new(0.into())
-        .add_siacoin_input(vin, spend_policy.clone())
+        .add_siacoin_input(vin, spend_policy)
         .add_siacoin_output(vout)
         .sign_simple(vec![&keypair])
         .unwrap()
@@ -117,5 +116,5 @@ async fn test_sia_client_build_tx() {
         transactions: vec![],
         v2transactions: vec![tx],
     };
-    let _response = api_client.dispatcher(req).await.unwrap();
+    let _response = block_on(api_client.dispatcher(req)).unwrap();
 }
