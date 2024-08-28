@@ -2,10 +2,9 @@ pub use common::{block_on, now_ms, now_sec, wait_until_ms, wait_until_sec, DEX_F
 pub use mm2_number::MmNumber;
 use mm2_rpc::data::legacy::BalanceResponse;
 pub use mm2_test_helpers::for_tests::{check_my_swap_status, check_recent_swaps, enable_eth_coin, enable_native,
-                                      enable_native_bch, erc20_dev_conf, eth_dev_conf, eth_sepolia_conf,
-                                      jst_sepolia_conf, mm_dump, wait_check_stats_swap_status, MarketMakerIt,
-                                      MAKER_ERROR_EVENTS, MAKER_SUCCESS_EVENTS, TAKER_ERROR_EVENTS,
-                                      TAKER_SUCCESS_EVENTS};
+                                      enable_native_bch, erc20_dev_conf, eth_dev_conf, mm_dump,
+                                      wait_check_stats_swap_status, MarketMakerIt, MAKER_ERROR_EVENTS,
+                                      MAKER_SUCCESS_EVENTS, TAKER_ERROR_EVENTS, TAKER_SUCCESS_EVENTS};
 
 use super::eth_docker_tests::{erc20_contract_checksum, fill_eth, fill_eth_erc20_with_private_key, swap_contract};
 use bitcrypto::{dhash160, ChecksumType};
@@ -42,9 +41,9 @@ pub use secp256k1::{PublicKey, SecretKey};
 use serde_json::{self as json, Value as Json};
 use std::process::{Command, Stdio};
 pub use std::{env, thread};
-use std::{path::PathBuf, str::FromStr, sync::Mutex, time::Duration};
+use std::{path::PathBuf, sync::Mutex, time::Duration};
 use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage};
-use web3::types::{Address as EthAddress, BlockId, BlockNumber, TransactionRequest};
+use web3::types::{BlockId, BlockNumber, TransactionRequest};
 use web3::{transports::Http, Web3};
 
 lazy_static! {
@@ -65,10 +64,8 @@ lazy_static! {
     /// This approach addresses the `replacement transaction` issue, which occurs when different transactions share the same nonce.
     pub static ref MM_CTX1: MmArc = MmCtxBuilder::new().with_conf(json!({"use_trading_proto_v2": true})).into_mm_arc();
     pub static ref GETH_WEB3: Web3<Http> = Web3::new(Http::new(GETH_RPC_URL).unwrap());
-    pub static ref SEPOLIA_WEB3: Web3<Http> = Web3::new(Http::new(SEPOLIA_RPC_URL).unwrap());
     // Mutex used to prevent nonce re-usage during funding addresses used in tests
     pub static ref GETH_NONCE_LOCK: Mutex<()> = Mutex::new(());
-    pub static ref SEPOLIA_NONCE_LOCK: Mutex<()> = Mutex::new(());
 }
 
 pub static mut QICK_TOKEN_ADDRESS: Option<H160Eth> = None;
@@ -79,15 +76,12 @@ pub static mut QTUM_CONF_PATH: Option<PathBuf> = None;
 pub static mut GETH_ACCOUNT: H160Eth = H160Eth::zero();
 /// ERC20 token address on Geth dev node
 pub static mut GETH_ERC20_CONTRACT: H160Eth = H160Eth::zero();
-pub static mut SEPOLIA_ERC20_CONTRACT: H160Eth = H160Eth::zero();
 /// Swap contract address on Geth dev node
 pub static mut GETH_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 /// Taker Swap V2 contract address on Geth dev node
 pub static mut GETH_TAKER_SWAP_V2: H160Eth = H160Eth::zero();
-pub static mut SEPOLIA_TAKER_SWAP_V2: H160Eth = H160Eth::zero();
-pub static mut SEPOLIA_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
 /// Swap contract (with watchers support) address on Geth dev node
 pub static mut GETH_WATCHERS_SWAP_CONTRACT: H160Eth = H160Eth::zero();
 /// ERC721 token address on Geth dev node
@@ -96,10 +90,7 @@ pub static mut GETH_ERC721_CONTRACT: H160Eth = H160Eth::zero();
 pub static mut GETH_ERC1155_CONTRACT: H160Eth = H160Eth::zero();
 /// NFT Maker Swap V2 contract address on Geth dev node
 pub static mut GETH_NFT_MAKER_SWAP_V2: H160Eth = H160Eth::zero();
-/// NFT Maker Swap V2 contract address on Sepolia testnet
-pub static mut SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2: H160Eth = H160Eth::zero();
 pub static GETH_RPC_URL: &str = "http://127.0.0.1:8545";
-pub static SEPOLIA_RPC_URL: &str = "https://ethereum-sepolia-rpc.publicnode.com";
 
 pub const UTXO_ASSET_DOCKER_IMAGE: &str = "docker.io/artempikulin/testblockchain";
 pub const UTXO_ASSET_DOCKER_IMAGE_WITH_TAG: &str = "docker.io/artempikulin/testblockchain:multiarch";
@@ -1562,12 +1553,6 @@ pub fn init_geth_node() {
             }
             thread::sleep(Duration::from_millis(100));
         }
-
-        SEPOLIA_ETOMIC_MAKER_NFT_SWAP_V2 = EthAddress::from_str("0x9eb88cd58605d8fb9b14652d6152727f7e95fb4d").unwrap();
-        SEPOLIA_ERC20_CONTRACT = EthAddress::from_str("0xF7b5F8E8555EF7A743f24D3E974E23A3C6cB6638").unwrap();
-        SEPOLIA_TAKER_SWAP_V2 = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
-        // TODO update this
-        SEPOLIA_MAKER_SWAP_V2 = EthAddress::from_str("0x7Cc9F2c1c3B797D09B9d1CCd7FDcD2539a4b3874").unwrap();
 
         let alice_passphrase = get_passphrase!(".env.client", "ALICE_PASSPHRASE").unwrap();
         let alice_keypair = key_pair_from_seed(&alice_passphrase).unwrap();

@@ -88,8 +88,8 @@ impl EthCoin {
                     eth_total_payment,
                     Action::Call(taker_swap_v2_contract),
                     data,
-                    // TODO need new consts and params for v2 calls. now it uses v1
-                    U256::from(self.gas_limit.eth_payment),
+                    // TODO need new consts and params for v2 calls. now it uses v1. eth_payment_v2
+                    U256::from(200_000),
                 )
                 .compat()
                 .await
@@ -121,8 +121,8 @@ impl EthCoin {
                     U256::from(ZERO_VALUE),
                     Action::Call(taker_swap_v2_contract),
                     data,
-                    // TODO need new consts and params for v2 calls. now it uses v1
-                    U256::from(self.gas_limit.erc20_payment),
+                    // TODO need new consts and params for v2 calls. now it uses v1. erc20_payment_v2
+                    U256::from(210_000),
                 )
                 .compat()
                 .await
@@ -214,9 +214,9 @@ impl EthCoin {
         &self,
         args: &GenTakerFundingSpendArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        // TODO need new consts and params for v2 calls, here should be common `gas_limit.taker_approve` param for Eth and Erc20
+        // TODO need new consts and params for v2 calls, here should be common `gas_limit.taker_approve_v2` param for Eth and Erc20
         let gas_limit = match self.coin_type {
-            EthCoinType::Eth | EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.eth_payment),
+            EthCoinType::Eth | EthCoinType::Erc20 { .. } => U256::from(100_000),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "NFT protocol is not supported for ETH and ERC20 Swaps"
@@ -260,12 +260,12 @@ impl EthCoin {
         args: RefundTakerPaymentArgs<'_>,
     ) -> Result<SignedEthTx, TransactionErr> {
         let (token_address, gas_limit) = match &self.coin_type {
-            // TODO need new consts and params for v2 calls
-            EthCoinType::Eth => (Address::default(), self.gas_limit.eth_sender_refund),
+            // TODO need new consts and params for v2 calls. eth_sender_refund_v2, erc20_sender_refund_v2
+            EthCoinType::Eth => (Address::default(), 180_000),
             EthCoinType::Erc20 {
                 platform: _,
                 token_addr,
-            } => (*token_addr, self.gas_limit.erc20_sender_refund),
+            } => (*token_addr, 200_000),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "NFT protocol is not supported for ETH and ERC20 Swaps"
@@ -326,12 +326,12 @@ impl EthCoin {
         args: RefundFundingSecretArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
         let (token_address, gas_limit) = match &self.coin_type {
-            // TODO need new consts and params for v2 calls
-            EthCoinType::Eth => (Address::default(), self.gas_limit.eth_sender_refund),
+            // TODO need new consts and params for v2 calls. eth_sender_refund_v2, erc20_sender_refund_v2
+            EthCoinType::Eth => (Address::default(), 180_000),
             EthCoinType::Erc20 {
                 platform: _,
                 token_addr,
-            } => (*token_addr, self.gas_limit.erc20_sender_refund),
+            } => (*token_addr, 200_000),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "NFT protocol is not supported for ETH and ERC20 Swaps"
@@ -411,10 +411,10 @@ impl EthCoin {
         gen_args: &GenTakerPaymentSpendArgs<'_, Self>,
         secret: &[u8],
     ) -> Result<SignedEthTx, TransactionErr> {
-        // TODO need new consts and params for v2 calls
+        // TODO need new consts and params for v2 calls. eth_receiver_spend_v2, erc20_receiver_spend_v2
         let gas_limit = match self.coin_type {
-            EthCoinType::Eth => U256::from(self.gas_limit.eth_receiver_spend),
-            EthCoinType::Erc20 { .. } => U256::from(self.gas_limit.erc20_receiver_spend),
+            EthCoinType::Eth => U256::from(200_000),
+            EthCoinType::Erc20 { .. } => U256::from(200_000),
             EthCoinType::Nft { .. } => {
                 return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "NFT protocol is not supported for ETH and ERC20 Swaps"
