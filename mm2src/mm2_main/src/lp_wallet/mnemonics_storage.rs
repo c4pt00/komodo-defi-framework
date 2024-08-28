@@ -25,6 +25,17 @@ pub(super) async fn save_encrypted_passphrase(
     encrypted_passphrase_data: &EncryptedData,
 ) -> WalletsStorageResult<()> {
     let wallet_path = ctx.wallet_file_path(wallet_name);
+
+    // Check if the wallet file already exists
+    if !wallet_path.exists() {
+        // If it doesn't exist and registrations are not allowed, return an error
+        if !ctx.allow_registrations() {
+            return Err(MmError::new(WalletsStorageError::Internal(
+                "Wallet creation is not allowed. Registrations are disabled.".to_string(),
+            )));
+        }
+    }
+
     ensure_file_is_writable(&wallet_path).map_to_mm(WalletsStorageError::FsWriteError)?;
     mm2_io::fs::write_json(encrypted_passphrase_data, &wallet_path, true)
         .await
