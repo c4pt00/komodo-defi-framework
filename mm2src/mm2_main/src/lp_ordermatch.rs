@@ -2562,6 +2562,7 @@ impl Orderbook {
         }
     }
 
+    // FIXME: Insert or update order
     fn insert_or_update_order(&mut self, order: OrderbookItem) {
         log::debug!("Inserting order {:?}", order);
         let zero = BigRational::from_integer(0.into());
@@ -2606,6 +2607,7 @@ impl Orderbook {
         self.order_set.insert(order.uuid, order);
     }
 
+    // FIXME: Remove order
     fn remove_order_trie_update(&mut self, uuid: Uuid) -> Option<OrderbookItem> {
         let order = match self.order_set.remove(&uuid) {
             Some(order) => order,
@@ -3893,7 +3895,7 @@ pub async fn sell(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, String> {
 
 /// Created when maker order is matched with taker request
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-struct MakerMatch {
+pub struct MakerMatch {
     request: TakerRequest,
     reserved: MakerReserved,
     connect: Option<TakerConnect>,
@@ -3903,7 +3905,7 @@ struct MakerMatch {
 
 /// Created upon taker request broadcast
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-struct TakerMatch {
+pub struct TakerMatch {
     reserved: MakerReserved,
     connect: TakerConnect,
     connected: Option<MakerConnected>,
