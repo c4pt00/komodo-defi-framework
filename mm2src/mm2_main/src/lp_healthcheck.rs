@@ -16,6 +16,10 @@ use crate::lp_network::broadcast_p2p_msg;
 
 pub(crate) const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 
+/// The default duration required to wait before sending another healthcheck
+/// request to the same peer.
+pub(crate) const HEALTHCHECK_BLOCKING_DURATION: Duration = Duration::from_millis(750);
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct HealthcheckMessage {
     signature: Vec<u8>,
@@ -172,11 +176,11 @@ pub async fn peer_connection_healthcheck_rpc(
         .map_err(|e| HealthcheckRpcError::MessageEncodingFailed { reason: e.to_string() })?;
 
     let (tx, rx): (Sender<()>, Receiver<()>) = oneshot::channel();
-    {
-        let mut book = ctx.healthcheck_book.lock().await;
-        book.clear_expired_entries();
-        book.insert(target_peer_id.to_string(), tx, ADDRESS_RECORD_EXPIRATION);
-    }
+
+    let mut book = ctx.healthcheck_response_handler.lock().await;
+    book.clear_expired_entries();
+    book.insert(target_peer_id.to_string(), tx, ADDRESS_RECORD_EXPIRATION);
+    drop(book);
 
     broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), encoded_message, None);
 

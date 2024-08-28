@@ -39,7 +39,7 @@ use serde::de;
 use std::net::ToSocketAddrs;
 use std::str::FromStr;
 
-use crate::lp_healthcheck::{peer_healthcheck_topic, HealthcheckMessage};
+use crate::lp_healthcheck::{peer_healthcheck_topic, HealthcheckMessage, HEALTHCHECK_BLOCKING_DURATION};
 use crate::{lp_healthcheck, lp_ordermatch, lp_stats, lp_swap};
 
 pub type P2PRequestResult<T> = Result<T, MmError<P2PRequestError>>;
@@ -219,8 +219,20 @@ async fn process_p2p_message(
         },
         Some(lp_healthcheck::PEER_HEALTHCHECK_PREFIX) => {
             let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
-
             let data = HealthcheckMessage::decode(&message.data).expect("!!TODO");
+
+            let sender_peer = data.sender_peer().to_owned();
+
+            let mut bruteforce_shield = ctx.healthcheck_bruteforce_shield.lock().await;
+            bruteforce_shield.clear_expired_entries();
+            if bruteforce_shield
+                .insert(sender_peer.clone(), (), HEALTHCHECK_BLOCKING_DURATION)
+                .is_some()
+            {
+                log::warn!("Peer '{sender_peer}' exceeded the healthcheck blocking time, skipping their message.");
+                return;
+            }
+            drop(bruteforce_shield);
 
             if !data.is_received_message_valid(p2p_ctx.peer_id()) {
                 log::error!("Received an invalid healthcheck message.");
@@ -230,19 +242,19 @@ async fn process_p2p_message(
 
             if data.should_reply() {
                 // Reply the message so they know we are healthy.
-                let target_peer_id = PeerId::from_str(data.sender_peer()).expect("!!!! TODO");
+                let target_peer_id = PeerId::from_str(&sender_peer).expect("!!!! TODO");
                 let topic = peer_healthcheck_topic(&target_peer_id);
                 let msg = HealthcheckMessage::generate_message(&ctx, target_peer_id, true, 10).unwrap();
                 broadcast_p2p_msg(&ctx, topic, msg.encode().unwrap(), None);
             } else {
-                // The requested peer is healthy; signal the result channel.
-                let mut book = ctx.healthcheck_book.lock().await;
-                if let Some(tx) = book.remove(&data.sender_peer().to_owned()) {
+                // The requested peer is healthy; signal the response channel.
+                let mut book = ctx.healthcheck_response_handler.lock().await;
+                if let Some(tx) = book.remove(&sender_peer) {
                     if tx.send(()).is_err() {
-                        log::error!("Result channel isn't present for peer '{}'.", data.sender_peer());
+                        log::error!("Result channel isn't present for peer '{sender_peer}'.");
                     };
                 } else {
-                    log::info!("Peer '{}' isn't recorded in the healthcheck book.", data.sender_peer());
+                    log::info!("Peer '{sender_peer}' isn't recorded in the healthcheck book.");
                 };
             }
         },

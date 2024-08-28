@@ -144,7 +144,10 @@ pub struct MmCtx {
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
     pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
-    pub healthcheck_book: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
+    /// Links the RPC context to the P2P context to handle health check responses.
+    pub healthcheck_response_handler: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
+    /// This is used to record healthcheck sender peers in an expirable manner to prevent brute-force attacks.
+    pub healthcheck_bruteforce_shield: AsyncMutex<ExpirableMap<String, ()>>,
 }
 
 impl MmCtx {
@@ -194,7 +197,8 @@ impl MmCtx {
             nft_ctx: Mutex::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
-            healthcheck_book: AsyncMutex::new(ExpirableMap::default()),
+            healthcheck_response_handler: AsyncMutex::new(ExpirableMap::default()),
+            healthcheck_bruteforce_shield: AsyncMutex::new(ExpirableMap::default()),
         }
     }
 
