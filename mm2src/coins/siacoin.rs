@@ -1,5 +1,5 @@
-use super::{CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut, RawTransactionRequest, SwapOps,
-            TradeFee, TransactionEnum, TransactionFut};
+use super::{BalanceError, CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
+            RawTransactionRequest, SwapOps, TradeFee, TransactionEnum, TransactionFut};
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
             NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
@@ -20,7 +20,7 @@ use futures01::Future;
 use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
-use mm2_number::{BigDecimal, MmNumber};
+use mm2_number::{BigDecimal, BigInt, MmNumber};
 use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use std::ops::Deref;
@@ -138,6 +138,13 @@ fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<Keypair, SiaCoinBuildE
         secret: secret_key,
         public: public_key,
     })
+}
+
+/// Convert hastings amount to siacoin amount
+fn siacoin_from_hastings(hastings: u128) -> BigDecimal {
+    let hastings = BigInt::from(hastings);
+    let decimals = BigInt::from(10u128.pow(24));
+    BigDecimal::from(hastings) / BigDecimal::from(decimals)
 }
 
 impl From<SiaConfError> for SiaCoinBuildError {
@@ -321,14 +328,30 @@ impl MarketCoinOps for SiaCoin {
     }
 
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
+        let coin = self.clone();
         let fut = async move {
+            let my_address = match &coin.0.priv_key_policy {
+                PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public).address(),
+                _ => {
+                    return MmError::err(BalanceError::UnexpectedDerivationMethod(
+                        UnexpectedDerivationMethod::ExpectedSingleAddress,
+                    ))
+                },
+            };
+            let balance = coin
+                .0
+                .http_client
+                .address_balance(my_address)
+                .await
+                .map_to_mm(|e| BalanceError::Transport(e.to_string()))?;
             Ok(CoinBalance {
-                spendable: BigDecimal::default(),
-                unspendable: BigDecimal::default(),
+                spendable: siacoin_from_hastings(balance.siacoins.to_u128()),
+                unspendable: siacoin_from_hastings(balance.immature_siacoins.to_u128()),
             })
         };
         Box::new(fut.boxed().compat())
     }
+
     fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { unimplemented!() }
 
     fn platform_ticker(&self) -> &str { "FOO" } // TODO Alright
@@ -592,5 +615,31 @@ impl WatcherOps for SiaCoin {
         _wait_until: u64,
     ) -> Result<Option<WatcherReward>, MmError<WatcherRewardError>> {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mm2_number::BigDecimal;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_siacoin_from_hastings() {
+        let hastings = u128::MAX;
+        let siacoin = siacoin_from_hastings(hastings);
+        assert_eq!(
+            siacoin,
+            BigDecimal::from_str("340282366920938.463463374607431768211455").unwrap()
+        );
+
+        let hastings = 0;
+        let siacoin = siacoin_from_hastings(hastings);
+        assert_eq!(siacoin, BigDecimal::from_str("0").unwrap());
+
+        // Total supply of Siacoin
+        let hastings = 57769875000000000000000000000000000;
+        let siacoin = siacoin_from_hastings(hastings);
+        assert_eq!(siacoin, BigDecimal::from_str("57769875000").unwrap());
     }
 }

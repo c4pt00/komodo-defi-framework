@@ -68,10 +68,9 @@ fn test_sia_client_address_balance() {
     let request = AddressBalanceRequest { address };
     let response = block_on(api_client.dispatcher(request)).unwrap();
 
-    assert_eq!(
-        response.siacoins,
-        Currency::from(1000000000000000000000000000000000000u128)
-    )
+    let expected = Currency::new(12919594847110692864, 54210108624275221);
+    assert_eq!(response.siacoins, expected);
+    assert_eq!(expected.to_u128(), 1000000000000000000000000000000000000);
 }
 
 #[test]
