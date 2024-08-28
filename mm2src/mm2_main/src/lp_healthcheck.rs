@@ -93,12 +93,16 @@ impl HealthcheckMessage {
         res
     }
 
+    #[inline]
     pub(crate) fn encode(&self) -> Result<Vec<u8>, rmp_serde::encode::Error> { encode_message(self) }
 
+    #[inline]
     pub(crate) fn decode(bytes: &[u8]) -> Result<Self, rmp_serde::decode::Error> { decode_message(bytes) }
 
+    #[inline]
     pub(crate) fn should_reply(&self) -> bool { !self.data.is_a_reply }
 
+    #[inline]
     pub(crate) fn sender_peer(&self) -> &str { &self.data.sender_peer }
 }
 
@@ -112,6 +116,7 @@ struct HealthcheckData {
 }
 
 impl HealthcheckData {
+    #[inline]
     fn encode(&self) -> Result<Vec<u8>, rmp_serde::encode::Error> { encode_message(self) }
 }
 
