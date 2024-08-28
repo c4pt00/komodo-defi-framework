@@ -5,6 +5,7 @@ use common::{cfg_native, cfg_wasm32, small_rng};
 use common::{executor::{abortable_queue::{AbortableQueue, WeakSpawner},
                         graceful_shutdown, AbortSettings, AbortableSystem, SpawnAbortable, SpawnFuture},
              expirable_map::ExpirableMap};
+use futures::channel::oneshot;
 use futures::lock::Mutex as AsyncMutex;
 use gstuff::{try_s, Constructible, ERR, ERRL};
 use lazy_static::lazy_static;
@@ -143,7 +144,7 @@ pub struct MmCtx {
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
     pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
-    pub healthcheck_book: AsyncMutex<ExpirableMap<String, ()>>,
+    pub healthcheck_book: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
 }
 
 impl MmCtx {

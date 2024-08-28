@@ -1,7 +1,9 @@
+use async_std::prelude::FutureExt;
 use chrono::Utc;
-use common::{executor::Timer, HttpStatusCode};
-use crypto::CryptoCtx;
+use common::HttpStatusCode;
 use derive_more::Display;
+use futures::channel::oneshot::{self, Receiver, Sender};
+use instant::Duration;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::MmError;
 use mm2_libp2p::{decode_message, encode_message, pub_sub_topic, Libp2pPublic, PeerId, SigningError, TopicPrefix};
@@ -107,11 +109,21 @@ impl HttpStatusCode for QueryError {
 }
 
 pub async fn peer_connection_healthcheck_rpc(ctx: MmArc, req: RequestPayload) -> Result<bool, MmError<QueryError>> {
-    let target_peer_id = PeerId::from_str(&req.peer_id).unwrap();
-    let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
-    let my_peer_id = p2p_ctx.peer_id();
+    /// When things go awry, we want records to clear themselves to keep the memory clean of unused data.
+    /// This is unrelated to the timeout logic.
+    const ADDRESS_RECORD_EXPIRATION: Duration = Duration::from_secs(60);
 
+    const RESULT_CHANNEL_TIMEOUT: Duration = Duration::from_secs(10);
+
+    let target_peer_id = PeerId::from_str(&req.peer_id).unwrap();
     let msg = HealthCheckMessage::generate_message(&ctx, target_peer_id, false, 10).unwrap();
+
+    let (tx, rx): (Sender<()>, Receiver<()>) = oneshot::channel();
+    {
+        let mut book = ctx.healthcheck_book.lock().await;
+        book.clear_expired_entries();
+        book.insert(target_peer_id.to_string(), tx, ADDRESS_RECORD_EXPIRATION);
+    }
 
     broadcast_p2p_msg(
         &ctx,
@@ -120,25 +132,5 @@ pub async fn peer_connection_healthcheck_rpc(ctx: MmArc, req: RequestPayload) ->
         None,
     );
 
-    const MAX_ATTEMPTS: usize = 5;
-    let mut attempts = 0;
-    loop {
-        if attempts > MAX_ATTEMPTS {
-            // timeout
-            return Ok(false);
-        }
-
-        {
-            let mut book = ctx.healthcheck_book.lock().await;
-            book.clear_expired_entries();
-            if book.remove(&target_peer_id.to_string()).is_some() {
-                break;
-            }
-        }
-
-        attempts += 1;
-        Timer::sleep(1.0).await;
-    }
-
-    Ok(true)
+    Ok(rx.timeout(RESULT_CHANNEL_TIMEOUT).await == Ok(Ok(())))
 }

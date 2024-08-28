@@ -25,7 +25,7 @@ use common::executor::SpawnFuture;
 use common::{log, Future01CompatExt};
 use derive_more::Display;
 use futures::{channel::oneshot, StreamExt};
-use instant::{Duration, Instant};
+use instant::Instant;
 use keys::KeyPair;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
@@ -224,16 +224,21 @@ async fn process_p2p_message(
             assert!(data.is_received_message_valid(p2p_ctx.peer_id()), "must ve valid, TODO");
 
             if data.should_reply() {
-                // reply
+                // Reply the message so they know we are healthy.
                 let target_peer_id = PeerId::from_str(data.sender_peer()).expect("!!!! TODO");
                 let topic = peer_healthcheck_topic(&target_peer_id);
                 let msg = HealthCheckMessage::generate_message(&ctx, target_peer_id, true, 10).unwrap();
                 broadcast_p2p_msg(&ctx, topic, msg.encode().unwrap(), None);
             } else {
-                // save it to healthcheck book
+                // The requested peer is healthy; signal the result channel.
                 let mut book = ctx.healthcheck_book.lock().await;
-                book.clear_expired_entries();
-                book.insert(data.sender_peer().to_owned(), (), Duration::from_secs(5));
+                if let Some(tx) = book.remove(&data.sender_peer().to_owned()) {
+                    if tx.send(()).is_err() {
+                        log::error!("Result channel isn't present for peer '{}'.", data.sender_peer());
+                    };
+                } else {
+                    log::info!("Peer '{}' isn't recorded in the healthcheck book.", data.sender_peer());
+                };
             }
         },
         None | Some(_) => (),
