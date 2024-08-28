@@ -89,7 +89,7 @@ impl EthCoin {
                     Action::Call(taker_swap_v2_contract),
                     data,
                     // TODO need new consts and params for v2 calls. now it uses v1. eth_payment_v2
-                    U256::from(200_000),
+                    U256::from(250_000),
                 )
                 .compat()
                 .await
@@ -122,7 +122,7 @@ impl EthCoin {
                     Action::Call(taker_swap_v2_contract),
                     data,
                     // TODO need new consts and params for v2 calls. now it uses v1. erc20_payment_v2
-                    U256::from(210_000),
+                    U256::from(250_000),
                 )
                 .compat()
                 .await
