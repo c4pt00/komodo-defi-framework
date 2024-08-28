@@ -603,7 +603,6 @@ fn send_and_spend_eth_maker_payment_internal_gas_policy() {
 fn send_and_spend_eth_maker_payment_priority_fee() { send_and_spend_eth_maker_payment_impl(SwapTxFeePolicy::Medium); }
 
 fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
-    thread::sleep(Duration::from_secs(10));
     let erc20_coin = erc20_coin_with_random_privkey(swap_contract());
     erc20_coin.set_swap_transaction_fee_policy(swap_txfee_policy);
 
