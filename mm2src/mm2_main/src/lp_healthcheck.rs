@@ -14,16 +14,16 @@ use std::str::FromStr;
 
 use crate::lp_network::broadcast_p2p_msg;
 
-pub const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
+pub(crate) const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 
-#[derive(Deserialize, Serialize)]
-pub(crate) struct HealthCheckMessage {
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct HealthcheckMessage {
     signature: Vec<u8>,
     data: HealthCheckData,
 }
 
-impl HealthCheckMessage {
-    pub fn generate_message(
+impl HealthcheckMessage {
+    pub(crate) fn generate_message(
         ctx: &MmArc,
         target_peer: PeerId,
         is_a_reply: bool,
@@ -73,11 +73,9 @@ impl HealthCheckMessage {
     pub(crate) fn should_reply(&self) -> bool { !self.data.is_a_reply }
 
     pub(crate) fn sender_peer(&self) -> &str { &self.data.sender_peer }
-
-    pub(crate) fn target_peer(&self) -> &str { &self.data.target_peer }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct HealthCheckData {
     sender_peer: String,
     sender_public_key: Vec<u8>,
@@ -116,7 +114,7 @@ pub async fn peer_connection_healthcheck_rpc(ctx: MmArc, req: RequestPayload) ->
     const RESULT_CHANNEL_TIMEOUT: Duration = Duration::from_secs(10);
 
     let target_peer_id = PeerId::from_str(&req.peer_id).unwrap();
-    let msg = HealthCheckMessage::generate_message(&ctx, target_peer_id, false, 10).unwrap();
+    let msg = HealthcheckMessage::generate_message(&ctx, target_peer_id, false, 10).unwrap();
 
     let (tx, rx): (Sender<()>, Receiver<()>) = oneshot::channel();
     {

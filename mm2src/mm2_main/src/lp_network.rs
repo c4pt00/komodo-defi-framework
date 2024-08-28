@@ -39,7 +39,7 @@ use serde::de;
 use std::net::ToSocketAddrs;
 use std::str::FromStr;
 
-use crate::lp_healthcheck::{peer_healthcheck_topic, HealthCheckMessage};
+use crate::lp_healthcheck::{peer_healthcheck_topic, HealthcheckMessage};
 use crate::{lp_healthcheck, lp_ordermatch, lp_stats, lp_swap};
 
 pub type P2PRequestResult<T> = Result<T, MmError<P2PRequestError>>;
@@ -220,14 +220,19 @@ async fn process_p2p_message(
         Some(lp_healthcheck::PEER_HEALTHCHECK_PREFIX) => {
             let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
 
-            let data = HealthCheckMessage::decode(&message.data).expect("!!TODO");
-            assert!(data.is_received_message_valid(p2p_ctx.peer_id()), "must ve valid, TODO");
+            let data = HealthcheckMessage::decode(&message.data).expect("!!TODO");
+
+            if !data.is_received_message_valid(p2p_ctx.peer_id()) {
+                log::error!("Received an invalid healthcheck message.");
+                log::debug!("Message context: {:?}", data);
+                return;
+            };
 
             if data.should_reply() {
                 // Reply the message so they know we are healthy.
                 let target_peer_id = PeerId::from_str(data.sender_peer()).expect("!!!! TODO");
                 let topic = peer_healthcheck_topic(&target_peer_id);
-                let msg = HealthCheckMessage::generate_message(&ctx, target_peer_id, true, 10).unwrap();
+                let msg = HealthcheckMessage::generate_message(&ctx, target_peer_id, true, 10).unwrap();
                 broadcast_p2p_msg(&ctx, topic, msg.encode().unwrap(), None);
             } else {
                 // The requested peer is healthy; signal the result channel.
