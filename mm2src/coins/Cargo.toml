@@ -107,7 +107,7 @@ serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 serde_with = "1.14.0"
 serialization = { path = "../mm2_bitcoin/serialization" }
 serialization_derive = { path = "../mm2_bitcoin/serialization_derive" }
-sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust", rev = "f41e726", optional = true }
+sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust", rev = "9f188b80b3213bcb604e7619275251ce08fae808", optional = true }
 spv_validation = { path = "../mm2_bitcoin/spv_validation" }
 sha2 = "0.10"
 sha3 = "0.9"
