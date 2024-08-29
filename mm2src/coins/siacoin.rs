@@ -336,8 +336,9 @@ impl MarketCoinOps for SiaCoin {
             },
         };
         Ok(key_pair.public().to_string())
-     }
+    }
 
+    // TODO Alright: I think this method can be removed from this trait
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { unimplemented!() }
 
     fn sign_message(&self, _message: &str) -> SignatureResult<String> { unimplemented!() }
@@ -564,6 +565,8 @@ impl MakerSwapTakerCoin for SiaCoin {
     async fn on_maker_payment_refund_success(&self, _taker_payment: &[u8]) -> RefundResult<()> { Ok(()) }
 }
 
+// TODO ideally we would not have to implement this trait for SiaCoin
+// requires significant refactoring
 #[async_trait]
 impl WatcherOps for SiaCoin {
     fn send_maker_payment_spend_preimage(&self, _input: SendMakerPaymentSpendPreimageInput) -> TransactionFut {
