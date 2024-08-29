@@ -212,7 +212,7 @@ impl MmCoin for SiaCoin {
 
     fn withdraw(&self, _req: WithdrawRequest) -> WithdrawFut { unimplemented!() }
 
-    fn decimals(&self) -> u8 { unimplemented!() }
+    fn decimals(&self) -> u8 { 24 }
 
     fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> { unimplemented!() }
 
