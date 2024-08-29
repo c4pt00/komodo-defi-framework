@@ -216,7 +216,18 @@ impl MmCoin for SiaCoin {
 
     fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> { unimplemented!() }
 
-    fn validate_address(&self, _address: &str) -> ValidateAddressResult { unimplemented!() }
+    fn validate_address(&self, address: &str) -> ValidateAddressResult {
+        match  Address::from_str(address) {
+            Ok(_) => ValidateAddressResult {
+                is_valid: true,
+                reason: None,
+            },
+            Err(e) => ValidateAddressResult {
+                is_valid: false,
+                reason: Some(e.to_string()),
+            },
+        }
+    }
 
     fn process_history_loop(&self, _ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send> { unimplemented!() }
 
