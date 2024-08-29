@@ -100,7 +100,7 @@ pub async fn sia_coin_from_conf_and_params(
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = generate_keypair_from_slice(priv_key.as_slice())?;
+    let key_pair = Keypair::from_private_bytes(priv_key.as_slice()).map_err(|e|SiaCoinBuildError::InvalidSecretKey(e))?;
     let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
     builder.build().await
 }
