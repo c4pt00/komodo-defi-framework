@@ -317,7 +317,22 @@ impl MarketCoinOps for SiaCoin {
         Ok(address.to_string())
     }
 
-    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { unimplemented!() }
+    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { 
+        let key_pair = match &self.0.priv_key_policy {
+            PrivKeyPolicy::Iguana(key_pair) => key_pair,
+            PrivKeyPolicy::Trezor => {
+                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress).into();
+            },
+            PrivKeyPolicy::HDWallet { .. } => {
+                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress).into();
+            },
+            #[cfg(target_arch = "wasm32")]
+            PrivKeyPolicy::Metamask(_) => {
+                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress).into();
+            },
+        };
+        Ok(key_pair.public().to_string())
+     }
 
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { unimplemented!() }
 
