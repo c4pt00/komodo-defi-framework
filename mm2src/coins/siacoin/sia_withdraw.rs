@@ -7,7 +7,7 @@ use mm2_err_handle::prelude::*;
 use sia_rust::http_endpoints::AddressUtxosResponse;
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
-use sia_rust::types::Address;
+use sia_rust::types::{Address, Currency};
 use sia_rust::Keypair;
 use std::str::FromStr;
 
@@ -100,7 +100,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
         let change_amount = input_sum - total_amount;
 
         // Construct transaction
-        let mut tx_builder = V2TransactionBuilder::new(TX_FEE_HASTINGS.into());
+        let mut tx_builder = V2TransactionBuilder::new();
 
         // Add inputs
         for output in selected_outputs {
@@ -120,6 +120,9 @@ impl<'a> SiaWithdrawBuilder<'a> {
                 address: self.from_address.clone(),
             });
         }
+
+        // Add miner fee
+        tx_builder = tx_builder.miner_fee(Currency::from(TX_FEE_HASTINGS));
 
         // Sign the transaction
         let signed_tx_builder = tx_builder
