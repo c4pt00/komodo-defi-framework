@@ -24,10 +24,12 @@ use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use std::ops::Deref;
 use std::sync::Arc;
+use std::str::FromStr;
 
 use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::{Keypair, KeypairError};
+use sia_rust::types::Address;
 
 pub mod sia_hd_wallet;
 
