@@ -113,6 +113,7 @@ pub const MYCOIN: &str = "MYCOIN";
 /// Ticker of MYCOIN1 dockerized blockchain.
 pub const MYCOIN1: &str = "MYCOIN1";
 
+/// https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/Token.sol
 pub const ERC20_TOKEN_BYTES: &str = include_str!("../../../mm2_test_helpers/contract_bytes/erc20_token_bytes");
 pub const SWAP_CONTRACT_BYTES: &str = include_str!("../../../mm2_test_helpers/contract_bytes/swap_contract_bytes");
 pub const WATCHERS_SWAP_CONTRACT_BYTES: &str =
