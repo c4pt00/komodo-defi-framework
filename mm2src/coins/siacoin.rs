@@ -100,7 +100,7 @@ pub async fn sia_coin_from_conf_and_params(
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = Keypair::from_private_bytes(priv_key.as_slice()).map_err(|e|SiaCoinBuildError::InvalidSecretKey(e))?;
+    let key_pair = Keypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
     let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
     builder.build().await
 }
@@ -323,14 +323,14 @@ impl MarketCoinOps for SiaCoin {
         let key_pair = match &self.0.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
-                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress).into();
+                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
             PrivKeyPolicy::HDWallet { .. } => {
-                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress).into();
+                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
             #[cfg(target_arch = "wasm32")]
             PrivKeyPolicy::Metamask(_) => {
-                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress).into();
+                return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
         };
         Ok(key_pair.public().to_string())
