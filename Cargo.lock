@@ -1109,7 +1109,7 @@ dependencies = [
  "serialization_derive",
  "sha2 0.10.7",
  "sha3 0.9.1",
- "sia-rust",
+ "sia-rust 0.1.0",
  "solana-client",
  "solana-sdk",
  "solana-transaction-status",
@@ -4623,7 +4623,7 @@ dependencies = [
  "serde_json",
  "serialization",
  "serialization_derive",
- "sia-rust",
+ "sia-rust 0.1.0 (git+https://github.com/KomodoPlatform/sia-rust)",
  "sp-runtime-interface",
  "sp-trie",
  "spv_validation",
@@ -7017,6 +7017,25 @@ name = "shared_ref_counter"
 version = "0.1.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "sia-rust"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.7",
+ "blake2b_simd",
+ "chrono",
+ "derive_more",
+ "ed25519-dalek",
+ "hex",
+ "nom",
+ "reqwest",
+ "rustc-hex",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "url",
 ]
 
 [[package]]

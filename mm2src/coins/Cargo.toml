@@ -108,7 +108,7 @@ serde_with = "1.14.0"
 serialization = { path = "../mm2_bitcoin/serialization" }
 serialization_derive = { path = "../mm2_bitcoin/serialization_derive" }
 # FIXME set rev= prior to merge to dev
-sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust", optional = true }
+sia-rust = { path = "sia-rust", optional = true }
 spv_validation = { path = "../mm2_bitcoin/spv_validation" }
 sha2 = "0.10"
 sha3 = "0.9"
