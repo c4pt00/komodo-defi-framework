@@ -131,15 +131,6 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 }
 
-fn generate_keypair_from_slice(priv_key: &[u8]) -> Result<Keypair, SiaCoinBuildError> {
-    let secret_key = SecretKey::from_bytes(priv_key).map_err(SiaCoinBuildError::EllipticCurveError)?;
-    let public_key = PublicKey::from(&secret_key);
-    Ok(Keypair {
-        secret: secret_key,
-        public: public_key,
-    })
-}
-
 /// Convert hastings amount to siacoin amount
 fn siacoin_from_hastings(hastings: u128) -> BigDecimal {
     let hastings = BigInt::from(hastings);
