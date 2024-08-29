@@ -7022,6 +7022,7 @@ dependencies = [
 [[package]]
 name = "sia-rust"
 version = "0.1.0"
+source = "git+https://github.com/KomodoPlatform/sia-rust#0df4e6fbd5dbc421606c031103303f3974908cd2"
 dependencies = [
  "base64 0.21.7",
  "blake2b_simd",
