@@ -14,7 +14,6 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
             WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::AbortedError;
-pub use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature};
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
 use keys::KeyPair;
@@ -28,6 +27,7 @@ use std::sync::Arc;
 
 use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia_rust::spend_policy::SpendPolicy;
+use sia_rust::{Keypair, KeypairError};
 
 pub mod sia_hd_wallet;
 
