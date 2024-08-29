@@ -28,11 +28,11 @@ use serde_json::Value as Json;
 use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse};
 use sia_rust::spend_policy::SpendPolicy;
-use sia_rust::{Keypair, KeypairError};
 use sia_rust::types::Address;
+use sia_rust::{Keypair, KeypairError};
 use std::ops::Deref;
-use std::sync::Arc;
 use std::str::FromStr;
+use std::sync::Arc;
 
 pub mod sia_hd_wallet;
 mod sia_withdraw;
@@ -250,7 +250,7 @@ impl MmCoin for SiaCoin {
     fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> { unimplemented!() }
 
     fn validate_address(&self, address: &str) -> ValidateAddressResult {
-        match  Address::from_str(address) {
+        match Address::from_str(address) {
             Ok(_) => ValidateAddressResult {
                 is_valid: true,
                 reason: None,
@@ -352,7 +352,7 @@ impl MarketCoinOps for SiaCoin {
         Ok(address.to_string())
     }
 
-    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> { 
+    async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
         let key_pair = match &self.0.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
