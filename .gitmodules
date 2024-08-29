@@ -1,0 +1,3 @@
+[submodule "mm2src/coins/sia-rust"]
+	path = mm2src/coins/sia-rust
+	url = https://github.com/komodoplatform/sia-rust
