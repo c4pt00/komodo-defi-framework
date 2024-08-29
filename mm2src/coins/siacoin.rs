@@ -147,7 +147,7 @@ pub enum SiaCoinBuildError {
     ConfError(SiaConfError),
     UnsupportedPrivKeyPolicy,
     ClientError(SiaApiClientError),
-    EllipticCurveError(ed25519_dalek::ed25519::Error),
+    InvalidSecretKey(KeypairError),
 }
 
 impl<'a> SiaCoinBuilder<'a> {
