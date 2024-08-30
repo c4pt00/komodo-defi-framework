@@ -230,13 +230,13 @@ async fn decrypt_validate_or_save_passphrase(
             // If an existing passphrase is found and it matches the decrypted passphrase, return it
             Ok(Some(decrypted_passphrase))
         },
-        None if ctx.allow_registrations() => {
-            save_encrypted_passphrase(ctx, wallet_name, &encrypted_passphrase_data)
-                .await
-                .mm_err(|e| WalletInitError::WalletsStorageError(e.to_string()))?;
-            Ok(Some(decrypted_passphrase))
-        },
         None => {
+            if ctx.allow_registrations() { 
+              save_encrypted_passphrase(ctx, wallet_name, &encrypted_passphrase_data)
+               .await
+               .mm_err(|e| WalletInitError::WalletsStorageError(e.to_string()))?;
+            return Ok(Some(decrypted_passphrase));
+         }
             // If no passphrase is found and registrations are not allowed, return an error
             Err(WalletInitError::WalletCreationNotAllowed.into())
         },
