@@ -103,7 +103,7 @@ fn test_sia_client_build_tx() {
         value: spend_this.siacoin_output.value,
         address,
     };
-    let tx = V2TransactionBuilder::new(0u64.into())
+    let tx = V2TransactionBuilder::new()
         .add_siacoin_input(vin, spend_policy)
         .add_siacoin_output(vout)
         .sign_simple(vec![&keypair])
