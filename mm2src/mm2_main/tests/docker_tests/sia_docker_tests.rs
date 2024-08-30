@@ -4,7 +4,7 @@ use sia_rust::http_endpoints::{AddressBalanceRequest, AddressUtxosRequest, Conse
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
 use sia_rust::types::{Address, Currency};
-use sia_rust::{Keypair, PublicKey, SecretKey};
+use sia_rust::Keypair;
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
@@ -68,9 +68,9 @@ fn test_sia_client_address_balance() {
     let request = AddressBalanceRequest { address };
     let response = block_on(api_client.dispatcher(request)).unwrap();
 
-    let expected = Currency::new(12919594847110692864, 54210108624275221);
+    let expected = Currency::from(1);
     assert_eq!(response.siacoins, expected);
-    assert_eq!(expected.to_u128(), 1000000000000000000000000000000000000);
+    assert_eq!(*expected, 1000000000000000000000000000000000000);
 }
 
 #[test]
@@ -80,13 +80,8 @@ fn test_sia_client_build_tx() {
         password: "password".to_string(),
     };
     let api_client = block_on(SiaApiClient::new(conf)).unwrap();
-    let sk: SecretKey = SecretKey::from_bytes(
-        &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
-    )
-    .unwrap();
-    let pk: PublicKey = (&sk).into();
-    let keypair = Keypair { public: pk, secret: sk };
-    let spend_policy = SpendPolicy::PublicKey(pk);
+    let keypair = Keypair::from_private_bytes(&hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap()).unwrap();
+    let spend_policy = SpendPolicy::PublicKey(keypair.public());
 
     let address = spend_policy.address();
 
