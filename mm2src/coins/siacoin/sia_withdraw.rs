@@ -49,14 +49,14 @@ impl<'a> SiaWithdrawBuilder<'a> {
         total_amount: u128,
     ) -> Result<AddressUtxosResponse, MmError<WithdrawError>> {
         // Sort outputs from largest to smallest
-        unspent_outputs.sort_by(|a, b| b.siacoin_output.value.to_u128().cmp(&a.siacoin_output.value.to_u128()));
+        unspent_outputs.sort_by(|a, b| b.siacoin_output.value.0.cmp(&a.siacoin_output.value.0));
 
         let mut selected = Vec::new();
         let mut selected_amount = 0;
 
         // Select outputs until the total amount is reached
         for output in unspent_outputs {
-            selected_amount += output.siacoin_output.value.to_u128();
+            selected_amount += *output.siacoin_output.value;
             selected.push(output);
 
             if selected_amount >= total_amount {
@@ -96,7 +96,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
         let selected_outputs = self.select_outputs(unspent_outputs, total_amount)?;
 
         // Calculate change amount
-        let input_sum: u128 = selected_outputs.iter().map(|o| o.siacoin_output.value.to_u128()).sum();
+        let input_sum: u128 = selected_outputs.iter().map(|o| *o.siacoin_output.value).sum();
         let change_amount = input_sum - total_amount;
 
         // Construct transaction

@@ -396,8 +396,8 @@ impl MarketCoinOps for SiaCoin {
                 .await
                 .map_to_mm(|e| BalanceError::Transport(e.to_string()))?;
             Ok(CoinBalance {
-                spendable: siacoin_from_hastings(balance.siacoins.to_u128()),
-                unspendable: siacoin_from_hastings(balance.immature_siacoins.to_u128()),
+                spendable: siacoin_from_hastings(*balance.siacoins),
+                unspendable: siacoin_from_hastings(*balance.immature_siacoins),
             })
         };
         Box::new(fut.boxed().compat())
