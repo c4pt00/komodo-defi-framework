@@ -80,7 +80,10 @@ fn test_sia_client_build_tx() {
         password: "password".to_string(),
     };
     let api_client = block_on(SiaApiClient::new(conf)).unwrap();
-    let keypair = Keypair::from_private_bytes(&hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap()).unwrap();
+    let keypair = Keypair::from_private_bytes(
+        &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
     let spend_policy = SpendPolicy::PublicKey(keypair.public());
 
     let address = spend_policy.address();
