@@ -28,8 +28,8 @@ use serde_json::Value as Json;
 use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
 use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse, TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
-use sia_rust::types::Address;
 use sia_rust::transaction::V2Transaction;
+use sia_rust::types::Address;
 use sia_rust::{Keypair, KeypairError};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -413,16 +413,16 @@ impl MarketCoinOps for SiaCoin {
         let http_client = self.0.http_client.clone();
         let tx = tx.to_owned();
 
-        let fut = async move { 
+        let fut = async move {
             let transaction = serde_json::from_str::<V2Transaction>(&tx).map_err(|e| e.to_string())?;
             let txid = transaction.txid().to_string();
             let request = TxpoolBroadcastRequest {
                 transactions: vec![],
                 v2transactions: vec![transaction],
             };
-    
+
             http_client.dispatcher(request).await.map_err(|e| e.to_string())?;
-            Ok(txid)    
+            Ok(txid)
         };
         Box::new(fut.boxed().compat())
     }
