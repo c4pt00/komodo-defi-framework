@@ -21,7 +21,7 @@ pub(crate) const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 pub(crate) const HEALTHCHECK_BLOCKING_DURATION: Duration = Duration::from_millis(750);
 
 #[derive(Debug, Deserialize, Serialize)]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(any(test, target_arch = "wasm32"), derive(PartialEq))]
 pub(crate) struct HealthcheckMessage {
     signature: Vec<u8>,
     data: HealthcheckData,
@@ -112,7 +112,7 @@ impl HealthcheckMessage {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(any(test, target_arch = "wasm32"), derive(PartialEq))]
 struct HealthcheckData {
     sender_peer: String,
     sender_public_key: Vec<u8>,
@@ -189,13 +189,18 @@ pub async fn peer_connection_healthcheck_rpc(
     Ok(rx.timeout(RESULT_CHANNEL_TIMEOUT).await == Ok(Ok(())))
 }
 
-#[cfg(test)]
+#[cfg(any(test, target_arch = "wasm32"))]
 mod tests {
+    use super::*;
+    use common::cross_test;
+    use crypto::CryptoCtx;
+    use mm2_libp2p::behaviours::atomicdex::generate_ed25519_keypair;
     use mm2_test_helpers::for_tests::mm_ctx_with_iguana;
 
-    use crate::lp_ordermatch::ordermatch_tests::init_p2p_context;
-
-    use super::*;
+    common::cfg_wasm32! {
+        use wasm_bindgen_test::*;
+        wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+    }
 
     fn create_test_peer_id() -> PeerId {
         let keypair = mm2_libp2p::Keypair::generate_ed25519();
@@ -204,20 +209,28 @@ mod tests {
 
     fn ctx() -> MmArc {
         let ctx = mm_ctx_with_iguana(Some("dummy-value"));
-        init_p2p_context(&ctx);
+        let p2p_key = {
+            let crypto_ctx = CryptoCtx::from_ctx(&ctx).unwrap();
+            let key = bitcrypto::sha256(crypto_ctx.mm2_internal_privkey_slice());
+            key.take()
+        };
+
+        let (cmd_tx, _) = futures::channel::mpsc::channel(0);
+
+        let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
+        p2p_context.store_to_mm_arc(&ctx);
+
         ctx
     }
 
-    #[test]
-    fn test_valid_message() {
+    cross_test!(test_valid_message, {
         let ctx = ctx();
         let target_peer = create_test_peer_id();
         let message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
         assert!(message.is_received_message_valid(target_peer));
-    }
+    });
 
-    #[test]
-    fn test_corrupted_messages() {
+    cross_test!(test_corrupted_messages, {
         let ctx = ctx();
         let target_peer = create_test_peer_id();
 
@@ -239,18 +252,16 @@ mod tests {
 
         let message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
         assert!(!message.is_received_message_valid(PeerId::from_str(&message.data.sender_peer).unwrap()));
-    }
+    });
 
-    #[test]
-    fn test_expired_message() {
+    cross_test!(test_expired_message, {
         let ctx = ctx();
         let target_peer = create_test_peer_id();
         let message = HealthcheckMessage::generate_message(&ctx, target_peer, false, -1).unwrap();
         assert!(!message.is_received_message_valid(target_peer));
-    }
+    });
 
-    #[test]
-    fn test_encode_decode() {
+    cross_test!(test_encode_decode, {
         let ctx = ctx();
         let target_peer = create_test_peer_id();
 
@@ -261,5 +272,5 @@ mod tests {
 
         let decoded = HealthcheckMessage::decode(&encoded).unwrap();
         assert_eq!(original, decoded);
-    }
+    });
 }
