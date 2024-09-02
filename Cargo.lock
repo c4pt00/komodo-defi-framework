@@ -7029,6 +7029,7 @@ dependencies = [
  "derive_more",
  "ed25519-dalek",
  "hex",
+ "mm2_net",
  "nom",
  "reqwest",
  "rustc-hex",
