@@ -146,6 +146,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
             fee_details: Some(
                 SiaFeeDetails {
                     amount: siacoin_from_hastings(TX_FEE_HASTINGS),
+                    coin: self.coin.ticker().to_string(),
                 }
                 .into(),
             ),
