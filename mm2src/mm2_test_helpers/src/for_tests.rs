@@ -1846,6 +1846,30 @@ pub async fn enable_qrc20(
     json::from_str(&electrum.1).unwrap()
 }
 
+pub async fn peer_connection_healthcheck(mm: &MarketMakerIt, peer_id: &str) -> Json {
+    let response = mm
+        .rpc(&json!({
+            "userpass": mm.userpass,
+            "method": "peer_connection_healthcheck",
+            "mmrpc": "2.0",
+            "params": {
+                "peer_id": peer_id
+            }
+        }))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.0,
+        StatusCode::OK,
+        "RPC «peer_connection_healthcheck» failed with {} {}",
+        response.0,
+        response.1
+    );
+
+    json::from_str(&response.1).unwrap()
+}
+
 /// Reads passphrase and userpass from .env file
 pub fn from_env_file(env: Vec<u8>) -> (Option<String>, Option<String>) {
     use regex::bytes::Regex;
