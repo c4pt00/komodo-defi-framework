@@ -26,9 +26,10 @@ use num_traits::ToPrimitive;
 use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
 use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse};
+use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse, TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::types::Address;
+use sia_rust::transaction::V2Transaction;
 use sia_rust::{Keypair, KeypairError};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -408,7 +409,23 @@ impl MarketCoinOps for SiaCoin {
     fn platform_ticker(&self) -> &str { "SIA" }
 
     /// Receives raw transaction bytes in hexadecimal format as input and returns tx hash in hexadecimal format
-    fn send_raw_tx(&self, _tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> { unimplemented!() }
+    fn send_raw_tx(&self, tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> {
+        let http_client = self.0.http_client.clone();
+        let tx = tx.to_owned();
+
+        let fut = async move { 
+            let transaction = serde_json::from_str::<V2Transaction>(&tx).map_err(|e| e.to_string())?;
+            let txid = transaction.txid().to_string();
+            let request = TxpoolBroadcastRequest {
+                transactions: vec![],
+                v2transactions: vec![transaction],
+            };
+    
+            http_client.dispatcher(request).await.map_err(|e| e.to_string())?;
+            Ok(txid)    
+        };
+        Box::new(fut.boxed().compat())
+    }
 
     fn send_raw_tx_bytes(&self, _tx: &[u8]) -> Box<dyn Future<Item = String, Error = String> + Send> {
         unimplemented!()
