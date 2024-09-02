@@ -25,7 +25,7 @@ use common::executor::SpawnFuture;
 use common::{log, Future01CompatExt};
 use derive_more::Display;
 use futures::{channel::oneshot, StreamExt};
-use instant::Instant;
+use instant::{Duration, Instant};
 use keys::KeyPair;
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
@@ -39,7 +39,7 @@ use serde::de;
 use std::net::ToSocketAddrs;
 use std::str::FromStr;
 
-use crate::lp_healthcheck::{peer_healthcheck_topic, HealthcheckMessage, HEALTHCHECK_BLOCKING_DURATION};
+use crate::lp_healthcheck::{peer_healthcheck_topic, HealthcheckMessage};
 use crate::{lp_healthcheck, lp_ordermatch, lp_stats, lp_swap};
 
 pub type P2PRequestResult<T> = Result<T, MmError<P2PRequestError>>;
@@ -241,7 +241,11 @@ async fn process_p2p_message(
             let mut bruteforce_shield = ctx.healthcheck_bruteforce_shield.lock().await;
             bruteforce_shield.clear_expired_entries();
             if bruteforce_shield
-                .insert(sender_peer.clone(), (), HEALTHCHECK_BLOCKING_DURATION)
+                .insert(
+                    sender_peer.clone(),
+                    (),
+                    Duration::from_millis(ctx.healthcheck_config.blocking_ms_for_per_address),
+                )
                 .is_some()
             {
                 log::warn!("Peer '{sender_peer}' exceeded the healthcheck blocking time, skipping their message.");

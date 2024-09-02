@@ -13,6 +13,7 @@ use mm2_event_stream::{controller::Controller, Event, EventStreamConfiguration};
 use mm2_metrics::{MetricsArc, MetricsOps};
 use primitives::hash::H160;
 use rand::Rng;
+use serde::Deserialize;
 use serde_json::{self as json, Value as Json};
 use shared_ref_counter::{SharedRc, WeakRc};
 use std::any::Any;
@@ -43,6 +44,39 @@ cfg_native! {
 
 /// Default interval to export and record metrics to log.
 const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
+
+mod healthcheck_defaults {
+    /// The default duration required to wait before sending another healthcheck
+    /// request to the same peer.
+    pub(crate) const fn default_healthcheck_blocking_ms() -> u64 { 750 }
+
+    pub(crate) const fn default_healthcheck_message_expiration() -> i64 { 10 }
+
+    pub(crate) const fn default_result_channel_timeout() -> u64 { 10 }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HealthcheckConfig {
+    /// TODO
+    #[serde(default = "healthcheck_defaults::default_healthcheck_blocking_ms")]
+    pub blocking_ms_for_per_address: u64,
+    /// TODO
+    #[serde(default = "healthcheck_defaults::default_healthcheck_message_expiration")]
+    pub message_expiration: i64,
+    /// TODO
+    #[serde(default = "healthcheck_defaults::default_result_channel_timeout")]
+    pub timeout: u64,
+}
+
+impl Default for HealthcheckConfig {
+    fn default() -> Self {
+        Self {
+            blocking_ms_for_per_address: healthcheck_defaults::default_healthcheck_blocking_ms(),
+            message_expiration: healthcheck_defaults::default_healthcheck_message_expiration(),
+            timeout: healthcheck_defaults::default_result_channel_timeout(),
+        }
+    }
+}
 
 /// MarketMaker state, shared between the various MarketMaker threads.
 ///
@@ -148,6 +182,8 @@ pub struct MmCtx {
     pub healthcheck_response_handler: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
     /// This is used to record healthcheck sender peers in an expirable manner to prevent brute-force attacks.
     pub healthcheck_bruteforce_shield: AsyncMutex<ExpirableMap<String, ()>>,
+    /// TODO
+    pub healthcheck_config: HealthcheckConfig,
 }
 
 impl MmCtx {
@@ -199,6 +235,7 @@ impl MmCtx {
             async_sqlite_connection: Constructible::default(),
             healthcheck_response_handler: AsyncMutex::new(ExpirableMap::default()),
             healthcheck_bruteforce_shield: AsyncMutex::new(ExpirableMap::default()),
+            healthcheck_config: HealthcheckConfig::default(),
         }
     }
 
@@ -767,6 +804,13 @@ impl MmCtxBuilder {
                     json::from_value(event_stream_configuration.clone())
                         .expect("Invalid json value in 'event_stream_configuration'.");
                 ctx.event_stream_configuration = Some(event_stream_configuration);
+            }
+
+            let healthcheck_config = &ctx.conf["healthcheck_config"];
+            if !healthcheck_config.is_null() {
+                let healthcheck_config: HealthcheckConfig =
+                    json::from_value(healthcheck_config.clone()).expect("Invalid json value in 'healthcheck_config'.");
+                ctx.healthcheck_config = healthcheck_config;
             }
         }
 

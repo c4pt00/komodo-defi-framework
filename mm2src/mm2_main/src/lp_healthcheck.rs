@@ -16,10 +16,6 @@ use crate::lp_network::broadcast_p2p_msg;
 
 pub(crate) const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 
-/// The default duration required to wait before sending another healthcheck
-/// request to the same peer.
-pub(crate) const HEALTHCHECK_BLOCKING_DURATION: Duration = Duration::from_millis(750);
-
 #[derive(Debug, Deserialize, Serialize)]
 #[cfg_attr(any(test, target_arch = "wasm32"), derive(PartialEq))]
 pub(crate) struct HealthcheckMessage {
@@ -163,15 +159,12 @@ pub async fn peer_connection_healthcheck_rpc(
     /// This is unrelated to the timeout logic.
     const ADDRESS_RECORD_EXPIRATION: Duration = Duration::from_secs(60);
 
-    const RESULT_CHANNEL_TIMEOUT: Duration = Duration::from_secs(10);
-
-    const HEALTHCHECK_MESSAGE_EXPIRATION: i64 = 10;
-
     let target_peer_id = PeerId::from_str(&req.peer_id)
         .map_err(|e| HealthcheckRpcError::InvalidPeerAddress { reason: e.to_string() })?;
 
-    let message = HealthcheckMessage::generate_message(&ctx, target_peer_id, false, HEALTHCHECK_MESSAGE_EXPIRATION)
-        .map_err(|reason| HealthcheckRpcError::MessageGenerationFailed { reason })?;
+    let message =
+        HealthcheckMessage::generate_message(&ctx, target_peer_id, false, ctx.healthcheck_config.message_expiration)
+            .map_err(|reason| HealthcheckRpcError::MessageGenerationFailed { reason })?;
 
     let encoded_message = message
         .encode()
@@ -186,7 +179,8 @@ pub async fn peer_connection_healthcheck_rpc(
 
     broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), encoded_message, None);
 
-    Ok(rx.timeout(RESULT_CHANNEL_TIMEOUT).await == Ok(Ok(())))
+    let timeout_duration = Duration::from_millis(ctx.healthcheck_config.timeout);
+    Ok(rx.timeout(timeout_duration).await == Ok(Ok(())))
 }
 
 #[cfg(any(test, target_arch = "wasm32"))]
