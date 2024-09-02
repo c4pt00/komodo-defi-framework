@@ -21,6 +21,7 @@ pub(crate) const PEER_HEALTHCHECK_PREFIX: TopicPrefix = "hcheck";
 pub(crate) const HEALTHCHECK_BLOCKING_DURATION: Duration = Duration::from_millis(750);
 
 #[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct HealthcheckMessage {
     signature: Vec<u8>,
     data: HealthcheckData,
@@ -111,6 +112,7 @@ impl HealthcheckMessage {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
 struct HealthcheckData {
     sender_peer: String,
     sender_public_key: Vec<u8>,
@@ -129,12 +131,12 @@ pub fn peer_healthcheck_topic(peer_id: &PeerId) -> String {
     pub_sub_topic(PEER_HEALTHCHECK_PREFIX, &peer_id.to_string())
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Deserialize)]
 pub struct RequestPayload {
     peer_id: String,
 }
 
-#[derive(Clone, Debug, Display, Serialize, SerializeErrorType)]
+#[derive(Debug, Display, Serialize, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum HealthcheckRpcError {
     InvalidPeerAddress { reason: String },
@@ -185,4 +187,79 @@ pub async fn peer_connection_healthcheck_rpc(
     broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), encoded_message, None);
 
     Ok(rx.timeout(RESULT_CHANNEL_TIMEOUT).await == Ok(Ok(())))
+}
+
+#[cfg(test)]
+mod tests {
+    use mm2_test_helpers::for_tests::mm_ctx_with_iguana;
+
+    use crate::lp_ordermatch::ordermatch_tests::init_p2p_context;
+
+    use super::*;
+
+    fn create_test_peer_id() -> PeerId {
+        let keypair = mm2_libp2p::Keypair::generate_ed25519();
+        PeerId::from(keypair.public())
+    }
+
+    fn ctx() -> MmArc {
+        let ctx = mm_ctx_with_iguana(Some("dummy-value"));
+        init_p2p_context(&ctx);
+        ctx
+    }
+
+    #[test]
+    fn test_valid_message() {
+        let ctx = ctx();
+        let target_peer = create_test_peer_id();
+        let message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
+        assert!(message.is_received_message_valid(target_peer));
+    }
+
+    #[test]
+    fn test_corrupted_messages() {
+        let ctx = ctx();
+        let target_peer = create_test_peer_id();
+
+        let mut message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
+        message.data.expires_at += 1;
+        assert!(!message.is_received_message_valid(target_peer));
+
+        let mut message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
+        message.data.is_a_reply = !message.data.is_a_reply;
+        assert!(!message.is_received_message_valid(target_peer));
+
+        let mut message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
+        message.data.sender_peer += "0";
+        assert!(!message.is_received_message_valid(target_peer));
+
+        let mut message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
+        message.data.target_peer += "0";
+        assert!(!message.is_received_message_valid(target_peer));
+
+        let message = HealthcheckMessage::generate_message(&ctx, target_peer, false, 5).unwrap();
+        assert!(!message.is_received_message_valid(PeerId::from_str(&message.data.sender_peer).unwrap()));
+    }
+
+    #[test]
+    fn test_expired_message() {
+        let ctx = ctx();
+        let target_peer = create_test_peer_id();
+        let message = HealthcheckMessage::generate_message(&ctx, target_peer, false, -1).unwrap();
+        assert!(!message.is_received_message_valid(target_peer));
+    }
+
+    #[test]
+    fn test_encode_decode() {
+        let ctx = ctx();
+        let target_peer = create_test_peer_id();
+
+        let original = HealthcheckMessage::generate_message(&ctx, target_peer, false, 10).unwrap();
+
+        let encoded = original.encode().unwrap();
+        assert!(!encoded.is_empty());
+
+        let decoded = HealthcheckMessage::decode(&encoded).unwrap();
+        assert_eq!(original, decoded);
+    }
 }
