@@ -218,8 +218,23 @@ async fn process_p2p_message(
             }
         },
         Some(lp_healthcheck::PEER_HEALTHCHECK_PREFIX) => {
+            macro_rules! try_or_return {
+                ($exp:expr, $msg: expr) => {
+                    match $exp {
+                        Ok(t) => t,
+                        Err(e) => {
+                            log::error!("{}, e: {e:?}", $msg);
+                            return;
+                        },
+                    }
+                };
+            }
+
             let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
-            let data = HealthcheckMessage::decode(&message.data).expect("!!TODO");
+            let data = try_or_return!(
+                HealthcheckMessage::decode(&message.data),
+                "Couldn't decode healthcheck message"
+            );
 
             let sender_peer = data.sender_peer().to_owned();
 
@@ -242,19 +257,32 @@ async fn process_p2p_message(
 
             if data.should_reply() {
                 // Reply the message so they know we are healthy.
-                let target_peer_id = PeerId::from_str(&sender_peer).expect("!!!! TODO");
+                let target_peer_id = try_or_return!(
+                    PeerId::from_str(&sender_peer),
+                    format!("'{sender_peer}' is not a valid address")
+                );
                 let topic = peer_healthcheck_topic(&target_peer_id);
-                let msg = HealthcheckMessage::generate_message(&ctx, target_peer_id, true, 10).unwrap();
-                broadcast_p2p_msg(&ctx, topic, msg.encode().unwrap(), None);
+
+                let msg = try_or_return!(
+                    HealthcheckMessage::generate_message(&ctx, target_peer_id, true, 10),
+                    "Couldn't generate the healthcheck message, this is very unusual!"
+                );
+
+                let encoded_msg = try_or_return!(
+                    msg.encode(),
+                    "Couldn't encode healthcheck message, this is very unusual!"
+                );
+
+                broadcast_p2p_msg(&ctx, topic, encoded_msg, None);
             } else {
                 // The requested peer is healthy; signal the response channel.
-                let mut book = ctx.healthcheck_response_handler.lock().await;
-                if let Some(tx) = book.remove(&sender_peer) {
+                let mut response_handler = ctx.healthcheck_response_handler.lock().await;
+                if let Some(tx) = response_handler.remove(&sender_peer) {
                     if tx.send(()).is_err() {
                         log::error!("Result channel isn't present for peer '{sender_peer}'.");
                     };
                 } else {
-                    log::info!("Peer '{sender_peer}' isn't recorded in the healthcheck book.");
+                    log::info!("Peer '{sender_peer}' isn't recorded in the healthcheck response handler.");
                 };
             }
         },
