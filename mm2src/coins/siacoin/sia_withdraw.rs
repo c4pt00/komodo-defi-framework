@@ -145,7 +145,6 @@ impl<'a> SiaWithdrawBuilder<'a> {
             my_balance_change: received_by_me - spent_by_me,
             fee_details: Some(
                 SiaFeeDetails {
-                    coin: self.coin.ticker().to_string(),
                     amount: siacoin_from_hastings(TX_FEE_HASTINGS),
                 }
                 .into(),
