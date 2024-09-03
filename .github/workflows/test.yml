@@ -31,7 +31,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -59,7 +59,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -87,7 +87,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -115,7 +115,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -144,7 +144,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Set loopback address
         run: ./scripts/ci/lo0_config.sh
@@ -176,7 +176,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', )
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
