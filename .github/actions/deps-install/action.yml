@@ -49,6 +49,13 @@ runs:
         sudo apt-get update -y
         sudo apt-get install -y libudev-dev
 
+    - name: Install libssl-dev (Linux)
+      if: runner.os == 'Linux' && contains(inputs.deps, 'openssl')
+      shell: bash
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libssl-dev
+
     - name: Install python3
       uses: actions/setup-python@v5
       if: contains(inputs.deps, 'python3')
