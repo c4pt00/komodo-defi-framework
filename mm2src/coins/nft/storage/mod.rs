@@ -156,11 +156,12 @@ pub trait NftTransferHistoryStorageOps {
         token_id: BigUint,
     ) -> MmResult<Vec<NftTransferHistory>, Self::Error>;
 
-    async fn get_transfer_by_tx_hash_and_log_index(
+    async fn get_transfer_by_tx_hash_log_index_token_id(
         &self,
         chain: &Chain,
         transaction_hash: String,
         log_index: u32,
+        token_id: BigUint,
     ) -> MmResult<Option<NftTransferHistory>, Self::Error>;
 
     /// Updates the metadata for NFT transfers identified by their token address and ID.

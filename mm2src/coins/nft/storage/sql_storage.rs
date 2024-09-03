@@ -103,7 +103,7 @@ fn create_transfer_history_table_sql(chain: &Chain) -> Result<String, SqlError> 
     image_domain TEXT,
     token_name TEXT,
     details_json TEXT,
-    PRIMARY KEY (transaction_hash, log_index)
+    PRIMARY KEY (transaction_hash, log_index, token_id)
         );",
         safe_table_name.inner()
     );
@@ -1121,22 +1121,23 @@ impl NftTransferHistoryStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
         .map_to_mm(AsyncConnError::from)
     }
 
-    async fn get_transfer_by_tx_hash_and_log_index(
+    async fn get_transfer_by_tx_hash_log_index_token_id(
         &self,
         chain: &Chain,
         transaction_hash: String,
         log_index: u32,
+        token_id: BigUint,
     ) -> MmResult<Option<NftTransferHistory>, Self::Error> {
         let table_name = chain.transfer_history_table_name()?;
         let sql = format!(
-            "SELECT * FROM {} WHERE transaction_hash=?1 AND log_index = ?2",
+            "SELECT * FROM {} WHERE transaction_hash=?1 AND log_index = ?2 AND token_id = ?3",
             table_name.inner()
         );
         self.call(move |conn| {
             let transfer = query_single_row(
                 conn,
                 &sql,
-                [transaction_hash, log_index.to_string()],
+                [transaction_hash, log_index.to_string(), token_id.to_string()],
                 transfer_history_from_row,
             )?;
             Ok(transfer)

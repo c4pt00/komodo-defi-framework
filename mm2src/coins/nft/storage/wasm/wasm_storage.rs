@@ -547,18 +547,20 @@ impl NftTransferHistoryStorageOps for NftCacheIDBLocked<'_> {
             .collect()
     }
 
-    async fn get_transfer_by_tx_hash_and_log_index(
+    async fn get_transfer_by_tx_hash_log_index_token_id(
         &self,
         chain: &Chain,
         transaction_hash: String,
         log_index: u32,
+        token_id: BigUint,
     ) -> MmResult<Option<NftTransferHistory>, Self::Error> {
         let db_transaction = self.get_inner().transaction().await?;
         let table = db_transaction.table::<NftTransferHistoryTable>().await?;
-        let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_INDEX)
+        let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX)
             .with_value(chain.to_string())?
             .with_value(&transaction_hash)?
-            .with_value(log_index)?;
+            .with_value(log_index)?
+            .with_value(BeBigUint::from(token_id))?;
 
         if let Some((_item_id, item)) = table.get_item_by_unique_multi_index(index_keys).await? {
             Ok(Some(transfer_details_from_item(item)?))
@@ -602,10 +604,11 @@ impl NftTransferHistoryStorageOps for NftCacheIDBLocked<'_> {
             }
             drop_mutability!(transfer);
 
-            let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_INDEX)
+            let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX)
                 .with_value(&chain_str)?
                 .with_value(&transfer.common.transaction_hash)?
-                .with_value(transfer.common.log_index)?;
+                .with_value(transfer.common.log_index)?
+                .with_value(BeBigUint::from(transfer.token_id.clone()))?;
 
             let item = NftTransferHistoryTable::from_transfer_history(&transfer)?;
             table.replace_item_by_unique_multi_index(index_keys, &item).await?;
@@ -691,10 +694,11 @@ impl NftTransferHistoryStorageOps for NftCacheIDBLocked<'_> {
             transfer.common.possible_spam = possible_spam;
             drop_mutability!(transfer);
 
-            let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_INDEX)
+            let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX)
                 .with_value(&chain_str)?
                 .with_value(&transfer.common.transaction_hash)?
-                .with_value(transfer.common.log_index)?;
+                .with_value(transfer.common.log_index)?
+                .with_value(BeBigUint::from(transfer.token_id.clone()))?;
 
             let item = NftTransferHistoryTable::from_transfer_history(&transfer)?;
             table.replace_item_by_unique_multi_index(index_keys, &item).await?;
@@ -777,10 +781,11 @@ async fn update_transfer_phishing_for_index(
         transfer.possible_phishing = possible_phishing;
         drop_mutability!(transfer);
         let transfer_item = NftTransferHistoryTable::from_transfer_history(&transfer)?;
-        let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_INDEX)
+        let index_keys = MultiIndex::new(NftTransferHistoryTable::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX)
             .with_value(chain)?
             .with_value(&transfer.common.transaction_hash)?
-            .with_value(transfer.common.log_index)?;
+            .with_value(transfer.common.log_index)?
+            .with_value(BeBigUint::from(transfer.token_id))?;
         table
             .replace_item_by_unique_multi_index(index_keys, &transfer_item)
             .await?;
@@ -951,7 +956,7 @@ pub(crate) struct NftTransferHistoryTable {
 }
 
 impl NftTransferHistoryTable {
-    const CHAIN_TX_HASH_LOG_INDEX_INDEX: &str = "chain_tx_hash_log_index_index";
+    const CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX: &str = "chain_tx_hash_log_index_token_idindex";
 
     fn from_transfer_history(transfer: &NftTransferHistory) -> WasmNftCacheResult<NftTransferHistoryTable> {
         let details_json =
@@ -992,8 +997,8 @@ impl TableSignature for NftTransferHistoryTable {
                 false,
             )?;
             table.create_multi_index(
-                Self::CHAIN_TX_HASH_LOG_INDEX_INDEX,
-                &["chain", "transaction_hash", "log_index"],
+                Self::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX,
+                &["chain", "transaction_hash", "log_index", "token_id"],
                 true,
             )?;
             table.create_multi_index(CHAIN_BLOCK_NUMBER_INDEX, &["chain", "block_number"], false)?;
