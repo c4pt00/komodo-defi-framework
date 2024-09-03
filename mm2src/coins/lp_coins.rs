@@ -72,8 +72,6 @@ use parking_lot::Mutex as PaMutex;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self as json, Value as Json};
-#[cfg(feature = "enable-sia")]
-use sia_rust::transaction::V2Transaction;
 use std::cmp::Ordering;
 use std::collections::hash_map::{HashMap, RawEntryMut};
 use std::collections::HashSet;
@@ -280,7 +278,8 @@ pub mod tx_history_storage;
 
 #[cfg(feature = "enable-sia")] pub mod siacoin;
 #[cfg(feature = "enable-sia")] use crate::siacoin::SiaFeeDetails;
-#[cfg(feature = "enable-sia")] use siacoin::SiaCoin;
+#[cfg(feature = "enable-sia")]
+use siacoin::{SiaCoin, SiaTransactionTypes};
 
 #[doc(hidden)]
 #[allow(unused_variables)]
@@ -2282,6 +2281,12 @@ pub enum TransactionType {
     },
     NftTransfer,
     TendermintIBCTransfer,
+    #[cfg(feature = "enable-sia")]
+    SiaV1Transaction,
+    #[cfg(feature = "enable-sia")]
+    SiaV2Transaction,
+    #[cfg(feature = "enable-sia")]
+    SiaMinerPayout,
 }
 
 /// Transaction details
@@ -2338,7 +2343,9 @@ pub enum TransactionData {
     #[cfg(feature = "enable-sia")]
     Sia {
         /// SIA transactions are broadcasted in JSON format
-        tx_json: V2Transaction,
+        tx_json: SiaTransactionTypes,
+        /// Transaction hash in hexadecimal format
+        tx_hash: String,
     },
 }
 
@@ -2361,7 +2368,7 @@ impl TransactionData {
             TransactionData::Signed { tx_hash, .. } => Some(tx_hash),
             TransactionData::Unsigned(_) => None,
             #[cfg(feature = "enable-sia")]
-            TransactionData::Sia { .. } => None,
+            TransactionData::Sia { tx_hash, .. } => Some(tx_hash),
         }
     }
 }
@@ -4633,7 +4640,8 @@ pub async fn lp_register_coin(
     Ok(())
 }
 
-fn lp_spawn_tx_history(ctx: MmArc, coin: MmCoinEnum) -> Result<(), String> {
+/// Initiates the transaction history synchronization loop for fetching and processing transactions.
+pub fn lp_spawn_tx_history(ctx: MmArc, coin: MmCoinEnum) -> Result<(), String> {
     let spawner = coin.spawner();
     let fut = async move {
         let _res = coin.process_history_loop(ctx).compat().await;

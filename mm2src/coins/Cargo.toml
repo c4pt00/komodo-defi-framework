@@ -107,8 +107,6 @@ serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 serde_with = "1.14.0"
 serialization = { path = "../mm2_bitcoin/serialization" }
 serialization_derive = { path = "../mm2_bitcoin/serialization_derive" }
-# FIXME set rev= prior to merge to dev
-sia-rust = { path = "sia-rust", optional = true }
 spv_validation = { path = "../mm2_bitcoin/spv_validation" }
 sha2 = "0.10"
 sha3 = "0.9"
@@ -145,6 +143,8 @@ js-sys = { version = "0.3.27" }
 mm2_db = { path = "../mm2_db" }
 mm2_metamask = { path = "../mm2_metamask" }
 mm2_test_helpers = { path = "../mm2_test_helpers" }
+# FIXME set rev= prior to merge to dev
+sia-rust = { path = "sia-rust" }
 time = { version = "0.3.20", features = ["wasm-bindgen"] }
 tonic = { version = "0.9", default-features = false, features = ["prost", "codegen", "gzip"] }
 tower-service = "0.3"
@@ -169,6 +169,8 @@ lightning-net-tokio = "0.0.113"
 rust-ini = { version = "0.13" }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 secp256k1v24 = { version = "0.24", package = "secp256k1" }
+# FIXME set rev= prior to merge to dev
+sia-rust = { path = "sia-rust", optional = true }
 tokio = { version = "1.20" }
 tokio-rustls = { version = "0.24" }
 tonic = { version = "0.9", features = ["tls", "tls-webpki-roots", "gzip"] }

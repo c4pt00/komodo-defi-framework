@@ -1,5 +1,6 @@
-use super::{BalanceError, CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, NumConversError, RawTransactionFut,
-            RawTransactionRequest, SwapOps, TradeFee, TransactionEnum, TransactionFut};
+use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, NumConversError,
+            RawTransactionFut, RawTransactionRequest, SwapOps, TradeFee, TransactionData, TransactionDetails,
+            TransactionEnum, TransactionFut, TransactionType};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
@@ -14,7 +15,9 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
             WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut,
             WithdrawRequest};
 use async_trait::async_trait;
-use common::executor::AbortedError;
+use common::executor::abortable_queue::AbortableQueue;
+use common::executor::{AbortableSystem, AbortedError, Timer};
+use futures::compat::Future01CompatExt;
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
 use keys::KeyPair;
@@ -23,17 +26,20 @@ use mm2_err_handle::prelude::*;
 use mm2_number::num_bigint::ToBigInt;
 use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
-use rpc::v1::types::Bytes as BytesJson;
+use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
 use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse, TxpoolBroadcastRequest};
+use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse, AddressesEventsRequest,
+                               TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
-use sia_rust::transaction::V2Transaction;
-use sia_rust::types::Address;
+use sia_rust::transaction::{V1Transaction, V2Transaction};
+use sia_rust::types::{Address, Event, EventDataWrapper, EventPayout, EventType};
 use sia_rust::{Keypair, KeypairError};
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub mod sia_hd_wallet;
 mod sia_withdraw;
@@ -94,6 +100,11 @@ pub struct SiaCoinFields {
     pub priv_key_policy: PrivKeyPolicy<Keypair>,
     /// HTTP(s) client
     pub http_client: SiaApiClient,
+    /// State of the transaction history loop (enabled, started, in progress, etc.)
+    pub history_sync_state: Mutex<HistorySyncState>,
+    /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
+    /// and on [`MmArc::stop`].
+    pub abortable_system: AbortableQueue,
 }
 
 pub async fn sia_coin_from_conf_and_params(
@@ -169,6 +180,7 @@ pub enum SiaCoinBuildError {
     UnsupportedPrivKeyPolicy,
     ClientError(SiaApiClientError),
     InvalidSecretKey(KeypairError),
+    InternalError(String),
 }
 
 impl<'a> SiaCoinBuilder<'a> {
@@ -182,12 +194,22 @@ impl<'a> SiaCoinBuilder<'a> {
 
     async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
         let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
+        let abortable_system: AbortableQueue = self.ctx().abortable_system.create_subsystem().map_to_mm(|_| {
+            SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker()))
+        })?;
+        let history_sync_state = if self.params.tx_history {
+            HistorySyncState::NotStarted
+        } else {
+            HistorySyncState::NotEnabled
+        };
         let sia_fields = SiaCoinFields {
             conf,
             http_client: SiaApiClient::new(self.params.http_conf.clone())
-                .map_err(SiaCoinBuildError::ClientError)
-                .await?,
+                .await
+                .map_to_mm(SiaCoinBuildError::ClientError)?,
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
+            history_sync_state: Mutex::new(history_sync_state),
+            abortable_system,
         };
         let sia_arc = SiaArc::new(sia_fields);
 
@@ -231,7 +253,7 @@ pub struct SiaFeeDetails {
 impl MmCoin for SiaCoin {
     fn is_asset_chain(&self) -> bool { false }
 
-    fn spawner(&self) -> CoinFutSpawner { unimplemented!() }
+    fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.0.abortable_system) }
 
     fn get_raw_transaction(&self, _req: RawTransactionRequest) -> RawTransactionFut { unimplemented!() }
 
@@ -263,9 +285,217 @@ impl MmCoin for SiaCoin {
         }
     }
 
-    fn process_history_loop(&self, _ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send> { unimplemented!() }
+    // Todo: deprecate this due to the use of attempts once tx_history_v2 is implemented
+    fn process_history_loop(&self, ctx: MmArc) -> Box<dyn Future<Item = (), Error = ()> + Send> {
+        if self.history_sync_status() == HistorySyncState::NotEnabled {
+            return Box::new(futures01::future::ok(()));
+        }
 
-    fn history_sync_status(&self) -> HistorySyncState { unimplemented!() }
+        let mut my_balance: Option<CoinBalance> = None;
+        let coin = self.clone();
+
+        let fut = async move {
+            let history = match coin.load_history_from_file(&ctx).compat().await {
+                Ok(history) => history,
+                Err(e) => {
+                    log_tag!(
+                        ctx,
+                        "",
+                        "tx_history",
+                        "coin" => coin.0.conf.ticker;
+                        fmt = "Error {} on 'load_history_from_file', stop the history loop", e
+                    );
+                    return;
+                },
+            };
+
+            let mut history_map: HashMap<H256Json, TransactionDetails> = history
+                .into_iter()
+                .filter_map(|tx| {
+                    let tx_hash = H256Json::from_str(tx.tx.tx_hash()?).ok()?;
+                    Some((tx_hash, tx))
+                })
+                .collect();
+
+            let mut success_iteration = 0i32;
+            let mut attempts = 0;
+            loop {
+                if ctx.is_stopping() {
+                    break;
+                };
+                {
+                    let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
+                    let coins = coins_ctx.coins.lock().await;
+                    if !coins.contains_key(&coin.0.conf.ticker) {
+                        log_tag!(ctx, "", "tx_history", "coin" => coin.0.conf.ticker; fmt = "Loop stopped");
+                        attempts += 1;
+                        if attempts > 6 {
+                            log_tag!(
+                                ctx,
+                                "",
+                                "tx_history",
+                                "coin" => coin.0.conf.ticker;
+                                fmt = "Loop stopped after 6 attempts to find coin in coins context"
+                            );
+                            break;
+                        }
+                        Timer::sleep(10.).await;
+                        continue;
+                    };
+                }
+
+                let actual_balance = match coin.my_balance().compat().await {
+                    Ok(actual_balance) => Some(actual_balance),
+                    Err(err) => {
+                        log_tag!(
+                            ctx,
+                            "",
+                            "tx_history",
+                            "coin" => coin.0.conf.ticker;
+                            fmt = "Error {:?} on getting balance", err
+                        );
+                        None
+                    },
+                };
+
+                let need_update = history_map.iter().any(|(_, tx)| tx.should_update());
+                match (&my_balance, &actual_balance) {
+                    (Some(prev_balance), Some(actual_balance)) if prev_balance == actual_balance && !need_update => {
+                        // my balance hasn't been changed, there is no need to reload tx_history
+                        Timer::sleep(30.).await;
+                        continue;
+                    },
+                    _ => (),
+                }
+
+                // Todo: get mempool transactions and update them once they have confirmations
+                let filtered_events: Vec<Event> = match coin.request_events_history().await {
+                    Ok(events) => events
+                        .into_iter()
+                        .filter(|event| {
+                            event.event_type == EventType::V2Transaction
+                                || event.event_type == EventType::V1Transaction
+                                || event.event_type == EventType::Miner
+                                || event.event_type == EventType::Foundation
+                        })
+                        .collect(),
+                    Err(e) => {
+                        log_tag!(
+                            ctx,
+                            "",
+                            "tx_history",
+                            "coin" => coin.0.conf.ticker;
+                            fmt = "Error {} on 'request_events_history', stop the history loop", e
+                        );
+
+                        Timer::sleep(10.).await;
+                        continue;
+                    },
+                };
+
+                // Remove transactions in the history_map that are not in the requested transaction list anymore
+                let history_length = history_map.len();
+                let requested_ids: HashSet<H256Json> = filtered_events.iter().map(|x| H256Json(x.id.0)).collect();
+                history_map.retain(|hash, _| requested_ids.contains(hash));
+
+                if history_map.len() < history_length {
+                    let to_write: Vec<TransactionDetails> = history_map.values().cloned().collect();
+                    if let Err(e) = coin.save_history_to_file(&ctx, to_write).compat().await {
+                        log_tag!(
+                            ctx,
+                            "",
+                            "tx_history",
+                            "coin" => coin.0.conf.ticker;
+                            fmt = "Error {} on 'save_history_to_file', stop the history loop", e
+                        );
+                        return;
+                    };
+                }
+
+                let mut transactions_left = if requested_ids.len() > history_map.len() {
+                    *coin.0.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
+                        "transactions_left": requested_ids.len() - history_map.len()
+                    }));
+                    requested_ids.len() - history_map.len()
+                } else {
+                    *coin.0.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
+                        "transactions_left": 0
+                    }));
+                    0
+                };
+
+                for txid in requested_ids {
+                    let mut updated = false;
+                    match history_map.entry(txid) {
+                        Entry::Vacant(e) => match filtered_events.iter().find(|event| H256Json(event.id.0) == txid) {
+                            Some(event) => {
+                                let tx_details = match coin.tx_details_from_event(event) {
+                                    Ok(tx_details) => tx_details,
+                                    Err(e) => {
+                                        log_tag!(
+                                            ctx,
+                                            "",
+                                            "tx_history",
+                                            "coin" => coin.0.conf.ticker;
+                                            fmt = "Error {} on 'tx_details_from_event', stop the history loop", e
+                                        );
+                                        return;
+                                    },
+                                };
+                                e.insert(tx_details);
+                                if transactions_left > 0 {
+                                    transactions_left -= 1;
+                                    *coin.0.history_sync_state.lock().unwrap() =
+                                        HistorySyncState::InProgress(json!({ "transactions_left": transactions_left }));
+                                }
+                                updated = true;
+                            },
+                            None => log_tag!(
+                                ctx,
+                                "",
+                                "tx_history",
+                                "coin" => coin.0.conf.ticker;
+                                fmt = "Transaction with id {} not found in the events list", txid
+                            ),
+                        },
+                        Entry::Occupied(_) => {},
+                    }
+                    if updated {
+                        let to_write: Vec<TransactionDetails> = history_map.values().cloned().collect();
+                        if let Err(e) = coin.save_history_to_file(&ctx, to_write).compat().await {
+                            log_tag!(
+                                ctx,
+                                "",
+                                "tx_history",
+                                "coin" => coin.0.conf.ticker;
+                                fmt = "Error {} on 'save_history_to_file', stop the history loop", e
+                            );
+                            return;
+                        };
+                    }
+                }
+                *coin.0.history_sync_state.lock().unwrap() = HistorySyncState::Finished;
+
+                if success_iteration == 0 {
+                    log_tag!(
+                        ctx,
+                        "😅",
+                        "tx_history",
+                        "coin" => coin.0.conf.ticker;
+                        fmt = "history has been loaded successfully"
+                    );
+                }
+
+                my_balance = actual_balance;
+                success_iteration += 1;
+                Timer::sleep(30.).await;
+            }
+        };
+
+        Box::new(fut.map(|_| Ok(())).boxed().compat())
+    }
+
+    fn history_sync_status(&self) -> HistorySyncState { self.0.history_sync_state.lock().unwrap().clone() }
 
     /// Get fee to be paid per 1 swap transaction
     fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> { unimplemented!() }
@@ -688,11 +918,229 @@ impl WatcherOps for SiaCoin {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum SiaTransactionTypes {
+    V1Transaction(V1Transaction),
+    V2Transaction(V2Transaction),
+    EventPayout(EventPayout),
+}
+
 impl SiaCoin {
     async fn get_unspent_outputs(&self, address: Address) -> Result<AddressUtxosResponse, MmError<SiaApiClientError>> {
         let request = AddressUtxosRequest { address };
         let res = self.0.http_client.dispatcher(request).await?;
         Ok(res)
+    }
+
+    async fn get_address_events(&self, address: Address) -> Result<Vec<Event>, MmError<SiaApiClientError>> {
+        let request = AddressesEventsRequest { address };
+        let res = self.0.http_client.dispatcher(request).await?;
+        Ok(res)
+    }
+
+    pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
+        let my_address = match &self.0.priv_key_policy {
+            PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public()).address(),
+            _ => {
+                return MmError::err(ERRL!("Unexpected derivation method. Expected single address."));
+            },
+        };
+
+        let address_events = self.get_address_events(my_address).await.map_err(|e| e.to_string())?;
+
+        Ok(address_events)
+    }
+
+    fn tx_details_from_event(&self, event: &Event) -> Result<TransactionDetails, MmError<String>> {
+        match &event.data {
+            EventDataWrapper::V2Transaction(tx) => {
+                let txid = tx.txid().to_string();
+
+                let from: Vec<String> = tx
+                    .siacoin_inputs
+                    .iter()
+                    .map(|input| input.parent.siacoin_output.address.to_string())
+                    .collect();
+
+                let to: Vec<String> = tx
+                    .siacoin_outputs
+                    .iter()
+                    .map(|output| output.address.to_string())
+                    .collect();
+
+                let total_input: u128 = tx
+                    .siacoin_inputs
+                    .iter()
+                    .map(|input| *input.parent.siacoin_output.value)
+                    .sum();
+
+                let total_output: u128 = tx.siacoin_outputs.iter().map(|output| *output.value).sum();
+
+                let fee = total_input - total_output;
+
+                let my_address = self.my_address().mm_err(|e| e.to_string())?;
+
+                let spent_by_me: u128 = tx
+                    .siacoin_inputs
+                    .iter()
+                    .filter(|input| input.parent.siacoin_output.address.to_string() == my_address)
+                    .map(|input| *input.parent.siacoin_output.value)
+                    .sum();
+
+                let received_by_me: u128 = tx
+                    .siacoin_outputs
+                    .iter()
+                    .filter(|output| output.address.to_string() == my_address)
+                    .map(|output| *output.value)
+                    .sum();
+
+                let my_balance_change = siacoin_from_hastings(received_by_me) - siacoin_from_hastings(spent_by_me);
+
+                Ok(TransactionDetails {
+                    tx: TransactionData::Sia {
+                        tx_json: SiaTransactionTypes::V2Transaction(tx.clone()),
+                        tx_hash: txid,
+                    },
+                    from,
+                    to,
+                    total_amount: siacoin_from_hastings(total_input),
+                    spent_by_me: siacoin_from_hastings(spent_by_me),
+                    received_by_me: siacoin_from_hastings(received_by_me),
+                    my_balance_change,
+                    block_height: event.index.height,
+                    timestamp: event.timestamp.timestamp() as u64,
+                    fee_details: Some(
+                        SiaFeeDetails {
+                            coin: self.ticker().to_string(),
+                            amount: siacoin_from_hastings(fee),
+                        }
+                        .into(),
+                    ),
+                    coin: self.ticker().to_string(),
+                    internal_id: vec![].into(),
+                    kmd_rewards: None,
+                    transaction_type: TransactionType::SiaV2Transaction,
+                    memo: None,
+                })
+            },
+            EventDataWrapper::V1Transaction(tx) => {
+                let txid = tx.transaction.txid().to_string();
+
+                let from: Vec<String> = tx
+                    .spent_siacoin_elements
+                    .iter()
+                    .map(|element| element.siacoin_output.address.to_string())
+                    .collect();
+
+                let to: Vec<String> = tx
+                    .transaction
+                    .siacoin_outputs
+                    .iter()
+                    .map(|output| output.address.to_string())
+                    .collect();
+
+                let total_input: u128 = tx
+                    .spent_siacoin_elements
+                    .iter()
+                    .map(|element| *element.siacoin_output.value)
+                    .sum();
+
+                let total_output: u128 = tx.transaction.siacoin_outputs.iter().map(|output| *output.value).sum();
+
+                let fee = total_input - total_output;
+
+                let my_address = self.my_address().mm_err(|e| e.to_string())?;
+
+                let spent_by_me: u128 = tx
+                    .spent_siacoin_elements
+                    .iter()
+                    .filter(|element| element.siacoin_output.address.to_string() == my_address)
+                    .map(|element| *element.siacoin_output.value)
+                    .sum();
+
+                let received_by_me: u128 = tx
+                    .transaction
+                    .siacoin_outputs
+                    .iter()
+                    .filter(|output| output.address.to_string() == my_address)
+                    .map(|output| *output.value)
+                    .sum();
+
+                let my_balance_change = siacoin_from_hastings(received_by_me) - siacoin_from_hastings(spent_by_me);
+
+                Ok(TransactionDetails {
+                    tx: TransactionData::Sia {
+                        tx_json: SiaTransactionTypes::V1Transaction(tx.transaction.clone()),
+                        tx_hash: txid,
+                    },
+                    from,
+                    to,
+                    total_amount: siacoin_from_hastings(total_input),
+                    spent_by_me: siacoin_from_hastings(spent_by_me),
+                    received_by_me: siacoin_from_hastings(received_by_me),
+                    my_balance_change,
+                    block_height: event.index.height,
+                    timestamp: event.timestamp.timestamp() as u64,
+                    fee_details: Some(
+                        SiaFeeDetails {
+                            coin: self.ticker().to_string(),
+                            amount: siacoin_from_hastings(fee),
+                        }
+                        .into(),
+                    ),
+                    coin: self.ticker().to_string(),
+                    internal_id: vec![].into(),
+                    kmd_rewards: None,
+                    transaction_type: TransactionType::SiaV1Transaction,
+                    memo: None,
+                })
+            },
+            EventDataWrapper::MinerPayout(event_payout) | EventDataWrapper::FoundationPayout(event_payout) => {
+                let txid = event_payout.siacoin_element.state_element.id.to_string();
+
+                let from: Vec<String> = vec![];
+
+                let to: Vec<String> = vec![event_payout.siacoin_element.siacoin_output.address.to_string()];
+
+                let total_output: u128 = event_payout.siacoin_element.siacoin_output.value.0;
+
+                let my_address = self.my_address().mm_err(|e| e.to_string())?;
+
+                let received_by_me: u128 =
+                    if event_payout.siacoin_element.siacoin_output.address.to_string() == my_address {
+                        total_output
+                    } else {
+                        0
+                    };
+
+                let my_balance_change = siacoin_from_hastings(received_by_me);
+
+                Ok(TransactionDetails {
+                    tx: TransactionData::Sia {
+                        tx_json: SiaTransactionTypes::EventPayout(event_payout.clone()),
+                        tx_hash: txid,
+                    },
+                    from,
+                    to,
+                    total_amount: siacoin_from_hastings(total_output),
+                    spent_by_me: BigDecimal::from(0),
+                    received_by_me: siacoin_from_hastings(received_by_me),
+                    my_balance_change,
+                    block_height: event.index.height,
+                    timestamp: event.timestamp.timestamp() as u64,
+                    fee_details: None,
+                    coin: self.ticker().to_string(),
+                    internal_id: vec![].into(),
+                    kmd_rewards: None,
+                    transaction_type: TransactionType::SiaMinerPayout,
+                    memo: None,
+                })
+            },
+            EventDataWrapper::ClaimPayout(_)
+            | EventDataWrapper::V2FileContractResolution(_)
+            | EventDataWrapper::EventV1ContractResolution(_) => MmError::err(ERRL!("Unsupported event type")),
+        }
     }
 }
 
