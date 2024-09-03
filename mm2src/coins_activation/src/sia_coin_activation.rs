@@ -10,7 +10,8 @@ use coins::my_tx_history_v2::TxHistoryStorage;
 use coins::siacoin::{sia_coin_from_conf_and_params, SiaCoin, SiaCoinActivationParams, SiaCoinBuildError,
                      SiaCoinProtocolInfo};
 use coins::tx_history_storage::CreateTxHistoryStorageError;
-use coins::{BalanceError, CoinBalance, CoinProtocol, MarketCoinOps, PrivKeyBuildPolicy, RegisterCoinError};
+use coins::{lp_spawn_tx_history, BalanceError, CoinBalance, CoinProtocol, MarketCoinOps, PrivKeyBuildPolicy,
+            RegisterCoinError};
 use crypto::hw_rpc_task::{HwRpcTaskAwaitingStatus, HwRpcTaskUserAction};
 use crypto::CryptoCtxError;
 use derive_more::Display;
@@ -211,7 +212,7 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
 
     async fn get_activation_result(
         &self,
-        _ctx: MmArc,
+        ctx: MmArc,
         task_handle: SiaCoinRpcTaskHandleShared,
         _activation_request: &Self::ActivationRequest,
     ) -> MmResult<Self::ActivationResult, SiaCoinInitError> {
@@ -224,6 +225,8 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
 
         let balance = self.my_balance().compat().await?;
         let address = self.my_address()?;
+
+        lp_spawn_tx_history(ctx, self.clone().into()).map_to_mm(SiaCoinInitError::Internal)?;
 
         Ok(SiaCoinActivationResult {
             ticker: self.ticker().into(),
