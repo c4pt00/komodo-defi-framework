@@ -2727,7 +2727,7 @@ pub enum BalanceError {
     UnexpectedDerivationMethod(UnexpectedDerivationMethod),
     #[display(fmt = "Wallet storage error: {}", _0)]
     WalletStorageError(String),
-    #[from_stringify("Bip32Error", "NumConversError")]
+    #[from_stringify("Bip32Error", "NumConversError", "ParseBigDecimalError")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
 }

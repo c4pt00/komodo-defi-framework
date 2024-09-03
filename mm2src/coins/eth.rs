@@ -4434,7 +4434,8 @@ impl EthCoin {
                 ))
             },
         };
-        let wallet_amount = u256_to_big_decimal(wallet_amount_uint, self.decimals)?;
+        // The "balanceOf" function in ERC1155 standard returns the exact count of tokens held by address without any decimals or scaling factors
+        let wallet_amount = wallet_amount_uint.to_string().parse::<BigDecimal>()?;
         Ok(wallet_amount)
     }
 
