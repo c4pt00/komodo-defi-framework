@@ -176,7 +176,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc', )
+          deps: ('protoc', 'git-submodules')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -206,7 +206,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -236,7 +236,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc')
+          deps: ('protoc', 'git-submodules')
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
