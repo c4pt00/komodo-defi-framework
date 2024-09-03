@@ -179,7 +179,7 @@ pub async fn peer_connection_healthcheck_rpc(
 
     broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), encoded_message, None);
 
-    let timeout_duration = Duration::from_millis(ctx.healthcheck_config.timeout);
+    let timeout_duration = Duration::from_millis(ctx.healthcheck_config.timeout_ms);
     Ok(rx.timeout(timeout_duration).await == Ok(Ok(())))
 }
 

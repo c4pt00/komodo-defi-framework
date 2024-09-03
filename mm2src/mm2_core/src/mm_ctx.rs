@@ -46,26 +46,25 @@ cfg_native! {
 const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 
 mod healthcheck_defaults {
-    /// The default duration required to wait before sending another healthcheck
-    /// request to the same peer.
     pub(crate) const fn default_healthcheck_blocking_ms() -> u64 { 750 }
 
     pub(crate) const fn default_healthcheck_message_expiration() -> i64 { 10 }
 
-    pub(crate) const fn default_result_channel_timeout() -> u64 { 10 }
+    pub(crate) const fn default_timeout_ms() -> u64 { 10 }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct HealthcheckConfig {
-    /// TODO
+    /// Required time (millisecond) to wait before processing another healthcheck request from the same peer.
     #[serde(default = "healthcheck_defaults::default_healthcheck_blocking_ms")]
     pub blocking_ms_for_per_address: u64,
-    /// TODO
+    /// Lifetime of the message.
+    /// Do not change this unless you know what you are doing.
     #[serde(default = "healthcheck_defaults::default_healthcheck_message_expiration")]
     pub message_expiration: i64,
-    /// TODO
-    #[serde(default = "healthcheck_defaults::default_result_channel_timeout")]
-    pub timeout: u64,
+    /// Maximum time (milliseconds) to wait for healthcheck response.
+    #[serde(default = "healthcheck_defaults::default_timeout_ms")]
+    pub timeout_ms: u64,
 }
 
 impl Default for HealthcheckConfig {
@@ -73,7 +72,7 @@ impl Default for HealthcheckConfig {
         Self {
             blocking_ms_for_per_address: healthcheck_defaults::default_healthcheck_blocking_ms(),
             message_expiration: healthcheck_defaults::default_healthcheck_message_expiration(),
-            timeout: healthcheck_defaults::default_result_channel_timeout(),
+            timeout_ms: healthcheck_defaults::default_timeout_ms(),
         }
     }
 }
@@ -182,7 +181,7 @@ pub struct MmCtx {
     pub healthcheck_response_handler: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
     /// This is used to record healthcheck sender peers in an expirable manner to prevent brute-force attacks.
     pub healthcheck_bruteforce_shield: AsyncMutex<ExpirableMap<String, ()>>,
-    /// TODO
+    /// Global configuration of healthchecks.
     pub healthcheck_config: HealthcheckConfig,
 }
 
