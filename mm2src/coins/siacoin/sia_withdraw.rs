@@ -1,6 +1,6 @@
 use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaTransactionTypes};
-use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, WithdrawError, WithdrawRequest,
-            WithdrawResult};
+use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
+            WithdrawRequest, WithdrawResult};
 use common::now_sec;
 use mm2_err_handle::mm_error::MmError;
 use mm2_err_handle::prelude::*;
@@ -158,7 +158,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
             internal_id: vec![].into(),
             timestamp: now_sec(),
             kmd_rewards: None,
-            transaction_type: Default::default(),
+            transaction_type: TransactionType::SiaV2Transaction,
             memo: None,
         })
     }
