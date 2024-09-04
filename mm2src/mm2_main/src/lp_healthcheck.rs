@@ -162,6 +162,13 @@ pub async fn peer_connection_healthcheck_rpc(
     let target_peer_id = PeerId::from_str(&req.peer_id)
         .map_err(|e| HealthcheckRpcError::InvalidPeerAddress { reason: e.to_string() })?;
 
+    let p2p_ctx = P2PContext::fetch_from_mm_arc(&ctx);
+
+    if target_peer_id == p2p_ctx.peer_id() {
+        // That's us, so return true.
+        return Ok(true);
+    }
+
     let message =
         HealthcheckMessage::generate_message(&ctx, target_peer_id, false, ctx.healthcheck_config.message_expiration)
             .map_err(|reason| HealthcheckRpcError::MessageGenerationFailed { reason })?;

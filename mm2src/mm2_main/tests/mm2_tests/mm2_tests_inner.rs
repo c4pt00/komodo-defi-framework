@@ -5940,11 +5940,21 @@ fn test_connection_healthcheck_rpc() {
 
     thread::sleep(Duration::from_secs(2));
 
+    // Self-address check for Bob
+    let response = block_on(peer_connection_healthcheck(&bob_mm, BOB_ADDRESS));
+    assert_eq!(response["result"], json!(true));
+
+    // Check address of Alice
     let response = block_on(peer_connection_healthcheck(&bob_mm, ALICE_ADDRESS));
     assert_eq!(response["result"], json!(true));
 
     thread::sleep(Duration::from_secs(1));
 
+    // Self-address check for Alice
+    let response = block_on(peer_connection_healthcheck(&alice_mm, ALICE_ADDRESS));
+    assert_eq!(response["result"], json!(true));
+
+    // Check address of Bob
     let response = block_on(peer_connection_healthcheck(&alice_mm, BOB_ADDRESS));
     assert_eq!(response["result"], json!(true));
 }
