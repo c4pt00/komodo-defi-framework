@@ -500,13 +500,18 @@ impl MmCoin for SiaCoin {
     /// Get fee to be paid per 1 swap transaction
     fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> { unimplemented!() }
 
+    // Todo: Implement this method when working on swaps
     async fn get_sender_trade_fee(
         &self,
         _value: TradePreimageValue,
         _stage: FeeApproxStage,
         _include_refund_fee: bool,
     ) -> TradePreimageResult<TradeFee> {
-        unimplemented!()
+        Ok(TradeFee {
+            coin: self.0.conf.ticker.clone(),
+            amount: Default::default(),
+            paid_from_trading_vol: false,
+        })
     }
 
     fn get_receiver_trade_fee(&self, _stage: FeeApproxStage) -> TradePreimageFut<TradeFee> { unimplemented!() }
@@ -634,7 +639,8 @@ impl MarketCoinOps for SiaCoin {
         Box::new(fut.boxed().compat())
     }
 
-    fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { unimplemented!() }
+    // Todo: Revise this method if we ever implement SiaFund
+    fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { Box::new(self.my_balance().map(|res| res.spendable)) }
 
     fn platform_ticker(&self) -> &str { "TSIA" }
 
@@ -688,7 +694,8 @@ impl MarketCoinOps for SiaCoin {
 
     fn display_priv_key(&self) -> Result<String, String> { unimplemented!() }
 
-    fn min_tx_amount(&self) -> BigDecimal { unimplemented!() }
+    // Todo: revise this when working on swaps
+    fn min_tx_amount(&self) -> BigDecimal { siacoin_from_hastings(1) }
 
     fn min_trading_vol(&self) -> MmNumber { unimplemented!() }
 
