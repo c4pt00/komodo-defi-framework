@@ -33,7 +33,7 @@ use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse, Addres
                                TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{V1Transaction, V2Transaction};
-use sia_rust::types::{Address, Event, EventDataWrapper, EventPayout, EventType};
+use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType};
 use sia_rust::{Keypair, KeypairError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -244,9 +244,17 @@ impl SiaArc {
 pub struct SiaCoinProtocolInfo;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum SiaFeePolicy {
+    Fixed,
+    HastingsPerByte(Currency),
+    Unknown,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct SiaFeeDetails {
     pub coin: String,
-    pub amount: BigDecimal,
+    pub policy: SiaFeePolicy,
+    pub total_amount: BigDecimal,
 }
 
 #[async_trait]
@@ -1020,7 +1028,8 @@ impl SiaCoin {
                     fee_details: Some(
                         SiaFeeDetails {
                             coin: self.ticker().to_string(),
-                            amount: siacoin_from_hastings(fee),
+                            policy: SiaFeePolicy::Unknown,
+                            total_amount: siacoin_from_hastings(fee),
                         }
                         .into(),
                     ),
@@ -1092,7 +1101,8 @@ impl SiaCoin {
                     fee_details: Some(
                         SiaFeeDetails {
                             coin: self.ticker().to_string(),
-                            amount: siacoin_from_hastings(fee),
+                            policy: SiaFeePolicy::Unknown,
+                            total_amount: siacoin_from_hastings(fee),
                         }
                         .into(),
                     ),

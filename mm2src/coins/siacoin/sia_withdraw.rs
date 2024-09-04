@@ -1,4 +1,5 @@
-use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaTransactionTypes};
+use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaFeePolicy,
+                     SiaTransactionTypes};
 use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
             WithdrawRequest, WithdrawResult};
 use common::now_sec;
@@ -148,8 +149,9 @@ impl<'a> SiaWithdrawBuilder<'a> {
             my_balance_change: received_by_me - spent_by_me,
             fee_details: Some(
                 SiaFeeDetails {
-                    amount: siacoin_from_hastings(TX_FEE_HASTINGS),
                     coin: self.coin.ticker().to_string(),
+                    policy: SiaFeePolicy::Fixed,
+                    total_amount: siacoin_from_hastings(TX_FEE_HASTINGS),
                 }
                 .into(),
             ),
