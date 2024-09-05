@@ -1014,6 +1014,7 @@ impl SiaCoin {
 
                 Ok(TransactionDetails {
                     tx: TransactionData::Sia {
+                        tx_hex: serde_json::to_string(&tx).map_to_mm(|e| e.to_string())?,
                         tx_json: SiaTransactionTypes::V2Transaction(tx.clone()),
                         tx_hash: txid,
                     },
@@ -1087,6 +1088,7 @@ impl SiaCoin {
 
                 Ok(TransactionDetails {
                     tx: TransactionData::Sia {
+                        tx_hex: serde_json::to_string(&tx.transaction).map_to_mm(|e| e.to_string())?,
                         tx_json: SiaTransactionTypes::V1Transaction(tx.transaction.clone()),
                         tx_hash: txid,
                     },
@@ -1135,6 +1137,7 @@ impl SiaCoin {
 
                 Ok(TransactionDetails {
                     tx: TransactionData::Sia {
+                        tx_hex: serde_json::to_string(&event_payout).map_to_mm(|e| e.to_string())?,
                         tx_json: SiaTransactionTypes::EventPayout(event_payout.clone()),
                         tx_hash: txid,
                     },

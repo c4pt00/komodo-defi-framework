@@ -2331,7 +2331,7 @@ pub struct TransactionDetails {
 #[serde(untagged)]
 pub enum TransactionData {
     Signed {
-        /// Raw bytes of signed transaction, this should be sent as is to `send_raw_transaction_bytes` RPC to broadcast the transaction
+        /// Raw bytes of signed transaction, this should be sent as is to `send_raw_transaction` RPC to broadcast the transaction
         tx_hex: BytesJson,
         /// Transaction hash in hexadecimal format
         tx_hash: String,
@@ -2342,7 +2342,11 @@ pub enum TransactionData {
     // Todo: After implementing tx hash in sia-rust we can use Signed variant for sia as well but make tx_hex: BytesJson and enum or add another variant for sia/json
     #[cfg(feature = "enable-sia")]
     Sia {
-        /// SIA transactions are broadcasted in JSON format
+        /// JSON string representation of the signed transaction.
+        /// This should be sent as is to the `send_raw_transaction` RPC to broadcast the transaction.
+        tx_hex: String,
+        /// SIA transactions are broadcasted in JSON format.
+        /// This is provided in case someone wants to broadcast the transaction JSON through other means than `send_raw_transaction`.
         tx_json: SiaTransactionTypes,
         /// Transaction hash in hexadecimal format
         tx_hash: String,
