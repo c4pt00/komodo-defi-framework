@@ -138,7 +138,6 @@ impl<'a> SiaWithdrawBuilder<'a> {
 
         Ok(TransactionDetails {
             tx: TransactionData::Sia {
-                tx_hex: serde_json::to_string(&signed_tx).map_err(|e| WithdrawError::InternalError(e.to_string()))?,
                 tx_json: SiaTransactionTypes::V2Transaction(signed_tx.clone()),
                 tx_hash: signed_tx.txid().to_string(),
             },

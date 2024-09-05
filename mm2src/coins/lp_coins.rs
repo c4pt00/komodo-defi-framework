@@ -2342,9 +2342,6 @@ pub enum TransactionData {
     // Todo: After implementing tx hash in sia-rust we can use Signed variant for sia as well but make tx_hex: BytesJson and enum or add another variant for sia/json
     #[cfg(feature = "enable-sia")]
     Sia {
-        /// JSON string representation of the signed transaction.
-        /// This should be sent as is to the `send_raw_transaction` RPC to broadcast the transaction.
-        tx_hex: String,
         /// SIA transactions are broadcasted in JSON format.
         /// This is provided in case someone wants to broadcast the transaction JSON through other means than `send_raw_transaction`.
         tx_json: SiaTransactionTypes,
@@ -4850,8 +4847,16 @@ pub async fn send_raw_transaction(ctx: MmArc, req: Json) -> Result<Response<Vec<
         Ok(None) => return ERR!("No such coin: {}", ticker),
         Err(err) => return ERR!("!lp_coinfind({}): {}", ticker, err),
     };
-    let bytes_string = try_s!(req["tx_hex"].as_str().ok_or("No 'tx_hex' field"));
-    let res = try_s!(coin.send_raw_tx(bytes_string).compat().await);
+    // tx_json parsing is required for siacoin because txes are never encoded in hex
+    let tx_string = if let Some(tx_hex) = req["tx_hex"].as_str() {
+        tx_hex.to_owned()
+    } else if let Some(tx_json) = req["tx_json"].as_object() {
+        let json_string = try_s!(json::to_string(tx_json));
+        json_string
+    } else {
+        return ERR!("No 'tx_hex' or 'tx_json' field");
+    };
+    let res = try_s!(coin.send_raw_tx(&tx_string).compat().await);
     let body = try_s!(json::to_vec(&json!({ "tx_hash": res })));
     Ok(try_s!(Response::builder().body(body)))
 }
