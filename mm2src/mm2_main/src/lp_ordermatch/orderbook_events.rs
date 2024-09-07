@@ -1,4 +1,6 @@
-use super::OrderbookP2PItem;
+use super::{subscribe_to_orderbook_topic, OrderbookP2PItem};
+use coins::{is_wallet_only_ticker, lp_coinfind};
+use mm2_core::mm_ctx::MmArc;
 use mm2_event_stream::{Broadcaster, Event, EventStreamer, StreamHandlerInput};
 
 use async_trait::async_trait;
@@ -7,12 +9,13 @@ use futures::StreamExt;
 use uuid::Uuid;
 
 pub struct OrderbookStreamer {
+    ctx: MmArc,
     base: String,
     rel: String,
 }
 
 impl OrderbookStreamer {
-    pub fn new(base: String, rel: String) -> Self { Self { base, rel } }
+    pub fn new(ctx: MmArc, base: String, rel: String) -> Self { Self { ctx, base, rel } }
 
     pub fn derive_streamer_id(base: &str, rel: &str) -> String { format!("ORDERBOOK_UPDATE/{base}:{rel}") }
 }
@@ -38,14 +41,49 @@ impl EventStreamer for OrderbookStreamer {
         ready_tx: oneshot::Sender<Result<(), String>>,
         mut data_rx: impl StreamHandlerInput<Self::DataInType>,
     ) {
-        ready_tx
-            .send(Ok(()))
-            .expect("Receiver is dropped, which should never happen.");
+        const RECEIVER_DROPPED_MSG: &str = "Receiver is dropped, which should never happen.";
+        if let Err(err) = sanity_checks(&self.ctx, &self.base, &self.rel).await {
+            ready_tx.send(Err(err.clone())).expect(RECEIVER_DROPPED_MSG);
+            panic!("{}", err);
+        }
+        // We need to subscribe to the orderbook, otherwise we won't get any updates from the P2P network.
+        if let Err(err) = subscribe_to_orderbook_topic(&self.ctx, &self.base, &self.rel, false).await {
+            let err = format!("Subscribing to orderbook topic failed: {err:?}");
+            ready_tx.send(Err(err.clone())).expect(RECEIVER_DROPPED_MSG);
+            panic!("{}", err);
+        }
+        ready_tx.send(Ok(())).expect(RECEIVER_DROPPED_MSG);
 
         while let Some(orderbook_update) = data_rx.next().await {
             let event_data = serde_json::to_value(orderbook_update).expect("Serialization shouldn't fail.");
             let event = Event::new(self.streamer_id(), event_data);
             broadcaster.broadcast(event);
         }
+    }
+}
+
+async fn sanity_checks(ctx: &MmArc, base: &str, rel: &str) -> Result<(), String> {
+    lp_coinfind(ctx, base)
+        .await
+        .map_err(|e| format!("Coin {base} not found: {e}"))?;
+    if is_wallet_only_ticker(ctx, base) {
+        return Err(format!("Coin {base} is wallet-only."));
+    }
+    lp_coinfind(ctx, rel)
+        .await
+        .map_err(|e| format!("Coin {base} not found: {e}"))?;
+    if is_wallet_only_ticker(ctx, rel) {
+        return Err(format!("Coin {rel} is wallet-only."));
+    }
+    Ok(())
+}
+
+impl Drop for OrderbookStreamer {
+    fn drop(&mut self) {
+        // FIXME(discuss): Do we want to unsubscribe from the orderbook topic when streaming is dropped?
+
+        // Note that the client enables orderbook streaming for all enabled coins when they query for best
+        // orders. These could potentially be a lot of pairs!
+        // Also, in the dev branch, we seem to never unsubscribe from an orderbook topic after doing an orderbook RPC!
     }
 }

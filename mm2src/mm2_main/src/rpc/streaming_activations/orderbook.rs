@@ -28,7 +28,7 @@ pub async fn enable_orderbook(
     ctx: MmArc,
     req: EnableOrderbookStreamingRequest,
 ) -> MmResult<EnableStreamingResponse, OrderbookStreamingRequestError> {
-    let order_status_streamer = OrderbookStreamer::new(req.base, req.rel);
+    let order_status_streamer = OrderbookStreamer::new(ctx.clone(), req.base, req.rel);
     ctx.event_stream_manager
         .add(req.client_id, order_status_streamer, ctx.spawner())
         .await
