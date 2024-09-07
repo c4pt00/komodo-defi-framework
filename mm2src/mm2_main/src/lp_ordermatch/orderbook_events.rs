@@ -1,4 +1,4 @@
-use super::{subscribe_to_orderbook_topic, OrderbookP2PItem};
+use super::{orderbook_topic_from_base_rel, subscribe_to_orderbook_topic, OrderbookP2PItem};
 use coins::{is_wallet_only_ticker, lp_coinfind};
 use mm2_core::mm_ctx::MmArc;
 use mm2_event_stream::{Broadcaster, Event, EventStreamer, StreamHandlerInput};
@@ -17,7 +17,9 @@ pub struct OrderbookStreamer {
 impl OrderbookStreamer {
     pub fn new(ctx: MmArc, base: String, rel: String) -> Self { Self { ctx, base, rel } }
 
-    pub fn derive_streamer_id(base: &str, rel: &str) -> String { format!("ORDERBOOK_UPDATE/{base}:{rel}") }
+    pub fn derive_streamer_id(base: &str, rel: &str) -> String {
+        format!("ORDERBOOK_UPDATE/{}", orderbook_topic_from_base_rel(base, rel))
+    }
 }
 
 #[derive(Serialize)]
