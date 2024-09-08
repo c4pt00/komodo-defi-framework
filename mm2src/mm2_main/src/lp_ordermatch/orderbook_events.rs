@@ -1,5 +1,7 @@
-use super::{orderbook_topic_from_base_rel, subscribe_to_orderbook_topic, OrderbookP2PItem};
+use super::{orderbook_topic_from_base_rel, subscribe_passively_to_orderbook_topic,
+            unsubscribe_passively_from_orderbook_topic, OrderbookP2PItem};
 use coins::{is_wallet_only_ticker, lp_coinfind};
+use common::log::error;
 use mm2_core::mm_ctx::MmArc;
 use mm2_event_stream::{Broadcaster, Event, EventStreamer, StreamHandlerInput};
 
@@ -49,7 +51,7 @@ impl EventStreamer for OrderbookStreamer {
             panic!("{}", err);
         }
         // We need to subscribe to the orderbook, otherwise we won't get any updates from the P2P network.
-        if let Err(err) = subscribe_to_orderbook_topic(&self.ctx, &self.base, &self.rel, false).await {
+        if let Err(err) = subscribe_passively_to_orderbook_topic(&self.ctx, &self.base, &self.rel) {
             let err = format!("Subscribing to orderbook topic failed: {err:?}");
             ready_tx.send(Err(err.clone())).expect(RECEIVER_DROPPED_MSG);
             panic!("{}", err);
@@ -82,10 +84,10 @@ async fn sanity_checks(ctx: &MmArc, base: &str, rel: &str) -> Result<(), String>
 
 impl Drop for OrderbookStreamer {
     fn drop(&mut self) {
-        // FIXME(discuss): Do we want to unsubscribe from the orderbook topic when streaming is dropped?
-
-        // Note that the client enables orderbook streaming for all enabled coins when they query for best
-        // orders. These could potentially be a lot of pairs!
-        // Also, in the dev branch, we seem to never unsubscribe from an orderbook topic after doing an orderbook RPC!
+        // If no client is listening to the stream (streamer being dropped),
+        // we can unsubscribe from the orderbook topic.
+        unsubscribe_passively_from_orderbook_topic(&self.ctx, &self.base, &self.rel)
+            .map_err(|e| error!("Unsubscribing from orderbook topic failed: {e:?}."))
+            .ok();
     }
 }

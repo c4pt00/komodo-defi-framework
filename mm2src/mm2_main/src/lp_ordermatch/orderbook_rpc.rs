@@ -11,7 +11,7 @@ use num_traits::Zero;
 use serde_json::{self as json, Value as Json};
 
 use super::{addr_format_from_protocol_info, is_my_order, mm2_internal_pubkey_hex, orderbook_address,
-            subscribe_to_orderbook_topic, OrdermatchContext, RpcOrderbookEntryV2};
+            subscribe_actively_to_orderbook_topic, OrdermatchContext, RpcOrderbookEntryV2};
 
 #[derive(Debug, Serialize)]
 pub struct AggregatedOrderbookEntryV2 {
@@ -86,7 +86,7 @@ pub async fn orderbook_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u8>>, S
         return ERR!("Base and rel coins have the same orderbook tickers and protocols.");
     }
 
-    try_s!(subscribe_to_orderbook_topic(&ctx, &base_ticker, &rel_ticker, request_orderbook).await);
+    try_s!(subscribe_actively_to_orderbook_topic(&ctx, &base_ticker, &rel_ticker, request_orderbook).await);
 
     let my_pubsecp = mm2_internal_pubkey_hex(&ctx, String::from).map_err(MmError::into_inner)?;
 
@@ -251,7 +251,7 @@ pub async fn orderbook_rpc_v2(
     }
 
     let request_orderbook = true;
-    subscribe_to_orderbook_topic(&ctx, &base_ticker, &rel_ticker, request_orderbook)
+    subscribe_actively_to_orderbook_topic(&ctx, &base_ticker, &rel_ticker, request_orderbook)
         .await
         .map_to_mm(OrderbookRpcError::P2PSubscribeError)?;
 

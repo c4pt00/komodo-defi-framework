@@ -2142,7 +2142,7 @@ fn test_subscribe_to_ordermatch_topic_subscribed_not_filled() {
     let expected = Some(OrderbookRequestingState::Requested);
     assert_eq!(actual, expected);
 
-    // orderbook.topics_subscribed_to.insert(orderbook_topic("RICK", "MORTY"), OrderbookSubscriptionState::NotRequested {subscribed_at: now_ms() - 41});
+    // orderbook.topics_subscribed_to.insert(orderbook_topic("RICK", "MORTY"), OrderbookRequestingState::NotRequested {subscribed_at: now_ms() - 41});
 }
 
 #[test]
@@ -2413,10 +2413,11 @@ fn test_diff_should_not_be_written_if_hash_not_changed_on_remove() {
 #[test]
 fn test_orderbook_pubkey_sync_request() {
     let mut orderbook = Orderbook::default();
-    orderbook.topics_subscribed_to.insert(
-        orderbook_topic_from_base_rel("C1", "C2"),
-        OrderbookRequestingState::Requested,
-    );
+    let mut sub_state = OrderbookSubscriptionState::new();
+    sub_state.is_listening_actively = true;
+    orderbook
+        .topics_subscribed_to
+        .insert(orderbook_topic_from_base_rel("C1", "C2"), sub_state);
     let pubkey = "pubkey";
 
     let mut trie_roots = HashMap::new();
@@ -2444,10 +2445,12 @@ fn test_orderbook_pubkey_sync_request() {
 #[test]
 fn test_orderbook_pubkey_sync_request_relay() {
     let mut orderbook = Orderbook::default();
-    orderbook.topics_subscribed_to.insert(
-        orderbook_topic_from_base_rel("C1", "C2"),
-        OrderbookRequestingState::Requested,
-    );
+    let mut sub_state = OrderbookSubscriptionState::new();
+    // We aren't listening actively but as a relay we should still store the orderbook state.
+    sub_state.is_listening_actively = false;
+    orderbook
+        .topics_subscribed_to
+        .insert(orderbook_topic_from_base_rel("C1", "C2"), sub_state);
     let pubkey = "pubkey";
 
     let mut trie_roots = HashMap::new();

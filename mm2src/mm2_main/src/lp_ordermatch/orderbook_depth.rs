@@ -54,7 +54,7 @@ pub async fn orderbook_depth_rpc(ctx: MmArc, req: Json) -> Result<Response<Vec<u
             .filter_map(|original_pair| {
                 let orderbook_pair = ordermatch_ctx.orderbook_pair_bypass(&original_pair);
                 let topic = orderbook_topic_from_base_rel(&orderbook_pair.0, &orderbook_pair.1);
-                if orderbook.is_subscribed_to(&topic) {
+                if orderbook.is_actively_subscribed_to(&topic) {
                     let asks = orderbook
                         .unordered
                         .get(&orderbook_pair)
