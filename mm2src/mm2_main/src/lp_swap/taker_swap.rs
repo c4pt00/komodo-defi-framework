@@ -1826,10 +1826,9 @@ impl TakerSwap {
         info!("Maker payment spend tx {:02x}", tx_hash);
 
         // we should wait for only one confirmation to make sure spend maker payment transaction is not failed
-        let confirmations = std::cmp::min(1, self.r().data.maker_payment_confirmations);
         let confirm_maker_payment_spend_input = ConfirmPaymentInput {
             payment_tx: transaction.tx_hex(),
-            confirmations,
+            confirmations: std::cmp::min(1, self.r().data.maker_payment_confirmations),
             requires_nota: self.r().data.maker_payment_requires_nota.unwrap_or(false),
             wait_until: self.wait_refund_until(),
             check_every: WAIT_CONFIRM_INTERVAL_SEC,
@@ -1837,14 +1836,17 @@ impl TakerSwap {
         let wait_fut = self
             .maker_coin
             .wait_for_confirmations(confirm_maker_payment_spend_input);
-        if let Err(err) = wait_fut.compat().await {
-            return Ok((Some(TakerSwapCommand::Finish), vec![
-                TakerSwapEvent::MakerPaymentSpendFailed(
-                    ERRL!("!wait for maker payment spend confirmations: {}", err).into(),
-                ),
-            ]));
-        }
-        info!("Maker payment spend confirmed");
+        let confirmations = match wait_fut.compat().await {
+            Ok(conf) => conf,
+            Err(err) => {
+                return Ok((Some(TakerSwapCommand::Finish), vec![
+                    TakerSwapEvent::MakerPaymentSpendFailed(
+                        ERRL!("!wait for maker payment spend confirmations: {}", err).into(),
+                    ),
+                ]));
+            },
+        };
+        info!("Maker payment spend confirmed. Confirmation number: {}", confirmations);
 
         let tx_ident = TransactionIdentifier {
             tx_hex: BytesJson::from(transaction.tx_hex()),
