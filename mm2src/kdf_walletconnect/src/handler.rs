@@ -1,8 +1,10 @@
 use std::time::Duration;
 
-use futures::channel::mpsc::UnboundedSender;
-use relay_client::{error::ClientError, websocket::{CloseFrame, ConnectionHandler, PublishedMessage}, ConnectionOptions};
 use common::log::info;
+use futures::channel::mpsc::UnboundedSender;
+use relay_client::{error::ClientError,
+                   websocket::{CloseFrame, ConnectionHandler, PublishedMessage},
+                   ConnectionOptions};
 use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
 
 pub struct Handler {
@@ -11,9 +13,7 @@ pub struct Handler {
 }
 
 impl Handler {
-  pub fn new(name: &'static str, sender: UnboundedSender<PublishedMessage>) -> Self {
-        Self { name, sender }
-    }
+    pub fn new(name: &'static str, sender: UnboundedSender<PublishedMessage>) -> Self { Self { name, sender } }
 }
 
 impl ConnectionHandler for Handler {

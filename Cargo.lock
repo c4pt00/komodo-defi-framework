@@ -4486,6 +4486,7 @@ dependencies = [
  "gstuff",
  "hex",
  "instant",
+ "kdf_walletconnect",
  "lazy_static",
  "mm2_err_handle",
  "mm2_event_stream",

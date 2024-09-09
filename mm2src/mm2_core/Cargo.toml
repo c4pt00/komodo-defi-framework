@@ -16,6 +16,7 @@ db_common = { path = "../db_common" }
 derive_more = "0.99"
 futures = { version = "0.3", package = "futures", features = ["compat", "async-await", "thread-pool"] }
 hex = "0.4.2"
+kdf_walletconnect = { path = "../kdf_walletconnect" }
 lazy_static = "1.4"
 mm2_err_handle = { path = "../mm2_err_handle" }
 mm2_event_stream = { path = "../mm2_event_stream" }
@@ -32,7 +33,7 @@ uuid = { version = "1.2.2", features = ["fast-rng", "serde", "v4"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gstuff = { version = "0.7", features = ["nightly"] }
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
-mm2_rpc = { path = "../mm2_rpc", features = [ "rpc_facilities" ] }
+mm2_rpc = { path = "../mm2_rpc", features = ["rpc_facilities"] }
 wasm-bindgen-test = { version = "0.3.2" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

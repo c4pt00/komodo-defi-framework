@@ -51,7 +51,7 @@ mod dispatcher_legacy;
 pub mod lp_commands_legacy;
 mod rate_limiter;
 
-/// Lists the RPC method not requiring the "userpass" authentication.  
+/// Lists the RPC method not requiring the "userpass" authentication.
 /// None is also public to skip auth and display proper error in case of method is missing
 const PUBLIC_METHODS: &[Option<&str>] = &[
     // Sorted alphanumerically (on the first letter) for readability.

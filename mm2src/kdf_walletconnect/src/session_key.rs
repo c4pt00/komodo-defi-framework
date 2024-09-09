@@ -1,10 +1,8 @@
-use {
-    hkdf::Hkdf,
-    rand::{rngs::OsRng, CryptoRng, RngCore},
-    sha2::{Digest, Sha256},
-    std::fmt::Debug,
-    x25519_dalek::{EphemeralSecret, PublicKey},
-};
+use {hkdf::Hkdf,
+     rand::{rngs::OsRng, CryptoRng, RngCore},
+     sha2::{Digest, Sha256},
+     std::fmt::Debug,
+     x25519_dalek::{EphemeralSecret, PublicKey}};
 
 /// Session key and topic derivation errors.
 #[derive(Debug, thiserror::Error)]
@@ -35,8 +33,8 @@ impl SessionKey {
 
     /// Performs Diffie-Hellman symmetric key derivation.
     pub fn diffie_hellman<T>(csprng: T, sender_public_key: &[u8; 32]) -> Result<Self, SessionError>
-        where
-            T: RngCore + CryptoRng,
+    where
+        T: RngCore + CryptoRng,
     {
         let single_use_private_key = EphemeralSecret::random_from_rng(csprng);
         let public_key = PublicKey::from(&single_use_private_key);
@@ -55,14 +53,10 @@ impl SessionKey {
     }
 
     /// Gets symmetic key reference.
-    pub fn symmetric_key(&self) -> &[u8; 32] {
-        &self.sym_key
-    }
+    pub fn symmetric_key(&self) -> &[u8; 32] { &self.sym_key }
 
     /// Gets "our" public key used in symmetric key derivation.
-    pub fn diffie_public_key(&self) -> &[u8; 32] {
-        self.public_key.as_bytes()
-    }
+    pub fn diffie_public_key(&self) -> &[u8; 32] { self.public_key.as_bytes() }
 
     /// Generates new session topic.
     pub fn generate_topic(&self) -> String {

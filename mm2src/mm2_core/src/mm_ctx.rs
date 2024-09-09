@@ -5,6 +5,7 @@ use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
 use common::log::{self, LogLevel, LogOnError, LogState};
 use common::{cfg_native, cfg_wasm32, small_rng};
 use gstuff::{try_s, Constructible, ERR, ERRL};
+use kdf_walletconnect::WalletConnectClient;
 use lazy_static::lazy_static;
 use mm2_event_stream::{controller::Controller, Event, EventStreamConfiguration};
 use mm2_metrics::{MetricsArc, MetricsOps};
@@ -84,7 +85,7 @@ pub struct MmCtx {
     pub event_stream_configuration: Option<EventStreamConfiguration>,
     /// True if the MarketMaker instance needs to stop.
     pub stop: Constructible<bool>,
-    /// Unique context identifier, allowing us to more easily pass the context through the FFI boundaries.  
+    /// Unique context identifier, allowing us to more easily pass the context through the FFI boundaries.
     /// 0 if the handler ID is allocated yet.
     pub ffi_handle: Constructible<u32>,
     /// The context belonging to the `ordermatch` mod: `OrdermatchContext`.
@@ -142,6 +143,7 @@ pub struct MmCtx {
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
     pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
+    pub wallect_connect: Arc<WalletConnectClient>,
 }
 
 impl MmCtx {
@@ -191,6 +193,7 @@ impl MmCtx {
             nft_ctx: Mutex::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
+            wallect_connect: Arc::new(WalletConnectClient::default()),
         }
     }
 
@@ -293,7 +296,7 @@ impl MmCtx {
         db_root.join(wallet_name.to_string() + ".dat")
     }
 
-    /// MM database path.  
+    /// MM database path.
     /// Defaults to a relative "DB".
     ///
     /// Can be changed via the "dbdir" configuration field, for example:
@@ -565,7 +568,7 @@ impl MmArc {
         }
     }
 
-    /// Tries getting access to the MM context.  
+    /// Tries getting access to the MM context.
     /// Fails if an invalid MM context handler is passed (no such context or dropped context).
     #[track_caller]
     pub fn from_ffi_handle(ffi_handle: u32) -> Result<MmArc, String> {
