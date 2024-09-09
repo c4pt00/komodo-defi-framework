@@ -1,0 +1,24 @@
+[package]
+name = "kdf_walletconnect"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# chacha20poly1305 = "0.10"
+common = { path = "../common" }
+futures = { version = "0.3", package = "futures", features = [
+    "compat",
+    "async-await",
+] }
+hex = "0.4.2"
+hkdf = "0.12.4"
+mm2_err_handle = { path = "../mm2_err_handle" }
+pairing_api = { path = "../../../kdf-wc/pairing_api" }
+rand = "0.8"
+relay_client = { path = "../../../kdf-wc/relay_client" }
+relay_rpc = { path = "../../../kdf-wc/relay_rpc" }
+sha2 = "0.10.8"
+thiserror = "1.0.40"
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
