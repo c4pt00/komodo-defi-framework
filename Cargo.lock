@@ -3550,6 +3550,7 @@ name = "kdf_walletconnect"
 version = "0.1.0"
 dependencies = [
  "common",
+ "derive_more",
  "futures 0.3.28",
  "hex",
  "hkdf",
@@ -3558,8 +3559,11 @@ dependencies = [
  "rand 0.8.4",
  "relay_client",
  "relay_rpc",
+ "serde",
+ "serde_json",
  "sha2 0.10.8",
  "thiserror",
+ "wc_common",
  "x25519-dalek 2.0.1",
 ]
 

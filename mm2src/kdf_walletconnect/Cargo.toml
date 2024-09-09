@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 # chacha20poly1305 = "0.10"
 common = { path = "../common" }
+derive_more = "0.99"
 futures = { version = "0.3", package = "futures", features = [
     "compat",
     "async-await",
@@ -21,4 +22,7 @@ relay_client = { path = "../../../kdf-wc/relay_client" }
 relay_rpc = { path = "../../../kdf-wc/relay_rpc" }
 sha2 = "0.10.8"
 thiserror = "1.0.40"
+wc_common = { path = "../../../kdf-wc/wc_common" }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
