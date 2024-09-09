@@ -2360,8 +2360,6 @@ struct OrderedByPriceOrder {
 /// The state of some orderbook subscription.
 #[derive(Clone, Debug, PartialEq)]
 struct OrderbookSubscriptionState {
-    /// At what time did we subscribe to the orderbook topic?
-    subscribed_at: u64,
     /// Was the orderbook requested/fetched?
     is_requested: bool,
     /// Is this subscription in active mode?
@@ -2378,7 +2376,6 @@ struct OrderbookSubscriptionState {
 impl OrderbookSubscriptionState {
     fn new() -> Self {
         OrderbookSubscriptionState {
-            subscribed_at: now_sec(),
             is_requested: false,
             is_listening_actively: false,
             is_listening_passively: false,
