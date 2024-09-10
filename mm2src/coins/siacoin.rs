@@ -28,8 +28,8 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-use sia_rust::http_client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia_rust::http_endpoints::{AddressUtxosRequest, AddressUtxosResponse, AddressesEventsRequest,
+use sia_rust::http::client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
+use sia_rust::http::endpoints::{AddressUtxosRequest, AddressUtxosResponse, AddressesEventsRequest,
                                TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{V1Transaction, V2Transaction};
@@ -658,7 +658,8 @@ impl MarketCoinOps for SiaCoin {
         let tx = tx.to_owned();
 
         let fut = async move {
-            let transaction = serde_json::from_str::<V2Transaction>(&tx).map_err(|e| e.to_string())?;
+            let tx : Json = serde_json::from_str(&tx).map_err(|e| e.to_string())?;
+            let transaction = serde_json::from_str::<V2Transaction>(&tx.to_string()).map_err(|e| e.to_string())?;
             let txid = transaction.txid().to_string();
             let request = TxpoolBroadcastRequest {
                 transactions: vec![],
@@ -1161,6 +1162,7 @@ impl SiaCoin {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1169,7 +1171,7 @@ mod tests {
 
     #[test]
     fn test_siacoin_from_hastings() {
-        let hastings = u128::MAX;
+        let hastings = u128::MAX; 
         let siacoin = siacoin_from_hastings(hastings);
         assert_eq!(
             siacoin,
@@ -1202,3 +1204,22 @@ mod tests {
         assert_eq!(hastings, 57769875000000000000000000000000000);
     }
 }
+
+// #[cfg(test)]
+// mod wasm_tests {
+//     use super::*;
+//     use wasm_bindgen::prelude::*;
+//     use wasm_bindgen_test::*;
+//     use common::log::info;
+//     use common::log::wasm_log::register_wasm_log;
+
+//     wasm_bindgen_test_configure!(run_in_browser);
+
+//     #[wasm_bindgen_test]
+//     async fn test_sia_anything() {
+//         register_wasm_log();
+//         info!("does this print to the console?");
+//         assert_eq!(1, 1);
+//     }
+
+// }

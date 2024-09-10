@@ -5,7 +5,7 @@ use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, T
 use common::now_sec;
 use mm2_err_handle::mm_error::MmError;
 use mm2_err_handle::prelude::*;
-use sia_rust::http_endpoints::AddressUtxosResponse;
+use sia_rust::http::endpoints::AddressUtxosResponse;
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
 use sia_rust::types::{Address, Currency};
