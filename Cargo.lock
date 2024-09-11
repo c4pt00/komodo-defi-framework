@@ -3549,6 +3549,7 @@ dependencies = [
 name = "kdf_walletconnect"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "common",
  "derive_more",
  "futures 0.3.28",
