@@ -1,11 +1,7 @@
-use std::time::Duration;
-
 use common::log::info;
 use futures::channel::mpsc::UnboundedSender;
 use relay_client::{error::ClientError,
-                   websocket::{CloseFrame, ConnectionHandler, PublishedMessage},
-                   ConnectionOptions};
-use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
+                   websocket::{CloseFrame, ConnectionHandler, PublishedMessage}};
 
 pub struct Handler {
     name: &'static str,
@@ -43,16 +39,4 @@ impl ConnectionHandler for Handler {
     fn outbound_error(&mut self, error: ClientError) {
         info!("\n[{}] outbound error: {error}", self.name);
     }
-}
-
-fn create_conn_opts(relay_address: &str, project_id: &str) -> ConnectionOptions {
-    let key = SigningKey::generate(&mut rand::thread_rng());
-
-    let auth = AuthToken::new("https://komodefi.com")
-        .aud(relay_address)
-        .ttl(Duration::from_secs(60 * 60))
-        .as_jwt(&key)
-        .unwrap();
-
-    ConnectionOptions::new(project_id, auth).with_address(relay_address)
 }

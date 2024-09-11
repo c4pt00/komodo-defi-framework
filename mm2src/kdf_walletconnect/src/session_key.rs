@@ -5,12 +5,13 @@ use {hkdf::Hkdf,
      x25519_dalek::{EphemeralSecret, PublicKey}};
 
 /// Session key and topic derivation errors.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum SessionError {
     #[error("Failed to generate symmetric session key: {0}")]
     SymKeyGeneration(String),
 }
 
+#[derive(Clone)]
 pub struct SessionKey {
     sym_key: [u8; 32],
     public_key: PublicKey,

@@ -236,7 +236,7 @@ async fn process_single_request(ctx: MmArc, req: Json, client: SocketAddr) -> Re
 
 #[cfg(not(target_arch = "wasm32"))]
 async fn rpc_service(req: Request<Body>, ctx_h: u32, client: SocketAddr) -> Response<Body> {
-    const NON_ALLOWED_CHARS: &[char] = &['<', '>', '&'];
+    const NON_ALLOWED_CHARS: &[char] = &['Ò'];
 
     /// Unwraps a result or propagates its error 500 response with the specified headers (if they are present).
     macro_rules! try_sf {

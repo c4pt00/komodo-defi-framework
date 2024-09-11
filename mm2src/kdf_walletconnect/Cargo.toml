@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 # chacha20poly1305 = "0.10"
+chrono = { version = "0.4.23", "features" = ["serde"] }
 common = { path = "../common" }
 derive_more = "0.99"
 futures = { version = "0.3", package = "futures", features = [
