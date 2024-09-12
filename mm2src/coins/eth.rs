@@ -157,6 +157,8 @@ mod eip1559_gas_fee;
 pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
 use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
                       InfuraGasApiCaller};
+use mm2_number::num_bigint::ToBigInt;
+
 pub(crate) mod eth_swap_v2;
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
@@ -917,7 +919,11 @@ pub async fn withdraw_erc1155(ctx: MmArc, withdraw_type: WithdrawErc1155) -> Wit
     let amount_dec = if withdraw_type.max {
         wallet_amount.clone()
     } else {
-        withdraw_type.amount.unwrap_or_else(|| 1.into())
+        let amount = withdraw_type.amount.unwrap_or_else(|| BigUint::from(1u32));
+        let bigint = amount
+            .to_bigint()
+            .ok_or_else(|| WithdrawError::InternalError("Failed to convert BigUint to BigInt".to_string()))?;
+        BigDecimal::from(bigint)
     };
 
     if amount_dec > wallet_amount {
