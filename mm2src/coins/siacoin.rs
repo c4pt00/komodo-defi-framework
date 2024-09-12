@@ -28,8 +28,8 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-use sia_rust::http::client::{SiaApiClient, SiaApiClientError, SiaHttpConf};
-use sia_rust::http::endpoints::{AddressUtxosRequest, AddressUtxosResponse, AddressesEventsRequest,
+use sia_rust::http::client::{ApiClientHelpers, ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ClientConf};
+use sia_rust::http::endpoints::{GetAddressUtxosRequest, GetAddressUtxosResponse, AddressesEventsRequest,
                                TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{V1Transaction, V2Transaction};
@@ -40,6 +40,12 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+
+#[cfg(not(target_arch = "wasm32"))]
+use sia_rust::http::client::native::NativeClient as SiaClientType;
+
+#[cfg(target_arch = "wasm32")]
+use sia_rust::http::client::WasmClient as SiaClientType;
 
 pub mod sia_hd_wallet;
 mod sia_withdraw;
@@ -72,7 +78,7 @@ pub struct SiaCoinActivationParams {
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
-    pub http_conf: SiaHttpConf,
+    pub http_conf: ClientConf,
 }
 
 pub struct SiaConfBuilder<'a> {
@@ -94,18 +100,20 @@ impl<'a> SiaConfBuilder<'a> {
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521668313
 // for additional fields needed
-pub struct SiaCoinFields {
+pub struct SiaCoinFieldsGeneric<T: SiaApiClient + ApiClientHelpers> {
     /// SIA coin config
     pub conf: SiaCoinConf,
     pub priv_key_policy: PrivKeyPolicy<Keypair>,
     /// HTTP(s) client
-    pub http_client: SiaApiClient,
+    pub http_client: T, // FIXME replace this with a generic that impls ApiClient trait
     /// State of the transaction history loop (enabled, started, in progress, etc.)
     pub history_sync_state: Mutex<HistorySyncState>,
     /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
     /// and on [`MmArc::stop`].
     pub abortable_system: AbortableQueue,
 }
+
+pub type SiaCoinFields = SiaCoinFieldsGeneric<SiaClientType>;
 
 pub async fn sia_coin_from_conf_and_params(
     ctx: &MmArc,
@@ -943,14 +951,14 @@ pub enum SiaTransactionTypes {
 }
 
 impl SiaCoin {
-    async fn get_unspent_outputs(&self, address: Address) -> Result<AddressUtxosResponse, MmError<SiaApiClientError>> {
-        let request = AddressUtxosRequest { address };
+    async fn get_unspent_outputs(&self, address: Address) -> Result<GetAddressUtxosResponse, MmError<SiaApiClientError>> {
+        let request = GetAddressUtxosRequest { address , limit: None, offset: None};
         let res = self.0.http_client.dispatcher(request).await?;
         Ok(res)
     }
 
     async fn get_address_events(&self, address: Address) -> Result<Vec<Event>, MmError<SiaApiClientError>> {
-        let request = AddressesEventsRequest { address };
+        let request = AddressesEventsRequest { address , limit: None, offset: None };
         let res = self.0.http_client.dispatcher(request).await?;
         Ok(res)
     }

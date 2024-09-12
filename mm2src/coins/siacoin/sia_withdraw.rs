@@ -5,7 +5,7 @@ use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, T
 use common::now_sec;
 use mm2_err_handle::mm_error::MmError;
 use mm2_err_handle::prelude::*;
-use sia_rust::http::endpoints::AddressUtxosResponse;
+use sia_rust::http::endpoints::GetAddressUtxosResponse;
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
 use sia_rust::types::{Address, Currency};
@@ -46,9 +46,9 @@ impl<'a> SiaWithdrawBuilder<'a> {
     #[allow(clippy::result_large_err)]
     fn select_outputs(
         &self,
-        mut unspent_outputs: AddressUtxosResponse,
+        mut unspent_outputs: GetAddressUtxosResponse,
         total_amount: u128,
-    ) -> Result<AddressUtxosResponse, MmError<WithdrawError>> {
+    ) -> Result<GetAddressUtxosResponse, MmError<WithdrawError>> {
         // Sort outputs from largest to smallest
         unspent_outputs.sort_by(|a, b| b.siacoin_output.value.0.cmp(&a.siacoin_output.value.0));
 
