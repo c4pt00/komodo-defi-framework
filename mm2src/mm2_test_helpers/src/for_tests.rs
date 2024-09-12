@@ -853,9 +853,7 @@ pub fn nft_dev_conf() -> Json {
     })
 }
 
-fn set_chain_id(conf: &mut Json, chain_id: u64) {
-    conf["chain_id"] = json!(chain_id);
-}
+fn set_chain_id(conf: &mut Json, chain_id: u64) { conf["chain_id"] = json!(chain_id); }
 
 pub fn eth_sepolia_conf() -> Json {
     json!({
@@ -2903,7 +2901,10 @@ pub async fn enable_tendermint(
     tx_history: bool,
 ) -> Json {
     let ibc_requests: Vec<_> = ibc_assets.iter().map(|ticker| json!({ "ticker": ticker })).collect();
-    let nodes: Vec<Json> = rpc_urls.iter().map(|u| json!({"url": u, "komodo_proxy": false })).collect();
+    let nodes: Vec<Json> = rpc_urls
+        .iter()
+        .map(|u| json!({"url": u, "komodo_proxy": false }))
+        .collect();
 
     let request = json!({
         "userpass": mm.userpass,
@@ -2940,7 +2941,10 @@ pub async fn enable_tendermint_without_balance(
     tx_history: bool,
 ) -> Json {
     let ibc_requests: Vec<_> = ibc_assets.iter().map(|ticker| json!({ "ticker": ticker })).collect();
-    let nodes: Vec<Json> = rpc_urls.iter().map(|u| json!({"url": u, "komodo_proxy": false })).collect();
+    let nodes: Vec<Json> = rpc_urls
+        .iter()
+        .map(|u| json!({"url": u, "komodo_proxy": false }))
+        .collect();
 
     let request = json!({
         "userpass": mm.userpass,

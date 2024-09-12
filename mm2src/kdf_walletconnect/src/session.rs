@@ -21,6 +21,8 @@ use std::{collections::BTreeMap, sync::Arc};
 
 pub(crate) const APP_NAME: &str = "Komodefi Framework";
 pub(crate) const APP_DESCRIPTION: &str = "WallectConnect Komodefi Framework Playground";
+const FIVE_MINUTES: u64 = 300;
+const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
 
@@ -69,13 +71,12 @@ impl SessionInfo {
             events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
         });
 
-        // Initialize relay
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
             data: None,
         };
 
-        // Conditional logic to handle proposer or controller
+        // handle proposer or controller
         let (proposer, controller) = match session_type {
             SessionUserType::Proposer => (
                 Proposer {
@@ -98,7 +99,7 @@ impl SessionInfo {
             namespaces: ProposeNamespaces(namespaces),
             settled_namespaces: SettleNamespaces(settled_namespaces),
             relay,
-            expiry: Utc::now().timestamp() as u64 + 300,
+            expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
             pairing_topic,
             session_type,
         }
@@ -111,7 +112,7 @@ impl SessionInfo {
             relay: self.relay.clone(),
             controller: self.controller.clone(),
             namespaces: self.supported_settle_namespaces().clone(),
-            expiry: Utc::now().timestamp() as u64 + 300, // 5 min TTL
+            expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
         })
     }
     fn create_proposal_response(&self) -> Result<(Value, IrnMetadata), WalletConnectCtxError> {
@@ -164,6 +165,7 @@ impl Session {
             info!("session found!");
             session.proposer.public_key = response.responder_public_key;
             session.relay = response.relay;
+            session.expiry = Utc::now().timestamp() + THIRTY_DAYS;
         };
     }
 

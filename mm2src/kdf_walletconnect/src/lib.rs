@@ -1,18 +1,19 @@
 mod error;
 mod handler;
+mod inbound_message;
 mod pairing;
 mod session;
 mod session_key;
 
-use common::log::info;
+use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
               lock::Mutex,
               StreamExt};
 use handler::Handler;
+use inbound_message::{process_inbound_request, process_inbound_response};
 use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
-use pairing::{process_pairing_delete_response, process_pairing_extend_response, process_pairing_ping_response};
 use pairing_api::{Methods, PairingClient};
 use rand::rngs::OsRng;
 use relay_client::{websocket::{Client, PublishedMessage},
@@ -20,8 +21,7 @@ use relay_client::{websocket::{Client, PublishedMessage},
 use relay_rpc::rpc::params::RelayProtocolMetadata;
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
-                rpc::{params::{session_propose::SessionProposeRequest, IrnMetadata, Metadata, RequestParams,
-                               ResponseParamsSuccess},
+                rpc::{params::{session_propose::SessionProposeRequest, IrnMetadata, Metadata, RequestParams},
                       Params, Payload, Request, Response, SuccessfulResponse, JSON_RPC_VERSION_STR}};
 use session::{Session, SessionInfo, SessionUserType, APP_DESCRIPTION, APP_NAME};
 use session_key::SessionKey;
@@ -86,13 +86,11 @@ impl WalletConnectCtx {
         let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
         self.client.connect(&opts).await?;
 
-        // let is_connected = self.client.;
         info!("WC connected");
 
         Ok(())
     }
 
-    // todo: return slice
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
         {
             let sessions = self.session.lock().await;
@@ -126,6 +124,7 @@ impl WalletConnectCtx {
             .iter()
             .map(|m| m.to_string())
             .collect::<Vec<_>>()]);
+
         let (topic, url) = self
             .pairing
             .create(metadata.clone(), Some(methods), &self.client)
@@ -155,7 +154,6 @@ impl WalletConnectCtx {
             required_namespaces: session.namespaces.clone(),
         });
 
-        // Store the session information in your session manager (self.sessions or similar)
         {
             let mut sessions = self.session.lock().await;
             sessions.insert(session_topic.clone(), session);
@@ -249,7 +247,7 @@ impl WalletConnectCtx {
                 decode_and_decrypt_type0(msg.message.as_bytes(), &key).unwrap()
             };
 
-            println!("\nInbound message payload={message}");
+            info!("\nInbound message payload={message}");
 
             let response = serde_json::from_str::<Payload>(&message).unwrap();
             let result = match response {
@@ -270,83 +268,10 @@ impl WalletConnectCtx {
             info!("connection disconnected, reconnecting");
             if let Err(err) = self.connect_client().await {
                 common::log::error!("{err:?}");
+                Timer::sleep(5.).await;
                 continue;
             };
             info!("reconnecting success!");
         }
-    }
-}
-
-async fn process_inbound_request(
-    ctx: Arc<WalletConnectCtx>,
-    request: Request,
-    topic: &Topic,
-) -> MmResult<(), WalletConnectCtxError> {
-    let response = match request.params {
-        Params::SessionPropose(proposal) => {
-            ctx.session
-                .process_proposal_request(&ctx, proposal, topic.clone())
-                .await
-        },
-        Params::SessionExtend(param) => ctx.session.process_session_extend_request(topic, param).await,
-        Params::SessionDelete(param) => ctx.session.process_session_delete_request(param),
-        Params::SessionPing(()) => ctx.session.process_session_ping_request(),
-        Params::SessionSettle(param) => ctx.session.process_session_settle_request(topic, param).await,
-        Params::SessionUpdate(param) => ctx.session.process_session_update_request(topic, param).await,
-        Params::SessionRequest(_) => todo!(),
-        Params::SessionEvent(_) => todo!(),
-
-        Params::PairingPing(_param) => process_pairing_ping_response().await,
-        Params::PairingDelete(param) => process_pairing_delete_response(&ctx, topic, param).await,
-        Params::PairingExtend(param) => process_pairing_extend_response(&ctx, topic, param).await,
-        _ => todo!(),
-    }?;
-
-    info!("Publishing reponse");
-    ctx.publish_response(topic, response.0, response.1, request.id).await?;
-
-    // todo
-    // ctx.session.session_delete_cleanup(ctx.clone(), topic).await?
-
-    Ok(())
-}
-
-async fn process_inbound_response(
-    ctx: Arc<WalletConnectCtx>,
-    response: Response,
-    topic: &Topic,
-) -> MmResult<(), WalletConnectCtxError> {
-    match response {
-        Response::Success(value) => {
-            let params = serde_json::from_value::<ResponseParamsSuccess>(value.result)?;
-            match params {
-                ResponseParamsSuccess::SessionPropose(param) => {
-                    ctx.session.handle_session_propose_response(topic, param).await;
-                    Ok(())
-                },
-                ResponseParamsSuccess::SessionSettle(success)
-                | ResponseParamsSuccess::SessionUpdate(success)
-                | ResponseParamsSuccess::SessionExtend(success)
-                | ResponseParamsSuccess::SessionRequest(success)
-                | ResponseParamsSuccess::SessionEvent(success)
-                | ResponseParamsSuccess::SessionDelete(success)
-                | ResponseParamsSuccess::SessionPing(success)
-                | ResponseParamsSuccess::PairingExtend(success)
-                | ResponseParamsSuccess::PairingDelete(success)
-                | ResponseParamsSuccess::PairingPing(success) => {
-                    if !success {
-                        return MmError::err(WalletConnectCtxError::UnsuccessfulResponse(format!(
-                            "Unsuccessful response={params:?}"
-                        )));
-                    }
-
-                    Ok(())
-                },
-            }
-        },
-        Response::Error(err) => {
-            println!("Error: {err:?}");
-            todo!()
-        },
     }
 }
