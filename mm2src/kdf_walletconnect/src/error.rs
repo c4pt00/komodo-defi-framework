@@ -14,7 +14,7 @@ pub enum WalletConnectCtxError {
     SubscriptionError(String),
     InternalError(String),
     SerdeError(String),
-    UnsuccessfulResponse(String)
+    UnsuccessfulResponse(String),
 }
 
 impl From<PairingClientError> for WalletConnectCtxError {

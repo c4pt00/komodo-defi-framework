@@ -3560,6 +3560,7 @@ dependencies = [
  "rand 0.8.4",
  "relay_client",
  "relay_rpc",
+ "secp256k1 0.20.3",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -5337,6 +5338,7 @@ name = "pairing_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "hex",
  "lazy_static",
  "paste",

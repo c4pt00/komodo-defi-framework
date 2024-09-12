@@ -1,4 +1,4 @@
-use super::lp_commands::connect_to_peer;
+use super::lp_commands::{connect_to_peer, create_new_pairing};
 use super::{DispatcherError, DispatcherResult, PUBLIC_METHODS};
 use crate::lp_native_dex::init_hw::{cancel_init_trezor, init_trezor, init_trezor_status, init_trezor_user_action};
 #[cfg(target_arch = "wasm32")]
@@ -168,7 +168,8 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "add_node_to_version_stat" => handle_mmrpc(ctx, request, add_node_to_version_stat).await,
         "best_orders" => handle_mmrpc(ctx, request, best_orders_rpc_v2).await,
         "clear_nft_db" => handle_mmrpc(ctx, request, clear_nft_db).await,
-        "wc_connect_to_peer" => handle_mmrpc(ctx, request, connect_to_peer).await,
+        "wc_connect_pairing" => handle_mmrpc(ctx, request, connect_to_peer).await,
+        "wc_create_pairing" => handle_mmrpc(ctx, request, create_new_pairing).await,
         "enable_bch_with_tokens" => handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<BchCoin>).await,
         "enable_slp" => handle_mmrpc(ctx, request, enable_token::<SlpToken>).await,
         "enable_eth_with_tokens" => handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<EthCoin>).await,

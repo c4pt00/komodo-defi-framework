@@ -6,6 +6,7 @@ use futures::lock::Mutex;
 use mm2_err_handle::prelude::{MapToMmResult, MmResult};
 use relay_rpc::rpc::params::session_delete::SessionDeleteRequest;
 use relay_rpc::rpc::params::session_extend::SessionExtendRequest;
+use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::session_update::SessionUpdateRequest;
 use relay_rpc::rpc::params::{IrnMetadata, RelayProtocolMetadata};
 use relay_rpc::{domain::{SubscriptionId, Topic},
@@ -24,54 +25,82 @@ pub(crate) const APP_DESCRIPTION: &str = "WallectConnect Komodefi Framework Play
 pub(crate) type WcRequestResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
 
 #[derive(Debug, Clone)]
+pub enum SessionUserType {
+    Controller,
+    Proposer,
+}
+
+#[derive(Debug, Clone)]
 pub struct SessionInfo {
     /// Pairing subscription id.
     pub subscription_id: SubscriptionId,
     /// Session symmetric key
     pub session_key: SessionKey,
     pub controller: Controller,
+    pub proposer: Proposer,
     pub relay: Relay,
     pub namespaces: ProposeNamespaces,
     pub settled_namespaces: SettleNamespaces,
     pub expiry: u64,
+    pub pairing_topic: Topic,
+    pub session_type: SessionUserType,
 }
 
 impl SessionInfo {
-    fn new(subscription_id: SubscriptionId, session_key: SessionKey, responder_public_key: String) -> Self {
+    pub fn new(
+        subscription_id: SubscriptionId,
+        session_key: SessionKey,
+        pairing_topic: Topic,
+        metadata: Metadata,
+        session_type: SessionUserType,
+    ) -> Self {
+        // Initialize the namespaces for both proposer and controller
         let mut namespaces = BTreeMap::<String, ProposeNamespace>::new();
         namespaces.insert("eip155".to_string(), ProposeNamespace {
             chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
             methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
             events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
         });
+
         let mut settled_namespaces = BTreeMap::<String, SettleNamespace>::new();
         settled_namespaces.insert("eip155".to_string(), SettleNamespace {
             accounts: SUPPORTED_ACCOUNTS.iter().map(|a| a.to_string()).collect(),
             methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
             events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
         });
+
+        // Initialize relay
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
             data: None,
         };
-        let controller = Controller {
-            public_key: responder_public_key,
-            metadata: Metadata {
-                name: APP_NAME.to_owned(),
-                description: APP_DESCRIPTION.to_owned(),
-                icons: vec!["https://www.rust-lang.org/static/images/rust-logo-blk.svg".to_string()],
-                ..Default::default()
-            },
+
+        // Conditional logic to handle proposer or controller
+        let (proposer, controller) = match session_type {
+            SessionUserType::Proposer => (
+                Proposer {
+                    public_key: hex::encode(session_key.diffie_public_key()),
+                    metadata,
+                },
+                Controller::default(),
+            ),
+            SessionUserType::Controller => (Proposer::default(), Controller {
+                public_key: hex::encode(session_key.diffie_public_key()),
+                metadata,
+            }),
         };
 
         Self {
             subscription_id,
             session_key,
             controller,
+            proposer,
             namespaces: ProposeNamespaces(namespaces),
             settled_namespaces: SettleNamespaces(settled_namespaces),
             relay,
             expiry: Utc::now().timestamp() as u64 + 300,
+            pairing_topic,
+            session_type,
         }
     }
 
@@ -125,6 +154,19 @@ impl Session {
         }
     }
 
+    pub(crate) async fn handle_session_propose_response(
+        &self,
+        session_topic: &Topic,
+        response: SessionProposeResponse,
+    ) {
+        let mut sessions = self.lock().await;
+        if let Some(session) = sessions.get_mut(session_topic) {
+            info!("session found!");
+            session.proposer.public_key = response.responder_public_key;
+            session.relay = response.relay;
+        };
+    }
+
     pub(crate) async fn process_session_extend_request(
         &self,
         topic: &Topic,
@@ -149,6 +191,7 @@ impl Session {
         &self,
         ctx: &WalletConnectCtx,
         proposal: SessionProposeRequest,
+        pairing_topic: Topic,
     ) -> WcRequestResult {
         let sender_public_key = hex::decode(&proposal.proposer.public_key)
             .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?
@@ -158,7 +201,6 @@ impl Session {
 
         let session_key = SessionKey::from_osrng(&sender_public_key)
             .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-        let responder_public_key = hex::encode(session_key.diffie_public_key());
         let session_topic: Topic = session_key.generate_topic().into();
         let subscription_id = ctx
             .client
@@ -166,7 +208,19 @@ impl Session {
             .await
             .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
-        let session = SessionInfo::new(subscription_id, session_key, responder_public_key);
+        let metadata = Metadata {
+            description: APP_DESCRIPTION.to_owned(),
+            url: "127.0.0.1:3000".to_owned(),
+            icons: vec![],
+            name: APP_NAME.to_owned(),
+        };
+        let session = SessionInfo::new(
+            subscription_id,
+            session_key,
+            pairing_topic,
+            metadata,
+            SessionUserType::Controller,
+        );
         session
             .supported_propose_namespaces()
             .supported(&proposal.required_namespaces)

@@ -5,11 +5,22 @@ use relay_client::{error::ClientError,
 
 pub struct Handler {
     name: &'static str,
-    sender: UnboundedSender<PublishedMessage>,
+    msg_sender: UnboundedSender<PublishedMessage>,
+    conn_live_sender: UnboundedSender<()>,
 }
 
 impl Handler {
-    pub fn new(name: &'static str, sender: UnboundedSender<PublishedMessage>) -> Self { Self { name, sender } }
+    pub fn new(
+        name: &'static str,
+        msg_sender: UnboundedSender<PublishedMessage>,
+        conn_live_sender: UnboundedSender<()>,
+    ) -> Self {
+        Self {
+            name,
+            msg_sender,
+            conn_live_sender,
+        }
+    }
 }
 
 impl ConnectionHandler for Handler {
@@ -19,6 +30,10 @@ impl ConnectionHandler for Handler {
 
     fn disconnected(&mut self, frame: Option<CloseFrame<'static>>) {
         info!("\n[{}] connection closed: frame={frame:?}", self.name);
+
+        if let Err(e) = self.conn_live_sender.start_send(()) {
+            info!("\n[{}] failed to send the to the receiver: {e}", self.name);
+        }
     }
 
     fn message_received(&mut self, message: PublishedMessage) {
@@ -27,7 +42,7 @@ impl ConnectionHandler for Handler {
             self.name, message.message_id, message.topic, message.tag, message.message,
         );
 
-        if let Err(e) = self.sender.start_send(message) {
+        if let Err(e) = self.msg_sender.start_send(message) {
             info!("\n[{}] failed to send the to the receiver: {e}", self.name);
         }
     }

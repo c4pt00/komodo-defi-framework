@@ -479,6 +479,8 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
         .map_err(|err| MmInitError::WalletInitError(err.to_string()))?;
     ctx.spawner()
         .spawn(ctx.wallect_connect.clone().published_message_event_loop());
+    ctx.spawner()
+        .spawn(ctx.wallect_connect.clone().spawn_connection_live_watcher());
 
     let balance_update_ordermatch_handler = BalanceUpdateOrdermatchHandler::new(ctx.clone());
     register_balance_update_handler(ctx.clone(), Box::new(balance_update_ordermatch_handler)).await;

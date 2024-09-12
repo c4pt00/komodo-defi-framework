@@ -118,27 +118,49 @@ pub async fn trezor_connection_status(
 use serde::Serialize;
 
 #[derive(Deserialize)]
-pub struct CreatePairingRequest {
+pub struct ConnectPairingRequest {
     url: String,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
-pub struct CreatePairingResponse {
+pub struct ConnectPairingResponse {
     pub topic: String,
 }
 
 /// `connect_to_peer` RPC command implementation.
 pub async fn connect_to_peer(
     ctx: MmArc,
-    req: CreatePairingRequest,
-) -> MmResult<CreatePairingResponse, TrezorConnectionError> {
+    req: ConnectPairingRequest,
+) -> MmResult<ConnectPairingResponse, TrezorConnectionError> {
     let topic = ctx
         .wallect_connect
         .connect_to_pairing(&req.url, true)
         .await
         .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;
 
-    Ok(CreatePairingResponse {
+    Ok(ConnectPairingResponse {
         topic: topic.to_string(),
     })
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct CreatePairingResponse {
+    pub url: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreatePairingRequest {}
+
+/// `create_new_pairing` RPC command implementation.
+pub async fn create_new_pairing(
+    ctx: MmArc,
+    _req: CreatePairingRequest,
+) -> MmResult<CreatePairingResponse, TrezorConnectionError> {
+    let url = ctx
+        .wallect_connect
+        .create_pairing()
+        .await
+        .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;
+
+    Ok(CreatePairingResponse { url })
 }

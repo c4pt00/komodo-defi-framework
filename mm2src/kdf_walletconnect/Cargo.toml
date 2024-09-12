@@ -24,6 +24,7 @@ relay_rpc = { path = "../../../kdf-wc/relay_rpc" }
 sha2 = "0.10.8"
 thiserror = "1.0.40"
 wc_common = { path = "../../../kdf-wc/wc_common" }
-x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+secp256k1 = { version = "0.20" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
