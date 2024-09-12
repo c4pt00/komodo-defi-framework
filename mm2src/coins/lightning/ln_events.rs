@@ -2,6 +2,7 @@ use super::*;
 use crate::lightning::ln_db::{DBChannelDetails, HTLCStatus, LightningDB, PaymentType};
 use crate::lightning::ln_errors::{SaveChannelClosingError, SaveChannelClosingResult};
 use crate::lightning::ln_sql::SqliteLightningDB;
+use crate::PrivKeyPolicyOps;
 use bitcoin::blockdata::script::Script;
 use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::serialize_hex;

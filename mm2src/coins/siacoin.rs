@@ -1,4 +1,4 @@
-use super::{BalanceError, CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
+use super::{BalanceError, CoinBalance, HistorySyncState, MarketCoinOps, MmCoin, PrivKeyPolicyOps, RawTransactionFut,
             RawTransactionRequest, SwapOps, TradeFee, TransactionEnum, TransactionFut};
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,

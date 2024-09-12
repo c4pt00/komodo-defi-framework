@@ -4,6 +4,7 @@ use crate::lightning::ln_platform::{get_best_header, ln_best_block_update_loop, 
 use crate::lightning::ln_sql::SqliteLightningDB;
 use crate::lightning::ln_storage::{LightningStorage, NodesAddressesMap};
 use crate::utxo::rpc_clients::BestBlock as RpcBestBlock;
+use crate::PrivKeyPolicyOps;
 use bitcoin::hash_types::BlockHash;
 use bitcoin_hashes::{sha256d, Hash};
 use common::executor::SpawnFuture;

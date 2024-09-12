@@ -1099,6 +1099,7 @@ impl UtxoSignerOps for UtxoStandardCoin {
 
 impl CoinWithPrivKeyPolicy for UtxoStandardCoin {
     type KeyPair = KeyPair;
+    type PrivKeyPolicy = PrivKeyPolicy<Self::KeyPair>;
 
     fn priv_key_policy(&self) -> &PrivKeyPolicy<Self::KeyPair> { &self.utxo_arc.priv_key_policy }
 }

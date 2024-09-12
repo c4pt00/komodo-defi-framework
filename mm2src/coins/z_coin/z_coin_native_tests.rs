@@ -10,8 +10,8 @@ use super::{z_coin_from_conf_and_params_with_z_key, z_mainnet_constants, Future,
             RefundPaymentArgs, SendPaymentArgs, SpendPaymentArgs, SwapOps, ValidateFeeArgs, ValidatePaymentError,
             ZTransaction};
 use crate::z_coin::{z_htlc::z_send_dex_fee, ZcoinActivationParams, ZcoinRpcMode};
-use crate::DexFee;
 use crate::{CoinProtocol, SwapTxTypeWithSecretHash};
+use crate::{DexFee, PrivKeyPolicyOps};
 use mm2_number::MmNumber;
 
 #[test]

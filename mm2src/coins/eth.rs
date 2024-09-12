@@ -6913,6 +6913,7 @@ impl MakerNftSwapOpsV2 for EthCoin {
 
 impl CoinWithPrivKeyPolicy for EthCoin {
     type KeyPair = KeyPair;
+    type PrivKeyPolicy = EthPrivKeyPolicy;
 
     fn priv_key_policy(&self) -> &PrivKeyPolicy<Self::KeyPair> { &self.priv_key_policy }
 }

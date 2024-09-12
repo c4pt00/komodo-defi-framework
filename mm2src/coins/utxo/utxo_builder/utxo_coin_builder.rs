@@ -10,7 +10,8 @@ use crate::utxo::{output_script, ElectrumBuilderArgs, ElectrumProtoVerifier, Ele
                   UtxoCoinFields, UtxoHDWallet, UtxoRpcMode, UtxoSyncStatus, UtxoSyncStatusLoopHandle,
                   UTXO_DUST_AMOUNT};
 use crate::{BlockchainNetwork, CoinTransportMetrics, DerivationMethod, HistorySyncState, IguanaPrivKey,
-            PrivKeyBuildPolicy, PrivKeyPolicy, PrivKeyPolicyNotAllowed, RpcClientType, UtxoActivationParams};
+            PrivKeyBuildPolicy, PrivKeyPolicy, PrivKeyPolicyNotAllowed, PrivKeyPolicyOps, RpcClientType,
+            UtxoActivationParams};
 use async_trait::async_trait;
 use chain::TxHashAlgo;
 use common::custom_futures::repeatable::{Ready, Retry};

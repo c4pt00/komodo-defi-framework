@@ -1,6 +1,7 @@
 #[cfg(feature = "enable-sia")]
-use crate::siacoin::sia_hd_wallet::Ed25519ExtendedPublicKey;
+use crate::siacoin::sia_hd_wallet::Ed25519ExtendedPublicKey as SiaEd25519ExtendedPublicKey;
 use crate::CoinProtocol;
+use std::fmt;
 
 use super::*;
 use async_trait::async_trait;
@@ -11,6 +12,7 @@ use crypto::trezor::utxo::IGNORE_XPUB_MAGIC;
 use crypto::trezor::ProcessTrezorResponse;
 use crypto::trezor::TrezorMessageType;
 use crypto::{CryptoCtx, DerivationPath, EcdsaCurve, HardwareWalletArc, XPub, XPubConverter};
+use crypto::Ed25519ExtendedPublicKey;
 use mm2_core::mm_ctx::MmArc;
 use rpc_task::{RpcTask, RpcTaskHandleShared};
 use std::sync::Arc;
@@ -33,10 +35,16 @@ impl ExtendedPublicKeyOps for Secp256k1ExtendedPublicKey {
 }
 
 #[cfg(feature = "enable-sia")]
-impl ExtendedPublicKeyOps for Ed25519ExtendedPublicKey {
+impl ExtendedPublicKeyOps for SiaEd25519ExtendedPublicKey {
     fn derive_child(&self, child_number: ChildNumber) -> Result<Self, Bip32Error> { self.derive_child(child_number) }
 
     fn to_string(&self, prefix: Prefix) -> String { self.to_string(prefix) }
+}
+
+impl ExtendedPublicKeyOps for Ed25519ExtendedPublicKey {
+    fn derive_child(&self, child_number: ChildNumber) -> Result<Self, Bip32Error> { self.derive_child(child_number) }
+
+    fn to_string(&self, _prefix: Prefix) -> String { hex::encode(self.pubkey.to_bytes()) }
 }
 
 /// This trait should be implemented for coins

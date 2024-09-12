@@ -33,7 +33,8 @@ pub use errors::{AccountUpdatingError, AddressDerivingError, HDExtractPubkeyErro
                  NewAddressDerivingError, TrezorCoinError};
 
 mod pubkey;
-pub use pubkey::{ExtendedPublicKeyOps, ExtractExtendedPubkey, HDXPubExtractor, RpcTaskXPubExtractor};
+pub use pubkey::{ExtendedPublicKeyOps, ExtractExtendedPubkey, HDXPubExtractor,
+                 RpcTaskXPubExtractor};
 
 mod storage;
 #[cfg(target_arch = "wasm32")]
@@ -254,6 +255,7 @@ where
     let res: HDWalletStorageResult<HDAccountsMap<HDAccount<HDAddress, ExtendedPublicKey>>> = accounts
         .iter()
         .map(|account_info| {
+            // Todo: add extended key here? there is another way where we drive from master key all the time or add them after load_hd_accounts_from_storage
             let account = HDAccount::try_from_storage_item(derivation_path, account_info)?;
             Ok((account.account_id, account))
         })
