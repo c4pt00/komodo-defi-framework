@@ -43,7 +43,7 @@ use std::sync::{Arc, Mutex};
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
-use sia_rust::http::client::native::ClientConf as SiaClientConf;
+use sia_rust::http::client::native::Conf as SiaClientConf;
 #[cfg(not(target_arch = "wasm32"))]
 use sia_rust::http::client::native::NativeClient as SiaClientType;
 
@@ -1247,7 +1247,7 @@ mod wasm_tests {
         use sia_rust::types::Address;
 
         let conf = SiaClientConf {
-            base_url: Url::parse("https://sia-walletd.komodo.earth/").unwrap(),
+            server_url: Url::parse("https://sia-walletd.komodo.earth/").unwrap(),
             headers: HashMap::new(),
         };
         let client = SiaClientType::new(conf).await.unwrap();

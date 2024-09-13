@@ -1,5 +1,5 @@
 use common::block_on;
-use sia_rust::http::client::native::{ClientConf, NativeClient};
+use sia_rust::http::client::native::{Conf, NativeClient};
 use sia_rust::http::client::ApiClient;
 use sia_rust::http::endpoints::{AddressBalanceRequest, ConsensusTipRequest, GetAddressUtxosRequest,
                                 TxpoolBroadcastRequest};
@@ -26,8 +26,8 @@ fn mine_blocks(n: u64, addr: &Address) {
 
 #[test]
 fn test_sia_new_client() {
-    let conf = ClientConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
+    let conf = Conf {
+        server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: None,
         timeout: Some(10),
     };
@@ -36,8 +36,8 @@ fn test_sia_new_client() {
 
 #[test]
 fn test_sia_client_consensus_tip() {
-    let conf = ClientConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
+    let conf = Conf {
+        server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: None,
         timeout: Some(10),
     };
@@ -49,8 +49,8 @@ fn test_sia_client_consensus_tip() {
 // related to block height
 #[test]
 fn test_sia_client_address_balance() {
-    let conf = ClientConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
+    let conf = Conf {
+        server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: None,
         timeout: Some(10),
     };
@@ -70,8 +70,8 @@ fn test_sia_client_address_balance() {
 
 #[test]
 fn test_sia_client_build_tx() {
-    let conf = ClientConf {
-        url: Url::parse("http://localhost:9980/").unwrap(),
+    let conf = Conf {
+        server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: None,
         timeout: Some(10),
     };
