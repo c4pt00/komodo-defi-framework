@@ -43,9 +43,9 @@ use std::sync::{Arc, Mutex};
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
-use sia_rust::http::client::native::NativeClient as SiaClientType;
-#[cfg(not(target_arch = "wasm32"))]
 use sia_rust::http::client::native::ClientConf as SiaClientConf;
+#[cfg(not(target_arch = "wasm32"))]
+use sia_rust::http::client::native::NativeClient as SiaClientType;
 
 #[cfg(target_arch = "wasm32")]
 use sia_rust::http::client::wasm::Client as SiaClientType;
@@ -1231,10 +1231,10 @@ mod tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod wasm_tests {
     use super::*;
-    use wasm_bindgen::prelude::*;
-    use wasm_bindgen_test::*;
     use common::log::info;
     use common::log::wasm_log::register_wasm_log;
+    use wasm_bindgen::prelude::*;
+    use wasm_bindgen_test::*;
 
     use url::Url;
 
@@ -1248,10 +1248,16 @@ mod wasm_tests {
 
         let conf = SiaClientConf {
             base_url: Url::parse("https://sia-walletd.komodo.earth/").unwrap(),
-            headers: HashMap::new(),  
+            headers: HashMap::new(),
         };
         let client = SiaClientType::new(conf).await.unwrap();
 
-        client.address_balance(Address::from_str("addr:1599ea80d9af168ce823e58448fad305eac2faf260f7f0b56481c5ef18f0961057bf17030fb3").unwrap()).await.unwrap();
+        client
+            .address_balance(
+                Address::from_str("addr:1599ea80d9af168ce823e58448fad305eac2faf260f7f0b56481c5ef18f0961057bf17030fb3")
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
     }
 }
