@@ -47,7 +47,9 @@ use sia_rust::http::client::native::NativeClient as SiaClientType;
 use sia_rust::http::client::native::ClientConf as SiaClientConf;
 
 #[cfg(target_arch = "wasm32")]
-use sia_rust::http::client::WasmClient as SiaClientType;
+use sia_rust::http::client::wasm::Client as SiaClientType;
+#[cfg(target_arch = "wasm32")]
+use sia_rust::http::client::wasm::Conf as SiaClientConf;
 
 pub mod sia_hd_wallet;
 mod sia_withdraw;
