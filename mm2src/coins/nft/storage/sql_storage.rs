@@ -1082,7 +1082,7 @@ impl NftTransferHistoryStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
 
             if version < CURRENT_SCHEMA_VERSION_TX_HISTORY {
                 // Call migration function to update the table schema to the latest version
-                migrate_tx_history_table_schema(conn, history_table, schema_table)?;
+                migrate_tx_history_table_to_schema_v2(conn, history_table, schema_table)?;
             }
 
             Ok(true)
@@ -1415,7 +1415,7 @@ impl NftTransferHistoryStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
     }
 }
 
-fn migrate_tx_history_table_schema(
+fn migrate_tx_history_table_to_schema_v2(
     conn: &mut Connection,
     history_table: SafeTableName,
     schema_table: SafeTableName,
