@@ -165,7 +165,7 @@ impl Session {
             info!("session found!");
             session.proposer.public_key = response.responder_public_key;
             session.relay = response.relay;
-            session.expiry = Utc::now().timestamp() + THIRTY_DAYS;
+            session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
         };
     }
 
