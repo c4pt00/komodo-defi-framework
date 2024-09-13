@@ -19,15 +19,13 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::{collections::BTreeMap, sync::Arc};
 
-pub(crate) const APP_NAME: &str = "Komodefi Framework";
-pub(crate) const APP_DESCRIPTION: &str = "WallectConnect Komodefi Framework Playground";
 const FIVE_MINUTES: u64 = 300;
 const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
 
 #[derive(Debug, Clone)]
-pub enum SessionUserType {
+pub enum SessionType {
     Controller,
     Proposer,
 }
@@ -45,7 +43,7 @@ pub struct SessionInfo {
     pub settled_namespaces: SettleNamespaces,
     pub expiry: u64,
     pub pairing_topic: Topic,
-    pub session_type: SessionUserType,
+    pub session_type: SessionType,
 }
 
 impl SessionInfo {
@@ -54,7 +52,7 @@ impl SessionInfo {
         session_key: SessionKey,
         pairing_topic: Topic,
         metadata: Metadata,
-        session_type: SessionUserType,
+        session_type: SessionType,
     ) -> Self {
         // Initialize the namespaces for both proposer and controller
         let mut namespaces = BTreeMap::<String, ProposeNamespace>::new();
@@ -78,14 +76,14 @@ impl SessionInfo {
 
         // handle proposer or controller
         let (proposer, controller) = match session_type {
-            SessionUserType::Proposer => (
+            SessionType::Proposer => (
                 Proposer {
                     public_key: hex::encode(session_key.diffie_public_key()),
                     metadata,
                 },
                 Controller::default(),
             ),
-            SessionUserType::Controller => (Proposer::default(), Controller {
+            SessionType::Controller => (Proposer::default(), Controller {
                 public_key: hex::encode(session_key.diffie_public_key()),
                 metadata,
             }),
@@ -106,7 +104,9 @@ impl SessionInfo {
     }
 
     fn supported_propose_namespaces(&self) -> &ProposeNamespaces { &self.namespaces }
+
     fn supported_settle_namespaces(&self) -> &SettleNamespaces { &self.settled_namespaces }
+
     fn create_settle_request(&self) -> RequestParams {
         RequestParams::SessionSettle(SessionSettleRequest {
             relay: self.relay.clone(),
@@ -115,6 +115,7 @@ impl SessionInfo {
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
         })
     }
+
     fn create_proposal_response(&self) -> Result<(Value, IrnMetadata), WalletConnectCtxError> {
         let response = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
             relay: self.relay.clone(),
@@ -210,18 +211,12 @@ impl Session {
             .await
             .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
-        let metadata = Metadata {
-            description: APP_DESCRIPTION.to_owned(),
-            url: "127.0.0.1:3000".to_owned(),
-            icons: vec![],
-            name: APP_NAME.to_owned(),
-        };
         let session = SessionInfo::new(
             subscription_id,
             session_key,
             pairing_topic,
-            metadata,
-            SessionUserType::Controller,
+            proposal.proposer.metadata,
+            SessionType::Controller,
         );
         session
             .supported_propose_namespaces()

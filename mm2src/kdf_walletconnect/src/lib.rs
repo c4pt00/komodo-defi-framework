@@ -1,6 +1,7 @@
 mod error;
 mod handler;
 mod inbound_message;
+mod metadata;
 mod pairing;
 mod session;
 mod session_key;
@@ -12,6 +13,7 @@ use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
               StreamExt};
 use handler::Handler;
 use inbound_message::{process_inbound_request, process_inbound_response};
+use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
 use pairing_api::{Methods, PairingClient};
@@ -21,16 +23,12 @@ use relay_client::{websocket::{Client, PublishedMessage},
 use relay_rpc::rpc::params::RelayProtocolMetadata;
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
-                rpc::{params::{session_propose::SessionProposeRequest, IrnMetadata, Metadata, RequestParams},
+                rpc::{params::{session_propose::SessionProposeRequest, IrnMetadata, RequestParams},
                       Params, Payload, Request, Response, SuccessfulResponse, JSON_RPC_VERSION_STR}};
-use session::{Session, SessionInfo, SessionUserType, APP_DESCRIPTION, APP_NAME};
+use session::{Session, SessionInfo, SessionType};
 use session_key::SessionKey;
 use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
-
-const RELAY_ADDRESS: &str = "wss://relay.walletconnect.com";
-const PROJECT_ID: &str = "86e916bcbacee7f98225dde86b697f5b";
-const AUTH_TOKEN_SUB: &str = "http://127.0.0.1:8000";
 
 const SUPPORTED_PROTOCOL: &str = "irn";
 const SUPPORTED_METHODS: &[&str] = &[
@@ -114,12 +112,7 @@ impl WalletConnectCtx {
     }
 
     pub async fn create_pairing(&self) -> MmResult<String, WalletConnectCtxError> {
-        let metadata = Metadata {
-            description: APP_DESCRIPTION.to_owned(),
-            url: "127.0.0.1:3000".to_owned(),
-            icons: vec![],
-            name: APP_NAME.to_owned(),
-        };
+        let metadata = generate_metadata();
         let methods = Methods(vec![SUPPORTED_METHODS
             .iter()
             .map(|m| m.to_string())
@@ -145,7 +138,7 @@ impl WalletConnectCtx {
             session_key,
             topic.clone(),
             metadata,
-            SessionUserType::Proposer,
+            SessionType::Proposer,
         );
 
         let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
