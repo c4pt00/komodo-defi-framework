@@ -134,7 +134,7 @@ cfg_native! {
 
 mod eth_balance_events;
 mod eth_rpc;
-#[cfg(test)] mod eth_tests; // FIXME Alright - no idea why I had to change this to fix compilation
+#[cfg(all(test, not(target_arch = "wasm32")))] mod eth_tests; // FIXME Alright - no idea why I had to change this to fix compilation
 #[cfg(target_arch = "wasm32")] mod eth_wasm_tests;
 #[cfg(test)] mod for_tests;
 pub(crate) mod nft_swap_v2;
