@@ -1228,13 +1228,13 @@ mod tests {
     }
 }
 
-// #[cfg(test)]
-// mod wasm_tests {
-//     use super::*;
-//     use wasm_bindgen::prelude::*;
-//     use wasm_bindgen_test::*;
-//     use common::log::info;
-//     use common::log::wasm_log::register_wasm_log;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::*;
+    use wasm_bindgen::prelude::*;
+    use wasm_bindgen_test::*;
+    use common::log::info;
+    use common::log::wasm_log::register_wasm_log;
 
 //     wasm_bindgen_test_configure!(run_in_browser);
 
