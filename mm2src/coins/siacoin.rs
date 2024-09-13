@@ -41,6 +41,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+// TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
 use sia_rust::http::client::native::NativeClient as SiaClientType;
 #[cfg(not(target_arch = "wasm32"))]
