@@ -28,9 +28,10 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-use sia_rust::http::client::{ApiClientHelpers, ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ClientConf};
-use sia_rust::http::endpoints::{GetAddressUtxosRequest, GetAddressUtxosResponse, AddressesEventsRequest,
-                               TxpoolBroadcastRequest};
+use sia_rust::http::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers,
+                             ClientConf};
+use sia_rust::http::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
+                                TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{V1Transaction, V2Transaction};
 use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType};
@@ -666,7 +667,7 @@ impl MarketCoinOps for SiaCoin {
         let tx = tx.to_owned();
 
         let fut = async move {
-            let tx : Json = serde_json::from_str(&tx).map_err(|e| e.to_string())?;
+            let tx: Json = serde_json::from_str(&tx).map_err(|e| e.to_string())?;
             let transaction = serde_json::from_str::<V2Transaction>(&tx.to_string()).map_err(|e| e.to_string())?;
             let txid = transaction.txid().to_string();
             let request = TxpoolBroadcastRequest {
@@ -951,14 +952,25 @@ pub enum SiaTransactionTypes {
 }
 
 impl SiaCoin {
-    async fn get_unspent_outputs(&self, address: Address) -> Result<GetAddressUtxosResponse, MmError<SiaApiClientError>> {
-        let request = GetAddressUtxosRequest { address , limit: None, offset: None};
+    async fn get_unspent_outputs(
+        &self,
+        address: Address,
+    ) -> Result<GetAddressUtxosResponse, MmError<SiaApiClientError>> {
+        let request = GetAddressUtxosRequest {
+            address,
+            limit: None,
+            offset: None,
+        };
         let res = self.0.http_client.dispatcher(request).await?;
         Ok(res)
     }
 
     async fn get_address_events(&self, address: Address) -> Result<Vec<Event>, MmError<SiaApiClientError>> {
-        let request = AddressesEventsRequest { address , limit: None, offset: None };
+        let request = AddressesEventsRequest {
+            address,
+            limit: None,
+            offset: None,
+        };
         let res = self.0.http_client.dispatcher(request).await?;
         Ok(res)
     }
@@ -1170,7 +1182,6 @@ impl SiaCoin {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1179,7 +1190,7 @@ mod tests {
 
     #[test]
     fn test_siacoin_from_hastings() {
-        let hastings = u128::MAX; 
+        let hastings = u128::MAX;
         let siacoin = siacoin_from_hastings(hastings);
         assert_eq!(
             siacoin,
