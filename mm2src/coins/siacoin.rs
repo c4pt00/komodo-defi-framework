@@ -28,8 +28,7 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-use sia_rust::http::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers,
-                             ClientConf};
+use sia_rust::http::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
 use sia_rust::http::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
                                 TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
@@ -44,6 +43,8 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(not(target_arch = "wasm32"))]
 use sia_rust::http::client::native::NativeClient as SiaClientType;
+#[cfg(not(target_arch = "wasm32"))]
+use sia_rust::http::client::native::ClientConf as SiaClientConf;
 
 #[cfg(target_arch = "wasm32")]
 use sia_rust::http::client::WasmClient as SiaClientType;
@@ -73,13 +74,13 @@ pub struct SiaCoinConf {
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
 // for additional fields needed
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct SiaCoinActivationParams {
     #[serde(default)]
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
-    pub http_conf: ClientConf,
+    pub http_conf: SiaClientConf,
 }
 
 pub struct SiaConfBuilder<'a> {
@@ -106,7 +107,7 @@ pub struct SiaCoinFieldsGeneric<T: SiaApiClient + ApiClientHelpers> {
     pub conf: SiaCoinConf,
     pub priv_key_policy: PrivKeyPolicy<Keypair>,
     /// HTTP(s) client
-    pub http_client: T, // FIXME replace this with a generic that impls ApiClient trait
+    pub http_client: T,
     /// State of the transaction history loop (enabled, started, in progress, etc.)
     pub history_sync_state: Mutex<HistorySyncState>,
     /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
