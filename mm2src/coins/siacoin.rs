@@ -1236,13 +1236,22 @@ mod wasm_tests {
     use common::log::info;
     use common::log::wasm_log::register_wasm_log;
 
-//     wasm_bindgen_test_configure!(run_in_browser);
+    use url::Url;
 
-//     #[wasm_bindgen_test]
-//     async fn test_sia_anything() {
-//         register_wasm_log();
-//         info!("does this print to the console?");
-//         assert_eq!(1, 1);
-//     }
+    wasm_bindgen_test_configure!(run_in_browser);
 
-// }
+    #[wasm_bindgen_test]
+    async fn test_sia_anything() {
+        register_wasm_log();
+        use sia_rust::http::endpoints::AddressBalanceRequest;
+        use sia_rust::types::Address;
+
+        let conf = SiaClientConf {
+            base_url: Url::parse("https://sia-walletd.komodo.earth/").unwrap(),
+            headers: HashMap::new(),  
+        };
+        let client = SiaClientType::new(conf).await.unwrap();
+
+        client.address_balance(Address::from_str("addr:1599ea80d9af168ce823e58448fad305eac2faf260f7f0b56481c5ef18f0961057bf17030fb3").unwrap()).await.unwrap();
+    }
+}
