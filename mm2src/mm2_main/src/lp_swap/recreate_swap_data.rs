@@ -321,7 +321,7 @@ async fn recreate_taker_swap(ctx: MmArc, maker_swap: MakerSavedSwap) -> Recreate
     let mut maker_p2p_pubkey = [0; 32];
     maker_p2p_pubkey.copy_from_slice(&started_event.my_persistent_pub.0[1..33]);
     let taker_started_event = TakerSwapEvent::Started(TakerSwapData {
-        maker_version: Some(SWAP_PROTOCOL_VERSION),
+        maker_version: None,
         taker_coin: started_event.taker_coin,
         maker_coin: started_event.maker_coin.clone(),
         maker: H256Json::from(maker_p2p_pubkey),
