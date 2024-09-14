@@ -1,7 +1,7 @@
-use crate::lp_network::{add_reserved_peer_addresses, lp_network_ports, request_peers, NetIdError, P2PRequest,
-                        ParseAddressError, PeerDecodedResponse};
 /// The module is responsible for mm2 network stats collection
 ///
+use crate::lp_network::{add_reserved_peer_addresses, lp_network_ports, request_peers, NetIdError, P2PRequest,
+                        ParseAddressError, PeerDecodedResponse};
 use coins::find_unique_account_ids_active;
 #[cfg(not(target_arch = "wasm32"))] use common::async_blocking;
 use common::executor::{SpawnFuture, Timer};

@@ -20,13 +20,70 @@
 //
 //  Copyright © 2023 Pampex LTD and TillyHK LTD. All rights reserved.
 //
-use super::eth::Action::{Call, Create};
-use super::watcher_common::{validate_watcher_reward, REWARD_GAS_AMOUNT};
-use super::*;
+
+// 1. Standard library imports
+use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
+use std::ops::Deref;
+use std::str::{from_utf8, FromStr};
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+// 2. External crates imports
+use async_trait::async_trait;
+use bitcrypto::{dhash160, keccak256, ripemd160, sha256};
+use common::custom_futures::repeatable::{Ready, Retry, RetryOnError};
+use common::custom_futures::timeout::FutureTimerExt;
+use common::executor::{abortable_queue::AbortableQueue, AbortOnDropHandle, AbortSettings, AbortableSystem,
+                       AbortedError, SpawnAbortable, Timer};
+use common::log::{debug, error, info, warn};
+use common::number_type_casting::SafeTypeCastingNumbers;
+use common::{now_sec, small_rng, DEX_FEE_ADDR_RAW_PUBKEY};
+use crypto::privkey::key_pair_from_secret;
+use crypto::{Bip44Chain, CryptoCtx, CryptoCtxError, GlobalHDAccountArc, KeyPairPolicy};
+use derive_more::Display;
+use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
+                      InfuraGasApiCaller};
+use enum_derives::EnumFromStringify;
+use eth_hd_wallet::EthHDWallet;
+use eth_rpc::ETH_RPC_REQUEST_TIMEOUT;
+use eth_withdraw::{EthWithdraw, InitEthWithdraw, StandardEthWithdraw};
+use ethabi::{Contract, Function, Token};
+use ethcore_transaction::tx_builders::TxBuilderError;
+use ethcore_transaction::{Action, TransactionWrapper, TransactionWrapperBuilder as UnSignedEthTxBuilder,
+                          UnverifiedEip1559Transaction, UnverifiedEip2930Transaction, UnverifiedLegacyTransaction,
+                          UnverifiedTransactionWrapper};
+use ethereum_types::{Address, H160, H256, U256};
+use ethkey::{public_to_address, sign, verify_address, KeyPair, Public, Signature};
+use futures::compat::Future01CompatExt;
+use futures::future::{join, join_all, select_ok, try_join_all, Either, FutureExt, TryFutureExt};
+use futures01::Future;
+use http::Uri;
+use instant::Instant;
+use mm2_core::mm_ctx::{MmArc, MmWeak};
+use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
+use mm2_number::bigdecimal_custom::CheckedDivision;
+use mm2_number::{BigDecimal, BigUint, MmNumber};
+use nonce::ParityNonce;
+use rand::seq::SliceRandom;
+use rlp::{DecoderError, Encodable, RlpStream};
+use rpc::v1::types::Bytes as BytesJson;
+use secp256k1::PublicKey;
+use serde_json::{self as json, Value as Json};
+use serialization::{CompactInteger, Serializable, Stream};
+use sha3::{Digest, Keccak256};
+use v2_activation::{build_address_and_priv_key_policy, eth_account_db_id, eth_shared_db_id, EthActivationV2Error};
+use web3::types::{Action as TraceAction, BlockId, BlockNumber, Bytes, CallRequest, FilterBuilder, Log, Trace,
+                  TraceFilterBuilder, Transaction as Web3Transaction, TransactionId, U64};
+use web3::{self, Web3};
+use web3_transport::http_transport::HttpTransportNode;
+use web3_transport::websocket_transport::{WebsocketTransport, WebsocketTransportNode};
+use web3_transport::Web3Transport;
+
+// 3. Internal crate imports
 use crate::coin_balance::{EnableCoinBalanceError, EnabledCoinBalanceParams, HDAccountBalance, HDAddressBalance,
                           HDWalletBalance, HDWalletBalanceOps};
-use crate::eth::eth_rpc::ETH_RPC_REQUEST_TIMEOUT;
-use crate::eth::web3_transport::websocket_transport::{WebsocketTransport, WebsocketTransportNode};
 use crate::hd_wallet::{HDAccountOps, HDCoinAddress, HDCoinWithdrawOps, HDConfirmAddress, HDPathAccountToAddressId,
                        HDWalletCoinOps, HDXPubExtractor};
 use crate::lp_price::get_base_price_in_rel;
@@ -50,55 +107,14 @@ use crate::{coin_balance, scan_for_new_addresses_impl, BalanceResult, CoinWithDe
             DexFee, Eip1559Ops, MakerNftSwapOpsV2, ParseCoinAssocTypes, ParseNftAssocTypes, PayForGasParams,
             PrivKeyPolicy, RpcCommonOps, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs, ToBytes,
             ValidateNftMakerPaymentArgs, ValidateWatcherSpendInput, WatcherSpendType};
-use async_trait::async_trait;
-use bitcrypto::{dhash160, keccak256, ripemd160, sha256};
-use common::custom_futures::repeatable::{Ready, Retry, RetryOnError};
-use common::custom_futures::timeout::FutureTimerExt;
-use common::executor::{abortable_queue::AbortableQueue, AbortOnDropHandle, AbortSettings, AbortableSystem,
-                       AbortedError, SpawnAbortable, Timer};
-use common::log::{debug, error, info, warn};
-use common::number_type_casting::SafeTypeCastingNumbers;
-use common::{now_sec, small_rng, DEX_FEE_ADDR_RAW_PUBKEY};
-use crypto::privkey::key_pair_from_secret;
-use crypto::{Bip44Chain, CryptoCtx, CryptoCtxError, GlobalHDAccountArc, KeyPairPolicy};
-use derive_more::Display;
-use enum_derives::EnumFromStringify;
-use ethabi::{Contract, Function, Token};
-use ethcore_transaction::tx_builders::TxBuilderError;
-use ethcore_transaction::{Action, TransactionWrapper, TransactionWrapperBuilder as UnSignedEthTxBuilder,
-                          UnverifiedEip1559Transaction, UnverifiedEip2930Transaction, UnverifiedLegacyTransaction,
-                          UnverifiedTransactionWrapper};
-pub use ethcore_transaction::{SignedTransaction as SignedEthTx, TxType};
-use ethereum_types::{Address, H160, H256, U256};
-use ethkey::{public_to_address, sign, verify_address, KeyPair, Public, Signature};
-use futures::compat::Future01CompatExt;
-use futures::future::{join, join_all, select_ok, try_join_all, Either, FutureExt, TryFutureExt};
-use futures01::Future;
-use http::Uri;
-use instant::Instant;
-use mm2_core::mm_ctx::{MmArc, MmWeak};
-use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
-use mm2_number::bigdecimal_custom::CheckedDivision;
-use mm2_number::{BigDecimal, BigUint, MmNumber};
+
+// 4. Local module imports
+use super::eth::Action::{Call, Create};
+use super::watcher_common::{validate_watcher_reward, REWARD_GAS_AMOUNT};
+use super::*;
+
+// 5. Conditionally compiled imports
 #[cfg(test)] use mocktopus::macros::*;
-use rand::seq::SliceRandom;
-use rlp::{DecoderError, Encodable, RlpStream};
-use rpc::v1::types::Bytes as BytesJson;
-use secp256k1::PublicKey;
-use serde_json::{self as json, Value as Json};
-use serialization::{CompactInteger, Serializable, Stream};
-use sha3::{Digest, Keccak256};
-use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
-use std::ops::Deref;
-use std::str::from_utf8;
-use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use web3::types::{Action as TraceAction, BlockId, BlockNumber, Bytes, CallRequest, FilterBuilder, Log, Trace,
-                  TraceFilterBuilder, Transaction as Web3Transaction, TransactionId, U64};
-use web3::{self, Web3};
 
 cfg_wasm32! {
     use common::{now_ms, wait_until_ms};
@@ -108,34 +124,22 @@ cfg_wasm32! {
     use web3::types::TransactionRequest;
 }
 
-use super::{coin_conf, lp_coinfind_or_err, AsyncMutex, BalanceError, BalanceFut, CheckIfMyPaymentSentArgs,
-            CoinBalance, CoinFutSpawner, CoinProtocol, CoinTransportMetrics, CoinsContext, ConfirmPaymentInput,
-            EthValidateFeeArgs, FeeApproxStage, FoundSwapTxSpend, HistorySyncState, IguanaPrivKey, MakerSwapTakerCoin,
-            MarketCoinOps, MmCoin, MmCoinEnum, MyAddressError, MyWalletAddress, NegotiateSwapContractAddrErr,
-            NumConversError, NumConversResult, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-            PrivKeyBuildPolicy, PrivKeyPolicyNotAllowed, RawTransactionError, RawTransactionFut,
-            RawTransactionRequest, RawTransactionRes, RawTransactionResult, RefundError, RefundPaymentArgs,
-            RefundResult, RewardTarget, RpcClientType, RpcTransportEventHandler, RpcTransportEventHandlerShared,
-            SearchForSwapTxSpendInput, SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignEthTransactionParams,
-            SignRawTransactionEnum, SignRawTransactionRequest, SignatureError, SignatureResult, SpendPaymentArgs,
-            SwapOps, SwapTxFeePolicy, TakerSwapMakerCoin, TradeFee, TradePreimageError, TradePreimageFut,
-            TradePreimageResult, TradePreimageValue, Transaction, TransactionDetails, TransactionEnum, TransactionErr,
-            TransactionFut, TransactionType, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult,
-            ValidateFeeArgs, ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError,
-            ValidatePaymentFut, ValidatePaymentInput, VerificationError, VerificationResult, WaitForHTLCTxSpendArgs,
-            WatcherOps, WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput,
-            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawError, WithdrawFee, WithdrawFut,
-            WithdrawRequest, WithdrawResult, EARLY_CONFIRMATION_ERR_LOG, INVALID_CONTRACT_ADDRESS_ERR_LOG,
-            INVALID_PAYMENT_STATE_ERR_LOG, INVALID_RECEIVER_ERR_LOG, INVALID_SENDER_ERR_LOG, INVALID_SWAP_ID_ERR_LOG};
-pub use rlp;
 cfg_native! {
     use std::path::PathBuf;
 }
 
+// 6. Re-exports
+pub use ethcore_transaction::{SignedTransaction as SignedEthTx, TxType};
+pub use rlp;
+
+// 7. Local modules declarations
 mod eip1559_gas_fee;
+pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
+
 mod eth_balance_events;
 pub mod eth_hd_wallet;
 mod eth_rpc;
+pub(crate) mod eth_swap_v2;
 #[cfg(test)] mod eth_tests;
 #[cfg(target_arch = "wasm32")] mod eth_wasm_tests;
 mod eth_withdraw;
@@ -144,19 +148,6 @@ pub(crate) mod nft_swap_v2;
 mod nonce;
 #[path = "eth/v2_activation.rs"] pub mod v2_activation;
 mod web3_transport;
-
-use crate::eth::eth_hd_wallet::EthHDWallet;
-use crate::eth::eth_withdraw::{EthWithdraw, InitEthWithdraw, StandardEthWithdraw};
-use crate::eth::nonce::ParityNonce;
-use crate::eth::v2_activation::{build_address_and_priv_key_policy, eth_account_db_id, eth_shared_db_id,
-                                EthActivationV2Error};
-use crate::eth::web3_transport::http_transport::HttpTransportNode;
-use crate::eth::web3_transport::Web3Transport;
-pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
-use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
-                      InfuraGasApiCaller};
-
-pub(crate) mod eth_swap_v2;
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852

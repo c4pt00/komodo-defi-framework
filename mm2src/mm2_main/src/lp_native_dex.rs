@@ -18,6 +18,14 @@
 //  marketmaker
 //
 
+use crate::heartbeat_event::HeartbeatEvent;
+use crate::lp_message_service::{init_message_service, InitMessageServiceError};
+use crate::lp_network::{lp_network_ports, p2p_event_process_loop, NetIdError};
+use crate::lp_ordermatch::{broadcast_maker_orders_keep_alive_loop, clean_memory_loop, init_ordermatch_context,
+                           lp_ordermatch_loop, orders_kick_start, BalanceUpdateOrdermatchHandler, OrdermatchInitError};
+use crate::lp_swap::{running_swaps_num, swap_kick_starts};
+use crate::lp_wallet::{initialize_wallet_passphrase, WalletInitError};
+use crate::rpc::spawn_rpc;
 use bitcrypto::sha256;
 use coins::register_balance_update_handler;
 use common::executor::{SpawnFuture, Timer};
@@ -45,18 +53,8 @@ use std::str;
 use std::time::Duration;
 use std::{fs, usize};
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::database::init_and_migrate_sql_db;
-use crate::heartbeat_event::HeartbeatEvent;
-use crate::lp_message_service::{init_message_service, InitMessageServiceError};
-use crate::lp_network::{lp_network_ports, p2p_event_process_loop, NetIdError};
-use crate::lp_ordermatch::{broadcast_maker_orders_keep_alive_loop, clean_memory_loop, init_ordermatch_context,
-                           lp_ordermatch_loop, orders_kick_start, BalanceUpdateOrdermatchHandler, OrdermatchInitError};
-use crate::lp_swap::{running_swaps_num, swap_kick_starts};
-use crate::lp_wallet::{initialize_wallet_passphrase, WalletInitError};
-use crate::rpc::spawn_rpc;
-
 cfg_native! {
+    use crate::database::init_and_migrate_sql_db;
     use db_common::sqlite::rusqlite::Error as SqlError;
     use mm2_core::sql_connection_pool::{AsyncSqliteConnPool, SqliteConnPool};
     use mm2_io::fs::{ensure_dir_is_writable, ensure_file_is_writable};

@@ -275,12 +275,11 @@ pub use solana::spl::SplToken;
 pub use solana::{SolTransaction, SolanaActivationParams, SolanaCoin, SolanaFeeDetails};
 pub use test_coin::TestCoin;
 
-use crate::eth::eth_swap_v2::{PaymentStatusErr, PrepareTxDataError, ValidatePaymentV2Err};
 use coin_balance::{AddressBalanceStatus, BalanceObjectOps, HDAddressBalance, HDWalletBalanceObject, HDWalletBalanceOps};
 use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentResult};
-use eth::GetValidEthWithdrawAddError;
+use eth::eth_swap_v2::{PaymentStatusErr, PrepareTxDataError, ValidatePaymentV2Err};
 use eth::{eth_coin_from_conf_and_request, get_eth_address, EthCoin, EthGasDetailsErr, EthTxFeeDetails,
-          GetEthAddressError, SignedEthTx};
+          GetEthAddressError, GetValidEthWithdrawAddError, SignedEthTx};
 use ethereum_types::U256;
 use hd_wallet::{AccountUpdatingError, AddressDerivingError, HDAccountOps, HDAddressId, HDAddressOps, HDCoinAddress,
                 HDCoinHDAccount, HDExtractPubkeyError, HDPathAccountToAddressId, HDWalletAddress, HDWalletCoinOps,
