@@ -4,8 +4,6 @@ use relay_client::error::{ClientError, Error};
 use relay_rpc::rpc::{PublishError, SubscriptionError};
 use serde::{Deserialize, Serialize};
 
-use crate::session_key::SessionError;
-
 #[derive(Debug, Display, Serialize, Deserialize)]
 pub enum WalletConnectCtxError {
     PairingError(String),
@@ -42,4 +40,11 @@ impl From<serde_json::Error> for WalletConnectCtxError {
 
 impl From<SessionError> for WalletConnectCtxError {
     fn from(value: SessionError) -> Self { WalletConnectCtxError::SessionError(value.to_string()) }
+}
+
+/// Session key and topic derivation errors.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum SessionError {
+    #[error("Failed to generate symmetric session key: {0}")]
+    SymKeyGeneration(String),
 }

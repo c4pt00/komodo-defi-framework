@@ -4,7 +4,6 @@ mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
 #[allow(unused)] mod session;
-mod session_key;
 
 use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;

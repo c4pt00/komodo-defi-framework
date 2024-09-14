@@ -1,10 +1,10 @@
-use crate::{error::WalletConnectCtxError, session_key::SessionKey, WalletConnectCtx, SUPPORTED_ACCOUNTS,
-            SUPPORTED_CHAINS, SUPPORTED_EVENTS, SUPPORTED_METHODS, SUPPORTED_PROTOCOL};
+use crate::error::SessionError;
+use crate::{error::WalletConnectCtxError, WalletConnectCtx, SUPPORTED_ACCOUNTS, SUPPORTED_CHAINS, SUPPORTED_EVENTS,
+            SUPPORTED_METHODS, SUPPORTED_PROTOCOL};
 use chrono::Utc;
 use common::log::info;
 use futures::lock::Mutex;
 use mm2_err_handle::prelude::{MapToMmResult, MmResult};
-use rand::rngs::OsRng;
 use relay_rpc::auth::ed25519_dalek::SigningKey;
 use relay_rpc::rpc::params::session_delete::SessionDeleteRequest;
 use relay_rpc::rpc::params::session_extend::SessionExtendRequest;
@@ -20,11 +20,72 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::{collections::BTreeMap, sync::Arc};
+use {hkdf::Hkdf,
+     rand::{rngs::OsRng, CryptoRng, RngCore},
+     sha2::{Digest, Sha256},
+     std::fmt::Debug,
+     x25519_dalek::{EphemeralSecret, PublicKey}};
 
 const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
+
+#[derive(Clone)]
+pub struct SessionKey {
+    sym_key: [u8; 32],
+    public_key: PublicKey,
+}
+
+impl std::fmt::Debug for SessionKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionKey")
+            .field("sym_key", &"*******")
+            .field("public_key", &self.public_key)
+            .finish()
+    }
+}
+
+impl SessionKey {
+    /// Creates new session key from `osrng`.
+    pub fn from_osrng(sender_public_key: &[u8; 32]) -> Result<Self, SessionError> {
+        SessionKey::diffie_hellman(OsRng, sender_public_key)
+    }
+
+    /// Performs Diffie-Hellman symmetric key derivation.
+    pub fn diffie_hellman<T>(csprng: T, sender_public_key: &[u8; 32]) -> Result<Self, SessionError>
+    where
+        T: RngCore + CryptoRng,
+    {
+        let single_use_private_key = EphemeralSecret::random_from_rng(csprng);
+        let public_key = PublicKey::from(&single_use_private_key);
+
+        let ikm = single_use_private_key.diffie_hellman(&PublicKey::from(*sender_public_key));
+
+        let mut session_sym_key = Self {
+            sym_key: [0u8; 32],
+            public_key,
+        };
+        let hk = Hkdf::<Sha256>::new(None, ikm.as_bytes());
+        hk.expand(&[], &mut session_sym_key.sym_key)
+            .map_err(|e| SessionError::SymKeyGeneration(e.to_string()))?;
+
+        Ok(session_sym_key)
+    }
+
+    /// Gets symmetic key reference.
+    pub fn symmetric_key(&self) -> &[u8; 32] { &self.sym_key }
+
+    /// Gets "our" public key used in symmetric key derivation.
+    pub fn diffie_public_key(&self) -> &[u8; 32] { self.public_key.as_bytes() }
+
+    /// Generates new session topic.
+    pub fn generate_topic(&self) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(self.sym_key);
+        hex::encode(hasher.finalize())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum SessionType {
@@ -149,12 +210,6 @@ impl Session {
     pub fn new() -> Self {
         Self {
             session: Default::default(),
-        }
-    }
-
-    pub fn from_session_info(topic: Topic, session_info: SessionInfo) -> Self {
-        Self {
-            session: Arc::new(Mutex::new(HashMap::from([(topic, session_info)]))),
         }
     }
 
