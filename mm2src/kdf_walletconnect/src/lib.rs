@@ -2,8 +2,8 @@ mod error;
 mod handler;
 mod inbound_message;
 mod metadata;
-mod pairing;
-mod session;
+#[allow(unused)] mod pairing;
+#[allow(unused)] mod session;
 mod session_key;
 
 use common::{executor::Timer, log::info};
@@ -17,16 +17,13 @@ use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
 use pairing_api::{Methods, PairingClient};
-use rand::rngs::OsRng;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
-use relay_rpc::rpc::params::RelayProtocolMetadata;
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
-                rpc::{params::{session_propose::SessionProposeRequest, IrnMetadata, RequestParams},
-                      Params, Payload, Request, Response, SuccessfulResponse, JSON_RPC_VERSION_STR}};
-use session::{Session, SessionInfo, SessionType};
-use session_key::SessionKey;
+                rpc::{params::IrnMetadata, Params, Payload, Request, Response, SuccessfulResponse,
+                      JSON_RPC_VERSION_STR}};
+use session::Session;
 use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
@@ -123,41 +120,9 @@ impl WalletConnectCtx {
             .create(metadata.clone(), Some(methods), &self.client)
             .await?;
 
-        let signing_key = SigningKey::generate(&mut OsRng);
-        let public_key = signing_key.verifying_key();
-        let session_key = SessionKey::from_osrng(public_key.as_bytes())
-            .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-        let session_topic: Topic = session_key.generate_topic().into();
-        let subscription_id = self
-            .client
-            .subscribe(session_topic.clone())
-            .await
-            .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
-        let session = SessionInfo::new(
-            subscription_id,
-            session_key,
-            topic.clone(),
-            metadata,
-            SessionType::Proposer,
-        );
+        Session::create_proposal_session(self, topic, metadata).await?;
 
-        let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
-            relays: vec![session.relay.clone()],
-            proposer: session.proposer.clone(),
-            required_namespaces: session.namespaces.clone(),
-        });
-
-        {
-            let mut sessions = self.session.lock().await;
-            sessions.insert(session_topic.clone(), session);
-        }
-
-        let irn_metadata = session_proposal.irn_metadata();
-        self.publish_request(&topic, session_proposal.into(), irn_metadata)
-            .await?;
-
-        let clean_url = url.replace("&amp;", "&");
-        Ok(clean_url)
+        Ok(url)
     }
 
     pub async fn connect_to_pairing(&self, url: &str, activate: bool) -> MmResult<Topic, WalletConnectCtxError> {
@@ -248,6 +213,7 @@ impl WalletConnectCtx {
                 Payload::Response(response) => process_inbound_response(self.clone(), response, &msg.topic).await,
             };
 
+            // TODO: Handle errors.
             match result {
                 Ok(()) => info!("Inbound message was handled succesfully"),
                 Err(err) => info!("Error while handling inbound message: {err:?}"),

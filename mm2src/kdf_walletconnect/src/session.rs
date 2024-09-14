@@ -4,6 +4,8 @@ use chrono::Utc;
 use common::log::info;
 use futures::lock::Mutex;
 use mm2_err_handle::prelude::{MapToMmResult, MmResult};
+use rand::rngs::OsRng;
+use relay_rpc::auth::ed25519_dalek::SigningKey;
 use relay_rpc::rpc::params::session_delete::SessionDeleteRequest;
 use relay_rpc::rpc::params::session_extend::SessionExtendRequest;
 use relay_rpc::rpc::params::session_propose::Proposer;
@@ -20,9 +22,9 @@ use std::ops::Deref;
 use std::{collections::BTreeMap, sync::Arc};
 
 const FIVE_MINUTES: u64 = 300;
-const THIRTY_DAYS: u64 = 60 * 60 * 30;
+pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
-pub(crate) type WcRequestResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
+pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
 
 #[derive(Debug, Clone)]
 pub enum SessionType {
@@ -156,6 +158,52 @@ impl Session {
         }
     }
 
+    pub(crate) async fn create_proposal_session(
+        ctx: &WalletConnectCtx,
+        topic: Topic,
+        metadata: Metadata,
+    ) -> MmResult<(), WalletConnectCtxError> {
+        let (session, session_topic) = {
+            let signing_key = SigningKey::generate(&mut OsRng);
+            let public_key = signing_key.verifying_key();
+            let session_key = SessionKey::from_osrng(public_key.as_bytes())?;
+            let session_topic: Topic = session_key.generate_topic().into();
+            let subscription_id = ctx
+                .client
+                .subscribe(session_topic.clone())
+                .await
+                .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
+
+            (
+                SessionInfo::new(
+                    subscription_id,
+                    session_key,
+                    topic.clone(),
+                    metadata,
+                    SessionType::Proposer,
+                ),
+                session_topic,
+            )
+        };
+
+        {
+            let mut sessions = ctx.session.lock().await;
+            sessions.insert(session_topic.clone(), session.clone());
+        }
+
+        let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
+            relays: vec![session.relay],
+            proposer: session.proposer,
+            required_namespaces: session.namespaces,
+        });
+        let irn_metadata = session_proposal.irn_metadata();
+
+        ctx.publish_request(&topic, session_proposal.into(), irn_metadata)
+            .await?;
+
+        Ok(())
+    }
+
     pub(crate) async fn handle_session_propose_response(
         &self,
         session_topic: &Topic,
@@ -174,7 +222,7 @@ impl Session {
         &self,
         topic: &Topic,
         extend: SessionExtendRequest,
-    ) -> WcRequestResult {
+    ) -> WcRequestResponseResult {
         let mut sessions = self.session.lock().await;
         if let Some(session) = sessions.get_mut(topic) {
             session.expiry = extend.expiry;
@@ -195,7 +243,7 @@ impl Session {
         ctx: &WalletConnectCtx,
         proposal: SessionProposeRequest,
         pairing_topic: Topic,
-    ) -> WcRequestResult {
+    ) -> WcRequestResponseResult {
         let sender_public_key = hex::decode(&proposal.proposer.public_key)
             .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?
             .as_slice()
@@ -240,7 +288,7 @@ impl Session {
         &self,
         topic: &Topic,
         settle: SessionSettleRequest,
-    ) -> WcRequestResult {
+    ) -> WcRequestResponseResult {
         {
             let mut sessions = self.session.lock().await;
             if let Some(session) = sessions.get_mut(topic) {
@@ -262,7 +310,7 @@ impl Session {
         Ok((value, irn_metadata))
     }
 
-    pub(crate) fn process_session_ping_request(&self) -> WcRequestResult {
+    pub(crate) fn process_session_ping_request(&self) -> WcRequestResponseResult {
         let response = ResponseParamsSuccess::SessionPing(true);
         let irn_metadata = response.irn_metadata();
         let value =
@@ -271,7 +319,10 @@ impl Session {
         Ok((value, irn_metadata))
     }
 
-    pub(crate) fn process_session_delete_request(&self, delete_params: SessionDeleteRequest) -> WcRequestResult {
+    pub(crate) fn process_session_delete_request(
+        &self,
+        delete_params: SessionDeleteRequest,
+    ) -> WcRequestResponseResult {
         info!(
             "\nSession is being terminated reason={}, code={}",
             delete_params.message, delete_params.code,
@@ -315,7 +366,7 @@ impl Session {
         &self,
         topic: &Topic,
         update: SessionUpdateRequest,
-    ) -> WcRequestResult {
+    ) -> WcRequestResponseResult {
         let mut sessions = self.session.lock().await;
         if let Some(session) = sessions.get_mut(topic) {
             session.settled_namespaces = update.namespaces.clone();

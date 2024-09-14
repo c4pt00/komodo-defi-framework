@@ -4,6 +4,8 @@ use relay_client::error::{ClientError, Error};
 use relay_rpc::rpc::{PublishError, SubscriptionError};
 use serde::{Deserialize, Serialize};
 
+use crate::session_key::SessionError;
+
 #[derive(Debug, Display, Serialize, Deserialize)]
 pub enum WalletConnectCtxError {
     PairingError(String),
@@ -15,6 +17,7 @@ pub enum WalletConnectCtxError {
     InternalError(String),
     SerdeError(String),
     UnsuccessfulResponse(String),
+    SessionError(String),
 }
 
 impl From<PairingClientError> for WalletConnectCtxError {
@@ -35,4 +38,8 @@ impl From<Error<SubscriptionError>> for WalletConnectCtxError {
 
 impl From<serde_json::Error> for WalletConnectCtxError {
     fn from(value: serde_json::Error) -> Self { WalletConnectCtxError::SerdeError(value.to_string()) }
+}
+
+impl From<SessionError> for WalletConnectCtxError {
+    fn from(value: SessionError) -> Self { WalletConnectCtxError::SessionError(value.to_string()) }
 }
