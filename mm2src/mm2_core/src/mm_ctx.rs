@@ -93,7 +93,6 @@ pub struct MmCtx {
     pub dispatcher_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     pub message_service_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     pub p2p_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
-    pub peer_id: Constructible<String>,
     pub account_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// The context belonging to the `coins` crate: `CoinsContext`.
     pub coins_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
@@ -162,7 +161,6 @@ impl MmCtx {
             dispatcher_ctx: Mutex::new(None),
             message_service_ctx: Mutex::new(None),
             p2p_ctx: Mutex::new(None),
-            peer_id: Constructible::default(),
             account_ctx: Mutex::new(None),
             coins_ctx: Mutex::new(None),
             coins_activation_ctx: Mutex::new(None),
@@ -293,10 +291,13 @@ impl MmCtx {
             })
     }
 
+    /// Returns the path to the MM databases root.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn db_root(&self) -> PathBuf { path_to_db_root(self.conf["dbdir"].as_str()) }
+
     #[cfg(not(target_arch = "wasm32"))]
     pub fn wallet_file_path(&self, wallet_name: &str) -> PathBuf {
-        let db_root = path_to_db_root(self.conf["dbdir"].as_str());
-        db_root.join(wallet_name.to_string() + ".dat")
+        self.db_root().join(wallet_name.to_string() + ".dat")
     }
 
     /// MM database path.

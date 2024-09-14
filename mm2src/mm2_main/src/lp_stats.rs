@@ -1,8 +1,7 @@
+use crate::lp_network::{add_reserved_peer_addresses, lp_network_ports, request_peers, NetIdError, P2PRequest,
+                        ParseAddressError, PeerDecodedResponse};
 /// The module is responsible for mm2 network stats collection
 ///
-use crate::mm2::lp_network::{add_reserved_peer_addresses, lp_network_ports, request_peers, NetIdError, P2PRequest,
-                             ParseAddressError, PeerDecodedResponse};
-
 use coins::find_unique_account_ids_active;
 #[cfg(not(target_arch = "wasm32"))] use common::async_blocking;
 use common::executor::{SpawnFuture, Timer};
@@ -97,7 +96,7 @@ fn insert_node_info_to_db(_ctx: &MmArc, _node_info: &NodeInfo) -> Result<(), Str
 
 #[cfg(not(target_arch = "wasm32"))]
 fn insert_node_info_to_db(ctx: &MmArc, node_info: NodeInfo, db_id: Option<&str>) -> Result<(), String> {
-    crate::mm2::database::stats_nodes::insert_node_info(ctx, node_info, db_id).map_err(|e| e.to_string())
+    crate::database::stats_nodes::insert_node_info(ctx, node_info, db_id).map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -115,8 +114,7 @@ fn insert_node_version_stat_to_db(
     node_version_stat: NodeVersionStat,
     db_id: Option<&str>,
 ) -> Result<(), String> {
-    crate::mm2::database::stats_nodes::insert_node_version_stat(ctx, node_version_stat, db_id)
-        .map_err(|e| e.to_string())
+    crate::database::stats_nodes::insert_node_version_stat(ctx, node_version_stat, db_id).map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -124,7 +122,7 @@ fn delete_node_info_from_db(_ctx: &MmArc, _name: String) -> Result<(), String> {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn delete_node_info_from_db(ctx: &MmArc, name: String, db_id: Option<&str>) -> Result<(), String> {
-    crate::mm2::database::stats_nodes::delete_node_info(ctx, name, db_id).map_err(|e| e.to_string())
+    crate::database::stats_nodes::delete_node_info(ctx, name, db_id).map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -132,7 +130,7 @@ fn select_peers_addresses_from_db(_ctx: &MmArc) -> Result<Vec<(String, String)>,
 
 #[cfg(not(target_arch = "wasm32"))]
 fn select_peers_addresses_from_db(ctx: &MmArc, db_id: Option<&str>) -> Result<Vec<(String, String)>, String> {
-    crate::mm2::database::stats_nodes::select_peers_addresses(ctx, db_id).map_err(|e| e.to_string())
+    crate::database::stats_nodes::select_peers_addresses(ctx, db_id).map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -143,7 +141,7 @@ pub async fn add_node_to_version_stat(_ctx: MmArc, _req: Json) -> NodeVersionRes
 /// Adds node info. to db to be used later for stats collection
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn add_node_to_version_stat(ctx: MmArc, req: Json) -> NodeVersionResult<String> {
-    use crate::mm2::lp_network::addr_to_ipv4_string;
+    use crate::lp_network::addr_to_ipv4_string;
 
     let node_info: NodeInfo = json::from_value(req)?;
 
@@ -317,7 +315,8 @@ pub async fn start_version_stat_collection(ctx: MmArc, req: Json) -> NodeVersion
 async fn stat_collection_loop(ctx: MmArc, interval: f64, db_id: String) {
     use common::now_sec;
 
-    use crate::mm2::database::stats_nodes::select_peers_names;
+    use crate::database::stats_nodes::select_peers_names;
+
     let mut interval = interval;
     loop {
         if ctx.is_stopping() {

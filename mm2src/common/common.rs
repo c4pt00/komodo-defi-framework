@@ -204,6 +204,8 @@ pub const SATOSHIS: u64 = 100_000_000;
 
 pub const DEX_FEE_ADDR_PUBKEY: &str = "03bc2c7ba671bae4a6fc835244c9762b41647b9827d4780a89a949b984a8ddcc06";
 
+pub const PROXY_REQUEST_EXPIRATION_SEC: i64 = 15;
+
 lazy_static! {
     pub static ref DEX_FEE_ADDR_RAW_PUBKEY: Vec<u8> =
         hex::decode(DEX_FEE_ADDR_PUBKEY).expect("DEX_FEE_ADDR_PUBKEY is expected to be a hexadecimal string");
@@ -375,10 +377,9 @@ pub fn stack_trace_frame(instr_ptr: *mut c_void, buf: &mut dyn Write, symbol: &b
     // Skip common and less than informative frames.
 
     match name {
-        "mm2::crash_reports::rust_seh_handler"
+        "common::crash_reports::rust_seh_handler"
         | "veh_exception_filter"
         | "common::stack_trace"
-        | "common::log_stacktrace"
         // Super-main on Windows.
         | "__scrt_common_main_seh" => return,
         _ => (),
@@ -396,7 +397,7 @@ pub fn stack_trace_frame(instr_ptr: *mut c_void, buf: &mut dyn Write, symbol: &b
         || name.starts_with("core::ops::")
         || name.starts_with("futures::")
         || name.starts_with("hyper::")
-        || name.starts_with("mm2::crash_reports::signal_handler")
+        || name.starts_with("common::crash_reports::signal_handler")
         || name.starts_with("panic_unwind::")
         || name.starts_with("std::")
         || name.starts_with("scoped_tls::")
