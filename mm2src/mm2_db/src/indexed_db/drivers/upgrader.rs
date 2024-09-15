@@ -3,7 +3,7 @@ use derive_more::Display;
 use js_sys::Array;
 use mm2_err_handle::prelude::*;
 use wasm_bindgen::prelude::*;
-use web_sys::{IdbDatabase, IdbIndexParameters, IdbObjectStore, IdbObjectStoreParameters, IdbTransaction};
+use web_sys::{IdbDatabase, IdbIndexParameters, IdbObjectStore, IdbObjectStoreParameters, IdbRequest, IdbTransaction};
 
 const ITEM_KEY_PATH: &str = "_item_id";
 
@@ -29,6 +29,12 @@ pub enum OnUpgradeError {
         old_version: u32,
         new_version: u32,
     },
+    #[display(fmt = "Error occurred due to deleting the '{}' table: {}", table, description)]
+    ErrorDeletingTable { table: String, description: String },
+    #[display(fmt = "Error occurred while opening the cursor: {}", description)]
+    ErrorOpeningCursor { description: String },
+    #[display(fmt = "Error occurred while adding data: {}", description)]
+    ErrorAddingData { description: String },
 }
 
 pub struct DbUpgrader {
@@ -61,6 +67,17 @@ impl DbUpgrader {
         match self.transaction.object_store(table) {
             Ok(object_store) => Ok(TableUpgrader { object_store }),
             Err(e) => MmError::err(OnUpgradeError::ErrorOpeningTable {
+                table: table.to_owned(),
+                description: stringify_js_error(&e),
+            }),
+        }
+    }
+
+    /// Deletes an object store (table) from the database.
+    pub fn delete_table(&self, table: &str) -> OnUpgradeResult<()> {
+        match self.db.delete_object_store(table) {
+            Ok(_) => Ok(()),
+            Err(e) => MmError::err(OnUpgradeError::ErrorDeletingTable {
                 table: table.to_owned(),
                 description: stringify_js_error(&e),
             }),
@@ -105,6 +122,26 @@ impl TableUpgrader {
             .map(|_| ())
             .map_to_mm(|e| OnUpgradeError::ErrorCreatingIndex {
                 index: index.to_owned(),
+                description: stringify_js_error(&e),
+            })
+    }
+
+    /// Opens a cursor to iterate over the entries in the object store.
+    /// Provides a safe way to access the object store's cursor without exposing the field directly.
+    pub fn open_cursor(&self) -> OnUpgradeResult<IdbRequest> {
+        self.object_store
+            .open_cursor()
+            .map_to_mm(|e| OnUpgradeError::ErrorOpeningCursor {
+                description: stringify_js_error(&e),
+            })
+    }
+
+    /// Adds a value with the specified key to the object store.
+    /// Provides a safe way to add entries without exposing the object store directly.
+    pub fn add_with_key(&self, value: &JsValue, key: &JsValue) -> OnUpgradeResult<IdbRequest> {
+        self.object_store
+            .add_with_key(value, key)
+            .map_to_mm(|e| OnUpgradeError::ErrorAddingData {
                 description: stringify_js_error(&e),
             })
     }

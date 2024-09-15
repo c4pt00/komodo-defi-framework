@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use mm2_db::indexed_db::InitDbResult;
 use mm2_db::indexed_db::{DbIdentifier, DbInstance, DbLocked, IndexedDb, IndexedDbBuilder};
 
-const DB_VERSION: u32 = 1;
+const DB_VERSION: u32 = 2; // TODO need to set it as 2, as we need to change prim key in NftTransferHistoryTable
 
 /// Represents a locked instance of the `NftCacheIDB` database.
 ///
