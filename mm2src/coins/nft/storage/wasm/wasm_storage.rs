@@ -8,8 +8,8 @@ use crate::nft::storage::{get_offset_limit, NftListStorageOps, NftTokenAddrId, N
 use async_trait::async_trait;
 use common::is_initial_upgrade;
 use ethereum_types::Address;
-use futures_util::StreamExt;
-use mm2_db::indexed_db::{BeBigUint, DbTable, DbUpgrader, MultiIndex, OnUpgradeResult, TableSignature};
+use mm2_db::indexed_db::{copy_store_data_sync, BeBigUint, DbTable, DbUpgrader, MultiIndex, OnUpgradeResult,
+                         TableSignature};
 use mm2_err_handle::map_to_mm::MapToMmResult;
 use mm2_err_handle::prelude::MmResult;
 use mm2_number::BigUint;
@@ -959,7 +959,7 @@ pub(crate) struct NftTransferHistoryTable {
 impl NftTransferHistoryTable {
     // old prim key index for DB_VERSION: u32 = 1
     const CHAIN_TX_HASH_LOG_INDEX_INDEX: &'static str = "chain_tx_hash_log_index_index";
-    // this is new prim key multi index. DB_VERSION = 2
+    // this is prim key multi index for DB_VERSION = 2
     const CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX: &'static str = "chain_tx_hash_log_index_token_idindex";
 
     fn from_transfer_history(transfer: &NftTransferHistory) -> WasmNftCacheResult<NftTransferHistoryTable> {
@@ -1035,19 +1035,17 @@ impl TableSignature for NftTransferHistoryTable {
             temp_table.create_index("block_number", false)?;
             temp_table.create_index("chain", false)?;
 
-            // Step 2: Open the old table and copy data to the temporary table using cursors
+            // Step 2: Copy data from the old store to the temp store
             let old_store = upgrader.open_table(Self::TABLE_NAME)?;
-            let mut cursor = old_store.open_cursor()?; // Open cursor on the old store
-            while let Some(cursor_result) = cursor.next()? {
-                let key = cursor_result.key()?;
-                let value = cursor_result.value()?;
-                temp_table.add_with_key(&value, &key)?;
-            }
+            let temp_store = upgrader.open_table(&temp_table_name)?;
+
+            // TODO copy data from old_store to temp_store
+            copy_store_data_sync(&old_store.object_store, &temp_store.object_store)?;
 
             // Step 3: Delete the old object store
             upgrader.delete_table(Self::TABLE_NAME)?;
 
-            // Step 4: Create the new object store with the updated schema
+            // Step 4: Recreate the original object store with the new schema
             let new_table = upgrader.create_table(Self::TABLE_NAME)?;
             new_table.create_multi_index(
                 Self::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX,
@@ -1066,17 +1064,11 @@ impl TableSignature for NftTransferHistoryTable {
             new_table.create_index("block_number", false)?;
             new_table.create_index("chain", false)?;
 
-            // Step 5: Copy data from the temporary table to the new table
-            let temp_store = upgrader.open_table(&temp_table_name)?;
-            let new_store = upgrader.open_table(Self::TABLE_NAME)?;
-            let mut temp_cursor = temp_store.open_cursor()?;
-            while let Some(cursor_result) = temp_cursor.next()? {
-                let key = cursor_result.key()?;
-                let value = cursor_result.value()?;
-                new_store.add_with_key(&value, &key)?;
-            }
+            // Step 5: Copy data back from the temp store to the new store
+            // TODO copy data from temp_store to new_table
+            copy_store_data_sync(&temp_store.object_store, &new_table.object_store)?;
 
-            // Step 6: Delete the temporary table
+            // Step 6: Delete the temporary store
             upgrader.delete_table(&temp_table_name)?;
         }
         Ok(())
