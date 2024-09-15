@@ -6,7 +6,9 @@ use common::log::info;
 use futures::lock::Mutex;
 use mm2_err_handle::prelude::{MapToMmResult, MmResult};
 use relay_rpc::auth::ed25519_dalek::SigningKey;
+use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_delete::SessionDeleteRequest;
+use relay_rpc::rpc::params::session_event::SessionEventRequest;
 use relay_rpc::rpc::params::session_extend::SessionExtendRequest;
 use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::session_update::SessionUpdateRequest;
@@ -17,7 +19,7 @@ use relay_rpc::{domain::{SubscriptionId, Topic},
                               session_settle::{Controller, SessionSettleRequest},
                               Metadata, Relay, RequestParams, ResponseParamsSuccess}};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::Deref;
 use std::{collections::BTreeMap, sync::Arc};
 use {hkdf::Hkdf,
@@ -102,8 +104,8 @@ pub struct SessionInfo {
     pub controller: Controller,
     pub proposer: Proposer,
     pub relay: Relay,
-    pub namespaces: ProposeNamespaces,
-    pub settled_namespaces: SettleNamespaces,
+    pub namespaces: BTreeMap<String, Namespace>,
+    pub propose_namespaces: ProposeNamespaces,
     pub expiry: u64,
     pub pairing_topic: Topic,
     pub session_type: SessionType,
@@ -121,13 +123,6 @@ impl SessionInfo {
         let mut namespaces = BTreeMap::<String, ProposeNamespace>::new();
         namespaces.insert("eip155".to_string(), ProposeNamespace {
             chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-            methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-            events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
-        });
-
-        let mut settled_namespaces = BTreeMap::<String, SettleNamespace>::new();
-        settled_namespaces.insert("eip155".to_string(), SettleNamespace {
-            accounts: SUPPORTED_ACCOUNTS.iter().map(|a| a.to_string()).collect(),
             methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
             events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
         });
@@ -156,9 +151,9 @@ impl SessionInfo {
             subscription_id,
             session_key,
             controller,
+            namespaces: BTreeMap::new(),
             proposer,
-            namespaces: ProposeNamespaces(namespaces),
-            settled_namespaces: SettleNamespaces(settled_namespaces),
+            propose_namespaces: ProposeNamespaces(namespaces),
             relay,
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
             pairing_topic,
@@ -166,15 +161,21 @@ impl SessionInfo {
         }
     }
 
-    fn supported_propose_namespaces(&self) -> &ProposeNamespaces { &self.namespaces }
-
-    fn supported_settle_namespaces(&self) -> &SettleNamespaces { &self.settled_namespaces }
+    fn supported_propose_namespaces(&self) -> &ProposeNamespaces { &self.propose_namespaces }
 
     fn create_settle_request(&self) -> RequestParams {
+        let mut settled_namespaces = BTreeMap::<String, Namespace>::new();
+        settled_namespaces.insert("eip155".to_string(), Namespace {
+            accounts: Some(SUPPORTED_ACCOUNTS.iter().map(|a| a.to_string()).collect()),
+            methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+            events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
+            chains: None,
+        });
+
         RequestParams::SessionSettle(SessionSettleRequest {
             relay: self.relay.clone(),
             controller: self.controller.clone(),
-            namespaces: self.supported_settle_namespaces().clone(),
+            namespaces: SettleNamespaces(settled_namespaces),
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
         })
     }
@@ -194,12 +195,12 @@ impl SessionInfo {
 
 #[derive(Debug, Clone)]
 pub struct Session {
-    session: Arc<Mutex<HashMap<Topic, SessionInfo>>>,
+    sessions: Arc<Mutex<HashMap<Topic, SessionInfo>>>,
 }
 
 impl Deref for Session {
     type Target = Arc<Mutex<HashMap<Topic, SessionInfo>>>;
-    fn deref(&self) -> &Self::Target { &self.session }
+    fn deref(&self) -> &Self::Target { &self.sessions }
 }
 
 impl Default for Session {
@@ -209,7 +210,7 @@ impl Default for Session {
 impl Session {
     pub fn new() -> Self {
         Self {
-            session: Default::default(),
+            sessions: Default::default(),
         }
     }
 
@@ -242,14 +243,14 @@ impl Session {
         };
 
         {
-            let mut sessions = ctx.session.lock().await;
+            let mut sessions = ctx.sessions.lock().await;
             sessions.insert(session_topic.clone(), session.clone());
         }
 
         let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
             relays: vec![session.relay],
             proposer: session.proposer,
-            required_namespaces: session.namespaces,
+            required_namespaces: session.propose_namespaces,
         });
         let irn_metadata = session_proposal.irn_metadata();
 
@@ -278,7 +279,7 @@ impl Session {
         topic: &Topic,
         extend: SessionExtendRequest,
     ) -> WcRequestResponseResult {
-        let mut sessions = self.session.lock().await;
+        let mut sessions = self.sessions.lock().await;
         if let Some(session) = sessions.get_mut(topic) {
             session.expiry = extend.expiry;
             info!("Updated extended, info: {:?}", session);
@@ -327,7 +328,7 @@ impl Session {
             .map_to_mm(|err| WalletConnectCtxError::InternalError(err.to_string()))?;
 
         {
-            let mut sessions = ctx.session.deref().lock().await;
+            let mut sessions = ctx.sessions.deref().lock().await;
             _ = sessions.insert(session_topic.clone(), session.clone());
         }
 
@@ -345,9 +346,9 @@ impl Session {
         settle: SessionSettleRequest,
     ) -> WcRequestResponseResult {
         {
-            let mut sessions = self.session.lock().await;
+            let mut sessions = self.sessions.lock().await;
             if let Some(session) = sessions.get_mut(topic) {
-                session.settled_namespaces = settle.namespaces.clone();
+                session.namespaces = settle.namespaces.0.clone();
                 session.controller = settle.controller.clone();
                 session.relay = settle.relay.clone();
                 session.expiry = settle.expiry;
@@ -396,7 +397,7 @@ impl Session {
         ctx: Arc<WalletConnectCtx>,
         topic: &Topic,
     ) -> MmResult<(), WalletConnectCtxError> {
-        let mut sessions = ctx.session.lock().await;
+        let mut sessions = ctx.sessions.lock().await;
         sessions.remove(topic).ok_or_else(|| {
             WalletConnectCtxError::InternalError("Attempt to remove non-existing session".to_string())
         })?;
@@ -422,9 +423,9 @@ impl Session {
         topic: &Topic,
         update: SessionUpdateRequest,
     ) -> WcRequestResponseResult {
-        let mut sessions = self.session.lock().await;
+        let mut sessions = self.sessions.lock().await;
         if let Some(session) = sessions.get_mut(topic) {
-            session.settled_namespaces = update.namespaces.clone();
+            session.namespaces = update.namespaces.0.clone();
             info!("Updated extended, info: {:?}", session);
         }
 
@@ -435,4 +436,106 @@ impl Session {
 
         Ok((value, irn_metadata))
     }
+}
+
+pub enum SessionEvents {
+    ChainCHanged(Vec<String>),
+    AccountsChanged(Vec<String>),
+    Unknown,
+}
+
+impl SessionEvents {
+    fn from_events(event: SessionEventRequest) -> MmResult<Self, WalletConnectCtxError> {
+        match event.event.name.as_str() {
+            "chainCHanged" => {
+                let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
+                Ok(SessionEvents::ChainCHanged(data))
+            },
+            "accountsChanged" => {
+                let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
+                Ok(SessionEvents::AccountsChanged(data))
+            },
+            _ => Ok(SessionEvents::Unknown),
+        }
+    }
+}
+
+pub async fn handle_session_event(
+    ctx: &WalletConnectCtx,
+    event: SessionEventRequest,
+) -> MmResult<(), WalletConnectCtxError> {
+    let session_event = SessionEvents::from_events(event.clone())?;
+    match session_event {
+        SessionEvents::ChainCHanged(data) => handle_chain_changed_event(ctx, event.chain_id, data).await,
+        SessionEvents::AccountsChanged(data) => handle_account_changed_event(ctx, event.chain_id, data).await,
+        SessionEvents::Unknown => todo!(),
+    }
+}
+
+async fn handle_chain_changed_event(
+    ctx: &WalletConnectCtx,
+    chain_id: String,
+    data: Vec<String>,
+) -> MmResult<(), WalletConnectCtxError> {
+    *ctx.active_chain_id.lock().await = chain_id.clone();
+
+    {
+        let mut sessions = ctx.sessions.lock().await;
+        let current_time = Utc::now().timestamp() as u64;
+        sessions.retain(|_, session| session.expiry > current_time);
+    };
+
+    let mut sessions = ctx.sessions.lock().await;
+    for session in sessions.values_mut() {
+        for id in &data {
+            if let Some((namespace, chain)) = parse_chain_and_chain_id(&chain_id) {
+                if let Some(ns) = session.namespaces.get_mut(&namespace) {
+                    ns.chains
+                        .get_or_insert_with(BTreeSet::new)
+                        .insert(format!("{namespace}:{id}"));
+                }
+            }
+        }
+    }
+
+    //TODO: Notify about chain changed.
+    Ok(())
+}
+
+async fn handle_account_changed_event(
+    ctx: &WalletConnectCtx,
+    chain_id: String,
+    data: Vec<String>,
+) -> MmResult<(), WalletConnectCtxError> {
+    *ctx.active_chain_id.lock().await = chain_id.clone();
+
+    let mut sessions = ctx.sessions.lock().await;
+    let current_time = Utc::now().timestamp() as u64;
+
+    sessions.retain(|_, session| session.expiry > current_time);
+
+    let mut sessions = ctx.sessions.lock().await;
+    for session in sessions.values_mut() {
+        for address in &data {
+            if let Some((namespace, _)) = parse_chain_and_chain_id(&chain_id) {
+                if let Some(ns) = session.namespaces.get_mut(&namespace) {
+                    ns.accounts
+                        .get_or_insert_with(BTreeSet::new)
+                        .insert(format!("{chain_id}:{address}"));
+                }
+            }
+        }
+    }
+
+    //TODO: Notify about account changed.
+    Ok(())
+}
+
+fn parse_chain_and_chain_id(chain: &str) -> Option<(String, String)> {
+    let sp = chain.split(':').collect::<Vec<_>>();
+    if sp.len() == 2 {
+        return None;
+    };
+
+    Some((sp[0].to_owned(), sp[1].to_owned()))
 }

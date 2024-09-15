@@ -5,6 +5,7 @@ mod metadata;
 #[allow(unused)] mod pairing;
 #[allow(unused)] mod session;
 
+use chrono::Utc;
 use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
@@ -42,9 +43,10 @@ const SUPPORTED_ACCOUNTS: &[&str] = &["eip155:5:0xBA5BA3955463ADcc7aa3E33bbdfb8A
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
-    pub session: Session,
+    pub sessions: Session,
     pub msg_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     pub connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
+    pub active_chain_id: Arc<Mutex<String>>,
 }
 
 impl Default for WalletConnectCtx {
@@ -62,10 +64,41 @@ impl WalletConnectCtx {
         Self {
             client,
             pairing,
-            session: Session::new(),
+            sessions: Session::new(),
             msg_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
+            active_chain_id: Arc::new(Mutex::new("1".to_string())),
         }
+    }
+
+    pub async fn get_active_chain(&self) -> String { self.active_chain_id.lock().await.clone() }
+
+    pub async fn get_active_sessions(&self) -> impl IntoIterator {
+        let sessions = self.sessions.lock().await;
+        sessions
+            .values()
+            .filter_map(|session| {
+                if session.expiry > Utc::now().timestamp() as u64 {
+                    Some(session.pairing_topic.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub async fn get_inactive_sessions(&self) -> impl IntoIterator {
+        let sessions = self.sessions.lock().await;
+        sessions
+            .values()
+            .filter_map(|session| {
+                if session.expiry <= Utc::now().timestamp() as u64 {
+                    Some(session.pairing_topic.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
     }
 
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
@@ -87,7 +120,7 @@ impl WalletConnectCtx {
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
         {
-            let sessions = self.session.lock().await;
+            let sessions = self.sessions.lock().await;
             if let Some(sesssion) = sessions.get(topic) {
                 return Ok(sesssion.session_key.symmetric_key().to_vec());
             }
