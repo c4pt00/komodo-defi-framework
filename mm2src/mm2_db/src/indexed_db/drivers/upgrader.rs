@@ -238,8 +238,5 @@ pub fn copy_store_data_sync(
     // Prevent the closure from being dropped
     onsuccess_callback.forget();
 
-    // Note: We cannot block the function here to wait for completion.
-    // The transaction will remain open until all requests are completed.
-
     Ok(())
 }

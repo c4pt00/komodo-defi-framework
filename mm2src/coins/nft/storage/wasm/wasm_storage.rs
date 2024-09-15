@@ -17,6 +17,8 @@ use num_traits::ToPrimitive;
 use serde_json::{self as json, Value as Json};
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
+use wasm_bindgen::JsValue;
+use web_sys::console;
 
 const CHAIN_TOKEN_ADD_TOKEN_ID_INDEX: &str = "chain_token_add_token_id_index";
 const CHAIN_BLOCK_NUMBER_INDEX: &str = "chain_block_number_index";
@@ -1012,8 +1014,10 @@ impl TableSignature for NftTransferHistoryTable {
             table.create_multi_index(CHAIN_IMAGE_DOMAIN_INDEX, &["chain", "image_domain"], false)?;
             table.create_index("block_number", false)?;
             table.create_index("chain", false)?;
-        } else if old_version == 1 && new_version == 2 {
+        } else if new_version == 2 {
             // Migration from version 1 to version 2
+
+            console::log_1(&JsValue::from_str("Migrating from version 1 to version 2."));
 
             // Step 1: Create a temporary table to hold data with the old schema
             let temp_table_name = format!("{}_temp", Self::TABLE_NAME);
@@ -1042,8 +1046,12 @@ impl TableSignature for NftTransferHistoryTable {
             // TODO copy data from old_store to temp_store
             copy_store_data_sync(&old_store.object_store, &temp_store.object_store)?;
 
+            console::log_1(&JsValue::from_str("Copied data from old store to temp store"));
+
             // Step 3: Delete the old object store
             upgrader.delete_table(Self::TABLE_NAME)?;
+
+            console::log_1(&JsValue::from_str("Deleted old object store"));
 
             // Step 4: Recreate the original object store with the new schema
             let new_table = upgrader.create_table(Self::TABLE_NAME)?;
@@ -1068,8 +1076,12 @@ impl TableSignature for NftTransferHistoryTable {
             // TODO copy data from temp_store to new_table
             copy_store_data_sync(&temp_store.object_store, &new_table.object_store)?;
 
+            console::log_1(&JsValue::from_str("Copied data from temp store to new store"));
+
             // Step 6: Delete the temporary store
             upgrader.delete_table(&temp_table_name)?;
+
+            console::log_1(&JsValue::from_str("Deleted temp store"));
         }
         Ok(())
     }
