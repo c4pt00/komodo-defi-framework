@@ -2149,7 +2149,7 @@ fn send_maker_payment_and_refund_timelock_erc20() {
     let taker_secret_hash = sha256(&taker_secret).to_vec();
     let maker_secret = vec![1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
-    let payment_time_lock = now_sec() - 1000;
+    let payment_time_lock = now_sec() + 29; // this time lock is used for erc20 allowance
 
     let taker_pub = &taker_coin.derive_htlc_pubkey_v2(&[]);
 
@@ -2180,6 +2180,7 @@ fn send_maker_payment_and_refund_timelock_erc20() {
         watcher_reward: false,
         amount: trading_amount,
     };
+    thread::sleep(Duration::from_secs(30));
     let payment_tx_refund = block_on(maker_coin.refund_maker_payment_v2_timelock(refund_args)).unwrap();
     log!(
         "Maker refunded ERC20 payment after timelock, tx hash: {:02x}",

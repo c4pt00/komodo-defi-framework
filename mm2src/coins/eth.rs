@@ -256,7 +256,7 @@ pub mod gas_limit_v2 {
     /// Gas limits for maker operations in EtomicSwapMakerV2 contract
     pub mod maker {
         pub const ETH_SEND_PAYMENT: u64 = 65_000;
-        pub const ERC20_SEND_PAYMENT: u64 = 115_000;
+        pub const ERC20_SEND_PAYMENT: u64 = 200_000;
         pub const ETH_TAKER_SPEND: u64 = 65_000;
         pub const ERC20_TAKER_SPEND: u64 = 65_000;
         pub const ETH_MAKER_REFUND_TIMELOCK: u64 = 65_000;
