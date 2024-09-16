@@ -1254,7 +1254,6 @@ mod wasm_tests {
 
         use sia_rust::transaction::V2Transaction;
 
-
         let client = init_client().await;
 
         let tx = serde_json::from_str::<V2Transaction>(

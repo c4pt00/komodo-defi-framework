@@ -277,9 +277,8 @@ pub use test_coin::TestCoin;
 pub mod tx_history_storage;
 
 #[cfg(feature = "enable-sia")] pub mod siacoin;
-#[cfg(feature = "enable-sia")] use crate::siacoin::SiaFeeDetails;
 #[cfg(feature = "enable-sia")]
-use siacoin::{SiaCoin, SiaTransactionTypes};
+use siacoin::{SiaCoin, SiaFeeDetails, SiaTransactionTypes};
 
 #[doc(hidden)]
 #[allow(unused_variables)]
