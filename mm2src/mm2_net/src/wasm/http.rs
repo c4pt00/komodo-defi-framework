@@ -159,15 +159,6 @@ impl FetchRequest {
         self
     }
 
-    pub fn header_map(mut self, header_map: HeaderMap) -> FetchRequest {
-        for (key, value) in header_map.iter() {
-            if let Ok(val) = value.to_str() {
-                self.headers.insert(key.as_str().to_owned(), val.to_owned());
-            }
-        }
-        self
-    }
-
     pub async fn request_str(self) -> FetchResult<String> {
         let (tx, rx) = oneshot::channel();
         Self::spawn_fetch_str(self, tx);
