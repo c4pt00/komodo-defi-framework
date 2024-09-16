@@ -1014,7 +1014,7 @@ impl TableSignature for NftTransferHistoryTable {
             table.create_multi_index(CHAIN_IMAGE_DOMAIN_INDEX, &["chain", "image_domain"], false)?;
             table.create_index("block_number", false)?;
             table.create_index("chain", false)?;
-        } else if new_version == 2 {
+        } else if old_version == 1 && new_version == 2 {
             // Migration from version 1 to version 2
 
             console::log_1(&JsValue::from_str("Migrating from version 1 to version 2."));
