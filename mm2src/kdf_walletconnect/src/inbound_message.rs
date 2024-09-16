@@ -6,7 +6,9 @@ use relay_rpc::{domain::Topic,
 
 use crate::{error::WalletConnectCtxError,
             pairing::{process_pairing_delete_response, process_pairing_extend_response, process_pairing_ping_response},
-            session::handle_session_event,
+            session::{process_proposal_request, process_session_delete_request, process_session_extend_request,
+                      process_session_ping_request, process_session_propose_response, process_session_settle_request,
+                      process_session_update_request, SessionEvents},
             WalletConnectCtx};
 
 pub(crate) async fn process_inbound_request(
@@ -14,53 +16,26 @@ pub(crate) async fn process_inbound_request(
     request: Request,
     topic: &Topic,
 ) -> MmResult<(), WalletConnectCtxError> {
+    let message_id = request.id;
     match request.params {
-        Params::SessionPropose(proposal) => {
-            let response = ctx
-                .sessions
-                .process_proposal_request(&ctx, proposal, topic.clone())
-                .await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::SessionExtend(param) => {
-            let response = ctx.sessions.process_session_extend_request(topic, param).await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::SessionDelete(param) => {
-            let response = ctx.sessions.process_session_delete_request(param)?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::SessionPing(()) => {
-            let response = ctx.sessions.process_session_ping_request()?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::SessionSettle(param) => {
-            let response = ctx.sessions.process_session_settle_request(topic, param).await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::SessionUpdate(param) => {
-            let response = ctx.sessions.process_session_update_request(topic, param).await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
+        Params::SessionPropose(proposal) => process_proposal_request(&ctx, proposal, topic, &message_id).await?,
+        Params::SessionExtend(param) => process_session_extend_request(&ctx, topic, &message_id, param).await?,
+        Params::SessionDelete(param) => process_session_delete_request(&ctx, topic, &message_id, param).await?,
+        Params::SessionPing(()) => process_session_ping_request(&ctx, topic, &message_id).await?,
+        Params::SessionSettle(param) => process_session_settle_request(&ctx, topic, &message_id, param).await?,
+        Params::SessionUpdate(param) => process_session_update_request(&ctx, topic, &message_id, param).await?,
+        Params::SessionEvent(param) => {
+            SessionEvents::from_events(param)?
+                .handle_session_event(&ctx, topic, &message_id)
+                .await?
         },
         Params::SessionRequest(_) => todo!(),
-        Params::SessionEvent(param) => handle_session_event(&ctx, param).await?,
 
-        Params::PairingPing(_param) => {
-            let response = process_pairing_ping_response().await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::PairingDelete(param) => {
-            let response = process_pairing_delete_response(&ctx, topic, param).await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
-        Params::PairingExtend(param) => {
-            let response = process_pairing_extend_response(&ctx, topic, param).await?;
-            ctx.publish_response(topic, response.0, response.1, request.id).await?;
-        },
+        Params::PairingPing(_param) => process_pairing_ping_response(&ctx, topic, &message_id).await?,
+        Params::PairingDelete(param) => process_pairing_delete_response(&ctx, topic, &message_id, param).await?,
+        Params::PairingExtend(param) => process_pairing_extend_response(&ctx, topic, &message_id, param).await?,
         _ => todo!(),
     };
-
-    // ctx.session.session_delete_cleanup(ctx.clone(), topic).await?
 
     Ok(())
 }
@@ -75,7 +50,7 @@ pub(crate) async fn process_inbound_response(
             let params = serde_json::from_value::<ResponseParamsSuccess>(value.result)?;
             match params {
                 ResponseParamsSuccess::SessionPropose(param) => {
-                    ctx.sessions.handle_session_propose_response(topic, param).await;
+                    process_session_propose_response(&ctx, topic, param).await;
                     Ok(())
                 },
                 ResponseParamsSuccess::SessionSettle(success)

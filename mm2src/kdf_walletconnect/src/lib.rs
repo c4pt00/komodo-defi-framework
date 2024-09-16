@@ -23,7 +23,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
                 rpc::{params::IrnMetadata, Params, Payload, Request, Response, SuccessfulResponse,
                       JSON_RPC_VERSION_STR}};
-use session::Session;
+use session::{create_proposal_session, Session};
 use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
@@ -39,6 +39,7 @@ const SUPPORTED_METHODS: &[&str] = &[
 const SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:5"];
 const SUPPORTED_EVENTS: &[&str] = &["chainChanged", "accountsChanged"];
 const SUPPORTED_ACCOUNTS: &[&str] = &["eip155:5:0xBA5BA3955463ADcc7aa3E33bbdfb8A68e0933dD8"];
+const DEFAULT_CHAIN_ID: &str = "1"; // eth mainnet.
 
 pub struct WalletConnectCtx {
     pub client: Client,
@@ -67,11 +68,11 @@ impl WalletConnectCtx {
             sessions: Session::new(),
             msg_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
-            active_chain_id: Arc::new(Mutex::new("1".to_string())),
+            active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
         }
     }
 
-    pub async fn get_active_chain(&self) -> String { self.active_chain_id.lock().await.clone() }
+    pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
     pub async fn get_active_sessions(&self) -> impl IntoIterator {
         let sessions = self.sessions.lock().await;
@@ -152,7 +153,7 @@ impl WalletConnectCtx {
             .create(metadata.clone(), Some(methods), &self.client)
             .await?;
 
-        Session::create_proposal_session(self, topic, metadata).await?;
+        create_proposal_session(self, topic, metadata).await?;
 
         Ok(url)
     }
@@ -184,10 +185,10 @@ impl WalletConnectCtx {
         topic: &Topic,
         params: serde_json::Value,
         irn_metadata: IrnMetadata,
-        message_id: MessageId,
+        message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
         let response = Response::Success(SuccessfulResponse {
-            id: message_id,
+            id: *message_id,
             jsonrpc: JSON_RPC_VERSION_STR.into(),
             result: params,
         });
@@ -206,9 +207,9 @@ impl WalletConnectCtx {
         payload: Payload,
     ) -> MmResult<(), WalletConnectCtxError> {
         let sym_key = self.sym_key(topic).await?;
-
         let payload =
             serde_json::to_string(&payload).map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+
         info!("\n Sending Outbound request: {payload}!");
 
         let message = encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)

@@ -1,11 +1,13 @@
 use crate::error::SessionError;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx, SUPPORTED_ACCOUNTS, SUPPORTED_CHAINS, SUPPORTED_EVENTS,
             SUPPORTED_METHODS, SUPPORTED_PROTOCOL};
+use chrono::naive::serde;
 use chrono::Utc;
 use common::log::info;
 use futures::lock::Mutex;
 use mm2_err_handle::prelude::{MapToMmResult, MmResult};
 use relay_rpc::auth::ed25519_dalek::SigningKey;
+use relay_rpc::domain::MessageId;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_delete::SessionDeleteRequest;
 use relay_rpc::rpc::params::session_event::SessionEventRequest;
@@ -180,16 +182,22 @@ impl SessionInfo {
         })
     }
 
-    fn create_proposal_response(&self) -> Result<(Value, IrnMetadata), WalletConnectCtxError> {
+    async fn proposal_response(
+        &self,
+        ctx: &WalletConnectCtx,
+        topic: &Topic,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectCtxError> {
         let response = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
             relay: self.relay.clone(),
             responder_public_key: self.controller.public_key.clone(),
         });
         let irn_metadata = response.irn_metadata();
-        let value =
-            serde_json::to_value(response).map_err(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+        let value = serde_json::to_value(response)?;
 
-        Ok((value, irn_metadata))
+        ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+        Ok(())
     }
 }
 
@@ -213,322 +221,357 @@ impl Session {
             sessions: Default::default(),
         }
     }
+}
 
-    pub(crate) async fn create_proposal_session(
-        ctx: &WalletConnectCtx,
-        topic: Topic,
-        metadata: Metadata,
-    ) -> MmResult<(), WalletConnectCtxError> {
-        let (session, session_topic) = {
-            let signing_key = SigningKey::generate(&mut OsRng);
-            let public_key = signing_key.verifying_key();
-            let session_key = SessionKey::from_osrng(public_key.as_bytes())?;
-            let session_topic: Topic = session_key.generate_topic().into();
-            let subscription_id = ctx
-                .client
-                .subscribe(session_topic.clone())
-                .await
-                .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
-
-            (
-                SessionInfo::new(
-                    subscription_id,
-                    session_key,
-                    topic.clone(),
-                    metadata,
-                    SessionType::Proposer,
-                ),
-                session_topic,
-            )
-        };
-
-        {
-            let mut sessions = ctx.sessions.lock().await;
-            sessions.insert(session_topic.clone(), session.clone());
-        }
-
-        let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
-            relays: vec![session.relay],
-            proposer: session.proposer,
-            required_namespaces: session.propose_namespaces,
-        });
-        let irn_metadata = session_proposal.irn_metadata();
-
-        ctx.publish_request(&topic, session_proposal.into(), irn_metadata)
-            .await?;
-
-        Ok(())
-    }
-
-    pub(crate) async fn handle_session_propose_response(
-        &self,
-        session_topic: &Topic,
-        response: SessionProposeResponse,
-    ) {
-        let mut sessions = self.lock().await;
-        if let Some(session) = sessions.get_mut(session_topic) {
-            info!("session found!");
-            session.proposer.public_key = response.responder_public_key;
-            session.relay = response.relay;
-            session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
-        };
-    }
-
-    pub(crate) async fn process_session_extend_request(
-        &self,
-        topic: &Topic,
-        extend: SessionExtendRequest,
-    ) -> WcRequestResponseResult {
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(topic) {
-            session.expiry = extend.expiry;
-            info!("Updated extended, info: {:?}", session);
-        }
-
-        let response = ResponseParamsSuccess::SessionExtend(true);
-        let irn_metadata = response.irn_metadata();
-        let value =
-            serde_json::to_value(response).map_err(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-
-        Ok((value, irn_metadata))
-    }
-
-    /// https://specs.walletconnect.com/2.0/specs/clients/sign/session-proposal
-    pub async fn process_proposal_request(
-        &self,
-        ctx: &WalletConnectCtx,
-        proposal: SessionProposeRequest,
-        pairing_topic: Topic,
-    ) -> WcRequestResponseResult {
-        let sender_public_key = hex::decode(&proposal.proposer.public_key)
-            .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?
-            .as_slice()
-            .try_into()
-            .unwrap();
-
-        let session_key = SessionKey::from_osrng(&sender_public_key)
-            .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+pub(crate) async fn create_proposal_session(
+    ctx: &WalletConnectCtx,
+    topic: Topic,
+    metadata: Metadata,
+) -> MmResult<(), WalletConnectCtxError> {
+    let (session, session_topic) = {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let public_key = signing_key.verifying_key();
+        let session_key = SessionKey::from_osrng(public_key.as_bytes())?;
         let session_topic: Topic = session_key.generate_topic().into();
+
+        info!("Session topic: {session_topic:?}");
         let subscription_id = ctx
             .client
             .subscribe(session_topic.clone())
             .await
             .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
-        let session = SessionInfo::new(
-            subscription_id,
-            session_key,
-            pairing_topic,
-            proposal.proposer.metadata,
-            SessionType::Controller,
-        );
-        session
-            .supported_propose_namespaces()
-            .supported(&proposal.required_namespaces)
-            .map_to_mm(|err| WalletConnectCtxError::InternalError(err.to_string()))?;
+        (
+            SessionInfo::new(
+                subscription_id,
+                session_key,
+                topic.clone(),
+                metadata,
+                SessionType::Proposer,
+            ),
+            session_topic,
+        )
+    };
 
-        {
-            let mut sessions = ctx.sessions.deref().lock().await;
-            _ = sessions.insert(session_topic.clone(), session.clone());
-        }
-
-        let settle_params = session.create_settle_request();
-        let irn_metadata = settle_params.irn_metadata();
-        ctx.publish_request(&session_topic, settle_params.into(), irn_metadata)
-            .await?;
-
-        Ok(session.create_proposal_response()?)
-    }
-
-    pub(crate) async fn process_session_settle_request(
-        &self,
-        topic: &Topic,
-        settle: SessionSettleRequest,
-    ) -> WcRequestResponseResult {
-        {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(topic) {
-                session.namespaces = settle.namespaces.0.clone();
-                session.controller = settle.controller.clone();
-                session.relay = settle.relay.clone();
-                session.expiry = settle.expiry;
-
-                info!("Session successfully settled for topic: {:?}", topic);
-                info!("Updated session info: {:?}", session);
-            }
-        }
-
-        let response = ResponseParamsSuccess::SessionSettle(true);
-        let irn_metadata = response.irn_metadata();
-        let value =
-            serde_json::to_value(response).map_err(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-
-        Ok((value, irn_metadata))
-    }
-
-    pub(crate) fn process_session_ping_request(&self) -> WcRequestResponseResult {
-        let response = ResponseParamsSuccess::SessionPing(true);
-        let irn_metadata = response.irn_metadata();
-        let value =
-            serde_json::to_value(response).map_err(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-
-        Ok((value, irn_metadata))
-    }
-
-    pub(crate) fn process_session_delete_request(
-        &self,
-        delete_params: SessionDeleteRequest,
-    ) -> WcRequestResponseResult {
-        info!(
-            "\nSession is being terminated reason={}, code={}",
-            delete_params.message, delete_params.code,
-        );
-
-        let response = ResponseParamsSuccess::SessionDelete(true);
-        let irn_metadata = response.irn_metadata();
-        let value =
-            serde_json::to_value(response).map_err(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-
-        Ok((value, irn_metadata))
-    }
-
-    pub(crate) async fn session_delete_cleanup(
-        &self,
-        ctx: Arc<WalletConnectCtx>,
-        topic: &Topic,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    {
         let mut sessions = ctx.sessions.lock().await;
-        sessions.remove(topic).ok_or_else(|| {
-            WalletConnectCtxError::InternalError("Attempt to remove non-existing session".to_string())
-        })?;
-
-        ctx.client.unsubscribe(topic.clone()).await?;
-
-        // Check if there are no active sessions remaining
-        if sessions.is_empty() {
-            info!("\nNo active sessions left, disconnecting the pairing");
-
-            // Attempt to disconnect and remove the pairing associated with the topic
-            ctx.pairing
-                .disconnect(topic.as_ref(), &ctx.client)
-                .await
-                .map_err(|e| WalletConnectCtxError::InternalError(format!("Failed to disconnect pairing: {}", e)))?;
-        }
-
-        Ok(())
+        sessions.insert(session_topic.clone(), session.clone());
     }
 
-    pub(crate) async fn process_session_update_request(
-        &self,
-        topic: &Topic,
-        update: SessionUpdateRequest,
-    ) -> WcRequestResponseResult {
-        let mut sessions = self.sessions.lock().await;
+    let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
+        relays: vec![session.relay],
+        proposer: session.proposer,
+        required_namespaces: session.propose_namespaces,
+    });
+    let irn_metadata = session_proposal.irn_metadata();
+
+    ctx.publish_request(&topic, session_proposal.into(), irn_metadata)
+        .await?;
+
+    Ok(())
+}
+
+pub(crate) async fn process_session_propose_response(
+    ctx: &WalletConnectCtx,
+    session_topic: &Topic,
+    response: SessionProposeResponse,
+) {
+    let mut sessions = ctx.sessions.lock().await;
+    if let Some(session) = sessions.get_mut(session_topic) {
+        info!("session found!");
+        session.proposer.public_key = response.responder_public_key;
+        session.relay = response.relay;
+        session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
+    };
+}
+
+pub(crate) async fn process_session_extend_request(
+    ctx: &WalletConnectCtx,
+    topic: &Topic,
+    message_id: &MessageId,
+    extend: SessionExtendRequest,
+) -> MmResult<(), WalletConnectCtxError> {
+    let mut sessions = ctx.sessions.lock().await;
+    if let Some(session) = sessions.get_mut(topic) {
+        session.expiry = extend.expiry;
+        info!("Updated extended, info: {:?}", session);
+    }
+
+    let response = ResponseParamsSuccess::SessionExtend(true);
+    let irn_metadata = response.irn_metadata();
+    let value = serde_json::to_value(response)?;
+
+    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+    Ok(())
+}
+
+/// https://specs.walletconnect.com/2.0/specs/clients/sign/session-proposal
+pub async fn process_proposal_request(
+    ctx: &WalletConnectCtx,
+    proposal: SessionProposeRequest,
+    topic: &Topic,
+    message_id: &MessageId,
+) -> MmResult<(), WalletConnectCtxError> {
+    let sender_public_key = hex::decode(&proposal.proposer.public_key)
+        .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?
+        .as_slice()
+        .try_into()
+        .unwrap();
+
+    let session_key = SessionKey::from_osrng(&sender_public_key)
+        .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+    let session_topic: Topic = session_key.generate_topic().into();
+    let subscription_id = ctx
+        .client
+        .subscribe(session_topic.clone())
+        .await
+        .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
+
+    let session = SessionInfo::new(
+        subscription_id,
+        session_key,
+        topic.clone(),
+        proposal.proposer.metadata,
+        SessionType::Controller,
+    );
+    session
+        .supported_propose_namespaces()
+        .supported(&proposal.required_namespaces)
+        .map_to_mm(|err| WalletConnectCtxError::InternalError(err.to_string()))?;
+
+    {
+        let mut sessions = ctx.sessions.deref().lock().await;
+        _ = sessions.insert(session_topic.clone(), session.clone());
+    }
+
+    let settle_params = session.create_settle_request();
+    let irn_metadata = settle_params.irn_metadata();
+
+    ctx.publish_request(&session_topic, settle_params.into(), irn_metadata)
+        .await?;
+
+    session.proposal_response(ctx, topic, message_id).await
+}
+
+pub(crate) async fn process_session_settle_request(
+    ctx: &WalletConnectCtx,
+    topic: &Topic,
+    message_id: &MessageId,
+    settle: SessionSettleRequest,
+) -> MmResult<(), WalletConnectCtxError> {
+    {
+        let mut sessions = ctx.sessions.lock().await;
         if let Some(session) = sessions.get_mut(topic) {
-            session.namespaces = update.namespaces.0.clone();
-            info!("Updated extended, info: {:?}", session);
+            session.namespaces = settle.namespaces.0.clone();
+            session.controller = settle.controller.clone();
+            session.relay = settle.relay.clone();
+            session.expiry = settle.expiry;
+
+            info!("Session successfully settled for topic: {:?}", topic);
+            info!("Updated session info: {:?}", session);
         }
-
-        let response = ResponseParamsSuccess::SessionUpdate(true);
-        let irn_metadata = response.irn_metadata();
-        let value =
-            serde_json::to_value(response).map_err(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
-
-        Ok((value, irn_metadata))
     }
+
+    let response = ResponseParamsSuccess::SessionSettle(true);
+    let irn_metadata = response.irn_metadata();
+    let value = serde_json::to_value(response)?;
+
+    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+    Ok(())
+}
+
+pub(crate) async fn process_session_ping_request(
+    ctx: &WalletConnectCtx,
+    topic: &Topic,
+    message_id: &MessageId,
+) -> MmResult<(), WalletConnectCtxError> {
+    let response = ResponseParamsSuccess::SessionPing(true);
+    let irn_metadata = response.irn_metadata();
+    let value = serde_json::to_value(response)?;
+
+    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+    Ok(())
+}
+
+pub(crate) async fn process_session_delete_request(
+    ctx: &WalletConnectCtx,
+    topic: &Topic,
+    message_id: &MessageId,
+    delete_params: SessionDeleteRequest,
+) -> MmResult<(), WalletConnectCtxError> {
+    let response = ResponseParamsSuccess::SessionDelete(true);
+    let irn_metadata = response.irn_metadata();
+    let value = serde_json::to_value(response)?;
+
+    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+    Ok(())
+}
+
+pub(crate) async fn session_delete_cleanup(
+    ctx: Arc<WalletConnectCtx>,
+    topic: &Topic,
+) -> MmResult<(), WalletConnectCtxError> {
+    let mut sessions = ctx.sessions.lock().await;
+    sessions
+        .remove(topic)
+        .ok_or_else(|| WalletConnectCtxError::InternalError("Attempt to remove non-existing session".to_string()))?;
+
+    ctx.client.unsubscribe(topic.clone()).await?;
+
+    // Check if there are no active sessions remaining
+    if sessions.is_empty() {
+        info!("\nNo active sessions left, disconnecting the pairing");
+
+        // Attempt to disconnect and remove the pairing associated with the topic
+        ctx.pairing
+            .disconnect(topic.as_ref(), &ctx.client)
+            .await
+            .map_err(|e| WalletConnectCtxError::InternalError(format!("Failed to disconnect pairing: {}", e)))?;
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn process_session_update_request(
+    ctx: &WalletConnectCtx,
+    topic: &Topic,
+    message_id: &MessageId,
+    update: SessionUpdateRequest,
+) -> MmResult<(), WalletConnectCtxError> {
+    let mut sessions = ctx.sessions.lock().await;
+    if let Some(session) = sessions.get_mut(topic) {
+        session.namespaces = update.namespaces.0.clone();
+        info!("Updated extended, info: {:?}", session);
+    }
+
+    let response = ResponseParamsSuccess::SessionUpdate(true);
+    let irn_metadata = response.irn_metadata();
+    let value = serde_json::to_value(response)?;
+
+    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+    Ok(())
 }
 
 pub enum SessionEvents {
-    ChainCHanged(Vec<String>),
-    AccountsChanged(Vec<String>),
+    ChainCHanged(String, Vec<String>),
+    AccountsChanged(String, Vec<String>),
     Unknown,
 }
 
 impl SessionEvents {
-    fn from_events(event: SessionEventRequest) -> MmResult<Self, WalletConnectCtxError> {
+    pub fn from_events(event: SessionEventRequest) -> MmResult<Self, WalletConnectCtxError> {
         match event.event.name.as_str() {
             "chainCHanged" => {
                 let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
-                Ok(SessionEvents::ChainCHanged(data))
+                Ok(SessionEvents::ChainCHanged(event.chain_id, data))
             },
             "accountsChanged" => {
                 let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
-                Ok(SessionEvents::AccountsChanged(data))
+                Ok(SessionEvents::AccountsChanged(event.chain_id, data))
             },
             _ => Ok(SessionEvents::Unknown),
         }
     }
-}
 
-pub async fn handle_session_event(
-    ctx: &WalletConnectCtx,
-    event: SessionEventRequest,
-) -> MmResult<(), WalletConnectCtxError> {
-    let session_event = SessionEvents::from_events(event.clone())?;
-    match session_event {
-        SessionEvents::ChainCHanged(data) => handle_chain_changed_event(ctx, event.chain_id, data).await,
-        SessionEvents::AccountsChanged(data) => handle_account_changed_event(ctx, event.chain_id, data).await,
-        SessionEvents::Unknown => todo!(),
+    pub async fn handle_session_event(
+        &self,
+        ctx: &WalletConnectCtx,
+        topic: &Topic,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectCtxError> {
+        match &self {
+            SessionEvents::ChainCHanged(chain_id, data) => {
+                Self::handle_chain_changed_event(ctx, chain_id, data, topic, message_id).await
+            },
+            SessionEvents::AccountsChanged(chain_id, data) => {
+                Self::handle_account_changed_event(ctx, chain_id, data, topic, message_id).await
+            },
+            SessionEvents::Unknown => todo!(),
+        }
     }
-}
 
-async fn handle_chain_changed_event(
-    ctx: &WalletConnectCtx,
-    chain_id: String,
-    data: Vec<String>,
-) -> MmResult<(), WalletConnectCtxError> {
-    *ctx.active_chain_id.lock().await = chain_id.clone();
+    async fn handle_chain_changed_event(
+        ctx: &WalletConnectCtx,
+        chain_id: &str,
+        data: &Vec<String>,
+        topic: &Topic,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectCtxError> {
+        *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
 
-    {
+        {
+            let mut sessions = ctx.sessions.lock().await;
+            let current_time = Utc::now().timestamp() as u64;
+            sessions.retain(|_, session| session.expiry > current_time);
+        };
+
+        let mut sessions = ctx.sessions.lock().await;
+        for session in sessions.values_mut() {
+            for id in data {
+                if let Some((namespace, chain)) = parse_chain_and_chain_id(chain_id) {
+                    if let Some(ns) = session.namespaces.get_mut(&namespace) {
+                        ns.chains
+                            .get_or_insert_with(BTreeSet::new)
+                            .insert(format!("{namespace}:{id}"));
+                    }
+                }
+            }
+        }
+
+        //TODO: Notify about chain changed.
+
+        let params = ResponseParamsSuccess::SessionEvent(true);
+        let irn_metadata = params.irn_metadata();
+
+        let value = serde_json::to_value(params)?;
+        ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+        Ok(())
+    }
+
+    async fn handle_account_changed_event(
+        ctx: &WalletConnectCtx,
+        chain_id: &str,
+        data: &Vec<String>,
+        topic: &Topic,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectCtxError> {
+        *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
+
         let mut sessions = ctx.sessions.lock().await;
         let current_time = Utc::now().timestamp() as u64;
+
         sessions.retain(|_, session| session.expiry > current_time);
-    };
 
-    let mut sessions = ctx.sessions.lock().await;
-    for session in sessions.values_mut() {
-        for id in &data {
-            if let Some((namespace, chain)) = parse_chain_and_chain_id(&chain_id) {
-                if let Some(ns) = session.namespaces.get_mut(&namespace) {
-                    ns.chains
-                        .get_or_insert_with(BTreeSet::new)
-                        .insert(format!("{namespace}:{id}"));
+        let mut sessions = ctx.sessions.lock().await;
+        for session in sessions.values_mut() {
+            for address in data {
+                if let Some((namespace, _)) = parse_chain_and_chain_id(chain_id) {
+                    if let Some(ns) = session.namespaces.get_mut(&namespace) {
+                        ns.accounts
+                            .get_or_insert_with(BTreeSet::new)
+                            .insert(format!("{chain_id}:{address}"));
+                    }
                 }
             }
         }
+
+        //TODO: Notify about account changed.
+        //
+
+        let params = ResponseParamsSuccess::SessionEvent(true);
+        let irn_metadata = params.irn_metadata();
+
+        let value = serde_json::to_value(params)?;
+        ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+
+        Ok(())
     }
-
-    //TODO: Notify about chain changed.
-    Ok(())
-}
-
-async fn handle_account_changed_event(
-    ctx: &WalletConnectCtx,
-    chain_id: String,
-    data: Vec<String>,
-) -> MmResult<(), WalletConnectCtxError> {
-    *ctx.active_chain_id.lock().await = chain_id.clone();
-
-    let mut sessions = ctx.sessions.lock().await;
-    let current_time = Utc::now().timestamp() as u64;
-
-    sessions.retain(|_, session| session.expiry > current_time);
-
-    let mut sessions = ctx.sessions.lock().await;
-    for session in sessions.values_mut() {
-        for address in &data {
-            if let Some((namespace, _)) = parse_chain_and_chain_id(&chain_id) {
-                if let Some(ns) = session.namespaces.get_mut(&namespace) {
-                    ns.accounts
-                        .get_or_insert_with(BTreeSet::new)
-                        .insert(format!("{chain_id}:{address}"));
-                }
-            }
-        }
-    }
-
-    //TODO: Notify about account changed.
-    Ok(())
 }
 
 fn parse_chain_and_chain_id(chain: &str) -> Option<(String, String)> {
