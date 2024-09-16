@@ -66,10 +66,3 @@ runs:
       if: contains(inputs.deps, 'paramiko')
       shell: bash
       run: pip install paramiko
-
-    - name: Initialize Git submodules
-      if: contains(inputs.deps, 'git-submodules')
-      shell: bash
-      run: |
-        git submodule init
-        git submodule update --recursive

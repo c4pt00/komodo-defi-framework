@@ -24,7 +24,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc' 'libudev-dev', 'git-submodules')
+          deps: ('protoc' 'libudev-dev')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
@@ -52,7 +52,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc', 'git-submodules')
+          deps: ('protoc')
 
       - name: Cargo cache
         uses: ./.github/actions/cargo-cache
