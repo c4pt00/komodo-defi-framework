@@ -16,18 +16,18 @@ use inbound_message::{process_inbound_request, process_inbound_response};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
-use pairing_api::{Methods, PairingClient};
+use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
-                rpc::{params::IrnMetadata, Params, Payload, Request, Response, SuccessfulResponse,
-                      JSON_RPC_VERSION_STR}};
-use session::{create_proposal_session, Session};
+                rpc::{params::{session::ProposeNamespaces, IrnMetadata},
+                      Params, Payload, Request, Response, SuccessfulResponse, JSON_RPC_VERSION_STR}};
+use session::{propose::create_proposal_session, Session};
 use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
-const SUPPORTED_PROTOCOL: &str = "irn";
+pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 const SUPPORTED_METHODS: &[&str] = &[
     "eth_sendTransaction",
     "eth_signTransaction",
@@ -70,6 +70,33 @@ impl WalletConnectCtx {
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
         }
+    }
+
+    pub async fn create_pairing(
+        &self,
+        required_namespaces: Option<ProposeNamespaces>,
+    ) -> MmResult<String, WalletConnectCtxError> {
+        let metadata = generate_metadata();
+
+        let (topic, url) = self.pairing.create(metadata.clone(), None).await?;
+
+        info!("Subscribing to topic: {topic:?}");
+        self.client.subscribe(topic.clone()).await?;
+        info!("Subscribed to topic: {topic:?}");
+
+        create_proposal_session(self, topic, metadata, required_namespaces).await?;
+
+        Ok(url)
+    }
+
+    pub async fn connect_to_pairing(&self, url: &str, activate: bool) -> MmResult<Topic, WalletConnectCtxError> {
+        let topic = self.pairing.pair(url, activate).await?;
+
+        info!("Subscribing to topic: {topic:?}");
+        self.client.subscribe(topic.clone()).await?;
+        info!("Subscribed to topic: {topic:?}");
+
+        Ok(topic)
     }
 
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
@@ -139,27 +166,6 @@ impl WalletConnectCtx {
         MmError::err(WalletConnectCtxError::PairingNotFound(format!(
             "Topic not found:{topic}"
         )))
-    }
-
-    pub async fn create_pairing(&self) -> MmResult<String, WalletConnectCtxError> {
-        let metadata = generate_metadata();
-        let methods = Methods(vec![SUPPORTED_METHODS
-            .iter()
-            .map(|m| m.to_string())
-            .collect::<Vec<_>>()]);
-
-        let (topic, url) = self
-            .pairing
-            .create(metadata.clone(), Some(methods), &self.client)
-            .await?;
-
-        create_proposal_session(self, topic, metadata).await?;
-
-        Ok(url)
-    }
-
-    pub async fn connect_to_pairing(&self, url: &str, activate: bool) -> MmResult<Topic, WalletConnectCtxError> {
-        Ok(self.pairing.pair(url, activate, &self.client).await?)
     }
 
     /// Private function to publish a request.

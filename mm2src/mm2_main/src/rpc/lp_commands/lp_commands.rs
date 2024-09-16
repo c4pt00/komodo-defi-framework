@@ -115,6 +115,7 @@ pub async fn trezor_connection_status(
     })
 }
 
+//////////// TESTING PURPOSES /////////////
 use serde::Serialize;
 
 #[derive(Deserialize)]
@@ -158,7 +159,7 @@ pub async fn create_new_pairing(
 ) -> MmResult<CreatePairingResponse, TrezorConnectionError> {
     let url = ctx
         .wallect_connect
-        .create_pairing()
+        .create_pairing(None)
         .await
         .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;
 

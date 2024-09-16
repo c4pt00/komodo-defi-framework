@@ -6,9 +6,13 @@ use relay_rpc::{domain::Topic,
 
 use crate::{error::WalletConnectCtxError,
             pairing::{process_pairing_delete_response, process_pairing_extend_response, process_pairing_ping_response},
-            session::{process_proposal_request, process_session_delete_request, process_session_extend_request,
-                      process_session_ping_request, process_session_propose_response, process_session_settle_request,
-                      process_session_update_request, SessionEvents},
+            session::{delete::process_session_delete_request,
+                      event::SessionEvents,
+                      extend::process_session_extend_request,
+                      ping::process_session_ping_request,
+                      propose::{process_proposal_request, process_session_propose_response},
+                      settle::process_session_settle_request,
+                      update::process_session_update_request},
             WalletConnectCtx};
 
 pub(crate) async fn process_inbound_request(
@@ -45,13 +49,13 @@ pub(crate) async fn process_inbound_response(
     response: Response,
     topic: &Topic,
 ) -> MmResult<(), WalletConnectCtxError> {
+    println!("got a response: {:?}", response);
     match response {
         Response::Success(value) => {
             let params = serde_json::from_value::<ResponseParamsSuccess>(value.result)?;
             match params {
                 ResponseParamsSuccess::SessionPropose(param) => {
-                    process_session_propose_response(&ctx, topic, param).await;
-                    Ok(())
+                    process_session_propose_response(&ctx, topic, param).await
                 },
                 ResponseParamsSuccess::SessionSettle(success)
                 | ResponseParamsSuccess::SessionUpdate(success)
