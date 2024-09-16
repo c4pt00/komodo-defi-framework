@@ -91,25 +91,41 @@ impl SessionKey {
     }
 }
 
+/// In the WalletConnect protocol, a session involves two parties: a controller
+/// (typically a wallet) and a proposer (typically a dApp). This enum is used
+/// to distinguish between these two roles.
 #[derive(Debug, Clone)]
 pub enum SessionType {
+    /// Represents the controlling party in a session, typically a wallet.
     Controller,
+    /// Represents the proposing party in a session, typically a dApp.
     Proposer,
 }
 
+/// This struct is typically used in the core session management logic of a WalletConnect
+/// implementation. It's used to store, retrieve, and update session information throughout
+/// the lifecycle of a WalletConnect connection.
 #[derive(Debug, Clone)]
 pub struct SessionInfo {
     /// Pairing subscription id.
     pub subscription_id: SubscriptionId,
     /// Session symmetric key
     pub session_key: SessionKey,
+    /// Information about the controlling party (typically a wallet).
     pub controller: Controller,
+    /// Information about the proposing party (typically a dApp).
     pub proposer: Proposer,
+    /// Details about the relay used for communication.
     pub relay: Relay,
+    /// Agreed-upon namespaces for the session, mapping namespace strings to their definitions.
     pub namespaces: BTreeMap<String, Namespace>,
+    /// Namespaces proposed for the session, may differ from agreed namespaces.
     pub propose_namespaces: ProposeNamespaces,
+    /// Unix timestamp (in seconds) when the session expires.
     pub expiry: u64,
+    /// Topic used for the initial pairing process.
     pub pairing_topic: Topic,
+    /// Indicates whether this session info represents a Controller or Proposer perspective.
     pub session_type: SessionType,
 }
 
@@ -223,6 +239,7 @@ impl Session {
     }
 }
 
+/// Creates a new session proposal form topic and metadata.
 pub(crate) async fn create_proposal_session(
     ctx: &WalletConnectCtx,
     topic: Topic,
@@ -271,6 +288,7 @@ pub(crate) async fn create_proposal_session(
     Ok(())
 }
 
+/// Process session propose reponse.
 pub(crate) async fn process_session_propose_response(
     ctx: &WalletConnectCtx,
     session_topic: &Topic,
@@ -285,6 +303,7 @@ pub(crate) async fn process_session_propose_response(
     };
 }
 
+/// Process session extend request.
 pub(crate) async fn process_session_extend_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
@@ -306,6 +325,7 @@ pub(crate) async fn process_session_extend_request(
     Ok(())
 }
 
+/// Process session proposal request
 /// https://specs.walletconnect.com/2.0/specs/clients/sign/session-proposal
 pub async fn process_proposal_request(
     ctx: &WalletConnectCtx,
@@ -354,6 +374,7 @@ pub async fn process_proposal_request(
     session.proposal_response(ctx, topic, message_id).await
 }
 
+/// Process session settle request.
 pub(crate) async fn process_session_settle_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
@@ -541,28 +562,8 @@ impl SessionEvents {
         topic: &Topic,
         message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
-        *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
-
-        let mut sessions = ctx.sessions.lock().await;
-        let current_time = Utc::now().timestamp() as u64;
-
-        sessions.retain(|_, session| session.expiry > current_time);
-
-        let mut sessions = ctx.sessions.lock().await;
-        for session in sessions.values_mut() {
-            for address in data {
-                if let Some((namespace, _)) = parse_chain_and_chain_id(chain_id) {
-                    if let Some(ns) = session.namespaces.get_mut(&namespace) {
-                        ns.accounts
-                            .get_or_insert_with(BTreeSet::new)
-                            .insert(format!("{chain_id}:{address}"));
-                    }
-                }
-            }
-        }
-
+        // TODO: Handle account change logic.
         //TODO: Notify about account changed.
-        //
 
         let params = ResponseParamsSuccess::SessionEvent(true);
         let irn_metadata = params.irn_metadata();
