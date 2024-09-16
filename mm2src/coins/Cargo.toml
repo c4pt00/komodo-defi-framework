@@ -97,6 +97,7 @@ rmp-serde = "0.14.3"
 rpc = { path = "../mm2_bitcoin/rpc" }
 rpc_task = { path = "../rpc_task" }
 satomic-swap = { git = "https://github.com/KomodoPlatform/satomic-swap.git", rev = "413e472", optional = true }
+sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust.git", branch = "dev", optional = true } # FIXME set rev= prior to merge to dev
 script = { path = "../mm2_bitcoin/script" }
 secp256k1 = { version = "0.20" }
 ser_error = { path = "../derives/ser_error" }
@@ -143,8 +144,6 @@ js-sys = { version = "0.3.27" }
 mm2_db = { path = "../mm2_db" }
 mm2_metamask = { path = "../mm2_metamask" }
 mm2_test_helpers = { path = "../mm2_test_helpers" }
-# FIXME set rev= prior to merge to dev
-sia-rust = { path = "sia-rust" }
 time = { version = "0.3.20", features = ["wasm-bindgen"] }
 tonic = { version = "0.9", default-features = false, features = ["prost", "codegen", "gzip"] }
 tower-service = "0.3"
@@ -169,8 +168,6 @@ lightning-net-tokio = "0.0.113"
 rust-ini = { version = "0.13" }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 secp256k1v24 = { version = "0.24", package = "secp256k1" }
-# FIXME set rev= prior to merge to dev
-sia-rust = { path = "sia-rust", optional = true }
 tokio = { version = "1.20" }
 tokio-rustls = { version = "0.24" }
 tonic = { version = "0.9", features = ["tls", "tls-webpki-roots", "gzip"] }
