@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use common::log::info;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::{domain::Topic,
@@ -17,7 +15,7 @@ use crate::{error::WalletConnectCtxError,
             WalletConnectCtx};
 
 pub(crate) async fn process_inbound_request(
-    ctx: Arc<WalletConnectCtx>,
+    ctx: &WalletConnectCtx,
     request: Request,
     topic: &Topic,
 ) -> MmResult<(), WalletConnectCtxError> {
@@ -52,7 +50,7 @@ pub(crate) async fn process_inbound_request(
 }
 
 pub(crate) async fn process_inbound_response(
-    ctx: Arc<WalletConnectCtx>,
+    ctx: &WalletConnectCtx,
     response: Response,
     topic: &Topic,
 ) -> MmResult<(), WalletConnectCtxError> {

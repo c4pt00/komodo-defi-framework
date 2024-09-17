@@ -6,7 +6,8 @@ mod metadata;
 #[allow(unused)] mod session;
 
 use chrono::Utc;
-use common::{executor::Timer, log::info};
+use common::{executor::{spawn, Timer},
+             log::{error, info}};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
               lock::Mutex,
@@ -232,29 +233,34 @@ impl WalletConnectCtx {
     }
 
     pub async fn published_message_event_loop(self: Arc<Self>) {
+        let self_clone = self.clone();
         let mut recv = self.msg_handler.lock().await;
         while let Some(msg) = recv.next().await {
-            let message = {
-                let key = self.sym_key(&msg.topic).await.unwrap();
-                decode_and_decrypt_type0(msg.message.as_bytes(), &key).unwrap()
-            };
-
-            info!("\nInbound message payload={message}");
-
-            let response = serde_json::from_str::<Payload>(&message).unwrap();
-            let result = match response {
-                Payload::Request(request) => process_inbound_request(self.clone(), request, &msg.topic).await,
-                Payload::Response(response) => process_inbound_response(self.clone(), response, &msg.topic).await,
-            };
-
-            // TODO: Handle errors.
-            match result {
-                Ok(()) => info!("Inbound message was handled succesfully"),
-                Err(err) => info!("Error while handling inbound message: {err:?}"),
-            };
+            info!("received message");
+            if let Err(e) = self_clone.handle_single_message(msg).await {
+                info!("Error processing message: {:?}", e);
+            }
         }
     }
 
+    async fn handle_single_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectCtxError> {
+        let message = {
+            let key = self.sym_key(&msg.topic).await?;
+            decode_and_decrypt_type0(msg.message.as_bytes(), &key).unwrap()
+        };
+
+        info!("Inbound message payload={message}");
+
+        let payload: Payload = serde_json::from_str(&message)?;
+
+        match payload {
+            Payload::Request(request) => process_inbound_request(&self, request, &msg.topic).await?,
+            Payload::Response(response) => process_inbound_response(&self, response, &msg.topic).await?,
+        }
+
+        info!("Inbound message was handled successfully");
+        Ok(())
+    }
     pub async fn spawn_connection_live_watcher(self: Arc<Self>) {
         let mut recv = self.connection_live_handler.lock().await;
         while let Some(_msg) = recv.next().await {

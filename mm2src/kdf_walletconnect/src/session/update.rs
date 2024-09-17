@@ -11,10 +11,13 @@ pub(crate) async fn process_session_update_request(
     message_id: &MessageId,
     update: SessionUpdateRequest,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let mut sessions = ctx.sessions.lock().await;
-    if let Some(session) = sessions.get_mut(topic) {
-        session.namespaces = update.namespaces.0.clone();
-        info!("Updated extended, info: {:?}", session);
+    {
+        let mut sessions = ctx.sessions.lock().await;
+        if let Some(session) = sessions.get_mut(topic) {
+            session.namespaces = update.namespaces.0.clone();
+            info!("Updated extended");
+        };
+        drop(sessions)
     }
 
     let response = ResponseParamsSuccess::SessionUpdate(true);

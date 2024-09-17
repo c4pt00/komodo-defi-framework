@@ -8,7 +8,7 @@ use relay_rpc::{domain::{MessageId, Topic},
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 pub enum SessionEvents {
-    ChainCHanged(String, Vec<String>),
+    ChainChanged(String),
     AccountsChanged(String, Vec<String>),
     Unknown,
 }
@@ -16,10 +16,7 @@ pub enum SessionEvents {
 impl SessionEvents {
     pub fn from_events(event: SessionEventRequest) -> MmResult<Self, WalletConnectCtxError> {
         match event.event.name.as_str() {
-            "chainCHanged" => {
-                let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
-                Ok(SessionEvents::ChainCHanged(event.chain_id, data))
-            },
+            "chainChanged" => Ok(SessionEvents::ChainChanged(event.chain_id)),
             "accountsChanged" => {
                 let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
                 Ok(SessionEvents::AccountsChanged(event.chain_id, data))
@@ -35,8 +32,8 @@ impl SessionEvents {
         message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
         match &self {
-            SessionEvents::ChainCHanged(chain_id, data) => {
-                Self::handle_chain_changed_event(ctx, chain_id, data, topic, message_id).await
+            SessionEvents::ChainChanged(chain_id) => {
+                Self::handle_chain_changed_event(ctx, chain_id, topic, message_id).await
             },
             SessionEvents::AccountsChanged(chain_id, data) => {
                 Self::handle_account_changed_event(ctx, chain_id, data, topic, message_id).await
@@ -48,26 +45,23 @@ impl SessionEvents {
     async fn handle_chain_changed_event(
         ctx: &WalletConnectCtx,
         chain_id: &str,
-        data: &Vec<String>,
         topic: &Topic,
         message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
-        *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
-
         {
-            let mut sessions = ctx.sessions.lock().await;
-            let current_time = Utc::now().timestamp() as u64;
-            sessions.retain(|_, session| session.expiry > current_time);
-        };
+            *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
 
-        let mut sessions = ctx.sessions.lock().await;
-        for session in sessions.values_mut() {
-            for id in data {
+            {
+                let mut sessions = ctx.sessions.lock().await;
+                let current_time = Utc::now().timestamp() as u64;
+                sessions.retain(|_, session| session.expiry > current_time);
+            };
+
+            let mut sessions = ctx.sessions.lock().await;
+            for session in sessions.values_mut() {
                 if let Some((namespace, chain)) = parse_chain_and_chain_id(chain_id) {
                     if let Some(ns) = session.namespaces.get_mut(&namespace) {
-                        ns.chains
-                            .get_or_insert_with(BTreeSet::new)
-                            .insert(format!("{namespace}:{id}"));
+                        ns.chains.get_or_insert_with(BTreeSet::new).insert(chain_id.to_owned());
                     }
                 }
             }
