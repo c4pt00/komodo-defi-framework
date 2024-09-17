@@ -53,7 +53,7 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          cargo build --features "enable-sia" --release
+          cargo build --all-features --release
 
       - name: Compress mm2 build output
         env:
@@ -128,7 +128,7 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          cargo build --features "enable-sia" --release --target x86_64-apple-darwin
+          cargo build --all-features --release --target x86_64-apple-darwin
 
       - name: Compress mm2 build output
         env:
@@ -191,7 +191,7 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          cargo build --features "enable-sia" --release --target aarch64-apple-darwin
+          cargo build --all-features --release --target aarch64-apple-darwin
 
       - name: Compress mm2 build output
         env:
@@ -255,7 +255,7 @@ jobs:
             remove-item "./MM_VERSION"
           }
           echo $Env:COMMIT_HASH > ./MM_VERSION
-          cargo build --features "enable-sia" --release
+          cargo build --all-features --release
 
       - name: Compress mm2 build output
         env:
@@ -340,7 +340,7 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          cargo rustc --features "enable-sia" --target x86_64-apple-darwin --lib --release --package mm2_bin_lib --crate-type=staticlib
+          cargo rustc --all-features --target x86_64-apple-darwin --lib --release --package mm2_bin_lib --crate-type=staticlib
 
       - name: Compress mm2 build output
         env:
@@ -417,7 +417,7 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          wasm-pack build --release mm2src/mm2_bin_lib --target web --out-dir ../../target/target-wasm-release
+          wasm-pack build --release mm2src/mm2_bin_lib --target web --all-features --out-dir ../../target/target-wasm-release
 
       - name: Compress build output
         env:
@@ -470,7 +470,7 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          cargo rustc  --features "enable-sia" --target aarch64-apple-ios --lib --release --package mm2_bin_lib --crate-type=staticlib
+          cargo rustc  --all-features --target aarch64-apple-ios --lib --release --package mm2_bin_lib --crate-type=staticlib
 
       - name: Compress mm2 build output
         env:
@@ -550,7 +550,7 @@ jobs:
           echo $COMMIT_HASH > ./MM_VERSION
 
           export PATH=$PATH:/android-ndk/bin
-          CC_aarch64_linux_android=aarch64-linux-android21-clang CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android21-clang cargo rustc --features "enable-sia" --target=aarch64-linux-android --lib --release --crate-type=staticlib --package mm2_bin_lib
+          CC_aarch64_linux_android=aarch64-linux-android21-clang CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android21-clang cargo rustc --all-features --target=aarch64-linux-android --lib --release --crate-type=staticlib --package mm2_bin_lib
 
       - name: Compress mm2 build output
         env:
@@ -629,7 +629,7 @@ jobs:
           echo $COMMIT_HASH > ./MM_VERSION
 
           export PATH=$PATH:/android-ndk/bin
-          CC_armv7_linux_androideabi=armv7a-linux-androideabi21-clang CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=armv7a-linux-androideabi21-clang cargo rustc --features "enable-sia" --target=armv7-linux-androideabi --lib --release --crate-type=staticlib --package mm2_bin_lib
+          CC_armv7_linux_androideabi=armv7a-linux-androideabi21-clang CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=armv7a-linux-androideabi21-clang cargo rustc --all-features --target=armv7-linux-androideabi --lib --release --crate-type=staticlib --package mm2_bin_lib
 
       - name: Compress mm2 build output
         env:
