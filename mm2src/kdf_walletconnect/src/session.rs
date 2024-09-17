@@ -71,35 +71,33 @@ impl SessionKey {
     }
 
     /// Creates new session key from `osrng`.
-    pub fn from_osrng(sender_public_key: &[u8; 32]) -> Result<Self, SessionError> {
-        SessionKey::diffie_hellman(OsRng, sender_public_key)
+    pub fn from_osrng(other_public_key: &[u8; 32]) -> Result<Self, SessionError> {
+        SessionKey::diffie_hellman(OsRng, other_public_key)
     }
 
     /// Performs Diffie-Hellman symmetric key derivation.
-    pub fn diffie_hellman<T>(csprng: T, sender_public_key: &[u8; 32]) -> Result<Self, SessionError>
+    pub fn diffie_hellman<T>(csprng: T, other_public_key: &[u8; 32]) -> Result<Self, SessionError>
     where
         T: RngCore + CryptoRng,
     {
-        let single_use_private_key = StaticSecret::random_from_rng(csprng);
-        let public_key = PublicKey::from(&single_use_private_key);
+        let static_private_key = StaticSecret::random_from_rng(csprng);
+        let public_key = PublicKey::from(&static_private_key);
+        let shared_secret = static_private_key.diffie_hellman(&PublicKey::from(*other_public_key));
 
-        let ikm = single_use_private_key.diffie_hellman(&PublicKey::from(*sender_public_key));
-
-        let mut session_sym_key = Self {
+        let mut session_key = Self {
             sym_key: [0u8; 32],
             public_key,
         };
-        let hk = Hkdf::<Sha256>::new(None, ikm.as_bytes());
-        hk.expand(&[], &mut session_sym_key.sym_key)
-            .map_err(|e| SessionError::SymKeyGeneration(e.to_string()))?;
 
-        Ok(session_sym_key)
+        session_key.derive_symmetric_key(&shared_secret)?;
+
+        Ok(session_key)
     }
 
     /// Generates the symmetric key given the ephemeral secret and the peer's public key.
     pub fn generate_symmetric_key(
         &mut self,
-        static_secret: StaticSecret,
+        static_secret: &StaticSecret,
         peer_public_key: &[u8; 32],
     ) -> Result<(), SessionError> {
         let shared_secret = static_secret.diffie_hellman(&PublicKey::from(*peer_public_key));

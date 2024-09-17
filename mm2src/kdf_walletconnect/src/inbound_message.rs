@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use common::log::info;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::{domain::Topic,
                 rpc::{params::ResponseParamsSuccess, Params, Request, Response}};
@@ -33,12 +34,18 @@ pub(crate) async fn process_inbound_request(
                 .handle_session_event(&ctx, topic, &message_id)
                 .await?
         },
-        Params::SessionRequest(_) => todo!(),
+        Params::SessionRequest(_) => {
+            info!("SessionRequest is not yet implemented.");
+            return MmError::err(WalletConnectCtxError::NotImplemented);
+        },
 
         Params::PairingPing(_param) => process_pairing_ping_response(&ctx, topic, &message_id).await?,
         Params::PairingDelete(param) => process_pairing_delete_response(&ctx, topic, &message_id, param).await?,
         Params::PairingExtend(param) => process_pairing_extend_response(&ctx, topic, &message_id, param).await?,
-        _ => todo!(),
+        _ => {
+            info!("Unknown request params received.");
+            return MmError::err(WalletConnectCtxError::InvalidRequest);
+        },
     };
 
     Ok(())
@@ -68,7 +75,7 @@ pub(crate) async fn process_inbound_response(
                 | ResponseParamsSuccess::PairingDelete(success)
                 | ResponseParamsSuccess::PairingPing(success) => {
                     if !success {
-                        return MmError::err(WalletConnectCtxError::UnsuccessfulResponse(format!(
+                        return MmError::err(WalletConnectCtxError::UnSuccessfulResponse(format!(
                             "Unsuccessful response={params:?}"
                         )));
                     }

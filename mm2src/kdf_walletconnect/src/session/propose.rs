@@ -81,14 +81,12 @@ pub async fn process_proposal_request(
     topic: &Topic,
     message_id: &MessageId,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let sender_public_key = hex::decode(&proposal.proposer.public_key)
-        .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?
+    let sender_public_key = hex::decode(&proposal.proposer.public_key)?
         .as_slice()
         .try_into()
         .unwrap();
 
-    let session_key = SessionKey::from_osrng(&sender_public_key)
-        .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+    let session_key = SessionKey::from_osrng(&sender_public_key)?;
     let session_topic: Topic = session_key.generate_topic().into();
     let subscription_id = ctx
         .client
@@ -126,14 +124,13 @@ pub(crate) async fn process_session_propose_response(
     pairing_topic: &Topic,
     response: SessionProposeResponse,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let other_public_key = hex::decode(&response.responder_public_key)
-        .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?
+    let other_public_key = hex::decode(&response.responder_public_key)?
         .as_slice()
         .try_into()
         .unwrap();
 
     let mut session_key = SessionKey::new(ctx.sessions.public_key);
-    session_key.generate_symmetric_key(ctx.sessions.keypair.clone(), &other_public_key)?;
+    session_key.generate_symmetric_key(&ctx.sessions.keypair, &other_public_key)?;
 
     let session_topic: Topic = session_key.generate_topic().into();
     let subscription_id = ctx

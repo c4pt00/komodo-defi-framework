@@ -157,15 +157,12 @@ impl WalletConnectCtx {
         {
             let pairings = self.pairing.pairings.lock().await;
             if let Some(pairing) = pairings.get(topic.as_ref()) {
-                let key = hex::decode(pairing.sym_key.clone())
-                    .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+                let key = hex::decode(pairing.sym_key.clone())?;
                 return Ok(key);
             }
         }
 
-        MmError::err(WalletConnectCtxError::PairingNotFound(format!(
-            "Topic not found:{topic}"
-        )))
+        MmError::err(WalletConnectCtxError::PairingError(format!("Topic not found:{topic}")))
     }
 
     /// Private function to publish a request.
@@ -213,13 +210,11 @@ impl WalletConnectCtx {
         payload: Payload,
     ) -> MmResult<(), WalletConnectCtxError> {
         let sym_key = self.sym_key(topic).await?;
-        let payload =
-            serde_json::to_string(&payload).map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+        let payload = serde_json::to_string(&payload)?;
 
         info!("\n Sending Outbound request: {payload}!");
 
-        let message = encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)
-            .map_to_mm(|err| WalletConnectCtxError::EncodeError(err.to_string()))?;
+        let message = encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?;
         {
             self.client
                 .publish(

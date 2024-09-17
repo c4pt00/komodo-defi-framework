@@ -3552,6 +3552,7 @@ dependencies = [
  "chrono",
  "common",
  "derive_more",
+ "enum_derives",
  "futures 0.3.28",
  "hex",
  "hkdf",

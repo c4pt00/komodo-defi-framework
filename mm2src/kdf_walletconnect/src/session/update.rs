@@ -23,5 +23,6 @@ pub(crate) async fn process_session_update_request(
 
     ctx.publish_response(topic, value, irn_metadata, message_id).await?;
 
+    info!("published response");
     Ok(())
 }

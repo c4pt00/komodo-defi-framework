@@ -10,6 +10,7 @@ edition = "2021"
 chrono = { version = "0.4.23", "features" = ["serde"] }
 common = { path = "../common" }
 derive_more = "0.99"
+enum_derives = { path = "../derives/enum_derives" }
 futures = { version = "0.3", package = "futures", features = [
     "compat",
     "async-await",

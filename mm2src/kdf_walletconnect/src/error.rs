@@ -1,29 +1,41 @@
-use derive_more::Display;
+use enum_derives::EnumFromStringify;
 use pairing_api::PairingClientError;
 use relay_client::error::{ClientError, Error};
 use relay_rpc::rpc::{PublishError, SubscriptionError};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Display, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, EnumFromStringify, thiserror::Error)]
 pub enum WalletConnectCtxError {
+    #[error("Pairing Error: {0}")]
+    #[from_stringify("PairingClientError")]
     PairingError(String),
-    EncodeError(String),
+    #[error("Publish Error: {0}")]
     PublishError(String),
+    #[error("Client Error: {0}")]
+    #[from_stringify("ClientError")]
     ClientError(String),
-    PairingNotFound(String),
+    #[error("Subscription Error: {0}")]
     SubscriptionError(String),
+    #[error("Internal Error: {0}")]
     InternalError(String),
+    #[error("Serde Error: {0}")]
+    #[from_stringify("serde_json::Error")]
     SerdeError(String),
-    UnsuccessfulResponse(String),
+    #[error("UnSuccessfulResponse Error: {0}")]
+    UnSuccessfulResponse(String),
+    #[error("Session Error: {0}")]
+    #[from_stringify("SessionError")]
     SessionError(String),
-}
-
-impl From<PairingClientError> for WalletConnectCtxError {
-    fn from(error: PairingClientError) -> Self { WalletConnectCtxError::PairingError(error.to_string()) }
-}
-
-impl From<ClientError> for WalletConnectCtxError {
-    fn from(error: ClientError) -> Self { WalletConnectCtxError::ClientError(error.to_string()) }
+    #[error("Unknown params")]
+    InvalidRequest,
+    #[error("Request is not yet implemented")]
+    NotImplemented,
+    #[error("Hex Error: {0}")]
+    #[from_stringify("hex::FromHexError")]
+    HexError(String),
+    #[error("Payload Error: {0}")]
+    #[from_stringify("wc_common::PayloadError")]
+    PayloadError(String),
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {
@@ -32,14 +44,6 @@ impl From<Error<PublishError>> for WalletConnectCtxError {
 
 impl From<Error<SubscriptionError>> for WalletConnectCtxError {
     fn from(error: Error<SubscriptionError>) -> Self { WalletConnectCtxError::SubscriptionError(format!("{error:?}")) }
-}
-
-impl From<serde_json::Error> for WalletConnectCtxError {
-    fn from(value: serde_json::Error) -> Self { WalletConnectCtxError::SerdeError(value.to_string()) }
-}
-
-impl From<SessionError> for WalletConnectCtxError {
-    fn from(value: SessionError) -> Self { WalletConnectCtxError::SessionError(value.to_string()) }
 }
 
 /// Session key and topic derivation errors.
