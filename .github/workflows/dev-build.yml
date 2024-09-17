@@ -36,7 +36,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc', 'openssl')
+          deps: ('protoc')
 
       - name: Calculate commit hash for PR commit
         if: github.event_name == 'pull_request'
@@ -528,7 +528,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc', 'openssl')
+          deps: ('protoc')
 
       - name: Setup NDK
         run: ./scripts/ci/android-ndk.sh x86 23
@@ -607,7 +607,7 @@ jobs:
       - name: Install build deps
         uses: ./.github/actions/deps-install
         with:
-          deps: ('protoc', 'openssl')
+          deps: ('protoc')
 
       - name: Setup NDK
         run: ./scripts/ci/android-ndk.sh x86 23
