@@ -17,8 +17,6 @@ enable-solana = [
 	"dep:satomic-swap"
 ]
 enable-sia = [
-	"dep:reqwest",
-	"dep:blake2b_simd",
 	"dep:sia-rust"
 ]
 default = []
@@ -37,7 +35,6 @@ base58 = "0.2.0"
 bip32 = { version = "0.2.2", default-features = false, features = ["alloc", "secp256k1-ffi"] }
 bitcoin_hashes = "0.11"
 bitcrypto = { path = "../mm2_bitcoin/crypto" }
-blake2b_simd = { version = "0.5.10", optional = true }
 byteorder = "1.3"
 bytes = "0.4"
 cfg-if = "1.0"
@@ -91,7 +88,6 @@ protobuf = "2.20"
 proxy_signature = { path = "../proxy_signature" }
 rand = { version = "0.7", features = ["std", "small_rng"] }
 regex = "1"
-reqwest = { version = "0.11.9", default-features = false, features = ["json"], optional = true }
 rlp = { version = "0.5" }
 rmp-serde = "0.14.3"
 rpc = { path = "../mm2_bitcoin/rpc" }
