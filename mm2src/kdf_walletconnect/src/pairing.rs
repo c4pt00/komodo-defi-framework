@@ -15,11 +15,8 @@ pub(crate) async fn process_pairing_ping_response(
     topic: &Topic,
     message_id: &MessageId,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let response = ResponseParamsSuccess::PairingPing(true);
-    let irn_metadata = response.irn_metadata();
-    let value = serde_json::to_value(response)?;
-
-    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+    let param = ResponseParamsSuccess::PairingPing(true);
+    ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
 }
@@ -38,11 +35,8 @@ pub(crate) async fn process_pairing_extend_response(
         };
     }
 
-    let response = ResponseParamsSuccess::PairingPing(true);
-    let irn_metadata = response.irn_metadata();
-    let value = serde_json::to_value(response)?;
-
-    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+    let param = ResponseParamsSuccess::PairingPing(true);
+    ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
 }
@@ -57,11 +51,8 @@ pub(crate) async fn process_pairing_delete_response(
         ctx.pairing.disconnect(topic.as_ref(), &ctx.client).await?;
     }
 
-    let response = ResponseParamsSuccess::PairingDelete(true);
-    let irn_metadata = response.irn_metadata();
-    let value = serde_json::to_value(response)?;
-
-    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+    let param = ResponseParamsSuccess::PairingDelete(true);
+    ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
 }

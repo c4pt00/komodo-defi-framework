@@ -1,11 +1,11 @@
-use std::collections::BTreeSet;
+use crate::{error::{WalletConnectCtxError, UNSUPPORTED_CHAINS},
+            WalletConnectCtx};
 
 use chrono::Utc;
 use mm2_err_handle::prelude::MmResult;
 use relay_rpc::{domain::{MessageId, Topic},
-                rpc::params::{session_event::SessionEventRequest, RelayProtocolMetadata, ResponseParamsSuccess}};
-
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+                rpc::{params::{session_event::SessionEventRequest, ResponseParamsError, ResponseParamsSuccess},
+                      ErrorData}};
 
 pub enum SessionEvents {
     ChainChanged(String),
@@ -57,11 +57,24 @@ impl SessionEvents {
                 sessions.retain(|_, session| session.expiry > current_time);
             };
 
-            let mut sessions = ctx.sessions.lock().await;
-            for session in sessions.values_mut() {
-                if let Some((namespace, chain)) = parse_chain_and_chain_id(chain_id) {
+            if let Some((namespace, _chain)) = parse_chain_and_chain_id(chain_id) {
+                if ctx.namespaces.get(&namespace).is_none() {
+                    let error_data = ErrorData {
+                        code: UNSUPPORTED_CHAINS,
+                        message: "Chain_Id was changed to an unsupported chain".to_string(),
+                        data: None,
+                    };
+
+                    ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
+                        .await?;
+                }
+
+                let mut sessions = ctx.sessions.lock().await;
+                for session in sessions.values_mut() {
                     if let Some(ns) = session.namespaces.get_mut(&namespace) {
-                        ns.chains.get_or_insert_with(BTreeSet::new).insert(chain_id.to_owned());
+                        if let Some(chains) = ns.chains.as_mut() {
+                            chains.insert(chain_id.to_owned());
+                        }
                     }
                 }
             }
@@ -70,29 +83,23 @@ impl SessionEvents {
         //TODO: Notify about chain changed.
 
         let params = ResponseParamsSuccess::SessionEvent(true);
-        let irn_metadata = params.irn_metadata();
-
-        let value = serde_json::to_value(params)?;
-        ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+        ctx.publish_response_ok(topic, params, message_id).await?;
 
         Ok(())
     }
 
     async fn handle_account_changed_event(
         ctx: &WalletConnectCtx,
-        chain_id: &str,
-        data: &[String],
+        _chain_id: &str,
+        _data: &[String],
         topic: &Topic,
         message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
         // TODO: Handle account change logic.
         //TODO: Notify about account changed.
 
-        let params = ResponseParamsSuccess::SessionEvent(true);
-        let irn_metadata = params.irn_metadata();
-
-        let value = serde_json::to_value(params)?;
-        ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+        let param = ResponseParamsSuccess::SessionEvent(true);
+        ctx.publish_response_ok(topic, param, message_id).await?;
 
         Ok(())
     }

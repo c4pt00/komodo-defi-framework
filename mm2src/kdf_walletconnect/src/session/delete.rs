@@ -1,24 +1,18 @@
-use std::sync::Arc;
+use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
-use common::log::{debug, info};
+use common::log::debug;
 use mm2_err_handle::prelude::MmResult;
-use relay_rpc::rpc::params::RelayProtocolMetadata;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_delete::SessionDeleteRequest, ResponseParamsSuccess}};
-
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 pub(crate) async fn process_session_delete_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,
-    delete_params: SessionDeleteRequest,
+    _delete_params: SessionDeleteRequest,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let response = ResponseParamsSuccess::SessionDelete(true);
-    let irn_metadata = response.irn_metadata();
-    let value = serde_json::to_value(response)?;
-
-    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+    let param = ResponseParamsSuccess::SessionDelete(true);
+    ctx.publish_response_ok(topic, param, message_id).await?;
 
     session_delete_cleanup(ctx, topic).await?;
 

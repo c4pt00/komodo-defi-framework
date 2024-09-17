@@ -7,39 +7,26 @@ pub(crate) mod settle;
 pub(crate) mod update;
 
 use crate::error::SessionError;
-use crate::metadata::generate_metadata;
-use crate::{error::WalletConnectCtxError, WalletConnectCtx, SUPPORTED_ACCOUNTS, SUPPORTED_CHAINS, SUPPORTED_EVENTS,
-            SUPPORTED_METHODS, SUPPORTED_PROTOCOL};
-use chrono::naive::serde;
+use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+
 use chrono::Utc;
-use common::log::info;
 use futures::lock::Mutex;
-use mm2_err_handle::prelude::{MapToMmResult, MmResult};
-use relay_rpc::auth::ed25519_dalek::SigningKey;
-use relay_rpc::domain::MessageId;
+use mm2_err_handle::prelude::MmResult;
 use relay_rpc::rpc::params::session::Namespace;
-use relay_rpc::rpc::params::session_delete::SessionDeleteRequest;
-use relay_rpc::rpc::params::session_event::SessionEventRequest;
-use relay_rpc::rpc::params::session_extend::SessionExtendRequest;
 use relay_rpc::rpc::params::session_propose::Proposer;
-use relay_rpc::rpc::params::session_update::SessionUpdateRequest;
-use relay_rpc::rpc::params::{IrnMetadata, RelayProtocolMetadata};
+use relay_rpc::rpc::params::IrnMetadata;
 use relay_rpc::{domain::{SubscriptionId, Topic},
-                rpc::params::{session::{ProposeNamespace, ProposeNamespaces, SettleNamespace, SettleNamespaces},
-                              session_propose::{SessionProposeRequest, SessionProposeResponse},
-                              session_settle::{Controller, SessionSettleRequest},
-                              Metadata, Relay, RequestParams, ResponseParamsSuccess}};
+                rpc::params::{session::ProposeNamespaces, session_settle::Controller, Metadata, Relay}};
 use serde_json::Value;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::ops::Deref;
-use std::vec;
 use std::{collections::BTreeMap, sync::Arc};
 use x25519_dalek::{SharedSecret, StaticSecret};
 use {hkdf::Hkdf,
      rand::{rngs::OsRng, CryptoRng, RngCore},
      sha2::{Digest, Sha256},
      std::fmt::Debug,
-     x25519_dalek::{EphemeralSecret, PublicKey}};
+     x25519_dalek::PublicKey};
 
 const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
@@ -74,7 +61,6 @@ impl SessionKey {
     pub fn from_osrng(other_public_key: &[u8; 32]) -> Result<Self, SessionError> {
         SessionKey::diffie_hellman(OsRng, other_public_key)
     }
-
     /// Performs Diffie-Hellman symmetric key derivation.
     pub fn diffie_hellman<T>(csprng: T, other_public_key: &[u8; 32]) -> Result<Self, SessionError>
     where
@@ -88,7 +74,6 @@ impl SessionKey {
             sym_key: [0u8; 32],
             public_key,
         };
-
         session_key.derive_symmetric_key(&shared_secret)?;
 
         Ok(session_key)
@@ -165,25 +150,13 @@ pub struct SessionInfo {
 
 impl SessionInfo {
     pub fn new(
+        ctx: &WalletConnectCtx,
         subscription_id: SubscriptionId,
         session_key: SessionKey,
         pairing_topic: Topic,
         metadata: Metadata,
         session_type: SessionType,
     ) -> Self {
-        // Initialize the namespaces for both proposer and controller
-        let mut namespaces = BTreeMap::<String, ProposeNamespace>::new();
-        namespaces.insert("eip155".to_string(), ProposeNamespace {
-            chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-            methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-            events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
-        });
-
-        let relay = Relay {
-            protocol: SUPPORTED_PROTOCOL.to_string(),
-            data: None,
-        };
-
         // handle proposer or controller
         let (proposer, controller) = match session_type {
             SessionType::Proposer => (
@@ -205,8 +178,8 @@ impl SessionInfo {
             controller,
             namespaces: BTreeMap::new(),
             proposer,
-            propose_namespaces: ProposeNamespaces(namespaces),
-            relay,
+            propose_namespaces: ctx.namespaces.clone(),
+            relay: ctx.relay.clone(),
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
             pairing_topic,
             session_type,

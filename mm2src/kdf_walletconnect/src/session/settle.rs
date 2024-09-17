@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-
+use super::{SessionInfo, THIRTY_DAYS};
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 use crate::{SUPPORTED_ACCOUNTS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
 
@@ -7,12 +6,10 @@ use chrono::Utc;
 use common::log::info;
 use mm2_err_handle::prelude::MmResult;
 use relay_rpc::rpc::params::session::{Namespace, SettleNamespaces};
-use relay_rpc::rpc::params::session_settle::Controller;
-use relay_rpc::rpc::params::{Relay, RelayProtocolMetadata, RequestParams};
+use relay_rpc::rpc::params::RequestParams;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_settle::SessionSettleRequest, ResponseParamsSuccess}};
-
-use super::{SessionInfo, THIRTY_DAYS};
+use std::collections::BTreeMap;
 
 pub(crate) async fn send_session_settle_request(
     ctx: &WalletConnectCtx,
@@ -33,10 +30,8 @@ pub(crate) async fn send_session_settle_request(
         namespaces: SettleNamespaces(settled_namespaces),
         expiry: Utc::now().timestamp() as u64 + THIRTY_DAYS,
     });
-    let irn_metadata = request.irn_metadata();
 
-    ctx.publish_request(&session_topic, request.into(), irn_metadata)
-        .await?;
+    ctx.publish_request(&session_topic, request).await?;
 
     Ok(())
 }
@@ -61,11 +56,8 @@ pub(crate) async fn process_session_settle_request(
         }
     }
 
-    let response = ResponseParamsSuccess::SessionSettle(true);
-    let irn_metadata = response.irn_metadata();
-    let value = serde_json::to_value(response)?;
-
-    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+    let param = ResponseParamsSuccess::SessionSettle(true);
+    ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
 }

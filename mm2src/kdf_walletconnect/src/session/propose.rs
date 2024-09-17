@@ -1,52 +1,34 @@
-use std::{collections::BTreeMap, ops::Deref};
-
-use chrono::Utc;
-use mm2_err_handle::prelude::MmResult;
-use relay_rpc::{domain::{MessageId, Topic},
-                rpc::params::{session::{Namespace, ProposeNamespace, ProposeNamespaces},
-                              session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
-                              Metadata, Relay, RequestParams, ResponseParamsSuccess}};
-
 use super::{settle::send_session_settle_request, SessionInfo};
 use crate::{error::WalletConnectCtxError,
-            metadata::generate_metadata,
             session::{SessionKey, SessionType, THIRTY_DAYS},
-            WalletConnectCtx, SUPPORTED_CHAINS, SUPPORTED_EVENTS, SUPPORTED_METHODS, SUPPORTED_PROTOCOL};
+            WalletConnectCtx};
+
+use chrono::Utc;
 use mm2_err_handle::map_to_mm::MapToMmResult;
-use relay_rpc::rpc::params::RelayProtocolMetadata;
+use mm2_err_handle::prelude::MmResult;
+use relay_rpc::{domain::{MessageId, Topic},
+                rpc::params::{session::ProposeNamespaces,
+                              session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
+                              Metadata, RequestParams, ResponseParamsSuccess}};
+use std::ops::Deref;
 
 /// Creates a new session proposal form topic and metadata.
 pub(crate) async fn create_proposal_session(
     ctx: &WalletConnectCtx,
     topic: Topic,
-    metadata: Metadata,
     required_namespaces: Option<ProposeNamespaces>,
 ) -> MmResult<(), WalletConnectCtxError> {
     let proposer = Proposer {
-        metadata: generate_metadata(),
+        metadata: ctx.metadata.clone(),
         public_key: hex::encode(ctx.sessions.public_key.as_bytes()),
     };
-    let mut namespaces = BTreeMap::<String, ProposeNamespace>::new();
-    namespaces.insert("eip155".to_string(), ProposeNamespace {
-        chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-        methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-        events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
-    });
-
-    let relays = Relay {
-        protocol: SUPPORTED_PROTOCOL.to_string(),
-        data: None,
-    };
-
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
-        relays: vec![relays],
+        relays: vec![ctx.relay.clone()],
         proposer,
-        required_namespaces: required_namespaces.unwrap_or(ProposeNamespaces(namespaces)),
+        required_namespaces: required_namespaces.unwrap_or(ctx.namespaces.clone()),
     });
-    let irn_metadata = session_proposal.irn_metadata();
 
-    ctx.publish_request(&topic, session_proposal.into(), irn_metadata)
-        .await?;
+    ctx.publish_request(&topic, session_proposal).await?;
 
     Ok(())
 }
@@ -57,18 +39,12 @@ async fn send_proposal_request_response(
     message_id: &MessageId,
     responder_public_key: String,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let relay = Relay {
-        protocol: SUPPORTED_PROTOCOL.to_string(),
-        data: None,
-    };
-    let response = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
-        relay,
+    let param = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
+        relay: ctx.relay.clone(),
         responder_public_key,
     });
-    let irn_metadata = response.irn_metadata();
-    let value = serde_json::to_value(response)?;
 
-    ctx.publish_response(topic, value, irn_metadata, message_id).await?;
+    ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
 }
@@ -95,6 +71,7 @@ pub async fn process_proposal_request(
         .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
     let session = SessionInfo::new(
+        ctx,
         subscription_id,
         session_key,
         topic.clone(),
@@ -140,6 +117,7 @@ pub(crate) async fn process_session_propose_response(
         .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
     let mut session = SessionInfo::new(
+        ctx,
         subscription_id,
         session_key,
         pairing_topic.clone(),

@@ -1,13 +1,12 @@
-mod error;
+#[allow(unused)] mod error;
 mod handler;
 mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
-#[allow(unused)] mod session;
+mod session;
 
 use chrono::Utc;
-use common::{executor::{spawn, Timer},
-             log::{error, info}};
+use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
               lock::Mutex,
@@ -20,12 +19,14 @@ use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
+use relay_rpc::rpc::params::{RelayProtocolMetadata, RequestParams};
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
-                rpc::{params::{session::ProposeNamespaces, IrnMetadata},
-                      Params, Payload, Request, Response, SuccessfulResponse, JSON_RPC_VERSION_STR}};
+                rpc::{params::{session::{ProposeNamespace, ProposeNamespaces},
+                               IrnMetadata, Metadata, Relay, ResponseParamsError, ResponseParamsSuccess},
+                      ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
 use session::{propose::create_proposal_session, Session};
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
@@ -49,6 +50,9 @@ pub struct WalletConnectCtx {
     pub msg_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     pub connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
     pub active_chain_id: Arc<Mutex<String>>,
+    pub relay: Relay,
+    pub namespaces: ProposeNamespaces,
+    pub metadata: Metadata,
 }
 
 impl Default for WalletConnectCtx {
@@ -63,6 +67,18 @@ impl WalletConnectCtx {
         let pairing = PairingClient::new();
         let client = Client::new(Handler::new("Komodefi", msg_sender, conn_live_sender));
 
+        let mut required = BTreeMap::new();
+        required.insert("eip155".to_string(), ProposeNamespace {
+            chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
+            methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+            events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
+        });
+
+        let relay = Relay {
+            protocol: SUPPORTED_PROTOCOL.to_string(),
+            data: None,
+        };
+
         Self {
             client,
             pairing,
@@ -70,6 +86,9 @@ impl WalletConnectCtx {
             msg_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
+            relay,
+            namespaces: ProposeNamespaces(required),
+            metadata: generate_metadata(),
         }
     }
 
@@ -77,15 +96,13 @@ impl WalletConnectCtx {
         &self,
         required_namespaces: Option<ProposeNamespaces>,
     ) -> MmResult<String, WalletConnectCtxError> {
-        let metadata = generate_metadata();
-
-        let (topic, url) = self.pairing.create(metadata.clone(), None).await?;
+        let (topic, url) = self.pairing.create(self.metadata.clone(), None).await?;
 
         info!("Subscribing to topic: {topic:?}");
         self.client.subscribe(topic.clone()).await?;
         info!("Subscribed to topic: {topic:?}");
 
-        create_proposal_session(self, topic, metadata, required_namespaces).await?;
+        create_proposal_session(self, topic, required_namespaces).await?;
 
         Ok(url)
     }
@@ -167,14 +184,10 @@ impl WalletConnectCtx {
     }
 
     /// Private function to publish a request.
-    async fn publish_request(
-        &self,
-        topic: &Topic,
-        params: Params,
-        irn_metadata: IrnMetadata,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    async fn publish_request(&self, topic: &Topic, param: RequestParams) -> MmResult<(), WalletConnectCtxError> {
+        let irn_metadata = param.irn_metadata();
         let message_id = MessageIdGenerator::new().next();
-        let request = Request::new(message_id, params);
+        let request = Request::new(message_id, param.into());
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
@@ -183,20 +196,32 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    /// Private function to publish a request response.
-    async fn publish_response(
+    /// Private function to publish a success request response.
+    async fn publish_response_ok(
         &self,
         topic: &Topic,
-        params: serde_json::Value,
-        irn_metadata: IrnMetadata,
+        result: ResponseParamsSuccess,
         message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
-        let response = Response::Success(SuccessfulResponse {
-            id: *message_id,
-            jsonrpc: JSON_RPC_VERSION_STR.into(),
-            result: params,
-        });
+        let irn_metadata = result.irn_metadata();
+        let value = serde_json::to_value(result)?;
+        let response = Response::Success(SuccessfulResponse::new(*message_id, value));
+        self.publish_payload(topic, irn_metadata, Payload::Response(response))
+            .await?;
 
+        Ok(())
+    }
+
+    /// Private function to publish an error request response.
+    async fn publish_response_err(
+        &self,
+        topic: &Topic,
+        error_data: ResponseParamsError,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectCtxError> {
+        let error = error_data.error();
+        let irn_metadata = error_data.irn_metadata();
+        let response = Response::Error(ErrorResponse::new(*message_id, error));
         self.publish_payload(topic, irn_metadata, Payload::Response(response))
             .await?;
 
@@ -254,8 +279,8 @@ impl WalletConnectCtx {
         let payload: Payload = serde_json::from_str(&message)?;
 
         match payload {
-            Payload::Request(request) => process_inbound_request(&self, request, &msg.topic).await?,
-            Payload::Response(response) => process_inbound_response(&self, response, &msg.topic).await?,
+            Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
+            Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await?,
         }
 
         info!("Inbound message was handled successfully");

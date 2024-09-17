@@ -21,15 +21,15 @@ pub(crate) async fn process_inbound_request(
 ) -> MmResult<(), WalletConnectCtxError> {
     let message_id = request.id;
     match request.params {
-        Params::SessionPropose(proposal) => process_proposal_request(&ctx, proposal, topic, &message_id).await?,
-        Params::SessionExtend(param) => process_session_extend_request(&ctx, topic, &message_id, param).await?,
-        Params::SessionDelete(param) => process_session_delete_request(&ctx, topic, &message_id, param).await?,
-        Params::SessionPing(()) => process_session_ping_request(&ctx, topic, &message_id).await?,
-        Params::SessionSettle(param) => process_session_settle_request(&ctx, topic, &message_id, param).await?,
-        Params::SessionUpdate(param) => process_session_update_request(&ctx, topic, &message_id, param).await?,
+        Params::SessionPropose(proposal) => process_proposal_request(ctx, proposal, topic, &message_id).await?,
+        Params::SessionExtend(param) => process_session_extend_request(ctx, topic, &message_id, param).await?,
+        Params::SessionDelete(param) => process_session_delete_request(ctx, topic, &message_id, param).await?,
+        Params::SessionPing(()) => process_session_ping_request(ctx, topic, &message_id).await?,
+        Params::SessionSettle(param) => process_session_settle_request(ctx, topic, &message_id, param).await?,
+        Params::SessionUpdate(param) => process_session_update_request(ctx, topic, &message_id, param).await?,
         Params::SessionEvent(param) => {
             SessionEvents::from_events(param)?
-                .handle_session_event(&ctx, topic, &message_id)
+                .handle_session_event(ctx, topic, &message_id)
                 .await?
         },
         Params::SessionRequest(_) => {
@@ -37,9 +37,9 @@ pub(crate) async fn process_inbound_request(
             return MmError::err(WalletConnectCtxError::NotImplemented);
         },
 
-        Params::PairingPing(_param) => process_pairing_ping_response(&ctx, topic, &message_id).await?,
-        Params::PairingDelete(param) => process_pairing_delete_response(&ctx, topic, &message_id, param).await?,
-        Params::PairingExtend(param) => process_pairing_extend_response(&ctx, topic, &message_id, param).await?,
+        Params::PairingPing(_param) => process_pairing_ping_response(ctx, topic, &message_id).await?,
+        Params::PairingDelete(param) => process_pairing_delete_response(ctx, topic, &message_id, param).await?,
+        Params::PairingExtend(param) => process_pairing_extend_response(ctx, topic, &message_id, param).await?,
         _ => {
             info!("Unknown request params received.");
             return MmError::err(WalletConnectCtxError::InvalidRequest);
@@ -60,7 +60,7 @@ pub(crate) async fn process_inbound_response(
             let params = serde_json::from_value::<ResponseParamsSuccess>(value.result)?;
             match params {
                 ResponseParamsSuccess::SessionPropose(param) => {
-                    process_session_propose_response(&ctx, topic, param).await
+                    process_session_propose_response(ctx, topic, param).await
                 },
                 ResponseParamsSuccess::SessionSettle(success)
                 | ResponseParamsSuccess::SessionUpdate(success)
