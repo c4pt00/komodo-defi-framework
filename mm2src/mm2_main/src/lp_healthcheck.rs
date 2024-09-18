@@ -161,7 +161,7 @@ pub async fn peer_connection_healthcheck_rpc(
     static ADDRESS_RECORD_EXPIRATION: OnceLock<Duration> = OnceLock::new();
 
     let address_record_exp =
-        ADDRESS_RECORD_EXPIRATION.get_or_init(|| Duration::from_secs(ctx.healthcheck_config.timeout_secs));
+        ADDRESS_RECORD_EXPIRATION.get_or_init(|| Duration::from_secs(ctx.healthcheck.config.timeout_secs));
 
     let target_peer_id = PeerId::from_str(&req.peer_id)
         .map_err(|e| HealthcheckRpcError::InvalidPeerAddress { reason: e.to_string() })?;
@@ -174,7 +174,7 @@ pub async fn peer_connection_healthcheck_rpc(
     }
 
     let message =
-        HealthcheckMessage::generate_message(&ctx, target_peer_id, false, ctx.healthcheck_config.message_expiration)
+        HealthcheckMessage::generate_message(&ctx, target_peer_id, false, ctx.healthcheck.config.message_expiration)
             .map_err(|reason| HealthcheckRpcError::MessageGenerationFailed { reason })?;
 
     let encoded_message = message
@@ -183,14 +183,14 @@ pub async fn peer_connection_healthcheck_rpc(
 
     let (tx, rx): (Sender<()>, Receiver<()>) = oneshot::channel();
 
-    let mut book = ctx.healthcheck_response_handler.lock().await;
+    let mut book = ctx.healthcheck.response_handler.lock().await;
     book.clear_expired_entries();
     book.insert(target_peer_id.to_string(), tx, *address_record_exp);
     drop(book);
 
     broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), encoded_message, None);
 
-    let timeout_duration = Duration::from_secs(ctx.healthcheck_config.timeout_secs);
+    let timeout_duration = Duration::from_secs(ctx.healthcheck.config.timeout_secs);
     Ok(rx.timeout(timeout_duration).await == Ok(Ok(())))
 }
 

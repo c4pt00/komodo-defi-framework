@@ -53,6 +53,14 @@ mod healthcheck_defaults {
     pub(crate) const fn default_timeout_secs() -> u64 { 10 }
 }
 
+pub struct Healthcheck {
+    /// Links the RPC context to the P2P context to handle health check responses.
+    pub response_handler: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
+    /// This is used to record healthcheck sender peers in an expirable manner to prevent brute-force attacks.
+    pub bruteforce_shield: AsyncMutex<ExpirableMap<String, ()>>,
+    pub config: HealthcheckConfig,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct HealthcheckConfig {
@@ -175,12 +183,7 @@ pub struct MmCtx {
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
     pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
-    /// Links the RPC context to the P2P context to handle health check responses.
-    pub healthcheck_response_handler: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
-    /// This is used to record healthcheck sender peers in an expirable manner to prevent brute-force attacks.
-    pub healthcheck_bruteforce_shield: AsyncMutex<ExpirableMap<String, ()>>,
-    /// Global configuration of healthchecks.
-    pub healthcheck_config: HealthcheckConfig,
+    pub healthcheck: Healthcheck,
 }
 
 impl MmCtx {
@@ -230,9 +233,11 @@ impl MmCtx {
             nft_ctx: Mutex::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
-            healthcheck_response_handler: AsyncMutex::new(ExpirableMap::default()),
-            healthcheck_bruteforce_shield: AsyncMutex::new(ExpirableMap::default()),
-            healthcheck_config: HealthcheckConfig::default(),
+            healthcheck: Healthcheck {
+                response_handler: AsyncMutex::new(ExpirableMap::default()),
+                bruteforce_shield: AsyncMutex::new(ExpirableMap::default()),
+                config: HealthcheckConfig::default(),
+            },
         }
     }
 
@@ -807,7 +812,7 @@ impl MmCtxBuilder {
             if !healthcheck_config.is_null() {
                 let healthcheck_config: HealthcheckConfig =
                     json::from_value(healthcheck_config.clone()).expect("Invalid json value in 'healthcheck_config'.");
-                ctx.healthcheck_config = healthcheck_config;
+                ctx.healthcheck.config = healthcheck_config;
             }
         }
 

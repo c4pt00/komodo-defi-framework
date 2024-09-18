@@ -238,13 +238,13 @@ async fn process_p2p_message(
 
             let sender_peer = data.sender_peer().to_owned();
 
-            let mut bruteforce_shield = ctx.healthcheck_bruteforce_shield.lock().await;
+            let mut bruteforce_shield = ctx.healthcheck.bruteforce_shield.lock().await;
             bruteforce_shield.clear_expired_entries();
             if bruteforce_shield
                 .insert(
                     sender_peer.clone(),
                     (),
-                    Duration::from_millis(ctx.healthcheck_config.blocking_ms_for_per_address),
+                    Duration::from_millis(ctx.healthcheck.config.blocking_ms_for_per_address),
                 )
                 .is_some()
             {
@@ -280,7 +280,7 @@ async fn process_p2p_message(
                 broadcast_p2p_msg(&ctx, topic, encoded_msg, None);
             } else {
                 // The requested peer is healthy; signal the response channel.
-                let mut response_handler = ctx.healthcheck_response_handler.lock().await;
+                let mut response_handler = ctx.healthcheck.response_handler.lock().await;
                 if let Some(tx) = response_handler.remove(&sender_peer) {
                     if tx.send(()).is_err() {
                         log::error!("Result channel isn't present for peer '{sender_peer}'.");
