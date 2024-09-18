@@ -223,7 +223,7 @@ async fn process_p2p_message(
                     match $exp {
                         Ok(t) => t,
                         Err(e) => {
-                            log::error!("{}, e: {e:?}", $msg);
+                            log::error!("{}, error: {e:?}", $msg);
                             return;
                         },
                     }

@@ -11,6 +11,7 @@ use mm2_net::p2p::P2PContext;
 use ser_error_derive::SerializeErrorType;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 use crate::lp_network::broadcast_p2p_msg;
 
@@ -157,7 +158,10 @@ pub async fn peer_connection_healthcheck_rpc(
 ) -> Result<bool, MmError<HealthcheckRpcError>> {
     /// When things go awry, we want records to clear themselves to keep the memory clean of unused data.
     /// This is unrelated to the timeout logic.
-    const ADDRESS_RECORD_EXPIRATION: Duration = Duration::from_secs(60);
+    static ADDRESS_RECORD_EXPIRATION: OnceLock<Duration> = OnceLock::new();
+
+    let address_record_exp =
+        ADDRESS_RECORD_EXPIRATION.get_or_init(|| Duration::from_secs(ctx.healthcheck_config.timeout_secs));
 
     let target_peer_id = PeerId::from_str(&req.peer_id)
         .map_err(|e| HealthcheckRpcError::InvalidPeerAddress { reason: e.to_string() })?;
@@ -181,12 +185,12 @@ pub async fn peer_connection_healthcheck_rpc(
 
     let mut book = ctx.healthcheck_response_handler.lock().await;
     book.clear_expired_entries();
-    book.insert(target_peer_id.to_string(), tx, ADDRESS_RECORD_EXPIRATION);
+    book.insert(target_peer_id.to_string(), tx, *address_record_exp);
     drop(book);
 
     broadcast_p2p_msg(&ctx, peer_healthcheck_topic(&target_peer_id), encoded_message, None);
 
-    let timeout_duration = Duration::from_millis(ctx.healthcheck_config.timeout_ms);
+    let timeout_duration = Duration::from_secs(ctx.healthcheck_config.timeout_secs);
     Ok(rx.timeout(timeout_duration).await == Ok(Ok(())))
 }
 

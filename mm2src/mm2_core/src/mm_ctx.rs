@@ -48,31 +48,32 @@ const EXPORT_METRICS_INTERVAL: f64 = 5. * 60.;
 mod healthcheck_defaults {
     pub(crate) const fn default_healthcheck_blocking_ms() -> u64 { 750 }
 
-    pub(crate) const fn default_healthcheck_message_expiration() -> i64 { 10 }
+    pub(crate) const fn default_healthcheck_message_expiration_secs() -> i64 { 10 }
 
-    pub(crate) const fn default_timeout_ms() -> u64 { 10 }
+    pub(crate) const fn default_timeout_secs() -> u64 { 10 }
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(default)]
 pub struct HealthcheckConfig {
     /// Required time (millisecond) to wait before processing another healthcheck request from the same peer.
     #[serde(default = "healthcheck_defaults::default_healthcheck_blocking_ms")]
     pub blocking_ms_for_per_address: u64,
     /// Lifetime of the message.
     /// Do not change this unless you know what you are doing.
-    #[serde(default = "healthcheck_defaults::default_healthcheck_message_expiration")]
+    #[serde(default = "healthcheck_defaults::default_healthcheck_message_expiration_secs")]
     pub message_expiration: i64,
     /// Maximum time (milliseconds) to wait for healthcheck response.
-    #[serde(default = "healthcheck_defaults::default_timeout_ms")]
-    pub timeout_ms: u64,
+    #[serde(default = "healthcheck_defaults::default_timeout_secs")]
+    pub timeout_secs: u64,
 }
 
 impl Default for HealthcheckConfig {
     fn default() -> Self {
         Self {
             blocking_ms_for_per_address: healthcheck_defaults::default_healthcheck_blocking_ms(),
-            message_expiration: healthcheck_defaults::default_healthcheck_message_expiration(),
-            timeout_ms: healthcheck_defaults::default_timeout_ms(),
+            message_expiration: healthcheck_defaults::default_healthcheck_message_expiration_secs(),
+            timeout_secs: healthcheck_defaults::default_timeout_secs(),
         }
     }
 }
