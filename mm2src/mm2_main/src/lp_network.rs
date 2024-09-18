@@ -37,7 +37,6 @@ use mm2_metrics::{mm_label, mm_timing};
 use mm2_net::p2p::P2PContext;
 use serde::de;
 use std::net::ToSocketAddrs;
-use std::str::FromStr;
 
 use crate::lp_healthcheck::{peer_healthcheck_topic, HealthcheckMessage};
 use crate::{lp_healthcheck, lp_ordermatch, lp_stats, lp_swap};
@@ -242,7 +241,7 @@ async fn process_p2p_message(
             bruteforce_shield.clear_expired_entries();
             if bruteforce_shield
                 .insert(
-                    sender_peer.clone(),
+                    sender_peer.to_string(),
                     (),
                     Duration::from_millis(ctx.healthcheck.config.blocking_ms_for_per_address),
                 )
@@ -261,14 +260,11 @@ async fn process_p2p_message(
 
             if data.should_reply() {
                 // Reply the message so they know we are healthy.
-                let target_peer_id = try_or_return!(
-                    PeerId::from_str(&sender_peer),
-                    format!("'{sender_peer}' is not a valid address")
-                );
-                let topic = peer_healthcheck_topic(&target_peer_id);
+
+                let topic = peer_healthcheck_topic(&sender_peer);
 
                 let msg = try_or_return!(
-                    HealthcheckMessage::generate_message(&ctx, target_peer_id, true, 10),
+                    HealthcheckMessage::generate_message(&ctx, sender_peer, true, 10),
                     "Couldn't generate the healthcheck message, this is very unusual!"
                 );
 
@@ -281,7 +277,7 @@ async fn process_p2p_message(
             } else {
                 // The requested peer is healthy; signal the response channel.
                 let mut response_handler = ctx.healthcheck.response_handler.lock().await;
-                if let Some(tx) = response_handler.remove(&sender_peer) {
+                if let Some(tx) = response_handler.remove(&sender_peer.to_string()) {
                     if tx.send(()).is_err() {
                         log::error!("Result channel isn't present for peer '{sender_peer}'.");
                     };
