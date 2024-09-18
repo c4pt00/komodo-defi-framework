@@ -57,14 +57,11 @@ mod healthcheck_defaults {
 #[serde(default)]
 pub struct HealthcheckConfig {
     /// Required time (millisecond) to wait before processing another healthcheck request from the same peer.
-    #[serde(default = "healthcheck_defaults::default_healthcheck_blocking_ms")]
     pub blocking_ms_for_per_address: u64,
     /// Lifetime of the message.
     /// Do not change this unless you know what you are doing.
-    #[serde(default = "healthcheck_defaults::default_healthcheck_message_expiration_secs")]
     pub message_expiration: i64,
     /// Maximum time (milliseconds) to wait for healthcheck response.
-    #[serde(default = "healthcheck_defaults::default_timeout_secs")]
     pub timeout_secs: u64,
 }
 
