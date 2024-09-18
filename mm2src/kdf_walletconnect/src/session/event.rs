@@ -1,8 +1,8 @@
-use crate::{error::{WalletConnectCtxError, UNSUPPORTED_CHAINS},
+use crate::{error::{WalletConnectCtxError, INVALID_EVENT, UNSUPPORTED_CHAINS},
             WalletConnectCtx};
 
 use chrono::Utc;
-use mm2_err_handle::prelude::MmResult;
+use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::{params::{session_event::SessionEventRequest, ResponseParamsError, ResponseParamsSuccess},
                       ErrorData}};
@@ -10,7 +10,7 @@ use relay_rpc::{domain::{MessageId, Topic},
 pub enum SessionEvents {
     ChainChanged(String),
     AccountsChanged(String, Vec<String>),
-    Unknown,
+    Unknown(String),
 }
 
 impl SessionEvents {
@@ -21,7 +21,7 @@ impl SessionEvents {
                 let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
                 Ok(SessionEvents::AccountsChanged(event.chain_id, data))
             },
-            _ => Ok(SessionEvents::Unknown),
+            _ => Ok(SessionEvents::Unknown(event.event.name)),
         }
     }
 
@@ -36,9 +36,21 @@ impl SessionEvents {
                 Self::handle_chain_changed_event(ctx, chain_id, topic, message_id).await
             },
             SessionEvents::AccountsChanged(chain_id, data) => {
-                Self::handle_account_changed_event(ctx, chain_id, data, topic, message_id).await
+                Self::handle_accounts_changed_event(ctx, chain_id, data, topic, message_id).await
             },
-            SessionEvents::Unknown => todo!(),
+            SessionEvents::Unknown(name) => {
+                let error_data = ErrorData {
+                    code: INVALID_EVENT,
+                    message: format!("Received an invalid/unsupported session event: {name}"),
+                    data: None,
+                };
+                ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
+                    .await?;
+
+                return MmError::err(WalletConnectCtxError::SessionError(format!(
+                    "Unsupported session event"
+                )));
+            },
         }
     }
 
@@ -67,6 +79,10 @@ impl SessionEvents {
 
                     ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
                         .await?;
+
+                    return MmError::err(WalletConnectCtxError::SessionError(format!(
+                        "Unsupported chainChanged chain_id from session request: {chain_id}",
+                    )));
                 }
 
                 let mut sessions = ctx.sessions.lock().await;
@@ -88,7 +104,7 @@ impl SessionEvents {
         Ok(())
     }
 
-    async fn handle_account_changed_event(
+    async fn handle_accounts_changed_event(
         ctx: &WalletConnectCtx,
         _chain_id: &str,
         _data: &[String],

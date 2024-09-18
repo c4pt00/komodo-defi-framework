@@ -13,7 +13,7 @@ use relay_rpc::{domain::{MessageId, Topic},
 use std::ops::Deref;
 
 /// Creates a new session proposal form topic and metadata.
-pub(crate) async fn create_proposal_session(
+pub(crate) async fn new_proposal(
     ctx: &WalletConnectCtx,
     topic: Topic,
     required_namespaces: Option<ProposeNamespaces>,
@@ -29,22 +29,6 @@ pub(crate) async fn create_proposal_session(
     });
 
     ctx.publish_request(&topic, session_proposal).await?;
-
-    Ok(())
-}
-
-async fn send_proposal_request_response(
-    ctx: &WalletConnectCtx,
-    topic: &Topic,
-    message_id: &MessageId,
-    responder_public_key: String,
-) -> MmResult<(), WalletConnectCtxError> {
-    let param = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
-        relay: ctx.relay.clone(),
-        responder_public_key,
-    });
-
-    ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
 }
@@ -92,7 +76,15 @@ pub async fn process_proposal_request(
         send_session_settle_request(ctx, session, session_topic).await?;
     };
 
-    send_proposal_request_response(ctx, topic, message_id, proposal.proposer.public_key).await
+    // Respond to incoming session propose.
+    let param = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
+        relay: ctx.relay.clone(),
+        responder_public_key: proposal.proposer.public_key,
+    });
+
+    ctx.publish_response_ok(topic, param, message_id).await?;
+
+    Ok(())
 }
 
 /// Process session propose reponse.

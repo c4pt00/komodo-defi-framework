@@ -52,7 +52,6 @@ pub(crate) async fn process_session_settle_request(
             session.expiry = settle.expiry;
 
             info!("Session successfully settled for topic: {:?}", topic);
-            info!("Updated session info: {:?}", session);
         }
     }
 

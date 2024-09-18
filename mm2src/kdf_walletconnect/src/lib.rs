@@ -25,7 +25,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 rpc::{params::{session::{ProposeNamespace, ProposeNamespaces},
                                IrnMetadata, Metadata, Relay, ResponseParamsError, ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
-use session::{propose::create_proposal_session, Session};
+use session::{propose::new_proposal, Session};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
@@ -102,7 +102,7 @@ impl WalletConnectCtx {
         self.client.subscribe(topic.clone()).await?;
         info!("Subscribed to topic: {topic:?}");
 
-        create_proposal_session(self, topic, required_namespaces).await?;
+        new_proposal(self, topic, required_namespaces).await?;
 
         Ok(url)
     }
