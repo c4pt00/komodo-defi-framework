@@ -56,8 +56,8 @@ mod healthcheck_defaults {
 pub struct Healthcheck {
     /// Links the RPC context to the P2P context to handle health check responses.
     pub response_handler: AsyncMutex<ExpirableMap<String, oneshot::Sender<()>>>,
-    /// This is used to record healthcheck sender peers in an expirable manner to prevent brute-force attacks.
-    pub bruteforce_shield: AsyncMutex<ExpirableMap<String, ()>>,
+    /// This is used to record healthcheck sender peers in an expirable manner to prevent DDoS attacks.
+    pub ddos_shield: AsyncMutex<ExpirableMap<String, ()>>,
     pub config: HealthcheckConfig,
 }
 
@@ -235,7 +235,7 @@ impl MmCtx {
             async_sqlite_connection: Constructible::default(),
             healthcheck: Healthcheck {
                 response_handler: AsyncMutex::new(ExpirableMap::default()),
-                bruteforce_shield: AsyncMutex::new(ExpirableMap::default()),
+                ddos_shield: AsyncMutex::new(ExpirableMap::default()),
                 config: HealthcheckConfig::default(),
             },
         }

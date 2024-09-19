@@ -300,9 +300,9 @@ pub(crate) async fn process_p2p_healthcheck_message(ctx: &MmArc, message: mm2_li
 
     let sender_peer = data.sender_peer().to_owned();
 
-    let mut bruteforce_shield = ctx.healthcheck.bruteforce_shield.lock().await;
-    bruteforce_shield.clear_expired_entries();
-    if bruteforce_shield
+    let mut ddos_shield = ctx.healthcheck.ddos_shield.lock().await;
+    ddos_shield.clear_expired_entries();
+    if ddos_shield
         .insert(
             sender_peer.to_string(),
             (),
@@ -313,7 +313,7 @@ pub(crate) async fn process_p2p_healthcheck_message(ctx: &MmArc, message: mm2_li
         log::warn!("Peer '{sender_peer}' exceeded the healthcheck blocking time, skipping their message.");
         return;
     }
-    drop(bruteforce_shield);
+    drop(ddos_shield);
 
     let ctx_c = ctx.clone();
 
