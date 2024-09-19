@@ -1226,6 +1226,8 @@ pub trait MakerSwapTakerCoin {
     async fn on_maker_payment_refund_success(&self, taker_payment: &[u8]) -> RefundResult<()>;
 }
 
+// FIXME Alright - implement defaults for all methods or remove trait bound from MmCoin
+// This is only relevant to UTXO and ETH protocols and should not be forced to implement it otherwise
 #[async_trait]
 pub trait WatcherOps {
     fn send_maker_payment_spend_preimage(&self, input: SendMakerPaymentSpendPreimageInput) -> TransactionFut;
