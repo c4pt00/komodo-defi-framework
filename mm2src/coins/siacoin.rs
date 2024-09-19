@@ -79,7 +79,7 @@ pub struct SiaCoinConf {
 // for additional fields needed
 #[derive(Clone, Debug, Deserialize)]
 pub struct SiaCoinActivationParams {
-    #[serde(default)]
+    //#[serde(default)]
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
@@ -160,6 +160,38 @@ impl<'a> SiaCoinBuilder<'a> {
             params,
         }
     }
+
+    #[allow(dead_code)]
+    fn ctx(&self) -> &MmArc { self.ctx }
+
+    #[allow(dead_code)]
+    fn conf(&self) -> &Json { self.conf }
+
+    fn ticker(&self) -> &str { self.ticker }
+
+    async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
+        let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
+        let abortable_system: AbortableQueue = self.ctx().abortable_system.create_subsystem().map_to_mm(|_| {
+            SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker()))
+        })?;
+        let history_sync_state = if self.params.tx_history {
+            HistorySyncState::NotStarted
+        } else {
+            HistorySyncState::NotEnabled
+        };
+        let sia_fields = SiaCoinFields {
+            conf,
+            http_client: SiaApiClient::new(self.params.http_conf.clone())
+                .await
+                .map_to_mm(SiaCoinBuildError::ClientError)?,
+            priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
+            history_sync_state: Mutex::new(history_sync_state),
+            abortable_system,
+        };
+        let sia_arc = SiaArc::new(sia_fields);
+
+        Ok(SiaCoin::from(sia_arc))
+    }
 }
 
 /// Convert hastings amount to siacoin amount
@@ -194,40 +226,6 @@ pub enum SiaCoinBuildError {
     ClientError(SiaApiClientError),
     InvalidSecretKey(KeypairError),
     InternalError(String),
-}
-
-impl<'a> SiaCoinBuilder<'a> {
-    #[allow(dead_code)]
-    fn ctx(&self) -> &MmArc { self.ctx }
-
-    #[allow(dead_code)]
-    fn conf(&self) -> &Json { self.conf }
-
-    fn ticker(&self) -> &str { self.ticker }
-
-    async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
-        let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
-        let abortable_system: AbortableQueue = self.ctx().abortable_system.create_subsystem().map_to_mm(|_| {
-            SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker()))
-        })?;
-        let history_sync_state = if self.params.tx_history {
-            HistorySyncState::NotStarted
-        } else {
-            HistorySyncState::NotEnabled
-        };
-        let sia_fields = SiaCoinFields {
-            conf,
-            http_client: SiaApiClient::new(self.params.http_conf.clone())
-                .await
-                .map_to_mm(SiaCoinBuildError::ClientError)?,
-            priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
-            history_sync_state: Mutex::new(history_sync_state),
-            abortable_system,
-        };
-        let sia_arc = SiaArc::new(sia_fields);
-
-        Ok(SiaCoin::from(sia_arc))
-    }
 }
 
 impl Deref for SiaArc {
