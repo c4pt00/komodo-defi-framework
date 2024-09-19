@@ -1979,7 +1979,10 @@ pub trait MarketCoinOps {
     fn send_raw_tx_bytes(&self, tx: &[u8]) -> Box<dyn Future<Item = String, Error = String> + Send>;
 
     /// Signs raw utxo transaction in hexadecimal format as input and returns signed transaction in hexadecimal format
-    async fn sign_raw_tx(&self, args: &SignRawTransactionRequest) -> RawTransactionResult;
+    /// This method is only used by the sign_raw_transaction RPC method. Optional to implement.
+    async fn sign_raw_tx(&self, _args: &SignRawTransactionRequest) -> RawTransactionResult {
+        MmError::err(RawTransactionError::NotImplemented{ coin: self.ticker().to_string() })
+    }
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send>;
 
