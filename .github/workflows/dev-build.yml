@@ -417,8 +417,8 @@ jobs:
         run: |
           rm -f ./MM_VERSION
           echo $COMMIT_HASH > ./MM_VERSION
-          wasm-pack build --release mm2src/mm2_bin_lib --target web --out-dir ../../target/target-wasm-release
-
+          wasm-pack build --release mm2src/mm2_bin_lib --target web --out-dir ../../target/target-wasm-release --features enable-sia
+cd 
       - name: Compress build output
         env:
           AVAILABLE: ${{ secrets.FILE_SERVER_KEY }}
