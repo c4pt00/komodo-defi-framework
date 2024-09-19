@@ -1,5 +1,6 @@
 use async_std::prelude::FutureExt;
 use chrono::Utc;
+use common::executor::SpawnFuture;
 use common::{log, HttpStatusCode, StatusCode};
 use derive_more::Display;
 use futures::channel::oneshot::{self, Receiver, Sender};
@@ -277,6 +278,83 @@ pub async fn peer_connection_healthcheck_rpc(
 
     let timeout_duration = Duration::from_secs(ctx.healthcheck.config.timeout_secs);
     Ok(rx.timeout(timeout_duration).await == Ok(Ok(())))
+}
+
+pub(crate) async fn process_p2p_healthcheck_message(ctx: &MmArc, message: mm2_libp2p::GossipsubMessage) {
+    macro_rules! try_or_return {
+        ($exp:expr, $msg: expr) => {
+            match $exp {
+                Ok(t) => t,
+                Err(e) => {
+                    log::error!("{}, error: {e:?}", $msg);
+                    return;
+                },
+            }
+        };
+    }
+
+    let data = try_or_return!(
+        HealthcheckMessage::decode(&message.data),
+        "Couldn't decode healthcheck message"
+    );
+
+    let sender_peer = data.sender_peer().to_owned();
+
+    let mut bruteforce_shield = ctx.healthcheck.bruteforce_shield.lock().await;
+    bruteforce_shield.clear_expired_entries();
+    if bruteforce_shield
+        .insert(
+            sender_peer.to_string(),
+            (),
+            Duration::from_millis(ctx.healthcheck.config.blocking_ms_for_per_address),
+        )
+        .is_some()
+    {
+        log::warn!("Peer '{sender_peer}' exceeded the healthcheck blocking time, skipping their message.");
+        return;
+    }
+    drop(bruteforce_shield);
+
+    let ctx_c = ctx.clone();
+
+    // Pass the remaining work to another thread to free up this one as soon as possible,
+    // so KDF can handle a high amount of healthcheck messages more efficiently.
+    ctx.spawner().spawn(async move {
+        let my_peer_id = P2PContext::fetch_from_mm_arc(&ctx_c).peer_id();
+        if !data.is_received_message_valid(my_peer_id) {
+            log::error!("Received an invalid healthcheck message.");
+            log::debug!("Message context: {:?}", data);
+            return;
+        };
+
+        if data.should_reply() {
+            // Reply the message so they know we are healthy.
+
+            let topic = peer_healthcheck_topic(&sender_peer);
+
+            let msg = try_or_return!(
+                HealthcheckMessage::generate_message(&ctx_c, sender_peer, true, 10),
+                "Couldn't generate the healthcheck message, this is very unusual!"
+            );
+
+            let encoded_msg = try_or_return!(
+                msg.encode(),
+                "Couldn't encode healthcheck message, this is very unusual!"
+            );
+
+            broadcast_p2p_msg(&ctx_c, topic, encoded_msg, None);
+        } else {
+            // The requested peer is healthy; signal the response channel.
+            let mut response_handler = ctx_c.healthcheck.response_handler.lock().await;
+            if let Some(tx) = response_handler.remove(&sender_peer.to_string()) {
+                if tx.send(()).is_err() {
+                    log::error!("Result channel isn't present for peer '{sender_peer}'.");
+                };
+            } else {
+                log::info!("Peer '{sender_peer}' isn't recorded in the healthcheck response handler.");
+            };
+        }
+    });
 }
 
 #[cfg(any(test, target_arch = "wasm32"))]
