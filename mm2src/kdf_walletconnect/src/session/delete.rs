@@ -20,26 +20,19 @@ pub(crate) async fn process_session_delete_request(
 }
 
 async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectCtxError> {
-    let (session_count, pairing_topic) = {
-        let mut sessions = ctx.sessions.lock().await;
-        let session = sessions.remove(topic).ok_or_else(|| {
-            WalletConnectCtxError::InternalError("Attempt to remove non-existing session".to_string())
-        })?;
-
+    {
         ctx.client.unsubscribe(topic.clone()).await?;
-
-        // Get the pairing topic
-        let pairing_topic = session.pairing_topic.clone();
-        // Check if there are no more sessions for this pairing
-        let session_count = sessions.values().filter(|s| s.pairing_topic == pairing_topic).count();
-
-        (session_count, pairing_topic)
     };
 
-    if session_count == 0 {
-        debug!("No active sessions left for pairing {}, disconnecting", pairing_topic);
+    if let Some(session) = ctx.session.lock().await.as_mut().take() {
+        debug!(
+            "No active sessions left for pairing {}, disconnecting",
+            session.pairing_topic
+        );
         // Attempt to disconnect the pairing
-        ctx.pairing.disconnect(pairing_topic.as_ref(), &ctx.client).await?;
+        ctx.pairing
+            .disconnect(session.pairing_topic.as_ref(), &ctx.client)
+            .await?;
     }
 
     Ok(())

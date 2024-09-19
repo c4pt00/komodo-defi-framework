@@ -5,7 +5,7 @@ mod metadata;
 #[allow(unused)] mod pairing;
 mod session;
 
-use chrono::Utc;
+use async_trait::async_trait;
 use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
@@ -25,7 +25,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 rpc::{params::{session::{ProposeNamespace, ProposeNamespaces},
                                IrnMetadata, Metadata, Relay, ResponseParamsError, ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
-use session::{propose::new_proposal, Session};
+use session::{propose::new_proposal, Session, SymKeyPair};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
@@ -46,13 +46,14 @@ const DEFAULT_CHAIN_ID: &str = "1"; // eth mainnet.
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
-    pub sessions: Session,
+    pub session: Arc<Mutex<Option<Session>>>,
     pub msg_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     pub connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
     pub active_chain_id: Arc<Mutex<String>>,
     pub relay: Relay,
     pub namespaces: ProposeNamespaces,
     pub metadata: Metadata,
+    pub(crate) key_pair: SymKeyPair,
 }
 
 impl Default for WalletConnectCtx {
@@ -82,13 +83,14 @@ impl WalletConnectCtx {
         Self {
             client,
             pairing,
-            sessions: Session::new(),
+            session: Arc::new(Mutex::new(None)),
             msg_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
             namespaces: ProposeNamespaces(required),
             metadata: generate_metadata(),
+            key_pair: SymKeyPair::new(),
         }
     }
 
@@ -119,32 +121,41 @@ impl WalletConnectCtx {
 
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
-    pub async fn get_active_sessions(&self) -> impl IntoIterator {
-        let sessions = self.sessions.lock().await;
-        sessions
-            .values()
-            .filter_map(|session| {
-                if session.expiry > Utc::now().timestamp() as u64 {
-                    Some(session.pairing_topic.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
+    pub async fn get_session(&self) -> Option<Session> {
+        let session = self.session.lock().await;
+        session.clone()
     }
 
-    pub async fn get_inactive_sessions(&self) -> impl IntoIterator {
-        let sessions = self.sessions.lock().await;
-        sessions
-            .values()
-            .filter_map(|session| {
-                if session.expiry <= Utc::now().timestamp() as u64 {
-                    Some(session.pairing_topic.clone())
-                } else {
-                    None
+    pub async fn get_account_from_chain_id(
+        &self,
+        chain: &str,
+        chain_id: &str,
+    ) -> MmResult<String, WalletConnectCtxError> {
+        // Lock the active_chain_id and check if the chain matches
+        if *self.active_chain_id.lock().await != chain {
+            // Lock the session
+            let session = self.session.lock().await;
+
+            // Check if a session exists
+            if let Some(session) = session.as_ref() {
+                if let Some(namespace) = session.namespaces.get(chain) {
+                    if let Some(accounts) = &namespace.accounts {
+                        for account_name in accounts {
+                            let account_vec = account_name.split(':').collect::<Vec<_>>();
+
+                            // Check if the account vector has the expected format (length >= 3)
+                            if account_vec.len() >= 3 && account_vec[1] == chain_id {
+                                let account = account_vec[2].to_owned();
+                                return Ok(account);
+                            }
+                        }
+                    }
                 }
-            })
-            .collect::<Vec<_>>()
+            }
+        }
+
+        // If the chain doesn't match, or no valid account is found, return an error
+        MmError::err(WalletConnectCtxError::InvalidRequest)
     }
 
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
@@ -166,9 +177,11 @@ impl WalletConnectCtx {
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
         {
-            let sessions = self.sessions.lock().await;
-            if let Some(sesssion) = sessions.get(topic) {
-                return Ok(sesssion.session_key.symmetric_key().to_vec());
+            let session = self.session.lock().await;
+            if let Some(session) = session.as_ref() {
+                if &session.topic == topic {
+                    return Ok(session.session_key.symmetric_key().to_vec());
+                }
             }
         }
 
@@ -298,4 +311,22 @@ impl WalletConnectCtx {
             info!("reconnecting success!");
         }
     }
+}
+
+#[async_trait]
+pub trait WcCoinOps {
+    /// Returns the coin's namespace identifier (e.g., "eip155" for Ethereum).
+    fn coin_namespace(&self) -> String;
+
+    /// Returns the list of supported chains for the coin.
+    fn chain_id(&self) -> Vec<String>;
+
+    /// Returns the list of supported methods for the coin (e.g., `eth_sendTransaction`).
+    fn methods(&self) -> Vec<String>;
+
+    /// Returns the list of supported events for the coin (e.g., `chainChanged`).
+    fn events(&self) -> Vec<String>;
+
+    /// Returns a boolean indicating whether WalletConnect should be used for this coin.
+    fn use_walletconnect(&self) -> bool;
 }

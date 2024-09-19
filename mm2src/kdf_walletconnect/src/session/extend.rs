@@ -12,8 +12,8 @@ pub(crate) async fn process_session_extend_request(
     message_id: &MessageId,
     extend: SessionExtendRequest,
 ) -> MmResult<(), WalletConnectCtxError> {
-    let mut sessions = ctx.sessions.lock().await;
-    if let Some(session) = sessions.get_mut(topic) {
+    let mut session = ctx.session.lock().await;
+    if let Some(session) = session.as_mut() {
         session.expiry = extend.expiry;
         info!("Updated extended, info: {:?}", session);
     }

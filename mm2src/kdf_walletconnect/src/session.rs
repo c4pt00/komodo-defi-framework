@@ -10,7 +10,6 @@ use crate::error::SessionError;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use chrono::Utc;
-use futures::lock::Mutex;
 use mm2_err_handle::prelude::MmResult;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
@@ -18,9 +17,7 @@ use relay_rpc::rpc::params::IrnMetadata;
 use relay_rpc::{domain::{SubscriptionId, Topic},
                 rpc::params::{session::ProposeNamespaces, session_settle::Controller, Metadata, Relay}};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::ops::Deref;
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 use x25519_dalek::{SharedSecret, StaticSecret};
 use {hkdf::Hkdf,
      rand::{rngs::OsRng, CryptoRng, RngCore},
@@ -125,7 +122,9 @@ pub enum SessionType {
 /// implementation. It's used to store, retrieve, and update session information throughout
 /// the lifecycle of a WalletConnect connection.
 #[derive(Debug, Clone)]
-pub struct SessionInfo {
+pub struct Session {
+    /// Session topic
+    pub topic: Topic,
     /// Pairing subscription id.
     pub subscription_id: SubscriptionId,
     /// Session symmetric key
@@ -148,9 +147,10 @@ pub struct SessionInfo {
     pub session_type: SessionType,
 }
 
-impl SessionInfo {
+impl Session {
     pub fn new(
         ctx: &WalletConnectCtx,
+        session_topic: Topic,
         subscription_id: SubscriptionId,
         session_key: SessionKey,
         pairing_topic: Topic,
@@ -183,32 +183,22 @@ impl SessionInfo {
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
             pairing_topic,
             session_type,
+            topic: session_topic,
         }
     }
 }
 
-pub struct Session {
-    sessions: Arc<Mutex<HashMap<Topic, SessionInfo>>>,
-    keypair: StaticSecret,
-    public_key: PublicKey,
+pub(crate) struct SymKeyPair {
+    pub(crate) secret: StaticSecret,
+    pub(crate) public_key: PublicKey,
 }
 
-impl Deref for Session {
-    type Target = Arc<Mutex<HashMap<Topic, SessionInfo>>>;
-    fn deref(&self) -> &Self::Target { &self.sessions }
-}
-
-impl Default for Session {
-    fn default() -> Self { Self::new() }
-}
-
-impl Session {
-    pub fn new() -> Self {
+impl SymKeyPair {
+    pub(crate) fn new() -> Self {
         let static_secret = StaticSecret::random_from_rng(OsRng);
         let public_key = PublicKey::from(&static_secret);
         Self {
-            sessions: Default::default(),
-            keypair: static_secret,
+            secret: static_secret,
             public_key,
         }
     }

@@ -1,4 +1,4 @@
-use super::{SessionInfo, THIRTY_DAYS};
+use super::{Session, THIRTY_DAYS};
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 use crate::{SUPPORTED_ACCOUNTS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
 
@@ -13,8 +13,7 @@ use std::collections::BTreeMap;
 
 pub(crate) async fn send_session_settle_request(
     ctx: &WalletConnectCtx,
-    session_info: SessionInfo,
-    session_topic: Topic,
+    session_info: &Session,
 ) -> MmResult<(), WalletConnectCtxError> {
     let mut settled_namespaces = BTreeMap::<String, Namespace>::new();
     settled_namespaces.insert("eip155".to_string(), Namespace {
@@ -31,7 +30,7 @@ pub(crate) async fn send_session_settle_request(
         expiry: Utc::now().timestamp() as u64 + THIRTY_DAYS,
     });
 
-    ctx.publish_request(&session_topic, request).await?;
+    ctx.publish_request(&session_info.topic, request).await?;
 
     Ok(())
 }
@@ -44,8 +43,8 @@ pub(crate) async fn process_session_settle_request(
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectCtxError> {
     {
-        let mut sessions = ctx.sessions.lock().await;
-        if let Some(session) = sessions.get_mut(topic) {
+        let mut session = ctx.session.lock().await;
+        if let Some(session) = session.as_mut() {
             session.namespaces = settle.namespaces.0.clone();
             session.controller = settle.controller.clone();
             session.relay = settle.relay.clone();

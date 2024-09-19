@@ -1,7 +1,6 @@
 use crate::{error::{WalletConnectCtxError, INVALID_EVENT, UNSUPPORTED_CHAINS},
             WalletConnectCtx};
 
-use chrono::Utc;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::{params::{session_event::SessionEventRequest, ResponseParamsError, ResponseParamsSuccess},
@@ -47,9 +46,9 @@ impl SessionEvents {
                 ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
                     .await?;
 
-                return MmError::err(WalletConnectCtxError::SessionError(format!(
+                MmError::err(WalletConnectCtxError::SessionError(format!(
                     "Unsupported session event"
-                )));
+                )))
             },
         }
     }
@@ -63,12 +62,8 @@ impl SessionEvents {
         {
             *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
 
-            {
-                let mut sessions = ctx.sessions.lock().await;
-                let current_time = Utc::now().timestamp() as u64;
-                sessions.retain(|_, session| session.expiry > current_time);
-            };
-
+            // TODO: validate session expiration.
+            //
             if let Some((namespace, _chain)) = parse_chain_and_chain_id(chain_id) {
                 if ctx.namespaces.get(&namespace).is_none() {
                     let error_data = ErrorData {
@@ -85,8 +80,8 @@ impl SessionEvents {
                     )));
                 }
 
-                let mut sessions = ctx.sessions.lock().await;
-                for session in sessions.values_mut() {
+                let mut session = ctx.session.lock().await;
+                if let Some(session) = session.as_mut() {
                     if let Some(ns) = session.namespaces.get_mut(&namespace) {
                         if let Some(chains) = ns.chains.as_mut() {
                             chains.insert(chain_id.to_owned());

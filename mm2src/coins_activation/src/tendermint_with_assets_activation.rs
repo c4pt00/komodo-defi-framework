@@ -54,6 +54,8 @@ pub struct TendermintActivationParams {
     with_pubkey: Option<TendermintPublicKey>,
     #[serde(default)]
     is_keplr_from_ledger: bool,
+    #[serde(default)]
+    is_walletconnect: bool,
 }
 
 fn deserialize_account_public_key<'de, D>(deserializer: D) -> Result<Option<TendermintPublicKey>, D::Error>
@@ -236,6 +238,25 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
         protocol_conf: Self::PlatformProtocolInfo,
     ) -> Result<Self, MmError<Self::ActivationError>> {
         let conf = TendermintConf::try_from_json(&ticker, coin_conf)?;
+        //        let is_walletconnect = activation_request.is_walletconnect;
+        //
+        //        if is_walletconnect {
+        //            let pubkey = ctx
+        //                .wallect_connect
+        //                .get_account_from_chain_id("cosmos", &protocol_conf.chain_id)
+        //                .await
+        //                .expect("shouldn't fail yet");
+        //
+        //            if ctx.is_watcher() || ctx.use_watchers() {
+        //                return MmError::err(TendermintInitError {
+        //                    ticker: ticker.clone(),
+        //                    kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
+        //                });
+        //            }
+        //
+        //            TendermintActivationPolicy::with_public_key(pubkey)
+        //        }
+        //
         let is_keplr_from_ledger = activation_request.is_keplr_from_ledger && activation_request.with_pubkey.is_some();
 
         let activation_policy = if let Some(pubkey) = activation_request.with_pubkey {

@@ -1,4 +1,4 @@
-use super::{settle::send_session_settle_request, SessionInfo};
+use super::{settle::send_session_settle_request, Session};
 use crate::{error::WalletConnectCtxError,
             session::{SessionKey, SessionType, THIRTY_DAYS},
             WalletConnectCtx};
@@ -10,7 +10,6 @@ use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session::ProposeNamespaces,
                               session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
                               Metadata, RequestParams, ResponseParamsSuccess}};
-use std::ops::Deref;
 
 /// Creates a new session proposal form topic and metadata.
 pub(crate) async fn new_proposal(
@@ -20,7 +19,7 @@ pub(crate) async fn new_proposal(
 ) -> MmResult<(), WalletConnectCtxError> {
     let proposer = Proposer {
         metadata: ctx.metadata.clone(),
-        public_key: hex::encode(ctx.sessions.public_key.as_bytes()),
+        public_key: hex::encode(ctx.key_pair.public_key.as_bytes()),
     };
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
         relays: vec![ctx.relay.clone()],
@@ -54,8 +53,9 @@ pub async fn process_proposal_request(
         .await
         .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
-    let session = SessionInfo::new(
+    let session = Session::new(
         ctx,
+        session_topic.clone(),
         subscription_id,
         session_key,
         topic.clone(),
@@ -68,12 +68,12 @@ pub async fn process_proposal_request(
         .map_to_mm(|err| WalletConnectCtxError::InternalError(err.to_string()))?;
 
     {
-        let mut sessions = ctx.sessions.deref().lock().await;
-        _ = sessions.insert(session_topic.clone(), session.clone());
+        let mut old_session = ctx.session.lock().await;
+        *old_session = Some(session.clone());
     }
 
     {
-        send_session_settle_request(ctx, session, session_topic).await?;
+        send_session_settle_request(ctx, &session).await?;
     };
 
     // Respond to incoming session propose.
@@ -98,8 +98,8 @@ pub(crate) async fn process_session_propose_response(
         .try_into()
         .unwrap();
 
-    let mut session_key = SessionKey::new(ctx.sessions.public_key);
-    session_key.generate_symmetric_key(&ctx.sessions.keypair, &other_public_key)?;
+    let mut session_key = SessionKey::new(ctx.key_pair.public_key);
+    session_key.generate_symmetric_key(&ctx.key_pair.secret, &other_public_key)?;
 
     let session_topic: Topic = session_key.generate_topic().into();
     let subscription_id = ctx
@@ -108,8 +108,9 @@ pub(crate) async fn process_session_propose_response(
         .await
         .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
 
-    let mut session = SessionInfo::new(
+    let mut session = Session::new(
         ctx,
+        session_topic,
         subscription_id,
         session_key,
         pairing_topic.clone(),
@@ -120,8 +121,10 @@ pub(crate) async fn process_session_propose_response(
     session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
     session.controller.public_key = response.responder_public_key;
 
-    let mut sessions = ctx.sessions.lock().await;
-    sessions.insert(session_topic.clone(), session.clone());
+    {
+        let mut old_session = ctx.session.lock().await;
+        *old_session = Some(session);
+    };
 
     // Activate pairing_topic
     ctx.pairing.activate(pairing_topic.as_ref()).await?;
