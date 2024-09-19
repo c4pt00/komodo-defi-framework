@@ -1,3 +1,4 @@
+mod chain;
 #[allow(unused)] mod error;
 mod handler;
 mod inbound_message;
@@ -37,10 +38,10 @@ const SUPPORTED_METHODS: &[&str] = &[
     "personal_sign",
     "eth_signTypedData",
     "eth_signTypedData_v4",
+    "cosmos_getAccounts",
 ];
-const SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:5"];
+const SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:5", "cosmos:cosmoshub-4"];
 const SUPPORTED_EVENTS: &[&str] = &["chainChanged", "accountsChanged"];
-const SUPPORTED_ACCOUNTS: &[&str] = &["eip155:5:0xBA5BA3955463ADcc7aa3E33bbdfb8A68e0933dD8"];
 const DEFAULT_CHAIN_ID: &str = "1"; // eth mainnet.
 
 pub struct WalletConnectCtx {
@@ -126,9 +127,9 @@ impl WalletConnectCtx {
         session.clone()
     }
 
-    pub async fn get_account_from_chain_id(
+    pub async fn get_account_for_chain_id(
         &self,
-        chain: &str,
+        : &str,
         chain_id: &str,
     ) -> MmResult<String, WalletConnectCtxError> {
         // Lock the active_chain_id and check if the chain matches
