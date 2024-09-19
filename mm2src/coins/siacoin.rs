@@ -79,7 +79,7 @@ pub struct SiaCoinConf {
 // for additional fields needed
 #[derive(Clone, Debug, Deserialize)]
 pub struct SiaCoinActivationParams {
-    //#[serde(default)]
+    #[serde(default)]
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
