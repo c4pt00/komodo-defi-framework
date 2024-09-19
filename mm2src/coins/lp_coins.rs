@@ -3282,7 +3282,7 @@ pub trait MmCoin:
     // state serialization, to get full rewind and debugging information about the coins participating in a SWAP operation.
     // status/availability check: https://github.com/artemii235/SuperNET/issues/156#issuecomment-446501816
 
-    fn is_asset_chain(&self) -> bool;
+    fn is_asset_chain(&self) -> bool { false }
 
     /// The coin can be initialized, but it cannot participate in the swaps.
     fn wallet_only(&self, ctx: &MmArc) -> bool {

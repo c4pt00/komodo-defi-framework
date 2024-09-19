@@ -272,8 +272,6 @@ pub struct SiaFeeDetails {
 
 #[async_trait]
 impl MmCoin for SiaCoin {
-    fn is_asset_chain(&self) -> bool { false }
-
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.0.abortable_system) }
 
     fn get_raw_transaction(&self, _req: RawTransactionRequest) -> RawTransactionFut { unimplemented!() }
