@@ -66,6 +66,8 @@ pub enum WalletConnectCtxError {
     #[error("Payload Error: {0}")]
     #[from_stringify("wc_common::PayloadError")]
     PayloadError(String),
+    #[error("Account not found for chain_id: {0}")]
+    NoAccountFound(String),
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {

@@ -1,4 +1,5 @@
 use common::log::info;
+use futures::SinkExt;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::{domain::Topic,
                 rpc::{params::ResponseParamsSuccess, Params, Request, Response}};
@@ -32,7 +33,15 @@ pub(crate) async fn process_inbound_request(
                 .handle_session_event(ctx, topic, &message_id)
                 .await?
         },
-        Params::SessionRequest(_) => {
+        Params::SessionRequest(param) => {
+            if &param.request.method == "cosmos_getAccounts" {
+                let mut sender = ctx.session_request_sender.lock().await;
+                sender
+                    .send(param.clone())
+                    .await
+                    .expect("event sending shouldn't fail just yet");
+                // TODO: send back a success response.
+            }
             info!("SessionRequest is not yet implemented.");
             return MmError::err(WalletConnectCtxError::NotImplemented);
         },

@@ -3311,13 +3311,10 @@ fn parse_expected_sequence_number(e: &str) -> MmResult<u64, TendermintCoinRpcErr
 }
 
 impl WcCoinOps for TendermintCoin {
-    fn events(&self) -> Vec<String> { vec![] }
     //"cosmoshub-4".to_owned()
-    fn chain_id(&self) -> Vec<String> { vec![] }
+    fn chain_id(&self) -> Vec<String> { todo!() }
 
-    fn coin_namespace(&self) -> String { "cosmos".to_owned() }
-
-    fn methods(&self) -> Vec<String> { vec!["cosmos_signDirect".to_owned(), "cosmos_signAmino".to_owned()] }
+    fn chain(&self) -> String { "cosmos".to_owned() }
 
     fn use_walletconnect(&self) -> bool { true }
 }

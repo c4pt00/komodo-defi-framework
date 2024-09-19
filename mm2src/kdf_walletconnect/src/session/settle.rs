@@ -1,6 +1,6 @@
 use super::{Session, THIRTY_DAYS};
+use crate::chain::{ETH_SUPPORTED_CHAINS, ETH_SUPPORTED_METHODS, SUPPORTED_EVENTS};
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
-use crate::{SUPPORTED_ACCOUNTS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
 
 use chrono::Utc;
 use common::log::info;
@@ -17,10 +17,10 @@ pub(crate) async fn send_session_settle_request(
 ) -> MmResult<(), WalletConnectCtxError> {
     let mut settled_namespaces = BTreeMap::<String, Namespace>::new();
     settled_namespaces.insert("eip155".to_string(), Namespace {
-        accounts: Some(SUPPORTED_ACCOUNTS.iter().map(|a| a.to_string()).collect()),
-        methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+        chains: Some(ETH_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect()),
+        methods: ETH_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
         events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
-        chains: None,
+        accounts: None,
     });
 
     let request = RequestParams::SessionSettle(SessionSettleRequest {

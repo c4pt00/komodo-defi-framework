@@ -7,9 +7,10 @@ mod metadata;
 mod session;
 
 use async_trait::async_trait;
+use chain::build_required_namespaces;
 use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
-use futures::{channel::mpsc::{unbounded, UnboundedReceiver},
+use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
               lock::Mutex,
               StreamExt};
 use handler::Handler;
@@ -20,41 +21,33 @@ use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
-use relay_rpc::rpc::params::{RelayProtocolMetadata, RequestParams};
+use relay_rpc::rpc::params::{session_request::SessionRequestRequest, RelayProtocolMetadata, RequestParams};
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
-                rpc::{params::{session::{ProposeNamespace, ProposeNamespaces},
-                               IrnMetadata, Metadata, Relay, ResponseParamsError, ResponseParamsSuccess},
+                rpc::{params::{session::ProposeNamespaces, IrnMetadata, Metadata, Relay, ResponseParamsError,
+                               ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
 use session::{propose::new_proposal, Session, SymKeyPair};
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
-const SUPPORTED_METHODS: &[&str] = &[
-    "eth_sendTransaction",
-    "eth_signTransaction",
-    "eth_sign",
-    "personal_sign",
-    "eth_signTypedData",
-    "eth_signTypedData_v4",
-    "cosmos_getAccounts",
-];
-const SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:5", "cosmos:cosmoshub-4"];
-const SUPPORTED_EVENTS: &[&str] = &["chainChanged", "accountsChanged"];
 const DEFAULT_CHAIN_ID: &str = "1"; // eth mainnet.
 
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
     pub session: Arc<Mutex<Option<Session>>>,
-    pub msg_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
-    pub connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
     pub active_chain_id: Arc<Mutex<String>>,
-    pub relay: Relay,
-    pub namespaces: ProposeNamespaces,
-    pub metadata: Metadata,
     pub(crate) key_pair: SymKeyPair,
+    relay: Relay,
+    namespaces: ProposeNamespaces,
+    metadata: Metadata,
+    inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
+    connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
+
+    session_request_sender: Arc<Mutex<UnboundedSender<SessionRequestRequest>>>,
+    session_request_handler: Arc<Mutex<UnboundedReceiver<SessionRequestRequest>>>,
 }
 
 impl Default for WalletConnectCtx {
@@ -65,16 +58,12 @@ impl WalletConnectCtx {
     pub fn new() -> Self {
         let (msg_sender, msg_receiver) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
+        let (session_request_sender, session_request_receiver) = unbounded();
 
         let pairing = PairingClient::new();
         let client = Client::new(Handler::new("Komodefi", msg_sender, conn_live_sender));
 
-        let mut required = BTreeMap::new();
-        required.insert("eip155".to_string(), ProposeNamespace {
-            chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-            methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-            events: SUPPORTED_EVENTS.iter().map(|e| e.to_string()).collect(),
-        });
+        let required = build_required_namespaces();
 
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
@@ -85,13 +74,15 @@ impl WalletConnectCtx {
             client,
             pairing,
             session: Arc::new(Mutex::new(None)),
-            msg_handler: Arc::new(Mutex::new(msg_receiver)),
-            connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
-            namespaces: ProposeNamespaces(required),
+            namespaces: required,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
+            inbound_message_handler: Arc::new(Mutex::new(msg_receiver)),
+            connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
+            session_request_handler: Arc::new(Mutex::new(session_request_receiver)),
+            session_request_sender: Arc::new(Mutex::new(session_request_sender)),
         }
     }
 
@@ -127,27 +118,26 @@ impl WalletConnectCtx {
         session.clone()
     }
 
-    pub async fn get_account_for_chain_id(
-        &self,
-        : &str,
-        chain_id: &str,
-    ) -> MmResult<String, WalletConnectCtxError> {
-        // Lock the active_chain_id and check if the chain matches
-        if *self.active_chain_id.lock().await != chain {
-            // Lock the session
+    pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectCtxError> {
+        let active_chain_id = self.active_chain_id.lock().await;
+        if *active_chain_id == chain_id {
             let session = self.session.lock().await;
-
-            // Check if a session exists
             if let Some(session) = session.as_ref() {
-                if let Some(namespace) = session.namespaces.get(chain) {
-                    if let Some(accounts) = &namespace.accounts {
-                        for account_name in accounts {
-                            let account_vec = account_name.split(':').collect::<Vec<_>>();
-
-                            // Check if the account vector has the expected format (length >= 3)
-                            if account_vec.len() >= 3 && account_vec[1] == chain_id {
-                                let account = account_vec[2].to_owned();
-                                return Ok(account);
+                // Iterate through namespaces to find the matching chain_id
+                for (namespace_key, namespace) in &session.namespaces {
+                    if let Some(chains) = &namespace.chains {
+                        let key = format!("{namespace_key}:{chain_id}");
+                        // Check if the chain_id exists within the namespace chains
+                        if chains.contains(&key) {
+                            if let Some(accounts) = &namespace.accounts {
+                                // Loop through the accounts and extract the account for the correct chain
+                                for account_name in accounts {
+                                    let account_vec = account_name.split(':').collect::<Vec<_>>();
+                                    if account_vec.len() >= 3 && account_vec[1] == chain_id {
+                                        let account = account_vec[2].to_owned();
+                                        return Ok(account);
+                                    }
+                                }
                             }
                         }
                     }
@@ -156,7 +146,7 @@ impl WalletConnectCtx {
         }
 
         // If the chain doesn't match, or no valid account is found, return an error
-        MmError::err(WalletConnectCtxError::InvalidRequest)
+        MmError::err(WalletConnectCtxError::NoAccountFound(chain_id.to_string()))
     }
 
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
@@ -273,7 +263,7 @@ impl WalletConnectCtx {
 
     pub async fn published_message_event_loop(self: Arc<Self>) {
         let self_clone = self.clone();
-        let mut recv = self.msg_handler.lock().await;
+        let mut recv = self.inbound_message_handler.lock().await;
         while let Some(msg) = recv.next().await {
             info!("received message");
             if let Err(e) = self_clone.handle_single_message(msg).await {
@@ -317,16 +307,10 @@ impl WalletConnectCtx {
 #[async_trait]
 pub trait WcCoinOps {
     /// Returns the coin's namespace identifier (e.g., "eip155" for Ethereum).
-    fn coin_namespace(&self) -> String;
+    fn chain(&self) -> String;
 
     /// Returns the list of supported chains for the coin.
     fn chain_id(&self) -> Vec<String>;
-
-    /// Returns the list of supported methods for the coin (e.g., `eth_sendTransaction`).
-    fn methods(&self) -> Vec<String>;
-
-    /// Returns the list of supported events for the coin (e.g., `chainChanged`).
-    fn events(&self) -> Vec<String>;
 
     /// Returns a boolean indicating whether WalletConnect should be used for this coin.
     fn use_walletconnect(&self) -> bool;
