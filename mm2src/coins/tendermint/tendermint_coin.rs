@@ -422,6 +422,11 @@ pub enum TendermintInitErrorKind {
     BalanceStreamInitError(String),
     #[display(fmt = "Watcher features can not be used with pubkey-only activation policy.")]
     CantUseWatchersWithPubkeyPolicy,
+    #[display(
+        fmt = "Unable to fetch chain account from WalletConnect. Please try again or reconnect your session - {}",
+        _0
+    )]
+    UnableToFetchChainAccount(String),
 }
 
 #[derive(Display, Debug, Serialize, SerializeErrorType)]

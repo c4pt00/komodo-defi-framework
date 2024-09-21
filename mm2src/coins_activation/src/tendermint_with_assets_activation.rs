@@ -18,6 +18,7 @@ use coins::tendermint::{tendermint_priv_key_policy, RpcNode, TendermintActivatio
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
 use common::{true_f, Future01CompatExt};
+use kdf_walletconnect::chain::cosmos::CosmosAccountAlgo;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
@@ -38,6 +39,14 @@ impl RegisterTokenInfo<TendermintToken> for TendermintCoin {
     }
 }
 
+#[derive(Clone, Default, Deserialize)]
+pub struct WalletConnectParams {
+    #[serde(default)]
+    pub account_index: u8,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
 #[derive(Clone, Deserialize)]
 pub struct TendermintActivationParams {
     nodes: Vec<RpcNode>,
@@ -55,7 +64,7 @@ pub struct TendermintActivationParams {
     #[serde(default)]
     is_keplr_from_ledger: bool,
     #[serde(default)]
-    is_walletconnect: bool,
+    walletconnect: WalletConnectParams,
 }
 
 fn deserialize_account_public_key<'de, D>(deserializer: D) -> Result<Option<TendermintPublicKey>, D::Error>
@@ -219,6 +228,41 @@ impl From<TendermintInitError> for EnablePlatformCoinWithTokensError {
     }
 }
 
+async fn get_walletconnect_pubkey(
+    ctx: &MmArc,
+    param: &WalletConnectParams,
+    chain_id: &str,
+    ticker: &str,
+) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
+    if ctx.is_watcher() || ctx.use_watchers() {
+        return MmError::err(TendermintInitError {
+            ticker: ticker.to_string(),
+            kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
+        });
+    };
+
+    let account = ctx
+        .wallect_connect
+        .cosmos_get_account(param.account_index, "cosmos", chain_id)
+        .await
+        .mm_err(|err| TendermintInitError {
+            ticker: ticker.to_string(),
+            kind: TendermintInitErrorKind::UnableToFetchChainAccount(err.to_string()),
+        })?;
+
+    let pubkey = match account.algo {
+        CosmosAccountAlgo::Secp256k1 => {
+            TendermintPublicKey::from_raw_secp256k1(&account.pubkey).ok_or("Invalid secp256k1 pubkey".to_owned())
+        },
+    }
+    .map_to_mm(|e| TendermintInitError {
+        ticker: ticker.to_string(),
+        kind: TendermintInitErrorKind::Internal(e),
+    })?;
+
+    Ok(TendermintActivationPolicy::with_public_key(pubkey))
+}
+
 #[async_trait]
 impl PlatformCoinWithTokensActivationOps for TendermintCoin {
     type ActivationRequest = TendermintActivationParams;
@@ -238,17 +282,35 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
         protocol_conf: Self::PlatformProtocolInfo,
     ) -> Result<Self, MmError<Self::ActivationError>> {
         let conf = TendermintConf::try_from_json(&ticker, coin_conf)?;
-        let is_keplr_from_ledger = activation_request.is_keplr_from_ledger && activation_request.with_pubkey.is_some();
+
+        let use_with_pubkey = activation_request.with_pubkey.is_some();
+        let is_keplr_from_ledger = activation_request.is_keplr_from_ledger && use_with_pubkey;
+        let use_walletconnect = activation_request.walletconnect.enabled;
+
+        if use_walletconnect && use_with_pubkey {
+            return MmError::err(TendermintInitError {
+                ticker: ticker.clone(),
+                kind: TendermintInitErrorKind::Internal("Can't activate tendermint in pubkey and WalletConnect mode enabled. Make sure only one is enabled.".to_string()),
+            });
+        };
+
+        if (use_with_pubkey || use_walletconnect) && (ctx.is_watcher() || ctx.use_watchers()) {
+            return MmError::err(TendermintInitError {
+                ticker: ticker.clone(),
+                kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
+            });
+        };
 
         let activation_policy = if let Some(pubkey) = activation_request.with_pubkey {
-            if ctx.is_watcher() || ctx.use_watchers() {
-                return MmError::err(TendermintInitError {
-                    ticker: ticker.clone(),
-                    kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
-                });
-            }
-
             TendermintActivationPolicy::with_public_key(pubkey)
+        } else if use_walletconnect {
+            get_walletconnect_pubkey(
+                &ctx,
+                &activation_request.walletconnect,
+                protocol_conf.chain_id.as_ref(),
+                &ticker,
+            )
+            .await?
         } else {
             let private_key_policy =
                 PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).mm_err(|e| TendermintInitError {

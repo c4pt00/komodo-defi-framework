@@ -25,7 +25,7 @@ use {hkdf::Hkdf,
      std::fmt::Debug,
      x25519_dalek::PublicKey};
 
-const FIVE_MINUTES: u64 = 300;
+pub(crate) const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;

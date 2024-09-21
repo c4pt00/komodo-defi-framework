@@ -1,4 +1,4 @@
-mod chain;
+pub mod chain;
 #[allow(unused)] mod error;
 mod handler;
 mod inbound_message;
@@ -7,7 +7,8 @@ mod metadata;
 mod session;
 
 use async_trait::async_trait;
-use chain::build_required_namespaces;
+use chain::{build_required_namespaces,
+            cosmos::{cosmos_get_accounts_impl, CosmosAccount}};
 use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
@@ -21,18 +22,21 @@ use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
-use relay_rpc::rpc::params::{session_request::SessionRequestRequest, RelayProtocolMetadata, RequestParams};
+use relay_rpc::rpc::params::{RelayProtocolMetadata, RequestParams};
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
                 rpc::{params::{session::ProposeNamespaces, IrnMetadata, Metadata, Relay, ResponseParamsError,
                                ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
-use session::{propose::new_proposal, Session, SymKeyPair};
+use serde_json::Value;
+use session::{propose::send_proposal, Session, SymKeyPair};
 use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
-const DEFAULT_CHAIN_ID: &str = "1"; // eth mainnet.
+const DEFAULT_CHAIN_ID: &str = "cosmoshub-4"; // cosmos.
+
+type SessionEventMessage = (MessageId, Value);
 
 pub struct WalletConnectCtx {
     pub client: Client,
@@ -46,8 +50,8 @@ pub struct WalletConnectCtx {
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
 
-    session_request_sender: Arc<Mutex<UnboundedSender<SessionRequestRequest>>>,
-    session_request_handler: Arc<Mutex<UnboundedReceiver<SessionRequestRequest>>>,
+    session_request_sender: Arc<Mutex<UnboundedSender<SessionEventMessage>>>,
+    session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
 }
 
 impl Default for WalletConnectCtx {
@@ -86,6 +90,7 @@ impl WalletConnectCtx {
         }
     }
 
+    /// Create a WalletConnect pairing connection url.
     pub async fn create_pairing(
         &self,
         required_namespaces: Option<ProposeNamespaces>,
@@ -96,11 +101,12 @@ impl WalletConnectCtx {
         self.client.subscribe(topic.clone()).await?;
         info!("Subscribed to topic: {topic:?}");
 
-        new_proposal(self, topic, required_namespaces).await?;
+        send_proposal(self, topic, required_namespaces).await?;
 
         Ok(url)
     }
 
+    /// Connect to a WalletConnect pairing url.
     pub async fn connect_to_pairing(&self, url: &str, activate: bool) -> MmResult<Topic, WalletConnectCtxError> {
         let topic = self.pairing.pair(url, activate).await?;
 
@@ -111,6 +117,13 @@ impl WalletConnectCtx {
         Ok(topic)
     }
 
+    /// Set active chain.
+    pub async fn set_active_chain(&self, chain_id: &str) {
+        let mut active_chain = self.active_chain_id.lock().await;
+        *active_chain = chain_id.to_owned();
+    }
+
+    /// Get current active chain id.
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
     pub async fn get_session(&self) -> Option<Session> {
@@ -118,6 +131,7 @@ impl WalletConnectCtx {
         session.clone()
     }
 
+    /// Get available accounts for a given chain_id.
     pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectCtxError> {
         let active_chain_id = self.active_chain_id.lock().await;
         if *active_chain_id == chain_id {
@@ -132,10 +146,10 @@ impl WalletConnectCtx {
                             if let Some(accounts) = &namespace.accounts {
                                 // Loop through the accounts and extract the account for the correct chain
                                 for account_name in accounts {
+                                    // "cosmos:cosmoshub-4:cosmos1fg2nemunucn496fewakqfe0mllcqfulrmjnj77"
                                     let account_vec = account_name.split(':').collect::<Vec<_>>();
-                                    if account_vec.len() >= 3 && account_vec[1] == chain_id {
-                                        let account = account_vec[2].to_owned();
-                                        return Ok(account);
+                                    if account_vec.len() >= 3 {
+                                        return Ok(account_vec[2].to_owned());
                                     }
                                 }
                             }
@@ -149,6 +163,25 @@ impl WalletConnectCtx {
         MmError::err(WalletConnectCtxError::NoAccountFound(chain_id.to_string()))
     }
 
+    pub async fn cosmos_get_account(
+        &self,
+        account_index: u8,
+        chain: &str,
+        chain_id: &str,
+    ) -> MmResult<CosmosAccount, WalletConnectCtxError> {
+        let accounts = cosmos_get_accounts_impl(self, chain, chain_id).await?;
+
+        if accounts.is_empty() {
+            return MmError::err(WalletConnectCtxError::EmptyAccount(chain_id.to_string()));
+        };
+
+        if accounts.len() < account_index as usize + 1 {
+            return MmError::err(WalletConnectCtxError::NoAccountFoundForIndex(account_index));
+        };
+
+        Ok(accounts[account_index as usize].clone())
+    }
+
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
         let auth = {
             let key = SigningKey::generate(&mut rand::thread_rng());
@@ -159,6 +192,7 @@ impl WalletConnectCtx {
                 .unwrap()
         };
         let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
+
         self.client.connect(&opts).await?;
 
         info!("WC connected");

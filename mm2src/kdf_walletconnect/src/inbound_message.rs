@@ -3,6 +3,8 @@ use futures::SinkExt;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::{domain::Topic,
                 rpc::{params::ResponseParamsSuccess, Params, Request, Response}};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{error::WalletConnectCtxError,
             pairing::{process_pairing_delete_response, process_pairing_extend_response, process_pairing_ping_response},
@@ -14,6 +16,13 @@ use crate::{error::WalletConnectCtxError,
                       settle::process_session_settle_request,
                       update::process_session_update_request},
             WalletConnectCtx};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SuccessResponses {
+    ResponseParamsSuccess(ResponseParamsSuccess),
+    Other(Value),
+}
 
 pub(crate) async fn process_inbound_request(
     ctx: &WalletConnectCtx,
@@ -33,15 +42,8 @@ pub(crate) async fn process_inbound_request(
                 .handle_session_event(ctx, topic, &message_id)
                 .await?
         },
-        Params::SessionRequest(param) => {
-            if &param.request.method == "cosmos_getAccounts" {
-                let mut sender = ctx.session_request_sender.lock().await;
-                sender
-                    .send(param.clone())
-                    .await
-                    .expect("event sending shouldn't fail just yet");
-                // TODO: send back a success response.
-            }
+        Params::SessionRequest(_param) => {
+            // TODO: send back a success response.
             info!("SessionRequest is not yet implemented.");
             return MmError::err(WalletConnectCtxError::NotImplemented);
         },
@@ -63,30 +65,44 @@ pub(crate) async fn process_inbound_response(
     response: Response,
     topic: &Topic,
 ) -> MmResult<(), WalletConnectCtxError> {
-    println!("got a response: {:?}", response);
+    let message_id = response.id();
+
     match response {
         Response::Success(value) => {
-            let params = serde_json::from_value::<ResponseParamsSuccess>(value.result)?;
-            match params {
-                ResponseParamsSuccess::SessionPropose(param) => {
-                    process_session_propose_response(ctx, topic, param).await
-                },
-                ResponseParamsSuccess::SessionSettle(success)
-                | ResponseParamsSuccess::SessionUpdate(success)
-                | ResponseParamsSuccess::SessionExtend(success)
-                | ResponseParamsSuccess::SessionRequest(success)
-                | ResponseParamsSuccess::SessionEvent(success)
-                | ResponseParamsSuccess::SessionDelete(success)
-                | ResponseParamsSuccess::SessionPing(success)
-                | ResponseParamsSuccess::PairingExtend(success)
-                | ResponseParamsSuccess::PairingDelete(success)
-                | ResponseParamsSuccess::PairingPing(success) => {
-                    if !success {
-                        return MmError::err(WalletConnectCtxError::UnSuccessfulResponse(format!(
-                            "Unsuccessful response={params:?}"
-                        )));
-                    }
+            let success_response = serde_json::from_value::<SuccessResponses>(value.result)?;
+            match success_response {
+                SuccessResponses::ResponseParamsSuccess(params) => match params {
+                    // Handle known success responses match success_response {
+                    ResponseParamsSuccess::SessionPropose(param) => {
+                        process_session_propose_response(ctx, topic, param).await
+                    },
+                    ResponseParamsSuccess::SessionSettle(success)
+                    | ResponseParamsSuccess::SessionUpdate(success)
+                    | ResponseParamsSuccess::SessionExtend(success)
+                    | ResponseParamsSuccess::SessionRequest(success)
+                    | ResponseParamsSuccess::SessionEvent(success)
+                    | ResponseParamsSuccess::SessionDelete(success)
+                    | ResponseParamsSuccess::SessionPing(success)
+                    | ResponseParamsSuccess::PairingExtend(success)
+                    | ResponseParamsSuccess::PairingDelete(success)
+                    | ResponseParamsSuccess::PairingPing(success) => {
+                        if !success {
+                            return MmError::err(WalletConnectCtxError::UnSuccessfulResponse(format!(
+                                "Unsuccessful response={params:?}"
+                            )));
+                        };
 
+                        Ok(())
+                    },
+                },
+                SuccessResponses::Other(value) => {
+                    ctx.session_request_sender
+                        .lock()
+                        .await
+                        .send((message_id, value))
+                        .await
+                        .ok();
+                    println!("Sent");
                     Ok(())
                 },
             }

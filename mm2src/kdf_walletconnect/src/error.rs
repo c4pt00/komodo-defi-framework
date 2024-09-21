@@ -68,14 +68,22 @@ pub enum WalletConnectCtxError {
     PayloadError(String),
     #[error("Account not found for chain_id: {0}")]
     NoAccountFound(String),
+    #[error("Account not found for index: {0}")]
+    NoAccountFoundForIndex(u8),
+    #[error("Empty account approved for chain_id: {0}")]
+    EmptyAccount(String),
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {
-    fn from(error: Error<PublishError>) -> Self { WalletConnectCtxError::PublishError(format!("{error:?}")) }
+    fn from(error: Error<PublishError>) -> Self {
+        WalletConnectCtxError::PublishError(format!("{error:?}"))
+    }
 }
 
 impl From<Error<SubscriptionError>> for WalletConnectCtxError {
-    fn from(error: Error<SubscriptionError>) -> Self { WalletConnectCtxError::SubscriptionError(format!("{error:?}")) }
+    fn from(error: Error<SubscriptionError>) -> Self {
+        WalletConnectCtxError::SubscriptionError(format!("{error:?}"))
+    }
 }
 
 /// Session key and topic derivation errors.
