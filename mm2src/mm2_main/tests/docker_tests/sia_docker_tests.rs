@@ -4,9 +4,8 @@ use sia_rust::http::client::ApiClient;
 use sia_rust::http::endpoints::{AddressBalanceRequest, ConsensusTipRequest, GetAddressUtxosRequest,
                                 TxpoolBroadcastRequest};
 use sia_rust::spend_policy::SpendPolicy;
-use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
-use sia_rust::types::{Address, Currency};
-use sia_rust::Keypair;
+use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder, Currency};
+use sia_rust::types::{Address, Keypair};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
@@ -80,7 +79,7 @@ fn test_sia_client_build_tx() {
         &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
     )
     .unwrap();
-    let spend_policy = SpendPolicy::PublicKey(keypair.public());
+    let spend_policy = SpendPolicy::PublicKey(keypair.public.clone());
 
     let address = spend_policy.address();
 
