@@ -5,15 +5,14 @@ use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
             NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult,
-            SearchForSwapTxSpendInput, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
-            SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult,
-            TradePreimageValue, TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult,
-            ValidateFeeArgs, ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError,
-            ValidatePaymentFut, ValidatePaymentInput, ValidatePaymentResult, ValidateWatcherSpendInput,
-            VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError,
-            WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut,
-            WithdrawRequest};
+            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
+            SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignatureResult, SpendPaymentArgs,
+            TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue, TransactionResult,
+            TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
+            ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
+            ValidatePaymentInput, ValidatePaymentResult, ValidateWatcherSpendInput, VerificationResult,
+            WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput,
+            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
@@ -31,10 +30,9 @@ use serde_json::Value as Json;
 use sia_rust::http::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
 use sia_rust::http::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
                                 TxpoolBroadcastRequest};
-use sia_rust::spend_policy::SpendPolicy;
-use sia_rust::transaction::{V1Transaction, V2Transaction};
-use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType};
-use sia_rust::{Keypair, KeypairError};
+pub use sia_rust::spend_policy::SpendPolicy;
+pub use sia_rust::transaction::{V1Transaction, V2Transaction, Currency};
+pub use sia_rust::types::{Address, Event, EventDataWrapper, EventPayout, EventType, Keypair, KeypairError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
@@ -601,7 +599,7 @@ impl MarketCoinOps for SiaCoin {
                 .into());
             },
         };
-        let address = SpendPolicy::PublicKey(key_pair.public()).address();
+        let address = SpendPolicy::PublicKey(key_pair.public.clone()).address();
         Ok(address.to_string())
     }
 
@@ -619,7 +617,7 @@ impl MarketCoinOps for SiaCoin {
                 return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
         };
-        Ok(key_pair.public().to_string())
+        Ok(key_pair.public.to_string())
     }
 
     // TODO Alright: I think this method can be removed from this trait
@@ -635,7 +633,7 @@ impl MarketCoinOps for SiaCoin {
         let coin = self.clone();
         let fut = async move {
             let my_address = match &coin.0.priv_key_policy {
-                PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public()).address(),
+                PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public.clone()).address(),
                 _ => {
                     return MmError::err(BalanceError::UnexpectedDerivationMethod(
                         UnexpectedDerivationMethod::ExpectedSingleAddress,
@@ -974,7 +972,7 @@ impl SiaCoin {
 
     pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
         let my_address = match &self.0.priv_key_policy {
-            PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public()).address(),
+            PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public.clone()).address(),
             _ => {
                 return MmError::err(ERRL!("Unexpected derivation method. Expected single address."));
             },

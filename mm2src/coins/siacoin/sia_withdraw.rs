@@ -1,5 +1,5 @@
 use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaFeePolicy,
-                     SiaTransactionTypes};
+                     SiaTransactionTypes, Address, Currency, Keypair};
 use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
             WithdrawRequest, WithdrawResult};
 use common::now_sec;
@@ -8,8 +8,6 @@ use mm2_err_handle::prelude::*;
 use sia_rust::http::endpoints::GetAddressUtxosResponse;
 use sia_rust::spend_policy::SpendPolicy;
 use sia_rust::transaction::{SiacoinOutput, V2TransactionBuilder};
-use sia_rust::types::{Address, Currency};
-use sia_rust::Keypair;
 use std::str::FromStr;
 
 pub struct SiaWithdrawBuilder<'a> {
@@ -24,7 +22,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
     pub fn new(coin: &'a SiaCoin, req: WithdrawRequest) -> Result<Self, MmError<WithdrawError>> {
         let (key_pair, from_address) = match &coin.0.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => {
-                let from_address = SpendPolicy::PublicKey(key_pair.public()).address();
+                let from_address = SpendPolicy::PublicKey(key_pair.public.clone()).address();
                 (key_pair, from_address)
             },
             _ => {
@@ -105,7 +103,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
 
         // Add inputs
         for output in selected_outputs {
-            tx_builder = tx_builder.add_siacoin_input(output, SpendPolicy::PublicKey(self.key_pair.public()));
+            tx_builder = tx_builder.add_siacoin_input(output, SpendPolicy::PublicKey(self.key_pair.public.clone()));
         }
 
         // Add output for recipient

@@ -93,7 +93,7 @@ rmp-serde = "0.14.3"
 rpc = { path = "../mm2_bitcoin/rpc" }
 rpc_task = { path = "../rpc_task" }
 satomic-swap = { git = "https://github.com/KomodoPlatform/satomic-swap.git", rev = "413e472", optional = true }
-sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust.git", rev = "274e438", optional = true } # FIXME set rev= prior to merge to dev
+sia-rust = { git = "https://github.com/KomodoPlatform/sia-rust.git", rev = "4721365", optional = true } # FIXME set rev= prior to merge to dev
 script = { path = "../mm2_bitcoin/script" }
 secp256k1 = { version = "0.20" }
 ser_error = { path = "../derives/ser_error" }
