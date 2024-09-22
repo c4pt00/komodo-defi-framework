@@ -59,42 +59,29 @@ impl SessionEvents {
         topic: &Topic,
         message_id: &MessageId,
     ) -> MmResult<(), WalletConnectCtxError> {
-        {
-            *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
+        if ctx.is_chain_supported(chain_id) {
+            if let Some((key, chain)) = parse_chain_and_chain_id(chain_id) {
+                if let Some(namespace) = ctx.namespaces.get(&key) {
+                    if namespace.chains.contains(&chain) {
+                        // TODO: Notify GUI about chain changed.
+                        // Update active chain_id
+                        *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
+                        let params = ResponseParamsSuccess::SessionEvent(true);
+                        ctx.publish_response_ok(topic, params, message_id).await?;
 
-            // TODO: validate session expiration.
-            //
-            if let Some((namespace, _chain)) = parse_chain_and_chain_id(chain_id) {
-                if ctx.namespaces.get(&namespace).is_none() {
-                    let error_data = ErrorData {
-                        code: UNSUPPORTED_CHAINS,
-                        message: "Chain_Id was changed to an unsupported chain".to_string(),
-                        data: None,
-                    };
-
-                    ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
-                        .await?;
-
-                    return MmError::err(WalletConnectCtxError::SessionError(format!(
-                        "Unsupported chainChanged chain_id from session request: {chain_id}",
-                    )));
-                }
-
-                let mut session = ctx.session.lock().await;
-                if let Some(session) = session.as_mut() {
-                    if let Some(ns) = session.namespaces.get_mut(&namespace) {
-                        if let Some(chains) = ns.chains.as_mut() {
-                            chains.insert(chain_id.to_owned());
-                        }
+                        return Ok(());
                     }
                 }
             }
-        }
+        };
 
-        //TODO: Notify about chain changed.
-
-        let params = ResponseParamsSuccess::SessionEvent(true);
-        ctx.publish_response_ok(topic, params, message_id).await?;
+        let error_data = ErrorData {
+            code: UNSUPPORTED_CHAINS,
+            message: "Chain_Id was changed to an unsupported chain".to_string(),
+            data: None,
+        };
+        ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
+            .await?;
 
         Ok(())
     }
@@ -118,7 +105,7 @@ impl SessionEvents {
 
 fn parse_chain_and_chain_id(chain: &str) -> Option<(String, String)> {
     let sp = chain.split(':').collect::<Vec<_>>();
-    if sp.len() == 2 {
+    if sp.len() != 2 {
         return None;
     };
 

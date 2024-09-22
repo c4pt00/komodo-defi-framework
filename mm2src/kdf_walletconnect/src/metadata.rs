@@ -10,7 +10,7 @@ pub(crate) fn generate_metadata() -> Metadata {
     Metadata {
         description: APP_DESCRIPTION.to_owned(),
         url: AUTH_TOKEN_SUB.to_owned(),
-        icons: vec![],
+        icons: vec!["https://avatars.githubusercontent.com/u/21276113?s=200&v=4".to_owned()],
         name: APP_NAME.to_owned(),
     }
 }

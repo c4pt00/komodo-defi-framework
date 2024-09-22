@@ -8,7 +8,8 @@ mod session;
 
 use async_trait::async_trait;
 use chain::{build_required_namespaces,
-            cosmos::{cosmos_get_accounts_impl, CosmosAccount}};
+            cosmos::{cosmos_get_accounts_impl, CosmosAccount},
+            SUPPORTED_CHAINS};
 use common::{executor::Timer, log::info};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
@@ -116,6 +117,8 @@ impl WalletConnectCtx {
 
         Ok(topic)
     }
+
+    pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|chain| chain == &chain_id) }
 
     /// Set active chain.
     pub async fn set_active_chain(&self, chain_id: &str) {
