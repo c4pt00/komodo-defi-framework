@@ -5,6 +5,7 @@ mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
 mod session;
+mod storage;
 
 use chain::{build_required_namespaces,
             cosmos::{cosmos_get_accounts_impl, CosmosAccount},
