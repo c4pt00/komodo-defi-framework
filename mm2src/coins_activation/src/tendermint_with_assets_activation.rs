@@ -251,7 +251,7 @@ async fn get_walletconnect_pubkey(
         })?;
 
     let pubkey = match account.algo {
-        CosmosAccountAlgo::Secp256k1 => {
+        CosmosAccountAlgo::Secp256k1 | CosmosAccountAlgo::TendermintSecp256k1 => {
             TendermintPublicKey::from_raw_secp256k1(&account.pubkey).ok_or("Invalid secp256k1 pubkey".to_owned())
         },
     }

@@ -1,4 +1,5 @@
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
 use common::log::info;
 use futures::StreamExt;
@@ -11,9 +12,11 @@ use serde_json::Value;
 use super::WcRequestMethods;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
 pub enum CosmosAccountAlgo {
+    #[serde(rename = "lowercase")]
     Secp256k1,
+    #[serde(rename = "tendermint/PubKeySecp256k1")]
+    TendermintSecp256k1,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,7 +57,13 @@ where
                     .map(|n| n as u8)
             })
             .collect(),
-        _ => Err(serde::de::Error::custom("Pubkey must be an object or array")),
+        Value::String(data) => {
+            let data = general_purpose::STANDARD
+                .decode(data)
+                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
+            Ok(data)
+        },
+        _ => Err(serde::de::Error::custom("Pubkey must be an string, object or array")),
     }
 }
 

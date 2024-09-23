@@ -6,7 +6,6 @@ mod metadata;
 #[allow(unused)] mod pairing;
 mod session;
 
-use async_trait::async_trait;
 use chain::{build_required_namespaces,
             cosmos::{cosmos_get_accounts_impl, CosmosAccount},
             SUPPORTED_CHAINS};
