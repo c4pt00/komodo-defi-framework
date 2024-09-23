@@ -65,9 +65,10 @@ pub async fn cosmos_get_accounts_impl(
 ) -> MmResult<Vec<CosmosAccount>, WalletConnectCtxError> {
     let account = ctx.get_account_for_chain_id(chain_id).await?;
 
-    let session = ctx.session.lock().await;
-    let session_topic = session.as_ref().map(|s| s.topic.clone());
-    drop(session);
+    let session_topic = {
+        let session = ctx.session.lock().await;
+        session.as_ref().map(|s| s.topic.clone())
+    };
 
     if let Some(topic) = session_topic {
         let request = SessionRequest {

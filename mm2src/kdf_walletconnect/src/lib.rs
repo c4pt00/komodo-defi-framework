@@ -10,7 +10,8 @@ use async_trait::async_trait;
 use chain::{build_required_namespaces,
             cosmos::{cosmos_get_accounts_impl, CosmosAccount},
             SUPPORTED_CHAINS};
-use common::{executor::Timer, log::info};
+use common::{executor::Timer,
+             log::{error, info}};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
               lock::Mutex,
@@ -35,7 +36,7 @@ use std::{sync::Arc, time::Duration};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
-const DEFAULT_CHAIN_ID: &str = "cosmoshub-4"; // cosmos.
+const DEFAULT_CHAIN_ID: &str = "cosmoshub-4"; // tendermint e.g ATOM
 
 type SessionEventMessage = (MessageId, Value);
 
@@ -45,9 +46,12 @@ pub struct WalletConnectCtx {
     pub session: Arc<Mutex<Option<Session>>>,
     pub active_chain_id: Arc<Mutex<String>>,
     pub(crate) key_pair: SymKeyPair,
+
     relay: Relay,
-    namespaces: ProposeNamespaces,
     metadata: Metadata,
+    namespaces: ProposeNamespaces,
+    subscriptions: Arc<Mutex<Vec<Topic>>>,
+
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
 
@@ -78,7 +82,7 @@ impl WalletConnectCtx {
         Self {
             client,
             pairing,
-            session: Arc::new(Mutex::new(None)),
+            session: Default::default(),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
             namespaces: required,
@@ -88,7 +92,26 @@ impl WalletConnectCtx {
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
             session_request_handler: Arc::new(Mutex::new(session_request_receiver)),
             session_request_sender: Arc::new(Mutex::new(session_request_sender)),
+            subscriptions: Default::default(),
         }
+    }
+
+    pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
+        let auth = {
+            let key = SigningKey::generate(&mut rand::thread_rng());
+            AuthToken::new(AUTH_TOKEN_SUB)
+                .aud(RELAY_ADDRESS)
+                .ttl(Duration::from_secs(60 * 60))
+                .as_jwt(&key)
+                .unwrap()
+        };
+        let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
+
+        self.client.connect(&opts).await?;
+
+        info!("WC connected");
+
+        Ok(())
     }
 
     /// Create a WalletConnect pairing connection url.
@@ -99,10 +122,17 @@ impl WalletConnectCtx {
         let (topic, url) = self.pairing.create(self.metadata.clone(), None).await?;
 
         info!("Subscribing to topic: {topic:?}");
+
         self.client.subscribe(topic.clone()).await?;
+
         info!("Subscribed to topic: {topic:?}");
 
-        send_proposal(self, topic, required_namespaces).await?;
+        send_proposal(self, topic.clone(), required_namespaces).await?;
+
+        {
+            let mut subs = self.subscriptions.lock().await;
+            subs.push(topic);
+        };
 
         Ok(url)
     }
@@ -114,6 +144,11 @@ impl WalletConnectCtx {
         info!("Subscribing to topic: {topic:?}");
         self.client.subscribe(topic.clone()).await?;
         info!("Subscribed to topic: {topic:?}");
+
+        {
+            let mut subs = self.subscriptions.lock().await;
+            subs.push(topic.clone());
+        };
 
         Ok(topic)
     }
@@ -183,24 +218,6 @@ impl WalletConnectCtx {
         };
 
         Ok(accounts[account_index as usize].clone())
-    }
-
-    pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
-        let auth = {
-            let key = SigningKey::generate(&mut rand::thread_rng());
-            AuthToken::new(AUTH_TOKEN_SUB)
-                .aud(RELAY_ADDRESS)
-                .ttl(Duration::from_secs(60 * 60))
-                .as_jwt(&key)
-                .unwrap()
-        };
-        let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
-
-        self.client.connect(&opts).await?;
-
-        info!("WC connected");
-
-        Ok(())
     }
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
@@ -327,28 +344,45 @@ impl WalletConnectCtx {
         info!("Inbound message was handled successfully");
         Ok(())
     }
+
     pub async fn spawn_connection_live_watcher(self: Arc<Self>) {
         let mut recv = self.connection_live_handler.lock().await;
+        let mut retry_count = 0;
+
         while let Some(_msg) = recv.next().await {
-            info!("connection disconnected, reconnecting");
-            if let Err(err) = self.connect_client().await {
-                common::log::error!("{err:?}");
-                Timer::sleep(5.).await;
-                continue;
-            };
-            info!("reconnecting success!");
+            info!("Connection disconnected. Attempting to reconnect...");
+
+            // Try reconnecting
+            match self.connect_client().await {
+                Ok(_) => {
+                    info!(
+                        "Successfully reconnected to client after {} attempt(s).",
+                        retry_count + 1
+                    );
+                    retry_count = 0;
+                },
+                Err(err) => {
+                    retry_count += 1;
+                    common::log::error!(
+                        "Error while reconnecting to client (attempt {}): {:?}. Retrying in 5 seconds...",
+                        retry_count,
+                        err
+                    );
+                    Timer::sleep(5.).await;
+                    continue;
+                },
+            }
+
+            // Subscribe to existing topics again after reconnecting
+            let subs = self.subscriptions.lock().await;
+            for topic in &*subs {
+                match self.client.subscribe(topic.clone()).await {
+                    Ok(_) => info!("Successfully reconnected to topic: {:?}", topic),
+                    Err(err) => error!("Failed to subscribe to topic: {:?}. Error: {:?}", topic, err),
+                }
+            }
+
+            info!("Reconnection process complete.");
         }
     }
-}
-
-#[async_trait]
-pub trait WcCoinOps {
-    /// Returns the coin's namespace identifier (e.g., "eip155" for Ethereum).
-    fn chain(&self) -> String;
-
-    /// Returns the list of supported chains for the coin.
-    fn chain_id(&self) -> Vec<String>;
-
-    /// Returns a boolean indicating whether WalletConnect should be used for this coin.
-    fn use_walletconnect(&self) -> bool;
 }

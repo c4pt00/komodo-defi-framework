@@ -32,7 +32,7 @@ impl ConnectionHandler for Handler {
         info!("\n[{}] connection closed: frame={frame:?}", self.name);
 
         if let Err(e) = self.conn_live_sender.start_send(()) {
-            info!("\n[{}] failed to send the to the receiver: {e}", self.name);
+            info!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 
@@ -43,7 +43,7 @@ impl ConnectionHandler for Handler {
         );
 
         if let Err(e) = self.msg_sender.start_send(message) {
-            info!("\n[{}] failed to send the to the receiver: {e}", self.name);
+            info!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 

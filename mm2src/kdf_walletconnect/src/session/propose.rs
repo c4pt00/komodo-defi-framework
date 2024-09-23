@@ -70,6 +70,8 @@ pub async fn process_proposal_request(
     {
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session.clone());
+        let mut subs = ctx.subscriptions.lock().await;
+        subs.push(session_topic.clone());
     }
 
     {
@@ -110,7 +112,7 @@ pub(crate) async fn process_session_propose_response(
 
     let mut session = Session::new(
         ctx,
-        session_topic,
+        session_topic.clone(),
         subscription_id,
         session_key,
         pairing_topic.clone(),
@@ -124,6 +126,8 @@ pub(crate) async fn process_session_propose_response(
     {
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session);
+        let mut subs = ctx.subscriptions.lock().await;
+        subs.push(session_topic.clone());
     };
 
     // Activate pairing_topic

@@ -61,7 +61,6 @@ use futures01::Future;
 use hex::FromHexError;
 use instant::Duration;
 use itertools::Itertools;
-use kdf_walletconnect::WcCoinOps;
 use keys::{KeyPair, Public};
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
@@ -3313,15 +3312,6 @@ fn parse_expected_sequence_number(e: &str) -> MmResult<u64, TendermintCoinRpcErr
         "Could not parse the expected sequence number from this error message: '{}'",
         e
     )))
-}
-
-impl WcCoinOps for TendermintCoin {
-    //"cosmoshub-4".to_owned()
-    fn chain_id(&self) -> Vec<String> { todo!() }
-
-    fn chain(&self) -> String { "cosmos".to_owned() }
-
-    fn use_walletconnect(&self) -> bool { true }
 }
 
 #[cfg(test)]
