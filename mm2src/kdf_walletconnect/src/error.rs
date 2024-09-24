@@ -75,15 +75,11 @@ pub enum WalletConnectCtxError {
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {
-    fn from(error: Error<PublishError>) -> Self {
-        WalletConnectCtxError::PublishError(format!("{error:?}"))
-    }
+    fn from(error: Error<PublishError>) -> Self { WalletConnectCtxError::PublishError(format!("{error:?}")) }
 }
 
 impl From<Error<SubscriptionError>> for WalletConnectCtxError {
-    fn from(error: Error<SubscriptionError>) -> Self {
-        WalletConnectCtxError::SubscriptionError(format!("{error:?}"))
-    }
+    fn from(error: Error<SubscriptionError>) -> Self { WalletConnectCtxError::SubscriptionError(format!("{error:?}")) }
 }
 
 /// Session key and topic derivation errors.

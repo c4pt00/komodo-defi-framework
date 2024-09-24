@@ -118,6 +118,15 @@ pub enum SessionType {
     Proposer,
 }
 
+impl ToString for SessionType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Controller => "Controller".to_string(),
+            Self::Proposer => "Proposer".to_string(),
+        }
+    }
+}
+
 /// This struct is typically used in the core session management logic of a WalletConnect
 /// implementation. It's used to store, retrieve, and update session information throughout
 /// the lifecycle of a WalletConnect connection.
