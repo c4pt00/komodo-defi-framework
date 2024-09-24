@@ -565,7 +565,7 @@ pub struct TakerSwapMut {
     payment_instructions: Option<PaymentInstructions>,
 }
 
-#[cfg(any(test, feature = "run-docker-tests"))]
+#[cfg(all(test, feature = "run-docker-tests"))]
 #[derive(Eq, PartialEq, Debug)]
 pub enum FailAt {
     TakerPayment,
@@ -576,7 +576,7 @@ pub enum FailAt {
     TakerPaymentRefundPanic,
 }
 
-#[cfg(any(test, feature = "run-docker-tests"))]
+#[cfg(all(test, feature = "run-docker-tests"))]
 impl From<String> for FailAt {
     fn from(str: String) -> Self {
         match str.as_str() {
@@ -609,7 +609,7 @@ pub struct TakerSwap {
     conf_settings: SwapConfirmationsSettings,
     payment_locktime: u64,
     p2p_privkey: Option<KeyPair>,
-    #[cfg(any(test, feature = "run-docker-tests"))]
+    #[cfg(all(test, feature = "run-docker-tests"))]
     pub(super) fail_at: Option<FailAt>,
 }
 
@@ -883,7 +883,7 @@ impl TakerSwap {
         taker_coin: MmCoinEnum,
         payment_locktime: u64,
         p2p_privkey: Option<KeyPair>,
-        #[cfg(any(test, feature = "run-docker-tests"))] fail_at: Option<FailAt>,
+        #[cfg(all(test, feature = "run-docker-tests"))] fail_at: Option<FailAt>,
     ) -> Self {
         TakerSwap {
             maker_coin,
@@ -920,7 +920,7 @@ impl TakerSwap {
                 payment_instructions: None,
             }),
             ctx,
-            #[cfg(any(test, feature = "run-docker-tests"))]
+            #[cfg(all(test, feature = "run-docker-tests"))]
             fail_at,
         }
     }
@@ -1707,7 +1707,7 @@ impl TakerSwap {
             ]));
         }
 
-        #[cfg(any(test, feature = "run-docker-tests"))]
+        #[cfg(all(test, feature = "run-docker-tests"))]
         if self.fail_at == Some(FailAt::WaitForTakerPaymentSpendPanic) {
             panic!("Taker panicked unexpectedly at wait for taker payment spend");
         }
@@ -1772,7 +1772,7 @@ impl TakerSwap {
     }
 
     async fn spend_maker_payment(&self) -> Result<(Option<TakerSwapCommand>, Vec<TakerSwapEvent>), String> {
-        #[cfg(any(test, feature = "run-docker-tests"))]
+        #[cfg(all(test, feature = "run-docker-tests"))]
         if self.fail_at == Some(FailAt::MakerPaymentSpend) {
             return Ok((Some(TakerSwapCommand::Finish), vec![
                 TakerSwapEvent::MakerPaymentSpendFailed("Explicit test failure".into()),
@@ -1848,7 +1848,7 @@ impl TakerSwap {
     }
 
     async fn refund_taker_payment(&self) -> Result<(Option<TakerSwapCommand>, Vec<TakerSwapEvent>), String> {
-        #[cfg(any(test, feature = "run-docker-tests"))]
+        #[cfg(all(test, feature = "run-docker-tests"))]
         if self.fail_at == Some(FailAt::TakerPaymentRefund) {
             return Ok((Some(TakerSwapCommand::Finish), vec![
                 TakerSwapEvent::TakerPaymentRefundFailed("Explicit test failure".into()),
@@ -2007,7 +2007,7 @@ impl TakerSwap {
                 .unwrap_or_else(|| taker_coin.requires_notarization()),
         };
 
-        #[cfg(any(test, feature = "run-docker-tests"))]
+        #[cfg(all(test, feature = "run-docker-tests"))]
         let fail_at = std::env::var("TAKER_FAIL_AT").map(FailAt::from).ok();
 
         let swap = TakerSwap::new(
@@ -2023,7 +2023,7 @@ impl TakerSwap {
             taker_coin.clone(),
             data.lock_duration,
             data.p2p_privkey.map(SerializableSecp256k1Keypair::into_inner),
-            #[cfg(any(test, feature = "run-docker-tests"))]
+            #[cfg(all(test, feature = "run-docker-tests"))]
             fail_at,
         );
 

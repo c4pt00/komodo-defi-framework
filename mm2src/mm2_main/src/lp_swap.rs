@@ -2359,7 +2359,7 @@ mod lp_swap_tests {
 
         maker_swap.fail_at = maker_fail_at;
 
-        #[cfg(any(test, feature = "run-docker-tests"))]
+        #[cfg(all(test, feature = "run-docker-tests"))]
         let fail_at = std::env::var("TAKER_FAIL_AT").map(taker_swap::FailAt::from).ok();
 
         let taker_swap = TakerSwap::new(
@@ -2375,7 +2375,7 @@ mod lp_swap_tests {
             morty_taker.into(),
             lock_duration,
             None,
-            #[cfg(any(test, feature = "run-docker-tests"))]
+            #[cfg(all(test, feature = "run-docker-tests"))]
             fail_at,
         );
 
