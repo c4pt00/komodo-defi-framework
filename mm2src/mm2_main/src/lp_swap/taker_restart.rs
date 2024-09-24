@@ -9,11 +9,11 @@ use mm2_core::mm_ctx::MmArc;
 use rpc::v1::types::{Bytes, H256};
 use std::sync::atomic::Ordering;
 
-#[cfg(not(any(test, feature = "run-docker-tests")))]
-use super::swap_watcher::{default_watcher_maker_payment_spend_factor, default_watcher_refund_factor};
+// #[cfg(not(any(test, feature = "run-docker-tests")))]
+// use super::swap_watcher::{default_watcher_maker_payment_spend_factor, default_watcher_refund_factor};
 
-#[cfg(not(any(test, feature = "run-docker-tests")))]
-use common::now_sec;
+// #[cfg(not(any(test, feature = "run-docker-tests")))]
+// use common::now_sec;
 
 pub async fn get_command_based_on_maker_or_watcher_activity(
     ctx: &MmArc,
@@ -21,14 +21,14 @@ pub async fn get_command_based_on_maker_or_watcher_activity(
     mut saved: TakerSavedSwap,
     command: TakerSwapCommand,
 ) -> Result<TakerSwapCommand, String> {
-    #[cfg(not(any(test, feature = "run-docker-tests")))]
-    {
-        let watcher_refund_time = swap.r().data.started_at
-            + (default_watcher_maker_payment_spend_factor() * swap.r().data.lock_duration as f64) as u64;
-        if now_sec() < watcher_refund_time {
-            return Ok(command);
-        }
-    }
+    // #[cfg(not(any(test, feature = "run-docker-tests")))]
+    // {
+    //     let watcher_refund_time = swap.r().data.started_at
+    //         + (default_watcher_maker_payment_spend_factor() * swap.r().data.lock_duration as f64) as u64;
+    //     if now_sec() < watcher_refund_time {
+    //         return Ok(command);
+    //     }
+    // }
 
     match command {
         TakerSwapCommand::Start => Ok(command),
@@ -50,14 +50,14 @@ pub async fn get_command_based_on_maker_or_watcher_activity(
         },
         TakerSwapCommand::SpendMakerPayment => check_maker_payment_spend_and_add_event(ctx, swap, saved).await,
         TakerSwapCommand::PrepareForTakerPaymentRefund | TakerSwapCommand::RefundTakerPayment => {
-            #[cfg(not(any(test, feature = "run-docker-tests")))]
-            {
-                let watcher_refund_time = swap.r().data.started_at
-                    + (default_watcher_refund_factor() * swap.r().data.lock_duration as f64) as u64;
-                if now_sec() < watcher_refund_time {
-                    return Ok(command);
-                }
-            }
+            // #[cfg(not(any(test, feature = "run-docker-tests")))]
+            // {
+            //     let watcher_refund_time = swap.r().data.started_at
+            //         + (default_watcher_refund_factor() * swap.r().data.lock_duration as f64) as u64;
+            //     if now_sec() < watcher_refund_time {
+            //         return Ok(command);
+            //     }
+            // }
 
             match check_taker_payment_spend(swap).await {
                 Ok(Some(FoundSwapTxSpend::Spent(_))) => ERR!("Taker payment is not expected to be spent at this point"),
