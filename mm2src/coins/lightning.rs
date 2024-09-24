@@ -819,6 +819,7 @@ impl SwapOps for LightningCoin {
         }
     }
 
+    #[inline]
     fn is_auto_refundable(&self) -> bool { true }
 
     async fn wait_for_htlc_refund(&self, tx: &[u8], locktime: u64) -> RefundResult<()> {

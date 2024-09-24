@@ -1186,7 +1186,8 @@ pub trait SwapOps {
     }
 
     /// Whether the swap payment is refunded automatically or not when the locktime expires, or the other side fails the HTLC.
-    fn is_auto_refundable(&self) -> bool;
+    #[inline]
+    fn is_auto_refundable(&self) -> bool { false }
 
     /// Waits for an htlc to be refunded automatically.
     async fn wait_for_htlc_refund(&self, _tx: &[u8], _locktime: u64) -> RefundResult<()>;
