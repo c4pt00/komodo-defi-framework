@@ -1677,7 +1677,7 @@ fn pubkey_and_secret_for_test(passphrase: &str) -> (String, [u8; 32]) {
     (pubkey, secret)
 }
 
-pub(crate) fn init_p2p_context(ctx: &MmArc) -> (mpsc::Sender<AdexBehaviourCmd>, mpsc::Receiver<AdexBehaviourCmd>) {
+fn init_p2p_context(ctx: &MmArc) -> (mpsc::Sender<AdexBehaviourCmd>, mpsc::Receiver<AdexBehaviourCmd>) {
     let (cmd_tx, cmd_rx) = mpsc::channel(10);
 
     let p2p_key = {
