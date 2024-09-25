@@ -25,7 +25,7 @@ use coins::{CoinsContext, DexFee, FundingTxSpend, GenTakerFundingSpendArgs, GenT
             RefundMakerPaymentTimelockArgs, RefundTakerPaymentArgs, SendMakerPaymentArgs, SendTakerFundingArgs,
             SpendMakerPaymentArgs, TakerCoinSwapOpsV2, TxPreimageWithSig, ValidateMakerPaymentArgs,
             ValidateTakerFundingArgs};
-use common::{block_on, now_sec};
+use common::{block_on, block_on_f01, now_sec};
 use crypto::Secp256k1Secret;
 use ethereum_types::U256;
 use futures01::Future;
@@ -561,7 +561,7 @@ fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         watcher_reward: None,
         wait_for_confirmation_until: 0,
     };
-    let eth_maker_payment = eth_coin.send_maker_payment(send_payment_args).wait().unwrap();
+    let eth_maker_payment = block_on_f01(eth_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -570,7 +570,7 @@ fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    eth_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(eth_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let refund_args = RefundPaymentArgs {
         payment_tx: &eth_maker_payment.tx_hex(),
@@ -593,7 +593,7 @@ fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    eth_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(eth_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let search_input = SearchForSwapTxSpendInput {
         time_lock,
@@ -647,7 +647,7 @@ fn send_and_spend_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         watcher_reward: None,
         wait_for_confirmation_until: 0,
     };
-    let eth_maker_payment = maker_eth_coin.send_maker_payment(send_payment_args).wait().unwrap();
+    let eth_maker_payment = block_on_f01(maker_eth_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -656,7 +656,7 @@ fn send_and_spend_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    taker_eth_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(taker_eth_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let spend_args = SpendPaymentArgs {
         other_payment_tx: &eth_maker_payment.tx_hex(),
@@ -678,7 +678,7 @@ fn send_and_spend_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    taker_eth_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(taker_eth_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let search_input = SearchForSwapTxSpendInput {
         time_lock,
@@ -730,7 +730,7 @@ fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) 
         watcher_reward: None,
         wait_for_confirmation_until: now_sec() + 60,
     };
-    let eth_maker_payment = erc20_coin.send_maker_payment(send_payment_args).wait().unwrap();
+    let eth_maker_payment = block_on_f01(erc20_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -739,7 +739,7 @@ fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) 
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    erc20_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(erc20_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let refund_args = RefundPaymentArgs {
         payment_tx: &eth_maker_payment.tx_hex(),
@@ -762,7 +762,7 @@ fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) 
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    erc20_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(erc20_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let search_input = SearchForSwapTxSpendInput {
         time_lock,
@@ -819,7 +819,7 @@ fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         watcher_reward: None,
         wait_for_confirmation_until: now_sec() + 60,
     };
-    let eth_maker_payment = maker_erc20_coin.send_maker_payment(send_payment_args).wait().unwrap();
+    let eth_maker_payment = block_on_f01(maker_erc20_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -828,7 +828,7 @@ fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    taker_erc20_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(taker_erc20_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let spend_args = SpendPaymentArgs {
         other_payment_tx: &eth_maker_payment.tx_hex(),
@@ -850,7 +850,7 @@ fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         wait_until: now_sec() + 60,
         check_every: 1,
     };
-    taker_erc20_coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(taker_erc20_coin.wait_for_confirmations(confirm_input)).unwrap();
 
     let search_input = SearchForSwapTxSpendInput {
         time_lock,
@@ -993,12 +993,12 @@ fn test_nonce_several_urls() {
     // Use one working and one failing URL.
     let coin = eth_coin_with_random_privkey_using_urls(swap_contract(), &[GETH_RPC_URL, "http://127.0.0.1:0"]);
     let my_address = block_on(coin.derivation_method().single_addr_or_err()).unwrap();
-    let (old_nonce, _) = coin.clone().get_addr_nonce(my_address).wait().unwrap();
+    let (old_nonce, _) = block_on_f01(coin.clone().get_addr_nonce(my_address)).unwrap();
 
     // Send a payment to increase the nonce.
-    coin.send_to_address(my_address, 200000000.into()).wait().unwrap();
+    block_on_f01(coin.send_to_address(my_address, 200000000.into())).unwrap();
 
-    let (new_nonce, _) = coin.get_addr_nonce(my_address).wait().unwrap();
+    let (new_nonce, _) = block_on_f01(coin.get_addr_nonce(my_address)).unwrap();
     assert_eq!(old_nonce + 1, new_nonce);
 }
 
@@ -1327,7 +1327,7 @@ fn wait_for_confirmations(coin: &EthCoin, tx: &SignedEthTx, wait_seconds: u64) {
         wait_until: now_sec() + wait_seconds,
         check_every: 1,
     };
-    coin.wait_for_confirmations(confirm_input).wait().unwrap();
+    block_on_f01(coin.wait_for_confirmations(confirm_input)).unwrap();
 }
 
 fn validate_nft_maker_payment(setup: &NftTestSetup, maker_payment: &SignedEthTx, amount: BigDecimal) {
