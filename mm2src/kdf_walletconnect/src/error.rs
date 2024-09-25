@@ -72,6 +72,8 @@ pub enum WalletConnectCtxError {
     NoAccountFoundForIndex(u8),
     #[error("Empty account approved for chain_id: {0}")]
     EmptyAccount(String),
+    #[error("WalletConnect is not initaliazed yet!")]
+    NotInitialized,
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {

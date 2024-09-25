@@ -13,7 +13,7 @@ use super::WcRequestMethods;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CosmosAccountAlgo {
-    #[serde(rename = "lowercase")]
+    #[serde(rename = "secp256k")]
     Secp256k1,
     #[serde(rename = "tendermint/PubKeySecp256k1")]
     TendermintSecp256k1,

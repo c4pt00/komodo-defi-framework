@@ -16,6 +16,7 @@ use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::IrnMetadata;
 use relay_rpc::{domain::{SubscriptionId, Topic},
                 rpc::params::{session::ProposeNamespaces, session_settle::Controller, Metadata, Relay}};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use x25519_dalek::{SharedSecret, StaticSecret};
@@ -30,10 +31,10 @@ pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SessionKey {
     sym_key: [u8; 32],
-    public_key: PublicKey,
+    public_key: [u8; 32],
 }
 
 impl std::fmt::Debug for SessionKey {
@@ -50,7 +51,7 @@ impl SessionKey {
     pub fn new(public_key: PublicKey) -> Self {
         Self {
             sym_key: [0u8; 32],
-            public_key,
+            public_key: public_key.to_bytes(),
         }
     }
 
@@ -69,7 +70,7 @@ impl SessionKey {
 
         let mut session_key = Self {
             sym_key: [0u8; 32],
-            public_key,
+            public_key: public_key.to_bytes(),
         };
         session_key.derive_symmetric_key(&shared_secret)?;
 
@@ -97,7 +98,7 @@ impl SessionKey {
     pub fn symmetric_key(&self) -> &[u8; 32] { &self.sym_key }
 
     /// Gets "our" public key used in symmetric key derivation.
-    pub fn diffie_public_key(&self) -> &[u8; 32] { self.public_key.as_bytes() }
+    pub fn diffie_public_key(&self) -> &[u8; 32] { &self.public_key }
 
     /// Generates new session topic.
     pub fn generate_topic(&self) -> String {
@@ -110,7 +111,7 @@ impl SessionKey {
 /// In the WalletConnect protocol, a session involves two parties: a controller
 /// (typically a wallet) and a proposer (typically a dApp). This enum is used
 /// to distinguish between these two roles.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SessionType {
     /// Represents the controlling party in a session, typically a wallet.
     Controller,
@@ -130,7 +131,7 @@ impl ToString for SessionType {
 /// This struct is typically used in the core session management logic of a WalletConnect
 /// implementation. It's used to store, retrieve, and update session information throughout
 /// the lifecycle of a WalletConnect connection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Session {
     /// Session topic
     pub topic: Topic,

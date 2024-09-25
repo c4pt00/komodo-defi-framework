@@ -19,6 +19,7 @@ use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
 use handler::Handler;
 use inbound_message::{process_inbound_request, process_inbound_response};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
+use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
@@ -59,12 +60,8 @@ pub struct WalletConnectCtx {
     session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
 }
 
-impl Default for WalletConnectCtx {
-    fn default() -> Self { Self::new() }
-}
-
 impl WalletConnectCtx {
-    pub fn new() -> Self {
+    pub fn init() -> Self {
         let (msg_sender, msg_receiver) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (session_request_sender, session_request_receiver) = unbounded();
@@ -94,6 +91,10 @@ impl WalletConnectCtx {
             session_request_sender: Arc::new(Mutex::new(session_request_sender)),
             subscriptions: Default::default(),
         }
+    }
+
+    pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
+        from_ctx(&ctx.wallet_connect, move || Ok(Self::init())).map_to_mm(WalletConnectCtxError::InternalError)
     }
 
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {

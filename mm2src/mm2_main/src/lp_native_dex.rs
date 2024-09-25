@@ -25,6 +25,7 @@ use common::log::{info, warn};
 use crypto::{from_hw_error, CryptoCtx, HwError, HwProcessingError, HwRpcError, WithHwRpcError};
 use derive_more::Display;
 use enum_derives::EnumFromTrait;
+use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::{MmArc, MmCtx};
 use mm2_err_handle::common_errors::InternalError;
 use mm2_err_handle::prelude::*;
@@ -473,14 +474,16 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
     init_message_service(&ctx).await?;
 
     // connect walletconnect
-    ctx.wallect_connect
+    let wallet_connect =
+        WalletConnectCtx::from_ctx(&ctx).map_err(|err| MmInitError::WalletInitError(err.to_string()))?;
+    wallet_connect
         .connect_client()
         .await
         .map_err(|err| MmInitError::WalletInitError(err.to_string()))?;
     ctx.spawner()
-        .spawn(ctx.wallect_connect.clone().published_message_event_loop());
+        .spawn(wallet_connect.clone().published_message_event_loop());
     ctx.spawner()
-        .spawn(ctx.wallect_connect.clone().spawn_connection_live_watcher());
+        .spawn(wallet_connect.clone().spawn_connection_live_watcher());
 
     let balance_update_ordermatch_handler = BalanceUpdateOrdermatchHandler::new(ctx.clone());
     register_balance_update_handler(ctx.clone(), Box::new(balance_update_ordermatch_handler)).await;

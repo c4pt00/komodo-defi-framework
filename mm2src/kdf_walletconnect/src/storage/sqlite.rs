@@ -75,8 +75,8 @@ impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
         self.call(move |conn| {
             let transaction = conn.transaction()?;
 
-            let session_key =
-                serde_json::to_string(&session.session_key).map_err(|err| AsyncConnError::from(err.to_string()))?;
+            //let session_key =
+            //    serde_json::to_string(&session.session_key).map_err(|err| AsyncConnError::from(err.to_string()))?;
             let relay = serde_json::to_string(&session.relay).map_err(|err| AsyncConnError::from(err.to_string()))?;
             let proposer =
                 serde_json::to_string(&session.proposer).map_err(|err| AsyncConnError::from(err.to_string()))?;
@@ -90,7 +90,7 @@ impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
             let params = [
                 session.topic.to_string(),
                 session.subscription_id.to_string(),
-                session_key,
+                "session_key".to_string(),
                 session.expiry.to_string(),
                 session.pairing_topic.to_string(),
                 session.session_type.to_string(),

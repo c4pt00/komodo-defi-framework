@@ -5,8 +5,8 @@ use relay_rpc::{domain::Topic, rpc::params::session::SettleNamespaces};
 
 use crate::session::Session;
 
-pub(crate) mod sqlite;
-pub(crate) mod wasm;
+#[cfg(not(target_arch = "wasm32"))] pub(crate) mod sqlite;
+#[cfg(target_arch = "wasm32")] pub(crate) mod wasm;
 
 pub(crate) const SESSION_STORAGE_TABLE_NAME: &str = "kdf_wc_session_storage";
 

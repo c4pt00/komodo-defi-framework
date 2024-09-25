@@ -2,6 +2,7 @@ use common::HttpStatusCode;
 use crypto::{CryptoCtx, CryptoCtxError, HwConnectionStatus, HwPubkey};
 use derive_more::Display;
 use http::StatusCode;
+use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use rpc::v1::types::H160 as H160Json;
@@ -133,8 +134,9 @@ pub async fn connect_to_peer(
     ctx: MmArc,
     req: ConnectPairingRequest,
 ) -> MmResult<ConnectPairingResponse, TrezorConnectionError> {
-    let topic = ctx
-        .wallect_connect
+    let walletconnect_ctx = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+
+    let topic = walletconnect_ctx
         .connect_to_pairing(&req.url, true)
         .await
         .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;
@@ -157,8 +159,9 @@ pub async fn create_new_pairing(
     ctx: MmArc,
     _req: CreatePairingRequest,
 ) -> MmResult<CreatePairingResponse, TrezorConnectionError> {
-    let url = ctx
-        .wallect_connect
+    let walletconnect_ctx = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+
+    let url = walletconnect_ctx
         .create_pairing(None)
         .await
         .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;

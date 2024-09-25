@@ -5,7 +5,6 @@ use common::executor::{abortable_queue::{AbortableQueue, WeakSpawner},
 use common::log::{self, LogLevel, LogOnError, LogState};
 use common::{cfg_native, cfg_wasm32, small_rng};
 use gstuff::{try_s, Constructible, ERR, ERRL};
-use kdf_walletconnect::WalletConnectCtx;
 use lazy_static::lazy_static;
 use mm2_event_stream::{controller::Controller, Event, EventStreamConfiguration};
 use mm2_metrics::{MetricsArc, MetricsOps};
@@ -143,7 +142,7 @@ pub struct MmCtx {
     /// asynchronous handle for rusqlite connection.
     #[cfg(not(target_arch = "wasm32"))]
     pub async_sqlite_connection: Constructible<Arc<AsyncMutex<AsyncConnection>>>,
-    pub wallect_connect: Arc<WalletConnectCtx>,
+    pub wallet_connect: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
 }
 
 impl MmCtx {
@@ -193,7 +192,7 @@ impl MmCtx {
             nft_ctx: Mutex::new(None),
             #[cfg(not(target_arch = "wasm32"))]
             async_sqlite_connection: Constructible::default(),
-            wallect_connect: Arc::new(WalletConnectCtx::default()),
+            wallet_connect: Mutex::new(None),
         }
     }
 

@@ -64,6 +64,7 @@ http = "0.2"
 hw_common = { path = "../hw_common" }
 instant = { version = "0.1.12" }
 itertools = "0.10"
+kdf_walletconnect = { path = "../kdf_walletconnect" }
 keys = { path = "../mm2_bitcoin/keys" }
 lazy_static = "1.4"
 # ledger = { path = "../ledger" }
