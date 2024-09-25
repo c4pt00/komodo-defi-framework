@@ -6,6 +6,7 @@ use ethereum_types::{Address, U256};
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::mm_error::MmError;
 use mm2_number::BigDecimal;
+use num_traits::Signed;
 use web3::types::Transaction as Web3Tx;
 
 pub(crate) mod eth_maker_swap_v2;
@@ -137,17 +138,13 @@ pub(crate) fn validate_from_to_and_status(
     Ok(())
 }
 
-/// function to check if BigDecimal is a positive value
-#[inline(always)]
-fn is_positive(amount: &BigDecimal) -> bool { amount > &BigDecimal::from(0) }
-
 // TODO validate premium when add its support in swap_v2
 fn validate_payment_args<'a>(
     taker_secret_hash: &'a [u8],
     maker_secret_hash: &'a [u8],
     trading_amount: &BigDecimal,
 ) -> Result<(), String> {
-    if !is_positive(trading_amount) {
+    if !trading_amount.is_positive() {
         return Err("trading_amount must be a positive value".to_string());
     }
     if taker_secret_hash.len() != 32 {
