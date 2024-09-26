@@ -40,12 +40,25 @@ impl RegisterTokenInfo<TendermintToken> for TendermintCoin {
     }
 }
 
-#[derive(Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WalletConnectParams {
     #[serde(default)]
     pub account_index: u8,
     #[serde(default)]
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TendermintPubkeyActivationParams {
+    /// Activation via public key
+    WithPubkey {
+        #[serde(deserialize_with = "deserialize_account_public_key")]
+        pubkey: TendermintPublicKey,
+        is_keplr_from_ledger: bool,
+    },
+    /// Activation via WalletConnect
+    WalletConnect(WalletConnectParams),
 }
 
 #[derive(Clone, Deserialize)]
@@ -60,15 +73,10 @@ pub struct TendermintActivationParams {
     #[serde(default)]
     pub path_to_address: HDPathAccountToAddressId,
     #[serde(default)]
-    #[serde(deserialize_with = "deserialize_account_public_key")]
-    with_pubkey: Option<TendermintPublicKey>,
-    #[serde(default)]
-    is_keplr_from_ledger: bool,
-    #[serde(default)]
-    walletconnect: WalletConnectParams,
+    pub activation_params: Option<TendermintPubkeyActivationParams>,
 }
 
-fn deserialize_account_public_key<'de, D>(deserializer: D) -> Result<Option<TendermintPublicKey>, D::Error>
+fn deserialize_account_public_key<'de, D>(deserializer: D) -> Result<TendermintPublicKey, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -86,7 +94,7 @@ where
                                 .iter()
                                 .map(|i| i.as_u64().unwrap() as u8)
                                 .collect();
-                            Ok(Some(TendermintPublicKey::from_raw_ed25519(&value).unwrap()))
+                            Ok(TendermintPublicKey::from_raw_ed25519(&value).unwrap())
                         },
                         Some("secp256k1") => {
                             let value: Vec<u8> = value
@@ -95,7 +103,7 @@ where
                                 .iter()
                                 .map(|i| i.as_u64().unwrap() as u8)
                                 .collect();
-                            Ok(Some(TendermintPublicKey::from_raw_secp256k1(&value).unwrap()))
+                            Ok(TendermintPublicKey::from_raw_secp256k1(&value).unwrap())
                         },
                         _ => Err(serde::de::Error::custom(
                             "Unsupported pubkey algorithm. Use one of ['ed25519', 'secp256k1']",
@@ -285,35 +293,29 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
         protocol_conf: Self::PlatformProtocolInfo,
     ) -> Result<Self, MmError<Self::ActivationError>> {
         let conf = TendermintConf::try_from_json(&ticker, coin_conf)?;
+        let mut is_keplr_from_ledger = false;
 
-        let use_with_pubkey = activation_request.with_pubkey.is_some();
-        let is_keplr_from_ledger = activation_request.is_keplr_from_ledger && use_with_pubkey;
-        let use_walletconnect = activation_request.walletconnect.enabled;
+        let activation_policy = if let Some(params) = activation_request.activation_params {
+            println!("{params:?}");
+            if ctx.is_watcher() || ctx.use_watchers() {
+                return MmError::err(TendermintInitError {
+                    ticker: ticker.clone(),
+                    kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
+                });
+            };
 
-        if use_walletconnect && use_with_pubkey {
-            return MmError::err(TendermintInitError {
-                ticker: ticker.clone(),
-                kind: TendermintInitErrorKind::Internal("Can't activate tendermint in pubkey and WalletConnect mode enabled. Make sure only one is enabled.".to_string()),
-            });
-        };
-
-        if (use_with_pubkey || use_walletconnect) && (ctx.is_watcher() || ctx.use_watchers()) {
-            return MmError::err(TendermintInitError {
-                ticker: ticker.clone(),
-                kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
-            });
-        };
-
-        let activation_policy = if let Some(pubkey) = activation_request.with_pubkey {
-            TendermintActivationPolicy::with_public_key(pubkey)
-        } else if use_walletconnect {
-            get_walletconnect_pubkey(
-                &ctx,
-                &activation_request.walletconnect,
-                protocol_conf.chain_id.as_ref(),
-                &ticker,
-            )
-            .await?
+            match params {
+                TendermintPubkeyActivationParams::WithPubkey {
+                    pubkey,
+                    is_keplr_from_ledger: temp,
+                } => {
+                    is_keplr_from_ledger = temp;
+                    TendermintActivationPolicy::with_public_key(pubkey)
+                },
+                TendermintPubkeyActivationParams::WalletConnect(params) => {
+                    get_walletconnect_pubkey(&ctx, &params, protocol_conf.chain_id.as_ref(), &ticker).await?
+                },
+            }
         } else {
             let private_key_policy =
                 PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).mm_err(|e| TendermintInitError {
