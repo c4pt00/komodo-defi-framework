@@ -1,11 +1,12 @@
 use super::{settle::send_session_settle_request, Session};
 use crate::{error::WalletConnectCtxError,
             session::{SessionKey, SessionType, THIRTY_DAYS},
+            storage::WalletConnectStorageOps,
             WalletConnectCtx};
 
 use chrono::Utc;
 use mm2_err_handle::map_to_mm::MapToMmResult;
-use mm2_err_handle::prelude::MmResult;
+use mm2_err_handle::prelude::*;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session::ProposeNamespaces,
                               session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
@@ -68,6 +69,13 @@ pub async fn process_proposal_request(
         .map_to_mm(|err| WalletConnectCtxError::InternalError(err.to_string()))?;
 
     {
+        // save session to storage
+        ctx.storage
+            .db
+            .save_session(&session)
+            .await
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session.clone());
         let mut subs = ctx.subscriptions.lock().await;
@@ -75,7 +83,6 @@ pub async fn process_proposal_request(
     }
 
     {
-        println!("{:?}", session);
         send_session_settle_request(ctx, &session).await?;
     };
 
@@ -125,7 +132,13 @@ pub(crate) async fn process_session_propose_response(
     session.controller.public_key = response.responder_public_key;
 
     {
-        println!("{:?}", session);
+        // save session to storage
+        ctx.storage
+            .db
+            .save_session(&session)
+            .await
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session);
         let mut subs = ctx.subscriptions.lock().await;

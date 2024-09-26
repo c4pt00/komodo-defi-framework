@@ -134,7 +134,8 @@ pub async fn connect_to_peer(
     ctx: MmArc,
     req: ConnectPairingRequest,
 ) -> MmResult<ConnectPairingResponse, TrezorConnectionError> {
-    let walletconnect_ctx = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+    let walletconnect_ctx =
+        WalletConnectCtx::try_from_ctx_or_initialize(&ctx).expect("WalletConnectCtx should be initialized by now!");
 
     let topic = walletconnect_ctx
         .connect_to_pairing(&req.url, true)
@@ -159,7 +160,8 @@ pub async fn create_new_pairing(
     ctx: MmArc,
     _req: CreatePairingRequest,
 ) -> MmResult<CreatePairingResponse, TrezorConnectionError> {
-    let walletconnect_ctx = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+    let walletconnect_ctx =
+        WalletConnectCtx::try_from_ctx_or_initialize(&ctx).expect("WalletConnectCtx should be initialized by now!");
 
     let url = walletconnect_ctx
         .create_pairing(None)

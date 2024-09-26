@@ -71,7 +71,7 @@ impl WalletConnectStorageOps for IDBSessionStorage {
 
     async fn is_initialized(&self) -> MmResult<bool, Self::Error> { Ok(true) }
 
-    async fn save_session(&self, session: Session) -> MmResult<(), Self::Error> {
+    async fn save_session(&self, session: &Session) -> MmResult<(), Self::Error> {
         let lock_db = self.lock_db().await?;
         let transaction = lock_db.get_inner().transaction().await?;
         let session_table = transaction.table::<Session>().await?;
@@ -93,6 +93,19 @@ impl WalletConnectStorageOps for IDBSessionStorage {
             .map(|s| s.1))
     }
 
+    async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error> {
+        let lock_db = self.lock_db().await?;
+        let transaction = lock_db.get_inner().transaction().await?;
+        let session_table = transaction.table::<Session>().await?;
+
+        Ok(session_table
+            .get_all_items()
+            .await?
+            .into_iter()
+            .map(|s| s.1)
+            .collect::<Vec<_>>())
+    }
+
     async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error> {
         let lock_db = self.lock_db().await?;
         let transaction = lock_db.get_inner().transaction().await?;
@@ -102,5 +115,5 @@ impl WalletConnectStorageOps for IDBSessionStorage {
         Ok(())
     }
 
-    async fn update_session(&self, session: Session) -> MmResult<(), Self::Error> { self.save_session(session).await }
+    async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error> { self.save_session(&session).await }
 }

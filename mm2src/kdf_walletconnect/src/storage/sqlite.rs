@@ -76,7 +76,7 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
         .map_to_mm(AsyncConnError::from)
     }
 
-    async fn save_session(&self, session: Session) -> MmResult<(), Self::Error> {
+    async fn save_session(&self, session: &Session) -> MmResult<(), Self::Error> {
         let lock = self.lock_db().await;
         validate_table_name(SESSION_TBALE_NAME).map_err(AsyncConnError::from)?;
         let sql = format!(
@@ -88,6 +88,7 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
             SESSION_TBALE_NAME
         );
 
+        let session = session.clone();
         lock.call(move |conn| {
             let transaction = conn.transaction()?;
 
@@ -127,7 +128,9 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn get_session(&self, topic: &Topic) -> MmResult<Option<Session>, Self::Error> { todo!() }
 
+    async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error> { todo!() }
+
     async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error> { todo!() }
 
-    async fn update_session(&self, _session: Session) -> MmResult<(), Self::Error> { todo!() }
+    async fn update_session(&self, _session: &Session) -> MmResult<(), Self::Error> { todo!() }
 }

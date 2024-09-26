@@ -242,7 +242,8 @@ async fn get_walletconnect_pubkey(
         });
     };
 
-    let walletconnect_ctx = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
+    let walletconnect_ctx =
+        WalletConnectCtx::try_from_ctx_or_initialize(ctx).expect("WalletConnectCtx should be initialized by now!");
 
     let account = walletconnect_ctx
         .cosmos_get_account(param.account_index, "cosmos", chain_id)

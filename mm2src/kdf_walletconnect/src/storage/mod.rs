@@ -15,10 +15,11 @@ pub(crate) trait WalletConnectStorageOps {
 
     async fn init(&self) -> MmResult<(), Self::Error>;
     async fn is_initialized(&self) -> MmResult<bool, Self::Error>;
-    async fn save_session(&self, session: Session) -> MmResult<(), Self::Error>;
+    async fn save_session(&self, session: &Session) -> MmResult<(), Self::Error>;
     async fn get_session(&self, topic: &Topic) -> MmResult<Option<Session>, Self::Error>;
+    async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error>;
     async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error>;
-    async fn update_session(&self, session: Session) -> MmResult<(), Self::Error>;
+    async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error>;
 }
 
 pub(crate) struct SessionStorageDb {
@@ -85,7 +86,7 @@ pub(crate) mod session_storage_tests {
         );
 
         // try save session
-        wc_ctx.storage.db.save_session(session.clone()).await.unwrap();
+        wc_ctx.storage.db.save_session(&session).await.unwrap();
 
         // try get session
         let db_session = wc_ctx.storage.db.get_session(&session.topic).await.unwrap();

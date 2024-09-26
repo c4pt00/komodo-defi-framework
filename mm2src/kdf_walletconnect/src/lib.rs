@@ -10,6 +10,7 @@ mod storage;
 use chain::{build_required_namespaces,
             cosmos::{cosmos_get_accounts_impl, CosmosAccount},
             SUPPORTED_CHAINS};
+use common::executor::SpawnFuture;
 use common::{executor::Timer,
              log::{error, info}};
 use error::WalletConnectCtxError;
@@ -34,7 +35,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
 use serde_json::Value;
 use session::{propose::send_proposal, Session, SymKeyPair};
 use std::{sync::Arc, time::Duration};
-use storage::SessionStorageDb;
+use storage::{SessionStorageDb, WalletConnectStorageOps};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
@@ -97,7 +98,7 @@ impl WalletConnectCtx {
         })
     }
 
-    pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
+    pub fn try_from_ctx_or_initialize(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
         from_ctx(&ctx.wallet_connect, move || {
             Self::try_init(ctx).map_err(|err| err.to_string())
         })
@@ -323,18 +324,18 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    pub async fn published_message_event_loop(self: Arc<Self>) {
-        let self_clone = self.clone();
+    pub async fn message_handler_event_loop(self: Arc<Self>) {
+        let selfi = self.clone();
         let mut recv = self.inbound_message_handler.lock().await;
         while let Some(msg) = recv.next().await {
             info!("received message");
-            if let Err(e) = self_clone.handle_single_message(msg).await {
+            if let Err(e) = selfi.handle_published_message(msg).await {
                 info!("Error processing message: {:?}", e);
             }
         }
     }
 
-    async fn handle_single_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectCtxError> {
+    async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectCtxError> {
         let message = {
             let key = self.sym_key(&msg.topic).await?;
             decode_and_decrypt_type0(msg.message.as_bytes(), &key).unwrap()
@@ -353,7 +354,28 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    pub async fn spawn_connection_live_watcher(self: Arc<Self>) {
+    async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectCtxError> {
+        let sessions = self
+            .storage
+            .db
+            .get_all_sessions()
+            .await
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        if let Some(session) = sessions.first() {
+            info!("Session found! activating :{}", session.topic);
+
+            let mut ctx_session = self.session.lock().await;
+            *ctx_session = Some(session.clone());
+
+            // subcribe to session topics
+            self.client.subscribe(session.topic.clone()).await?;
+            self.client.subscribe(session.pairing_topic.clone()).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn connection_live_watcher(self: Arc<Self>) {
         let mut recv = self.connection_live_handler.lock().await;
         let mut retry_count = 0;
 
@@ -393,4 +415,25 @@ impl WalletConnectCtx {
             info!("Reconnection process complete.");
         }
     }
+}
+
+/// This function spwans related WalletConnect related tasks and needed initialization before
+/// WalletConnect can be usable in KDF.
+pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectCtxError> {
+    // Initialized WalletConnectCtx
+    let wallet_connect = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+
+    // WalletConnectCtx is initialized, now we can connect to relayer client.
+    wallet_connect.connect_client().await?;
+
+    // spawn message handler event loop
+    ctx.spawner().spawn(wallet_connect.clone().message_handler_event_loop());
+
+    // spawn WalletConnect client disconnect task
+    ctx.spawner().spawn(wallet_connect.clone().connection_live_watcher());
+
+    // load session from storage
+    wallet_connect.load_session_from_storage().await?;
+
+    Ok(())
 }
