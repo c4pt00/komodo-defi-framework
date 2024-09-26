@@ -65,7 +65,8 @@ impl SessionEvents {
                     if namespace.chains.contains(&chain) {
                         // TODO: Notify GUI about chain changed.
                         // Update active chain_id
-                        *ctx.active_chain_id.lock().await = chain_id.clone().to_owned();
+                        ctx.set_active_chain(chain_id.clone()).await;
+
                         let params = ResponseParamsSuccess::SessionEvent(true);
                         ctx.publish_response_ok(topic, params, message_id).await?;
 

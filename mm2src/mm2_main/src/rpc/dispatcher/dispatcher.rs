@@ -1,4 +1,3 @@
-use super::lp_commands::{connect_to_peer, create_new_pairing};
 use super::{DispatcherError, DispatcherResult, PUBLIC_METHODS};
 use crate::lp_native_dex::init_hw::{cancel_init_trezor, init_trezor, init_trezor_status, init_trezor_user_action};
 #[cfg(target_arch = "wasm32")]
@@ -55,6 +54,7 @@ use common::log::{error, warn};
 use common::HttpStatusCode;
 use futures::Future as Future03;
 use http::Response;
+use kdf_walletconnect::rpc_commands::{delete_connection, get_chain_id, get_session, new_connection, ping_session};
 use mm2_core::data_asker::send_asked_data_rpc;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -161,6 +161,9 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         return lightning_dispatcher(request, ctx, &lightning_method).await;
     }
 
+    // WalletConnect Requests
+    if let Some(method) = request.method.strip_prefix("wc::") {}
+
     match request.method.as_str() {
         "account_balance" => handle_mmrpc(ctx, request, account_balance).await,
         "active_swaps" => handle_mmrpc(ctx, request, active_swaps_rpc).await,
@@ -168,8 +171,6 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "add_node_to_version_stat" => handle_mmrpc(ctx, request, add_node_to_version_stat).await,
         "best_orders" => handle_mmrpc(ctx, request, best_orders_rpc_v2).await,
         "clear_nft_db" => handle_mmrpc(ctx, request, clear_nft_db).await,
-        "wc_connect_pairing" => handle_mmrpc(ctx, request, connect_to_peer).await,
-        "wc_create_pairing" => handle_mmrpc(ctx, request, create_new_pairing).await,
         "enable_bch_with_tokens" => handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<BchCoin>).await,
         "enable_slp" => handle_mmrpc(ctx, request, enable_token::<SlpToken>).await,
         "enable_eth_with_tokens" => handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<EthCoin>).await,
@@ -224,6 +225,11 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "set_swap_transaction_fee_policy" => handle_mmrpc(ctx, request, set_swap_transaction_fee_policy).await,
         "send_asked_data" => handle_mmrpc(ctx, request, send_asked_data_rpc).await,
         "z_coin_tx_history" => handle_mmrpc(ctx, request, coins::my_tx_history_v2::z_coin_tx_history_rpc).await,
+        "wc_new_connection" => handle_mmrpc(ctx, request, new_connection).await,
+        "wc_delete_connection" => handle_mmrpc(ctx, request, delete_connection).await,
+        "wc_get_chain_id" => handle_mmrpc(ctx, request, get_chain_id).await,
+        "wc_get_session" => handle_mmrpc(ctx, request, get_session).await,
+        "wc_ping_session" => handle_mmrpc(ctx, request, ping_session).await,
         #[cfg(not(target_arch = "wasm32"))]
         native_only_methods => match native_only_methods {
             #[cfg(all(feature = "enable-solana", not(target_os = "ios"), not(target_os = "android")))]

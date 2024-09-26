@@ -36,7 +36,7 @@ pub(crate) async fn send_session_settle_request(
 }
 
 /// Process session settle request.
-pub(crate) async fn process_session_settle_request(
+pub(crate) async fn reply_session_settle_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,

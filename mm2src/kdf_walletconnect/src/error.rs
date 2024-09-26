@@ -38,6 +38,8 @@ pub(crate) const UNSUPPORTED_EVENTS: i32 = 5102;
 pub(crate) const UNSUPPORTED_ACCOUNTS: i32 = 5103;
 pub(crate) const UNSUPPORTED_NAMESPACE_KEY: i32 = 5104;
 
+pub(crate) const USER_REQUESTED: i64 = 6000;
+
 #[derive(Debug, Serialize, Deserialize, EnumFromStringify, thiserror::Error)]
 pub enum WalletConnectCtxError {
     #[error("Pairing Error: {0}")]

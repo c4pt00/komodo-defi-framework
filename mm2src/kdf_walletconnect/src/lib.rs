@@ -4,6 +4,8 @@ mod handler;
 mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
+pub mod rpc_commands;
+
 mod session;
 mod storage;
 
@@ -33,7 +35,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                                ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
 use serde_json::Value;
-use session::{propose::send_proposal, Session, SymKeyPair};
+use session::{propose::send_proposal_request, Session, SymKeyPair};
 use std::{sync::Arc, time::Duration};
 use storage::{SessionStorageDb, WalletConnectStorageOps};
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
@@ -124,7 +126,7 @@ impl WalletConnectCtx {
     }
 
     /// Create a WalletConnect pairing connection url.
-    pub async fn create_pairing(
+    pub async fn new_connection(
         &self,
         required_namespaces: Option<ProposeNamespaces>,
     ) -> MmResult<String, WalletConnectCtxError> {
@@ -136,7 +138,7 @@ impl WalletConnectCtx {
 
         info!("Subscribed to topic: {topic:?}");
 
-        send_proposal(self, topic.clone(), required_namespaces).await?;
+        send_proposal_request(self, topic.clone(), required_namespaces).await?;
 
         {
             let mut subs = self.subscriptions.lock().await;
@@ -173,10 +175,7 @@ impl WalletConnectCtx {
     /// Get current active chain id.
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
-    pub async fn get_session(&self) -> Option<Session> {
-        let session = self.session.lock().await;
-        session.clone()
-    }
+    pub async fn get_session(&self) -> Option<Session> { self.session.lock().await.clone() }
 
     /// Get available accounts for a given chain_id.
     pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectCtxError> {

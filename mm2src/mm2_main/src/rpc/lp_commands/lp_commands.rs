@@ -2,7 +2,6 @@ use common::HttpStatusCode;
 use crypto::{CryptoCtx, CryptoCtxError, HwConnectionStatus, HwPubkey};
 use derive_more::Display;
 use http::StatusCode;
-use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use rpc::v1::types::H160 as H160Json;
@@ -114,59 +113,4 @@ pub async fn trezor_connection_status(
     Ok(TrezorConnectionStatusRes {
         status: hw_ctx.trezor_connection_status().await,
     })
-}
-
-//////////// TESTING PURPOSES /////////////
-use serde::Serialize;
-
-#[derive(Deserialize)]
-pub struct ConnectPairingRequest {
-    url: String,
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-pub struct ConnectPairingResponse {
-    pub topic: String,
-}
-
-/// `connect_to_peer` RPC command implementation.
-pub async fn connect_to_peer(
-    ctx: MmArc,
-    req: ConnectPairingRequest,
-) -> MmResult<ConnectPairingResponse, TrezorConnectionError> {
-    let walletconnect_ctx =
-        WalletConnectCtx::try_from_ctx_or_initialize(&ctx).expect("WalletConnectCtx should be initialized by now!");
-
-    let topic = walletconnect_ctx
-        .connect_to_pairing(&req.url, true)
-        .await
-        .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;
-
-    Ok(ConnectPairingResponse {
-        topic: topic.to_string(),
-    })
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-pub struct CreatePairingResponse {
-    pub url: String,
-}
-
-#[derive(Deserialize)]
-pub struct CreatePairingRequest {}
-
-/// `create_new_pairing` RPC command implementation.
-pub async fn create_new_pairing(
-    ctx: MmArc,
-    _req: CreatePairingRequest,
-) -> MmResult<CreatePairingResponse, TrezorConnectionError> {
-    let walletconnect_ctx =
-        WalletConnectCtx::try_from_ctx_or_initialize(&ctx).expect("WalletConnectCtx should be initialized by now!");
-
-    let url = walletconnect_ctx
-        .create_pairing(None)
-        .await
-        .map_err(|err| TrezorConnectionError::Internal(err.to_string()))?;
-
-    Ok(CreatePairingResponse { url })
 }

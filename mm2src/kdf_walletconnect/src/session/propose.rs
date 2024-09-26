@@ -13,7 +13,7 @@ use relay_rpc::{domain::{MessageId, Topic},
                               Metadata, RequestParams, ResponseParamsSuccess}};
 
 /// Creates a new session proposal form topic and metadata.
-pub(crate) async fn send_proposal(
+pub(crate) async fn send_proposal_request(
     ctx: &WalletConnectCtx,
     topic: Topic,
     required_namespaces: Option<ProposeNamespaces>,
@@ -35,7 +35,7 @@ pub(crate) async fn send_proposal(
 
 /// Process session proposal request
 /// https://specs.walletconnect.com/2.0/specs/clients/sign/session-proposal
-pub async fn process_proposal_request(
+pub async fn reply_session_proposal_request(
     ctx: &WalletConnectCtx,
     proposal: SessionProposeRequest,
     topic: &Topic,

@@ -10,7 +10,7 @@ use relay_rpc::{domain::Topic,
                 rpc::params::{pairing_delete::PairingDeleteRequest, pairing_extend::PairingExtendRequest,
                               ResponseParamsSuccess}};
 
-pub(crate) async fn process_pairing_ping_response(
+pub(crate) async fn reply_pairing_ping_response(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,
@@ -21,7 +21,7 @@ pub(crate) async fn process_pairing_ping_response(
     Ok(())
 }
 
-pub(crate) async fn process_pairing_extend_response(
+pub(crate) async fn reply_pairing_extend_response(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,
@@ -41,7 +41,7 @@ pub(crate) async fn process_pairing_extend_response(
     Ok(())
 }
 
-pub(crate) async fn process_pairing_delete_response(
+pub(crate) async fn reply_pairing_delete_response(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,
@@ -55,33 +55,4 @@ pub(crate) async fn process_pairing_delete_response(
     ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())
-}
-
-pub(crate) async fn pairing_ping_request() -> WcRequestResponseResult {
-    let request = RequestParams::PairingPing(PairingPingRequest {});
-    let irn_metadata = request.irn_metadata();
-    let value = serde_json::to_value(request)?;
-
-    Ok((value, irn_metadata))
-}
-
-pub(crate) async fn pairing_delete_request() -> WcRequestResponseResult {
-    let request = RequestParams::PairingDelete(PairingDeleteRequest {
-        code: 6000,
-        message: "Delete my pairing".to_string(),
-    });
-    let irn_metadata = request.irn_metadata();
-    let value = serde_json::to_value(request)?;
-
-    Ok((value, irn_metadata))
-}
-
-pub(crate) async fn pairing_extend_request() -> WcRequestResponseResult {
-    let request = RequestParams::PairingExtend(PairingExtendRequest {
-        expiry: Utc::now().timestamp() as u64 + THIRTY_DAYS,
-    });
-    let irn_metadata = request.irn_metadata();
-    let value = serde_json::to_value(request)?;
-
-    Ok((value, irn_metadata))
 }

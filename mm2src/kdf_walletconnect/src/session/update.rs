@@ -6,7 +6,7 @@ use relay_rpc::{domain::{MessageId, Topic},
 
 // TODO: Handle properly when multi chain is supported.
 // Hanlding for only cosmos support.
-pub(crate) async fn process_session_update_request(
+pub(crate) async fn reply_session_update_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,

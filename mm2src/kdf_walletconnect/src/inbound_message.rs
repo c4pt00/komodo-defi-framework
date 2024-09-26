@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{error::WalletConnectCtxError,
-            pairing::{process_pairing_delete_response, process_pairing_extend_response, process_pairing_ping_response},
-            session::{delete::process_session_delete_request,
+            pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
+            session::{delete::reply_session_delete_request,
                       event::SessionEvents,
-                      extend::process_session_extend_request,
-                      ping::process_session_ping_request,
-                      propose::{process_proposal_request, process_session_propose_response},
-                      settle::process_session_settle_request,
-                      update::process_session_update_request},
+                      extend::reply_session_extend_request,
+                      ping::reply_session_ping_request,
+                      propose::{process_session_propose_response, reply_session_proposal_request},
+                      settle::reply_session_settle_request,
+                      update::reply_session_update_request},
             WalletConnectCtx};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,26 +31,25 @@ pub(crate) async fn process_inbound_request(
 ) -> MmResult<(), WalletConnectCtxError> {
     let message_id = request.id;
     match request.params {
-        Params::SessionPropose(proposal) => process_proposal_request(ctx, proposal, topic, &message_id).await?,
-        Params::SessionExtend(param) => process_session_extend_request(ctx, topic, &message_id, param).await?,
-        Params::SessionDelete(param) => process_session_delete_request(ctx, topic, &message_id, param).await?,
-        Params::SessionPing(()) => process_session_ping_request(ctx, topic, &message_id).await?,
-        Params::SessionSettle(param) => process_session_settle_request(ctx, topic, &message_id, param).await?,
-        Params::SessionUpdate(param) => process_session_update_request(ctx, topic, &message_id, param).await?,
+        Params::SessionPropose(proposal) => reply_session_proposal_request(ctx, proposal, topic, &message_id).await?,
+        Params::SessionExtend(param) => reply_session_extend_request(ctx, topic, &message_id, param).await?,
+        Params::SessionDelete(param) => reply_session_delete_request(ctx, topic, &message_id, param).await?,
+        Params::SessionPing(()) => reply_session_ping_request(ctx, topic, &message_id).await?,
+        Params::SessionSettle(param) => reply_session_settle_request(ctx, topic, &message_id, param).await?,
+        Params::SessionUpdate(param) => reply_session_update_request(ctx, topic, &message_id, param).await?,
         Params::SessionEvent(param) => {
             SessionEvents::from_events(param)?
                 .handle_session_event(ctx, topic, &message_id)
                 .await?
         },
         Params::SessionRequest(_param) => {
-            // TODO: send back a success response.
-            info!("SessionRequest is not yet implemented.");
+            // TODO: Implement when integrating KDF as a wallet.
             return MmError::err(WalletConnectCtxError::NotImplemented);
         },
 
-        Params::PairingPing(_param) => process_pairing_ping_response(ctx, topic, &message_id).await?,
-        Params::PairingDelete(param) => process_pairing_delete_response(ctx, topic, &message_id, param).await?,
-        Params::PairingExtend(param) => process_pairing_extend_response(ctx, topic, &message_id, param).await?,
+        Params::PairingPing(_param) => reply_pairing_ping_response(ctx, topic, &message_id).await?,
+        Params::PairingDelete(param) => reply_pairing_delete_response(ctx, topic, &message_id, param).await?,
+        Params::PairingExtend(param) => reply_pairing_extend_response(ctx, topic, &message_id, param).await?,
         _ => {
             info!("Unknown request params received.");
             return MmError::err(WalletConnectCtxError::InvalidRequest);
@@ -72,7 +71,6 @@ pub(crate) async fn process_inbound_response(
             let success_response = serde_json::from_value::<SuccessResponses>(value.result)?;
             match success_response {
                 SuccessResponses::ResponseParamsSuccess(params) => match params {
-                    // Handle known success responses match success_response {
                     ResponseParamsSuccess::SessionPropose(param) => {
                         process_session_propose_response(ctx, topic, param).await
                     },
