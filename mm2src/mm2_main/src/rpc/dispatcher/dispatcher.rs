@@ -7,6 +7,7 @@ use crate::lp_ordermatch::{best_orders_rpc_v2, orderbook_rpc_v2, start_simple_ma
 use crate::lp_swap::swap_v2_rpcs::{active_swaps_rpc, my_recent_swaps_rpc, my_swap_status_rpc};
 use crate::lp_wallet::get_mnemonic_rpc;
 use crate::rpc::rate_limiter::{process_rate_limit, RateLimitContext};
+use crate::rpc::wc_commands::{delete_connection, get_chain_id, get_session, new_connection, ping_session};
 use crate::{lp_stats::{add_node_to_version_stat, remove_node_from_version_stat, start_version_stat_collection,
                        stop_version_stat_collection, update_version_stat_collection},
             lp_swap::{get_locked_amount_rpc, max_maker_vol, recreate_swap_data, trade_preimage_rpc},
@@ -54,7 +55,6 @@ use common::log::{error, warn};
 use common::HttpStatusCode;
 use futures::Future as Future03;
 use http::Response;
-use kdf_walletconnect::rpc_commands::{delete_connection, get_chain_id, get_session, new_connection, ping_session};
 use mm2_core::data_asker::send_asked_data_rpc;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -160,9 +160,6 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         let lightning_method = lightning_method.to_owned();
         return lightning_dispatcher(request, ctx, &lightning_method).await;
     }
-
-    // WalletConnect Requests
-    if let Some(method) = request.method.strip_prefix("wc::") {}
 
     match request.method.as_str() {
         "account_balance" => handle_mmrpc(ctx, request, account_balance).await,

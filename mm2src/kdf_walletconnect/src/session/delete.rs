@@ -18,7 +18,7 @@ pub(crate) async fn reply_session_delete_request(
     session_delete_cleanup(ctx, topic).await
 }
 
-pub(crate) async fn send_session_delete_request(
+pub async fn send_session_delete_request(
     ctx: &WalletConnectCtx,
     session_topic: &Topic,
 ) -> MmResult<(), WalletConnectCtxError> {

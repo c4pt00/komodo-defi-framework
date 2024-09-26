@@ -1,12 +1,11 @@
 pub mod chain;
-#[allow(unused)] mod error;
+#[allow(unused)] pub mod error;
 mod handler;
 mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
 pub mod rpc_commands;
-
-mod session;
+pub mod session;
 mod storage;
 
 use chain::{build_required_namespaces,

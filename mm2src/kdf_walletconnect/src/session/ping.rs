@@ -15,10 +15,7 @@ pub(crate) async fn reply_session_ping_request(
     Ok(())
 }
 
-pub(crate) async fn send_session_ping_request(
-    ctx: &WalletConnectCtx,
-    topic: &Topic,
-) -> MmResult<(), WalletConnectCtxError> {
+pub async fn send_session_ping_request(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectCtxError> {
     let param = RequestParams::SessionPing(());
     ctx.publish_request(topic, param).await?;
 

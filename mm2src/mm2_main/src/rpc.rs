@@ -50,6 +50,7 @@ mod dispatcher_legacy;
 #[path = "rpc/lp_commands/lp_commands_legacy.rs"]
 pub mod lp_commands_legacy;
 mod rate_limiter;
+#[path = "rpc/wc_commands/wc_commands.rs"] pub mod wc_commands;
 
 /// Lists the RPC method not requiring the "userpass" authentication.
 /// None is also public to skip auth and display proper error in case of method is missing
