@@ -1,4 +1,8 @@
 use enum_derives::EnumFromStringify;
+#[cfg(target_arch = "wasm32")]
+use mm2_db::indexed_db::cursor_prelude::*;
+#[cfg(target_arch = "wasm32")]
+use mm2_db::indexed_db::{DbTransactionError, InitDbError};
 use pairing_api::PairingClientError;
 use relay_client::error::{ClientError, Error};
 use relay_rpc::rpc::{PublishError, SubscriptionError};
@@ -74,6 +78,8 @@ pub enum WalletConnectCtxError {
     EmptyAccount(String),
     #[error("WalletConnect is not initaliazed yet!")]
     NotInitialized,
+    #[error("Storage Error: {0}")]
+    StorageError(String),
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {
@@ -89,4 +95,80 @@ impl From<Error<SubscriptionError>> for WalletConnectCtxError {
 pub enum SessionError {
     #[error("Failed to generate symmetric session key: {0}")]
     SymKeyGeneration(String),
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum WcIndexedDbError {
+    #[error("Internal Error: {0}")]
+    InternalError(String),
+    #[error("Not supported: {0}")]
+    NotSupported(String),
+    #[error("Delete Error: {0}")]
+    DeletionError(String),
+    #[error("Insert Error: {0}")]
+    AddToStorageErr(String),
+    #[error("GetFromStorage Error: {0}")]
+    GetFromStorageError(String),
+    #[error("Decoding Error: {0}")]
+    DecodingError(String),
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<InitDbError> for WcIndexedDbError {
+    fn from(e: InitDbError) -> Self {
+        match &e {
+            InitDbError::NotSupported(_) => WcIndexedDbError::NotSupported(e.to_string()),
+            InitDbError::EmptyTableList
+            | InitDbError::DbIsOpenAlready { .. }
+            | InitDbError::InvalidVersion(_)
+            | InitDbError::OpeningError(_)
+            | InitDbError::TypeMismatch { .. }
+            | InitDbError::UnexpectedState(_)
+            | InitDbError::UpgradingError { .. } => WcIndexedDbError::InternalError(e.to_string()),
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<DbTransactionError> for WcIndexedDbError {
+    fn from(e: DbTransactionError) -> Self {
+        match e {
+            DbTransactionError::ErrorSerializingItem(_) | DbTransactionError::ErrorDeserializingItem(_) => {
+                WcIndexedDbError::DecodingError(e.to_string())
+            },
+            DbTransactionError::ErrorUploadingItem(_) => WcIndexedDbError::AddToStorageErr(e.to_string()),
+            DbTransactionError::ErrorGettingItems(_) | DbTransactionError::ErrorCountingItems(_) => {
+                WcIndexedDbError::GetFromStorageError(e.to_string())
+            },
+            DbTransactionError::ErrorDeletingItems(_) => WcIndexedDbError::DeletionError(e.to_string()),
+            DbTransactionError::NoSuchTable { .. }
+            | DbTransactionError::ErrorCreatingTransaction(_)
+            | DbTransactionError::ErrorOpeningTable { .. }
+            | DbTransactionError::ErrorSerializingIndex { .. }
+            | DbTransactionError::UnexpectedState(_)
+            | DbTransactionError::TransactionAborted
+            | DbTransactionError::MultipleItemsByUniqueIndex { .. }
+            | DbTransactionError::NoSuchIndex { .. }
+            | DbTransactionError::InvalidIndex { .. } => WcIndexedDbError::InternalError(e.to_string()),
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<CursorError> for WcIndexedDbError {
+    fn from(value: CursorError) -> Self {
+        match value {
+            CursorError::ErrorSerializingIndexFieldValue { .. }
+            | CursorError::ErrorDeserializingIndexValue { .. }
+            | CursorError::ErrorDeserializingItem(_) => Self::DecodingError(value.to_string()),
+            CursorError::ErrorOpeningCursor { .. }
+            | CursorError::AdvanceError { .. }
+            | CursorError::InvalidKeyRange { .. }
+            | CursorError::IncorrectNumberOfKeysPerIndex { .. }
+            | CursorError::UnexpectedState(_)
+            | CursorError::IncorrectUsage { .. }
+            | CursorError::TypeMismatch { .. } => Self::InternalError(value.to_string()),
+        }
+    }
 }

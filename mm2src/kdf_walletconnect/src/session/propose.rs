@@ -75,6 +75,7 @@ pub async fn process_proposal_request(
     }
 
     {
+        println!("{:?}", session);
         send_session_settle_request(ctx, &session).await?;
     };
 
@@ -124,6 +125,7 @@ pub(crate) async fn process_session_propose_response(
     session.controller.public_key = response.responder_public_key;
 
     {
+        println!("{:?}", session);
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session);
         let mut subs = ctx.subscriptions.lock().await;

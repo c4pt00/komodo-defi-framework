@@ -34,6 +34,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
 use serde_json::Value;
 use session::{propose::send_proposal, Session, SymKeyPair};
 use std::{sync::Arc, time::Duration};
+use storage::SessionStorageDb;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
@@ -46,22 +47,22 @@ pub struct WalletConnectCtx {
     pub pairing: PairingClient,
     pub session: Arc<Mutex<Option<Session>>>,
     pub active_chain_id: Arc<Mutex<String>>,
+
     pub(crate) key_pair: SymKeyPair,
+    pub(crate) storage: SessionStorageDb,
 
     relay: Relay,
     metadata: Metadata,
     namespaces: ProposeNamespaces,
     subscriptions: Arc<Mutex<Vec<Topic>>>,
-
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
-
     session_request_sender: Arc<Mutex<UnboundedSender<SessionEventMessage>>>,
     session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
 }
 
 impl WalletConnectCtx {
-    pub fn init() -> Self {
+    pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectCtxError> {
         let (msg_sender, msg_receiver) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (session_request_sender, session_request_receiver) = unbounded();
@@ -76,7 +77,9 @@ impl WalletConnectCtx {
             data: None,
         };
 
-        Self {
+        let storage = SessionStorageDb::init(ctx)?;
+
+        Ok(Self {
             client,
             pairing,
             session: Default::default(),
@@ -85,16 +88,20 @@ impl WalletConnectCtx {
             namespaces: required,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
+            storage,
             inbound_message_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
             session_request_handler: Arc::new(Mutex::new(session_request_receiver)),
             session_request_sender: Arc::new(Mutex::new(session_request_sender)),
             subscriptions: Default::default(),
-        }
+        })
     }
 
     pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
-        from_ctx(&ctx.wallet_connect, move || Ok(Self::init())).map_to_mm(WalletConnectCtxError::InternalError)
+        from_ctx(&ctx.wallet_connect, move || {
+            Self::try_init(ctx).map_err(|err| err.to_string())
+        })
+        .map_to_mm(WalletConnectCtxError::InternalError)
     }
 
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {

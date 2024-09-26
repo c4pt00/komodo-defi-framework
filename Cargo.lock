@@ -3553,6 +3553,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
+ "cfg-if 1.0.0",
  "chrono",
  "common",
  "db_common",
@@ -3564,6 +3565,7 @@ dependencies = [
  "mm2_core",
  "mm2_db",
  "mm2_err_handle",
+ "mm2_test_helpers",
  "pairing_api",
  "rand 0.8.4",
  "relay_client",
@@ -3573,7 +3575,11 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
  "wc_common",
+ "web-sys",
  "x25519-dalek 2.0.1",
 ]
 

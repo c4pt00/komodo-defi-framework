@@ -1,11 +1,12 @@
 use async_trait::async_trait;
-use db_common::sqlite::rusqlite::{Connection, Result as SqlResult};
+use db_common::sqlite::rusqlite::Result as SqlResult;
 use db_common::sqlite::{query_single_row, string_from_row, CHECK_TABLE_EXISTS_SQL};
 use db_common::{async_sql_conn::{AsyncConnError, AsyncConnection},
                 sqlite::validate_table_name};
 use futures::lock::{Mutex, MutexGuard};
+use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
-use relay_rpc::{domain::Topic, rpc::params::session::SettleNamespaces};
+use relay_rpc::domain::Topic;
 use std::sync::Arc;
 
 use super::WalletConnectStorageOps;
@@ -34,16 +35,29 @@ fn create_sessions_table() -> SqlResult<String> {
 }
 
 #[derive(Clone, Debug)]
-pub struct SqliteSessionStorage {
-    pub conn: Arc<Mutex<Connection>>,
+pub(crate) struct SqliteSessionStorage {
+    pub conn: Arc<Mutex<AsyncConnection>>,
+}
+
+impl SqliteSessionStorage {
+    pub(crate) fn new(ctx: &MmArc) -> MmResult<Self, String> {
+        let conn = ctx
+            .async_sqlite_connection
+            .ok_or("async_sqlite_connection is not initialized".to_owned())?;
+
+        Ok(Self { conn: conn.clone() })
+    }
+
+    pub(crate) async fn lock_db(&self) -> MutexGuard<'_, AsyncConnection> { self.conn.lock().await }
 }
 
 #[async_trait]
-impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
+impl WalletConnectStorageOps for SqliteSessionStorage {
     type Error = AsyncConnError;
 
     async fn init(&self) -> MmResult<(), Self::Error> {
-        self.call(move |conn| {
+        let lock = self.lock_db().await;
+        lock.call(move |conn| {
             conn.execute(&create_sessions_table()?, []).map(|_| ())?;
             Ok(())
         })
@@ -52,8 +66,9 @@ impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
     }
 
     async fn is_initialized(&self) -> MmResult<bool, Self::Error> {
+        let lock = self.lock_db().await;
         validate_table_name(SESSION_TBALE_NAME).map_err(AsyncConnError::from)?;
-        self.call(move |conn| {
+        lock.call(move |conn| {
             let initialized = query_single_row(conn, CHECK_TABLE_EXISTS_SQL, [SESSION_TBALE_NAME], string_from_row)?;
             Ok(initialized.is_some())
         })
@@ -62,6 +77,7 @@ impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
     }
 
     async fn save_session(&self, session: Session) -> MmResult<(), Self::Error> {
+        let lock = self.lock_db().await;
         validate_table_name(SESSION_TBALE_NAME).map_err(AsyncConnError::from)?;
         let sql = format!(
             "INSERT INTO {} (
@@ -72,7 +88,7 @@ impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
             SESSION_TBALE_NAME
         );
 
-        self.call(move |conn| {
+        lock.call(move |conn| {
             let transaction = conn.transaction()?;
 
             //let session_key =
@@ -109,13 +125,9 @@ impl WalletConnectStorageOps for MutexGuard<'_, AsyncConnection> {
         .map_to_mm(AsyncConnError::from)
     }
 
-    async fn get_sessions(&self) -> MmResult<Vec<Session>, Self::Error> { todo!() }
-
-    async fn update_expiry(&self, expiry: u64) -> MmResult<(), Self::Error> { todo!() }
+    async fn get_session(&self, topic: &Topic) -> MmResult<Option<Session>, Self::Error> { todo!() }
 
     async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error> { todo!() }
 
-    async fn update_namespace(&self, topic: &Topic, namespace: SettleNamespaces) -> MmResult<(), Self::Error> {
-        todo!()
-    }
+    async fn update_session(&self, _session: Session) -> MmResult<(), Self::Error> { todo!() }
 }

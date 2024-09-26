@@ -31,10 +31,10 @@ pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SessionKey {
-    sym_key: [u8; 32],
-    public_key: [u8; 32],
+    pub(crate) sym_key: [u8; 32],
+    pub(crate) public_key: [u8; 32],
 }
 
 impl std::fmt::Debug for SessionKey {
@@ -111,7 +111,7 @@ impl SessionKey {
 /// In the WalletConnect protocol, a session involves two parties: a controller
 /// (typically a wallet) and a proposer (typically a dApp). This enum is used
 /// to distinguish between these two roles.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SessionType {
     /// Represents the controlling party in a session, typically a wallet.
     Controller,
@@ -131,7 +131,7 @@ impl ToString for SessionType {
 /// This struct is typically used in the core session management logic of a WalletConnect
 /// implementation. It's used to store, retrieve, and update session information throughout
 /// the lifecycle of a WalletConnect connection.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Session {
     /// Session topic
     pub topic: Topic,
