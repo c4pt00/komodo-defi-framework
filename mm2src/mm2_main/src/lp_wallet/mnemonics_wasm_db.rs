@@ -103,6 +103,17 @@ pub(super) async fn save_encrypted_passphrase(
     let transaction = db.transaction().await?;
     let table = transaction.table::<MnemonicsTable>().await?;
 
+    // Check if the wallet already exists
+    let existing_wallet = table
+        .get_item_by_unique_index("wallet_name", wallet_name.to_string())
+        .await?;
+
+    if existing_wallet.is_none() && !ctx.allow_registrations() {
+        return Err(MmError::new(WalletsDBError::Internal(
+            "Wallet creation is not allowed. Registrations are disabled.".to_string(),
+        )));
+    }
+
     let mnemonics_table_item = MnemonicsTable {
         wallet_name: wallet_name.to_string(),
         encrypted_mnemonic: serde_json::to_string(encrypted_passphrase_data).map_err(|e| {

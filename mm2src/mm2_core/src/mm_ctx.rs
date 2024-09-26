@@ -246,6 +246,9 @@ impl MmCtx {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn is_https(&self) -> bool { self.conf["https"].as_bool().unwrap_or(false) }
 
+    /// Whether or not new wallets can be created.
+    pub fn allow_registrations(&self) -> bool { self.conf["allow_registrations"].as_bool().unwrap_or(true) }
+
     /// SANs for self-signed certificate generation.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn alt_names(&self) -> Result<Vec<String>, String> {

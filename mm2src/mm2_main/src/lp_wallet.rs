@@ -44,6 +44,8 @@ pub enum WalletInitError {
         fmt = "Passphrase doesn't match the one from file, please create a new wallet if you want to use a new passphrase"
     )]
     PassphraseMismatch,
+    #[display(fmt = "Error initializing wallet. Wallet mnemonic/name is unknown and wallet creation is disabled")]
+    WalletCreationNotAllowed,
     #[display(fmt = "Error generating or decrypting mnemonic: {}", _0)]
     MnemonicError(String),
     #[display(fmt = "Error initializing crypto context: {}", _0)]
@@ -172,12 +174,16 @@ async fn retrieve_or_create_passphrase(
             // If an existing passphrase is found, return it
             Ok(Some(passphrase_from_file))
         },
-        None => {
-            // If no passphrase is found, generate a new one
+        None if ctx.allow_registrations() => {
+            // If no passphrase is found and registrations are allowed, generate a new one
             let new_passphrase = generate_mnemonic(ctx)?.to_string();
             // Encrypt and save the new passphrase
             encrypt_and_save_passphrase(ctx, wallet_name, &new_passphrase, wallet_password).await?;
             Ok(Some(new_passphrase))
+        },
+        None => {
+            // If no passphrase is found and registrations are not allowed, return an error
+            Err(WalletInitError::WalletCreationNotAllowed.into())
         },
     }
 }
@@ -194,10 +200,14 @@ async fn confirm_or_encrypt_and_store_passphrase(
             // If an existing passphrase is found and it matches the provided passphrase, return it
             Ok(Some(passphrase_from_file))
         },
-        None => {
-            // If no passphrase is found in the file, encrypt and save the provided passphrase
+        None if ctx.allow_registrations() => {
+            // If no passphrase is found in the file and registrations are allowed, encrypt and save the provided passphrase
             encrypt_and_save_passphrase(ctx, wallet_name, passphrase, wallet_password).await?;
             Ok(Some(passphrase.to_string()))
+        },
+        None => {
+            // If no passphrase is found and registrations are not allowed, return an error
+            Err(WalletInitError::WalletCreationNotAllowed.into())
         },
         _ => {
             // If an existing passphrase is found and it does not match the provided passphrase, return an error
@@ -222,10 +232,14 @@ async fn decrypt_validate_or_save_passphrase(
             Ok(Some(decrypted_passphrase))
         },
         None => {
-            save_encrypted_passphrase(ctx, wallet_name, &encrypted_passphrase_data)
-                .await
-                .mm_err(|e| WalletInitError::WalletsStorageError(e.to_string()))?;
-            Ok(Some(decrypted_passphrase))
+            if ctx.allow_registrations() { 
+              save_encrypted_passphrase(ctx, wallet_name, &encrypted_passphrase_data)
+               .await
+               .mm_err(|e| WalletInitError::WalletsStorageError(e.to_string()))?;
+            return Ok(Some(decrypted_passphrase));
+         }
+            // If no passphrase is found and registrations are not allowed, return an error
+            Err(WalletInitError::WalletCreationNotAllowed.into())
         },
         _ => {
             // If an existing passphrase is found and it does not match the decrypted passphrase, return an error
@@ -259,8 +273,14 @@ async fn process_passphrase_logic(
     match (wallet_name, passphrase) {
         (None, None) => Ok(None),
         // Legacy approach for passphrase, no `wallet_name` is needed in the config, in this case the passphrase is not encrypted and saved.
-        (None, Some(Passphrase::Decrypted(passphrase))) => Ok(Some(passphrase)),
         // Importing an encrypted passphrase without a wallet name is not supported since it's not possible to save the passphrase.
+        (None, Some(Passphrase::Decrypted(passphrase))) => {
+            if ctx.allow_registrations() {
+                Ok(Some(passphrase))
+            } else {
+                Err(WalletInitError::WalletCreationNotAllowed.into())
+            }
+        },
         (None, Some(Passphrase::Encrypted(_))) => Err(WalletInitError::FieldNotFoundInConfig {
             field: "wallet_name".to_owned(),
         }
