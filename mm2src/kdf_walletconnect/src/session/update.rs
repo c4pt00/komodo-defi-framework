@@ -1,6 +1,7 @@
+use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
-use mm2_err_handle::prelude::MmResult;
+use mm2_err_handle::prelude::*;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_update::SessionUpdateRequest, ResponseParamsSuccess}};
 
@@ -16,6 +17,13 @@ pub(crate) async fn reply_session_update_request(
         let mut session = ctx.session.lock().await;
         if let Some(session) = session.as_mut() {
             session.namespaces = update.namespaces.0.clone();
+
+            // Update storage session.
+            ctx.storage
+                .db
+                .update_session(session)
+                .await
+                .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
         };
     }
 

@@ -111,7 +111,7 @@ impl WalletConnectCtx {
             let key = SigningKey::generate(&mut rand::thread_rng());
             AuthToken::new(AUTH_TOKEN_SUB)
                 .aud(RELAY_ADDRESS)
-                .ttl(Duration::from_secs(60 * 60))
+                .ttl(Duration::from_secs(8 * 60 * 60))
                 .as_jwt(&key)
                 .unwrap()
         };

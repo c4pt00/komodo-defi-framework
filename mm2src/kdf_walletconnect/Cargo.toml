@@ -33,6 +33,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.20" }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 mm2_db = { path = "../mm2_db" }
 mm2_test_helpers = { path = "../mm2_test_helpers" }
