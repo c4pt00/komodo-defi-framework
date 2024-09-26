@@ -28,7 +28,6 @@ use coins::{CoinsContext, DexFee, FundingTxSpend, GenTakerFundingSpendArgs, GenT
 use common::{block_on, block_on_f01, now_sec};
 use crypto::Secp256k1Secret;
 use ethereum_types::U256;
-use futures01::Future;
 #[cfg(any(feature = "sepolia-maker-swap-v2-tests", feature = "sepolia-taker-swap-v2-tests"))]
 use mm2_core::mm_ctx::MmArc;
 use mm2_number::{BigDecimal, BigUint};
