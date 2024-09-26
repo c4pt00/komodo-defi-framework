@@ -14,9 +14,9 @@ use errors::{Erc721FunctionError, HtlcParamsError};
 mod structs;
 use structs::{ExpectedHtlcParams, ValidationParams};
 
-use super::ContractType;
-use crate::eth::eth_swap_v2::{validate_from_to_and_status, validate_payment_state, EthPaymentType, PaymentStatusErr,
-                              PrepareTxDataError, ZERO_VALUE};
+use super::{ContractType, NftGasLimit};
+use crate::eth::eth_swap_v2::{validate_from_to_and_status, validate_payment_state, EthPaymentType, PaymentMethod,
+                              PaymentStatusErr, PrepareTxDataError, ZERO_VALUE};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
@@ -38,10 +38,9 @@ impl EthCoin {
                 let htlc_data = try_tx_s!(self.prepare_htlc_data(&args));
 
                 let data = try_tx_s!(self.prepare_nft_maker_payment_v2_data(&args, htlc_data).await);
-                let gas_limit = match args.nft_swap_info.contract_type {
-                    ContractType::Erc1155 => self.gas_limit_v2.nft_maker.erc1155_payment,
-                    ContractType::Erc721 => self.gas_limit_v2.nft_maker.erc721_payment,
-                };
+                let gas_limit = self
+                    .gas_limit_v2
+                    .nft_gas_limit(args.nft_swap_info.contract_type, PaymentMethod::Send);
                 self.sign_and_send_transaction(
                     ZERO_VALUE.into(),
                     Action::Call(*args.nft_swap_info.token_address),
@@ -178,10 +177,9 @@ impl EthCoin {
                     .await
                 );
                 let data = try_tx_s!(self.prepare_spend_nft_maker_v2_data(&args, decoded, htlc_params, state));
-                let gas_limit = match args.contract_type {
-                    ContractType::Erc1155 => self.gas_limit_v2.nft_maker.erc1155_taker_spend,
-                    ContractType::Erc721 => self.gas_limit_v2.nft_maker.erc721_taker_spend,
-                };
+                let gas_limit = self
+                    .gas_limit_v2
+                    .nft_gas_limit(args.contract_type, PaymentMethod::Spend);
                 self.sign_and_send_transaction(
                     ZERO_VALUE.into(),
                     Action::Call(nft_maker_swap_v2_contract),
@@ -228,10 +226,9 @@ impl EthCoin {
                 );
                 let data =
                     try_tx_s!(self.prepare_refund_nft_maker_payment_v2_timelock(&args, decoded, htlc_params, state));
-                let gas_limit = match args.contract_type {
-                    ContractType::Erc1155 => self.gas_limit_v2.nft_maker.erc1155_maker_refund_timelock,
-                    ContractType::Erc721 => self.gas_limit_v2.nft_maker.erc721_maker_refund_timelock,
-                };
+                let gas_limit = self
+                    .gas_limit_v2
+                    .nft_gas_limit(args.contract_type, PaymentMethod::RefundTimelock);
                 self.sign_and_send_transaction(
                     ZERO_VALUE.into(),
                     Action::Call(nft_maker_swap_v2_contract),
@@ -279,10 +276,9 @@ impl EthCoin {
 
                 let data =
                     try_tx_s!(self.prepare_refund_nft_maker_payment_v2_secret(&args, decoded, htlc_params, state));
-                let gas_limit = match args.contract_type {
-                    ContractType::Erc1155 => self.gas_limit_v2.nft_maker.erc1155_maker_refund_secret,
-                    ContractType::Erc721 => self.gas_limit_v2.nft_maker.erc721_maker_refund_secret,
-                };
+                let gas_limit = self
+                    .gas_limit_v2
+                    .nft_gas_limit(args.contract_type, PaymentMethod::RefundSecret);
                 self.sign_and_send_transaction(
                     ZERO_VALUE.into(),
                     Action::Call(nft_maker_swap_v2_contract),

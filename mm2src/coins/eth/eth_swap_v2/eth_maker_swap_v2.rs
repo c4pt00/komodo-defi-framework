@@ -1,6 +1,7 @@
-use super::{validate_from_to_and_status, validate_payment_args, EthPaymentType, PrepareTxDataError, ZERO_VALUE};
+use super::{validate_from_to_and_status, validate_payment_args, EthPaymentType, PaymentMethod, PrepareTxDataError,
+            ZERO_VALUE};
 use crate::coin_errors::{ValidatePaymentError, ValidatePaymentResult};
-use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType,
+use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType, GasLimit,
                  MakerPaymentStateV2, SignedEthTx, MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundMakerPaymentSecretArgs, RefundMakerPaymentTimelockArgs, SendMakerPaymentArgs,
             SpendMakerPaymentArgs, SwapTxTypeWithSecretHash, TransactionErr, ValidateMakerPaymentArgs,
@@ -181,18 +182,14 @@ impl EthCoin {
         &self,
         args: RefundMakerPaymentTimelockArgs<'_>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        let (token_address, gas_limit) = match &self.coin_type {
-            EthCoinType::Eth => (Address::default(), self.gas_limit_v2.maker.eth_maker_refund_timelock),
-            EthCoinType::Erc20 {
-                platform: _,
-                token_addr,
-            } => (*token_addr, self.gas_limit_v2.maker.erc20_maker_refund_timelock),
-            EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps"
-                )))
-            },
-        };
+        let (token_address, gas_limit) = self
+            .gas_limit_v2
+            .gas_limit(
+                &self.coin_type,
+                EthPaymentType::MakerPayments,
+                PaymentMethod::RefundTimelock,
+            )
+            .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
 
         let maker_swap_v2_contract = self
             .swap_v2_contracts
@@ -239,18 +236,14 @@ impl EthCoin {
         &self,
         args: RefundMakerPaymentSecretArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        let (token_address, gas_limit) = match &self.coin_type {
-            EthCoinType::Eth => (Address::default(), self.gas_limit_v2.maker.eth_maker_refund_secret),
-            EthCoinType::Erc20 {
-                platform: _,
-                token_addr,
-            } => (*token_addr, self.gas_limit_v2.maker.erc20_maker_refund_secret),
-            EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps"
-                )))
-            },
-        };
+        let (token_address, gas_limit) = self
+            .gas_limit_v2
+            .gas_limit(
+                &self.coin_type,
+                EthPaymentType::MakerPayments,
+                PaymentMethod::RefundSecret,
+            )
+            .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
 
         let maker_swap_v2_contract = self
             .swap_v2_contracts
@@ -288,18 +281,11 @@ impl EthCoin {
         &self,
         args: SpendMakerPaymentArgs<'_, Self>,
     ) -> Result<SignedEthTx, TransactionErr> {
-        let (token_address, gas_limit) = match &self.coin_type {
-            EthCoinType::Eth => (Address::default(), U256::from(self.gas_limit_v2.maker.eth_taker_spend)),
-            EthCoinType::Erc20 {
-                platform: _,
-                token_addr,
-            } => (*token_addr, U256::from(self.gas_limit_v2.maker.erc20_taker_spend)),
-            EthCoinType::Nft { .. } => {
-                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
-                    "NFT protocol is not supported for ETH and ERC20 Swaps"
-                )))
-            },
-        };
+        let (token_address, gas_limit) = self
+            .gas_limit_v2
+            .gas_limit(&self.coin_type, EthPaymentType::MakerPayments, PaymentMethod::Spend)
+            .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
+
         let maker_swap_v2_contract = self
             .swap_v2_contracts
             .as_ref()
@@ -312,7 +298,7 @@ impl EthCoin {
             U256::from(ZERO_VALUE),
             Action::Call(maker_swap_v2_contract),
             data,
-            gas_limit,
+            U256::from(gas_limit),
         )
         .compat()
         .await

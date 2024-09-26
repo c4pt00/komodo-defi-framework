@@ -158,6 +158,7 @@ pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
 use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
                       InfuraGasApiCaller};
 pub(crate) mod eth_swap_v2;
+use eth_swap_v2::{EthPaymentType, PaymentMethod};
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852
@@ -376,6 +377,85 @@ pub struct NftMakerGasLimitV2 {
     pub erc1155_maker_refund_timelock: u64,
     pub erc721_maker_refund_secret: u64,
     pub erc1155_maker_refund_secret: u64,
+}
+
+pub trait NftGasLimit {
+    fn nft_gas_limit(&self, contract_type: &ContractType, method: PaymentMethod) -> u64;
+}
+
+impl NftGasLimit for EthGasLimitV2 {
+    fn nft_gas_limit(&self, contract_type: &ContractType, method: PaymentMethod) -> u64 {
+        match contract_type {
+            ContractType::Erc1155 => match method {
+                PaymentMethod::Send => self.nft_maker.erc1155_payment,
+                PaymentMethod::Spend => self.nft_maker.erc1155_taker_spend,
+                PaymentMethod::RefundTimelock => self.nft_maker.erc1155_maker_refund_timelock,
+                PaymentMethod::RefundSecret => self.nft_maker.erc1155_maker_refund_secret,
+            },
+            ContractType::Erc721 => match method {
+                PaymentMethod::Send => self.nft_maker.erc721_payment,
+                PaymentMethod::Spend => self.nft_maker.erc721_taker_spend,
+                PaymentMethod::RefundTimelock => self.nft_maker.erc721_maker_refund_timelock,
+                PaymentMethod::RefundSecret => self.nft_maker.erc721_maker_refund_secret,
+            },
+        }
+    }
+}
+
+pub trait GasLimit {
+    fn gas_limit(
+        &self,
+        coin_type: &EthCoinType,
+        payment_type: EthPaymentType,
+        method: PaymentMethod,
+    ) -> Result<(Address, u64), String>;
+}
+
+impl GasLimit for EthGasLimitV2 {
+    fn gas_limit(
+        &self,
+        coin_type: &EthCoinType,
+        payment_type: EthPaymentType,
+        method: PaymentMethod,
+    ) -> Result<(Address, u64), String> {
+        match coin_type {
+            EthCoinType::Eth => {
+                let gas_limit = match payment_type {
+                    EthPaymentType::MakerPayments => match method {
+                        PaymentMethod::Send => self.maker.eth_payment,
+                        PaymentMethod::Spend => self.maker.eth_taker_spend,
+                        PaymentMethod::RefundTimelock => self.maker.eth_maker_refund_timelock,
+                        PaymentMethod::RefundSecret => self.maker.eth_maker_refund_secret,
+                    },
+                    EthPaymentType::TakerPayments => match method {
+                        PaymentMethod::Send => self.taker.eth_payment,
+                        PaymentMethod::Spend => self.taker.eth_maker_spend,
+                        PaymentMethod::RefundTimelock => self.taker.eth_taker_refund_timelock,
+                        PaymentMethod::RefundSecret => self.taker.eth_taker_refund_secret,
+                    },
+                };
+                Ok((Address::default(), gas_limit))
+            },
+            EthCoinType::Erc20 { token_addr, .. } => {
+                let gas_limit = match payment_type {
+                    EthPaymentType::MakerPayments => match method {
+                        PaymentMethod::Send => self.maker.erc20_payment,
+                        PaymentMethod::Spend => self.maker.erc20_taker_spend,
+                        PaymentMethod::RefundTimelock => self.maker.erc20_maker_refund_timelock,
+                        PaymentMethod::RefundSecret => self.maker.erc20_maker_refund_secret,
+                    },
+                    EthPaymentType::TakerPayments => match method {
+                        PaymentMethod::Send => self.taker.erc20_payment,
+                        PaymentMethod::Spend => self.taker.erc20_maker_spend,
+                        PaymentMethod::RefundTimelock => self.taker.erc20_taker_refund_timelock,
+                        PaymentMethod::RefundSecret => self.taker.erc20_taker_refund_secret,
+                    },
+                };
+                Ok((*token_addr, gas_limit))
+            },
+            EthCoinType::Nft { .. } => Err("NFT protocol is not supported for ETH and ERC20 Swaps".to_string()),
+        }
+    }
 }
 
 impl Default for MakerGasLimitV2 {

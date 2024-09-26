@@ -18,7 +18,7 @@ pub(crate) mod eth_taker_swap_v2;
 /// is provided as part of the input data rather than as an Ether value
 pub(crate) const ZERO_VALUE: u32 = 0;
 
-pub(crate) enum EthPaymentType {
+pub enum EthPaymentType {
     MakerPayments,
     TakerPayments,
 }
@@ -30,6 +30,13 @@ impl EthPaymentType {
             EthPaymentType::TakerPayments => "takerPayments",
         }
     }
+}
+
+pub enum PaymentMethod {
+    Send,
+    Spend,
+    RefundTimelock,
+    RefundSecret,
 }
 
 #[derive(Debug, Display)]
