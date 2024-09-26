@@ -1,10 +1,11 @@
 use super::{Session, THIRTY_DAYS};
 use crate::chain::{SUPPORTED_CHAINS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
+use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use chrono::Utc;
 use common::log::info;
-use mm2_err_handle::prelude::MmResult;
+use mm2_err_handle::prelude::{MapMmError, MmResult};
 use relay_rpc::rpc::params::session::{Namespace, SettleNamespaces};
 use relay_rpc::rpc::params::RequestParams;
 use relay_rpc::{domain::{MessageId, Topic},
@@ -49,6 +50,13 @@ pub(crate) async fn reply_session_settle_request(
             session.controller = settle.controller.clone();
             session.relay = settle.relay.clone();
             session.expiry = settle.expiry;
+
+            // Update storage session.
+            ctx.storage
+                .db
+                .update_session(session)
+                .await
+                .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
             info!("Session successfully settled for topic: {:?}", topic);
         }

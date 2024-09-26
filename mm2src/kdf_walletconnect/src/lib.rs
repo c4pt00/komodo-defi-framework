@@ -419,7 +419,7 @@ impl WalletConnectCtx {
 /// WalletConnect can be usable in KDF.
 pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectCtxError> {
     // Initialized WalletConnectCtx
-    let wallet_connect = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+    let wallet_connect = WalletConnectCtx::try_from_ctx_or_initialize(ctx)?;
 
     // WalletConnectCtx is initialized, now we can connect to relayer client.
     wallet_connect.connect_client().await?;
