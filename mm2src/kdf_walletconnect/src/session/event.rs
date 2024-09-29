@@ -61,7 +61,7 @@ impl SessionEvents {
     ) -> MmResult<(), WalletConnectCtxError> {
         if ctx.is_chain_supported(chain_id) {
             if let Some((key, chain)) = parse_chain_and_chain_id(chain_id) {
-                if let Some(namespace) = ctx.namespaces.get(&key) {
+                if let Some(namespace) = ctx.session.lock().await.namespaces {
                     if namespace.chains.contains(&chain) {
                         // TODO: Notify GUI about chain changed.
                         // Update active chain_id

@@ -7,19 +7,19 @@ edition = "2018"
 zhtlc-native-tests = []
 # TODO
 enable-solana = [
-  "dep:bincode",
-  "dep:ed25519-dalek-bip32",
-  "dep:solana-client",
-  "dep:solana-sdk",
-  "dep:solana-transaction-status",
-  "dep:spl-token",
-  "dep:spl-associated-token-account",
-  "dep:satomic-swap"
+   "dep:bincode",
+   "dep:ed25519-dalek-bip32",
+   "dep:solana-client",
+   "dep:solana-sdk",
+   "dep:solana-transaction-status",
+   "dep:spl-token",
+   "dep:spl-associated-token-account",
+   "dep:satomic-swap"
 ]
 enable-sia = [
-  "dep:reqwest",
-  "dep:blake2b_simd",
-  "dep:sia-rust"
+   "dep:reqwest",
+   "dep:blake2b_simd",
+   "dep:sia-rust"
 ]
 default = []
 run-docker-tests = []
