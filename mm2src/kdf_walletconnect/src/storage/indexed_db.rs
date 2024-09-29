@@ -117,3 +117,33 @@ impl WalletConnectStorageOps for IDBSessionStorage {
 
     async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error> { self.save_session(&session).await }
 }
+
+pub(crate) mod crypto {
+    use js_sys::{JsString, Object, Reflect, Uint8Array};
+
+    fn rsa_oaep_params() -> Object {
+        // Create a new empty JavaScript object
+        let rsa_oaep_params = Object::new();
+
+        // "name": "RSA-OAEP"
+        let _ = Reflect::set(&rsa_oaep_params, &JsString::from("name"), &JsString::from("RSA-OAEP"));
+
+        // "modulusLength": 2048
+        let _ = Reflect::set(&rsa_oaep_params, &JsString::from("modulusLength"), &2048.into());
+
+        // "publicExponent": new Uint8Array([0x01, 0x00, 0x01])
+        let public_exponent = Uint8Array::new_with_length(3);
+        public_exponent.copy_from(&[0x01, 0x00, 0x01]);
+
+        let _ = Reflect::set(&rsa_oaep_params, &JsString::from("publicExponent"), &public_exponent);
+
+        // Create the "hash" sub-object
+        let hash_obj = Object::new();
+        let _ = Reflect::set(&hash_obj, &JsString::from("name"), &JsString::from("SHA-256"));
+
+        // "hash": {"name": "SHA-256"}
+        let _ = Reflect::set(&rsa_oaep_params, &JsString::from("hash"), &hash_obj);
+
+        rsa_oaep_params
+    }
+}

@@ -3562,6 +3562,7 @@ dependencies = [
  "futures 0.3.28",
  "hex",
  "hkdf",
+ "js-sys",
  "mm2_core",
  "mm2_db",
  "mm2_err_handle",

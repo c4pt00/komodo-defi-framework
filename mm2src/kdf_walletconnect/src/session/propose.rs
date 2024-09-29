@@ -1,6 +1,5 @@
 use super::{settle::send_session_settle_request, Session};
 use crate::{error::WalletConnectCtxError,
-            metadata::generate_metadata,
             session::{SessionKey, SessionType, THIRTY_DAYS},
             storage::WalletConnectStorageOps,
             WalletConnectCtx};
@@ -26,7 +25,7 @@ pub(crate) async fn send_proposal_request(
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
         relays: vec![ctx.relay.clone()],
         proposer,
-        required_namespaces: required_namespaces.unwrap_or(generate_metadata()),
+        required_namespaces: required_namespaces.unwrap_or(ctx.namespaces.clone()),
     });
 
     ctx.publish_request(&topic, session_proposal).await?;
@@ -79,9 +78,13 @@ pub async fn reply_session_proposal_request(
 
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session.clone());
+        let mut subs = ctx.subscriptions.lock().await;
+        subs.push(session_topic.clone());
     }
 
-    send_session_settle_request(ctx, &session).await?;
+    {
+        send_session_settle_request(ctx, &session).await?;
+    };
 
     // Respond to incoming session propose.
     let param = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
@@ -138,6 +141,8 @@ pub(crate) async fn process_session_propose_response(
 
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session);
+        let mut subs = ctx.subscriptions.lock().await;
+        subs.push(session_topic.clone());
     };
 
     // Activate pairing_topic
