@@ -290,7 +290,6 @@ impl MmCtx {
     /// Returns the path to the MM databases root.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn db_root(&self) -> PathBuf { path_to_db_root(self.conf["dbdir"].as_str()) }
-
     #[cfg(not(target_arch = "wasm32"))]
     pub fn wallet_file_path(&self, wallet_name: &str) -> PathBuf {
         self.db_root().join(wallet_name.to_string() + ".dat")
@@ -503,7 +502,10 @@ lazy_static! {
 impl MmArc {
     pub fn new(ctx: MmCtx) -> MmArc { MmArc(SharedRc::new(ctx)) }
 
-    pub fn stop(&self) -> Result<(), String> {
+    pub async fn stop(&self) -> Result<(), String> {
+        #[cfg(not(target_arch = "wasm32"))]
+        try_s!(self.close_async_connection().await);
+
         try_s!(self.stop.pin(true));
 
         // Notify shutdown listeners.
@@ -513,6 +515,16 @@ impl MmArc {
 
         #[cfg(feature = "track-ctx-pointer")]
         self.track_ctx_pointer();
+
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn close_async_connection(&self) -> Result<(), db_common::async_sql_conn::AsyncConnError> {
+        if let Some(async_conn) = self.async_sqlite_connection.as_option() {
+            let mut conn = async_conn.lock().await;
+            conn.close().await?;
+        }
 
         Ok(())
     }
@@ -737,6 +749,12 @@ impl MmCtxBuilder {
     #[cfg(target_arch = "wasm32")]
     pub fn with_test_db_namespace(mut self) -> Self {
         self.db_namespace = DbNamespaceId::for_test();
+        self
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_test_db_namespace_with_id(mut self, id: u64) -> Self {
+        self.db_namespace = DbNamespaceId::for_test_with_id(id);
         self
     }
 
