@@ -1041,9 +1041,8 @@ impl TableSignature for NftTransferHistoryTable {
 
             // Step 2: Copy data from the old store to the temp store
             let old_store = upgrader.open_table(Self::TABLE_NAME)?;
-            let temp_store = upgrader.open_table(&temp_table_name)?;
 
-            copy_store_data_sync(&old_store.object_store, &temp_store.object_store)?;
+            copy_store_data_sync(&old_store.object_store, &temp_table.object_store)?;
 
             console::log_1(&JsValue::from_str("Copied data from old store to temp store"));
 
@@ -1053,7 +1052,7 @@ impl TableSignature for NftTransferHistoryTable {
                 .delete_index(Self::CHAIN_TX_HASH_LOG_INDEX_INDEX)
                 .unwrap();
 
-            console::log_1(&JsValue::from_str("Deleted temp store"));
+            console::log_1(&JsValue::from_str("Deleted old CHAIN_TX_HASH_LOG_INDEX_INDEX"));
         }
         Ok(())
     }
