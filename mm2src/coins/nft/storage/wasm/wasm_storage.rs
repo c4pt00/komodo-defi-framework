@@ -1043,43 +1043,15 @@ impl TableSignature for NftTransferHistoryTable {
             let old_store = upgrader.open_table(Self::TABLE_NAME)?;
             let temp_store = upgrader.open_table(&temp_table_name)?;
 
-            // TODO copy data from old_store to temp_store
             copy_store_data_sync(&old_store.object_store, &temp_store.object_store)?;
 
             console::log_1(&JsValue::from_str("Copied data from old store to temp store"));
 
-            // Step 3: Delete the old object store
-            upgrader.delete_table(Self::TABLE_NAME)?;
-
-            console::log_1(&JsValue::from_str("Deleted old object store"));
-
-            // Step 4: Recreate the original object store with the new schema
-            let new_table = upgrader.create_table(Self::TABLE_NAME)?;
-            new_table.create_multi_index(
-                Self::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX,
-                &["chain", "transaction_hash", "log_index", "token_id"],
-                true,
-            )?;
-            new_table.create_multi_index(
-                CHAIN_TOKEN_ADD_TOKEN_ID_INDEX,
-                &["chain", "token_address", "token_id"],
-                false,
-            )?;
-            new_table.create_multi_index(CHAIN_BLOCK_NUMBER_INDEX, &["chain", "block_number"], false)?;
-            new_table.create_multi_index(CHAIN_TOKEN_ADD_INDEX, &["chain", "token_address"], false)?;
-            new_table.create_multi_index(CHAIN_TOKEN_DOMAIN_INDEX, &["chain", "token_domain"], false)?;
-            new_table.create_multi_index(CHAIN_IMAGE_DOMAIN_INDEX, &["chain", "image_domain"], false)?;
-            new_table.create_index("block_number", false)?;
-            new_table.create_index("chain", false)?;
-
-            // Step 5: Copy data back from the temp store to the new store
-            // TODO copy data from temp_store to new_table
-            copy_store_data_sync(&temp_store.object_store, &new_table.object_store)?;
-
-            console::log_1(&JsValue::from_str("Copied data from temp store to new store"));
-
-            // Step 6: Delete the temporary store
-            upgrader.delete_table(&temp_table_name)?;
+            // Once the data is copied, delete the old index
+            old_store
+                .object_store
+                .delete_index(Self::CHAIN_TX_HASH_LOG_INDEX_INDEX)
+                .unwrap();
 
             console::log_1(&JsValue::from_str("Deleted temp store"));
         }
