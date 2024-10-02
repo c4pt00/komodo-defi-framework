@@ -162,6 +162,8 @@ pub async fn cosmos_sign_tx_direct_impl(
         "sign_doc": sign_doc
     });
 
+    println!("VALUE: {:?}", value);
+
     let request = SessionRequest {
         method: WcRequestMethods::CosmosSignDirect.as_ref().to_owned(),
         expiry: Some(Utc::now().timestamp() as u64 + 300),

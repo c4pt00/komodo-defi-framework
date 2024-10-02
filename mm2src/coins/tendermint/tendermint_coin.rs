@@ -1186,6 +1186,7 @@ impl TendermintCoin {
         withdraw_from: Option<WithdrawFrom>,
     ) -> Result<(AccountId, Option<H256>), WithdrawError> {
         if let TendermintActivationPolicy::PublicKey(_) = self.activation_policy {
+            println!("inside pubkey");
             return Ok((self.account_id.clone(), None));
         }
 
@@ -1222,7 +1223,7 @@ impl TendermintCoin {
         }
     }
 
-    pub(super) fn any_to_transaction_data(
+    pub(super) async fn any_to_transaction_data(
         &self,
         maybe_pk: Option<H256>,
         message: Any,
@@ -1231,24 +1232,57 @@ impl TendermintCoin {
         timeout_height: u64,
         memo: String,
     ) -> Result<TransactionData, ErrorReport> {
+        println!("before maybe");
         if let Some(priv_key) = maybe_pk {
+            println!("after maybe");
             let tx_raw = self.any_to_signed_raw_tx(&priv_key, account_info, message, fee, timeout_height, memo)?;
             let tx_bytes = tx_raw.to_bytes()?;
             let hash = sha256(&tx_bytes);
 
-            Ok(TransactionData::new_signed(
+            return Ok(TransactionData::new_signed(
                 tx_bytes.into(),
                 hex::encode_upper(hash.as_slice()),
-            ))
-        } else {
-            let SerializedUnsignedTx { tx_json, .. } = if self.is_keplr_from_ledger() {
-                self.any_to_legacy_amino_json(account_info, message, fee, timeout_height, memo)
-            } else {
-                self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)
-            }?;
+            ));
+        };
 
-            Ok(TransactionData::Unsigned(tx_json))
-        }
+        if let TendermintWalletConnectionType::WalletConnect = self.wallet_connection_type {
+            println!("inside wc");
+            let ctx = MmArc::from_weak(&self.ctx)
+                .ok_or(MyAddressError::InternalError(ERRL!("ctx must be initialized already")))?;
+            let wallet_connect = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+
+            let SerializedUnsignedTx { tx_json, body_bytes } =
+                self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)?;
+
+            let my_address = self.my_address()?;
+            let response = wallet_connect
+                .cosmos_send_sign_tx_request(tx_json, &self.chain_id.to_string(), my_address)
+                .await?;
+            let signature = general_purpose::STANDARD.decode(response.signature.signature)?;
+            let body_bytes = general_purpose::STANDARD.decode(response.signed.body_bytes)?;
+            let auth_info_bytes = general_purpose::STANDARD.decode(response.signed.auth_info_bytes)?;
+            let tx_raw = TxRaw {
+                body_bytes,
+                auth_info_bytes,
+                signatures: vec![signature],
+            };
+            let tx_raw: Raw = tx_raw.into();
+            let tx_bytes = tx_raw.to_bytes()?;
+            let hash = sha256(&tx_bytes);
+
+            return Ok(TransactionData::new_signed(
+                tx_bytes.into(),
+                hex::encode_upper(hash.as_slice()),
+            ));
+        };
+
+        let SerializedUnsignedTx { tx_json, .. } = if self.is_keplr_from_ledger() {
+            self.any_to_legacy_amino_json(account_info, message, fee, timeout_height, memo)
+        } else {
+            self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)
+        }?;
+
+        Ok(TransactionData::Unsigned(tx_json))
     }
 
     fn gen_create_htlc_tx(
@@ -2348,8 +2382,10 @@ impl MmCoin for TendermintCoin {
 
             let account_info = coin.account_info(&account_id).await?;
 
+            println!("Before any_to_transaction_data");
             let tx = coin
                 .any_to_transaction_data(maybe_pk, msg_payload, &account_info, fee, timeout_height, memo.clone())
+                .await
                 .map_to_mm(|e| WithdrawError::InternalError(e.to_string()))?;
 
             let internal_id = {

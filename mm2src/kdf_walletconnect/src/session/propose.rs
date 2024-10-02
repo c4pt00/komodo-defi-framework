@@ -70,11 +70,11 @@ pub async fn reply_session_proposal_request(
 
     {
         // save session to storage
-        ctx.storage
-            .db
-            .save_session(&session)
-            .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        //ctx.storage
+        //    .db
+        //    .save_session(&session)
+        //    .await
+        //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session.clone());
@@ -133,11 +133,11 @@ pub(crate) async fn process_session_propose_response(
 
     {
         // save session to storage
-        ctx.storage
-            .db
-            .save_session(&session)
-            .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        //ctx.storage
+        //    .db
+        //    .save_session(&session)
+        //    .await
+        //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
         let mut old_session = ctx.session.lock().await;
         *old_session = Some(session);

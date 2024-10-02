@@ -437,7 +437,7 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
     ctx.spawner().spawn(wallet_connect.clone().connection_live_watcher());
 
     // load session from storage
-    wallet_connect.load_session_from_storage().await?;
+    // wallet_connect.load_session_from_storage().await?;
 
     Ok(())
 }
