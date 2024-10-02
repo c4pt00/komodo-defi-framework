@@ -254,7 +254,7 @@ async fn get_walletconnect_pubkey(
         WalletConnectCtx::try_from_ctx_or_initialize(ctx).expect("WalletConnectCtx should be initialized by now!");
 
     let account = walletconnect_ctx
-        .cosmos_get_account(param.account_index, "cosmos", chain_id)
+        .cosmos_get_account(param.account_index, chain_id)
         .await
         .mm_err(|err| TendermintInitError {
             ticker: ticker.to_string(),
