@@ -9,7 +9,7 @@ pub mod session;
 mod storage;
 
 use chain::{build_required_namespaces,
-            cosmos::{cosmos_get_accounts_impl, CosmosAccount},
+            cosmos::{cosmos_get_accounts_impl, cosmos_sign_tx_direct_impl, CosmosAccount, CosmosTxSignedData},
             SUPPORTED_CHAINS};
 use common::executor::SpawnFuture;
 use common::{executor::Timer,
@@ -165,13 +165,11 @@ impl WalletConnectCtx {
 
     pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|chain| chain == &chain_id) }
 
-    /// Set active chain.
     pub async fn set_active_chain(&self, chain_id: &str) {
         let mut active_chain = self.active_chain_id.lock().await;
         *active_chain = chain_id.to_owned();
     }
 
-    /// Get current active chain id.
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
     pub async fn get_session(&self) -> Option<Session> { self.session.lock().await.clone() }
@@ -211,10 +209,9 @@ impl WalletConnectCtx {
     pub async fn cosmos_get_account(
         &self,
         account_index: u8,
-        chain: &str,
         chain_id: &str,
     ) -> MmResult<CosmosAccount, WalletConnectCtxError> {
-        let accounts = cosmos_get_accounts_impl(self, chain, chain_id).await?;
+        let accounts = cosmos_get_accounts_impl(self, chain_id).await?;
 
         if accounts.is_empty() {
             return MmError::err(WalletConnectCtxError::EmptyAccount(chain_id.to_string()));
@@ -225,6 +222,15 @@ impl WalletConnectCtx {
         };
 
         Ok(accounts[account_index as usize].clone())
+    }
+
+    pub async fn cosmos_send_sign_tx_request(
+        &self,
+        sign_doc: Value,
+        chain_id: &str,
+        signer_address: String,
+    ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
+        cosmos_sign_tx_direct_impl(self, sign_doc, chain_id, signer_address).await
     }
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {

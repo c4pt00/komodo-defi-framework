@@ -14,7 +14,7 @@ use coins::tendermint::tendermint_tx_history_v2::tendermint_history_loop;
 use coins::tendermint::{tendermint_priv_key_policy, RpcNode, TendermintActivationPolicy, TendermintCoin,
                         TendermintCommons, TendermintConf, TendermintInitError, TendermintInitErrorKind,
                         TendermintProtocolInfo, TendermintPublicKey, TendermintToken, TendermintTokenActivationParams,
-                        TendermintTokenInitError, TendermintTokenProtocolInfo};
+                        TendermintTokenInitError, TendermintTokenProtocolInfo, TendermintWalletConnectionType};
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
 use common::{true_f, Future01CompatExt};
@@ -293,10 +293,9 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
         protocol_conf: Self::PlatformProtocolInfo,
     ) -> Result<Self, MmError<Self::ActivationError>> {
         let conf = TendermintConf::try_from_json(&ticker, coin_conf)?;
-        let mut is_keplr_from_ledger = false;
+        let mut wallet_connectin_type = TendermintWalletConnectionType::Other;
 
         let activation_policy = if let Some(params) = activation_request.activation_params {
-            println!("{params:?}");
             if ctx.is_watcher() || ctx.use_watchers() {
                 return MmError::err(TendermintInitError {
                     ticker: ticker.clone(),
@@ -307,12 +306,16 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
             match params {
                 TendermintPubkeyActivationParams::WithPubkey {
                     pubkey,
-                    is_keplr_from_ledger: temp,
+                    is_keplr_from_ledger,
                 } => {
-                    is_keplr_from_ledger = temp;
+                    if is_keplr_from_ledger {
+                        wallet_connectin_type = TendermintWalletConnectionType::KeplrLedger;
+                    };
+
                     TendermintActivationPolicy::with_public_key(pubkey)
                 },
                 TendermintPubkeyActivationParams::WalletConnect(params) => {
+                    wallet_connectin_type = TendermintWalletConnectionType::WalletConnect;
                     get_walletconnect_pubkey(&ctx, &params, protocol_conf.chain_id.as_ref(), &ticker).await?
                 },
             }
@@ -337,7 +340,7 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
             activation_request.nodes,
             activation_request.tx_history,
             activation_policy,
-            is_keplr_from_ledger,
+            wallet_connectin_type,
         )
         .await
     }
