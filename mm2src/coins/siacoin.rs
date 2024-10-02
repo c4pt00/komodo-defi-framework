@@ -28,13 +28,10 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-use sia_rust::http::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
-use sia_rust::http::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
+use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
+use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
                                 TxpoolBroadcastRequest};
-use sia_rust::spend_policy::SpendPolicy;
-use sia_rust::transaction::{V1Transaction, V2Transaction};
-use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType};
-use sia_rust::{Keypair, KeypairError};
+use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, SpendPolicy, V1Transaction, V2Transaction, Keypair as SiaKeypair, KeypairError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
@@ -43,14 +40,14 @@ use std::sync::{Arc, Mutex};
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
-use sia_rust::http::client::native::Conf as SiaClientConf;
+use sia_rust::transport::client::native::Conf as SiaClientConf;
 #[cfg(not(target_arch = "wasm32"))]
-use sia_rust::http::client::native::NativeClient as SiaClientType;
+use sia_rust::transport::client::native::NativeClient as SiaClientType;
 
 #[cfg(target_arch = "wasm32")]
-use sia_rust::http::client::wasm::Client as SiaClientType;
+use sia_rust::transport::client::wasm::Client as SiaClientType;
 #[cfg(target_arch = "wasm32")]
-use sia_rust::http::client::wasm::Conf as SiaClientConf;
+use sia_rust::transport::client::wasm::Conf as SiaClientConf;
 
 pub mod sia_hd_wallet;
 mod sia_withdraw;

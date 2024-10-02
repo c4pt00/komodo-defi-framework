@@ -1,7 +1,6 @@
 use crate::hd_wallet::{HDAccount, HDAddress, HDWallet};
 use bip32::{ExtendedPublicKey, PrivateKeyBytes, PublicKey as bip32PublicKey, PublicKeyBytes, Result as bip32Result};
-use sia_rust::types::Address;
-use sia_rust::PublicKey;
+use sia_rust::types::{Address, PublicKey};
 
 pub struct SiaPublicKey(pub PublicKey);
 
