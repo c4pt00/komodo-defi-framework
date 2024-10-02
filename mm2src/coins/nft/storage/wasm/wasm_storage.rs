@@ -1017,6 +1017,14 @@ impl TableSignature for NftTransferHistoryTable {
         } else if old_version == 1 && new_version == 2 {
             // Migration from version 1 to version 2
 
+            // Step 2: Copy data from the old store to the temp store
+            let old_store = upgrader.open_table(Self::TABLE_NAME)?;
+            old_store.create_multi_index(
+                Self::CHAIN_TX_HASH_LOG_INDEX_TOKEN_ID_INDEX,
+                &["chain", "transaction_hash", "log_index", "token_id"],
+                true,
+            )?;
+
             console::log_1(&JsValue::from_str("Migrating from version 1 to version 2."));
 
             // Step 1: Create a temporary table to hold data with the old schema
@@ -1039,12 +1047,9 @@ impl TableSignature for NftTransferHistoryTable {
             temp_table.create_index("block_number", false)?;
             temp_table.create_index("chain", false)?;
 
-            // Step 2: Copy data from the old store to the temp store
-            let old_store = upgrader.open_table(Self::TABLE_NAME)?;
+            // copy_store_data_sync(&old_store.object_store, &temp_table.object_store)?;
 
-            copy_store_data_sync(&old_store.object_store, &temp_table.object_store)?;
-
-            console::log_1(&JsValue::from_str("Copied data from old store to temp store"));
+            // console::log_1(&JsValue::from_str("Copied data from old store to temp store"));
 
             // Once the data is copied, delete the old index
             old_store
