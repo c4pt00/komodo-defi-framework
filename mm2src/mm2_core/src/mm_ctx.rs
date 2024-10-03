@@ -290,7 +290,6 @@ impl MmCtx {
     /// Returns the path to the MM databases root.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn db_root(&self) -> PathBuf { path_to_db_root(self.conf["dbdir"].as_str()) }
-
     #[cfg(not(target_arch = "wasm32"))]
     pub fn wallet_file_path(&self, wallet_name: &str) -> PathBuf {
         self.db_root().join(wallet_name.to_string() + ".dat")
@@ -750,6 +749,12 @@ impl MmCtxBuilder {
     #[cfg(target_arch = "wasm32")]
     pub fn with_test_db_namespace(mut self) -> Self {
         self.db_namespace = DbNamespaceId::for_test();
+        self
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_test_db_namespace_with_id(mut self, id: u64) -> Self {
+        self.db_namespace = DbNamespaceId::for_test_with_id(id);
         self
     }
 
