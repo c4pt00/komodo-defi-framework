@@ -75,13 +75,15 @@ pub enum WalletConnectCtxError {
     #[error("Account not found for chain_id: {0}")]
     NoAccountFound(String),
     #[error("Account not found for index: {0}")]
-    NoAccountFoundForIndex(u8),
+    NoAccountFoundForIndex(usize),
     #[error("Empty account approved for chain_id: {0}")]
     EmptyAccount(String),
     #[error("WalletConnect is not initaliazed yet!")]
     NotInitialized,
     #[error("Storage Error: {0}")]
     StorageError(String),
+    #[error("ChainId mismatch")]
+    ChainIdMismatch,
 }
 
 impl From<Error<PublishError>> for WalletConnectCtxError {

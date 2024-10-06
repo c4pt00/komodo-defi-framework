@@ -43,7 +43,7 @@ impl RegisterTokenInfo<TendermintToken> for TendermintCoin {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WalletConnectParams {
     #[serde(default)]
-    pub account_index: u8,
+    pub account_index: usize,
     #[serde(default)]
     pub enabled: bool,
 }

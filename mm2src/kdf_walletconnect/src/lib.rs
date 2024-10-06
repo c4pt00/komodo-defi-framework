@@ -12,7 +12,7 @@ use chain::{build_required_namespaces,
             tendermint::{cosmos_get_accounts_impl, cosmos_sign_tx_direct_impl, CosmosAccount, CosmosTxSignedData},
             SUPPORTED_CHAINS};
 use common::executor::SpawnFuture;
-use common::{executor::Timer, log::info};
+use common::log::info;
 use connection_handler::{maintain_client_connection, Handler};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
@@ -26,7 +26,7 @@ use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
-use relay_rpc::rpc::params::{RelayProtocolMetadata, RequestParams};
+use relay_rpc::rpc::params::{session::Namespace, RelayProtocolMetadata, RequestParams};
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
                 rpc::{params::{session::ProposeNamespaces, IrnMetadata, Metadata, Relay, ResponseParamsError,
@@ -118,8 +118,6 @@ impl WalletConnectCtx {
 
         self.client.connect(&opts).await?;
 
-        info!("WC connected");
-
         Ok(())
     }
 
@@ -173,41 +171,49 @@ impl WalletConnectCtx {
 
     pub async fn get_session(&self) -> Option<Session> { self.session.lock().await.clone() }
 
-    /// Get available accounts for a given chain_id.
+    /// Retrieves the available account for a given chain ID.
     pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectCtxError> {
-        let active_chain_id = self.active_chain_id.lock().await;
-        if *active_chain_id == chain_id {
-            let session = self.session.lock().await;
-            if let Some(session) = session.as_ref() {
-                // Iterate through namespaces to find the matching chain_id
-                for (namespace_key, namespace) in &session.namespaces {
-                    if let Some(chains) = &namespace.chains {
-                        let key = format!("{namespace_key}:{chain_id}");
-                        // Check if the chain_id exists within the namespace chains
-                        if chains.contains(&key) {
-                            if let Some(accounts) = &namespace.accounts {
-                                // Loop through the accounts and extract the account for the correct chain
-                                for account_name in accounts {
-                                    // "cosmos:cosmoshub-4:cosmos1fg2nemunucn496fewakqfe0mllcqfulrmjnj77"
-                                    let account_vec = account_name.split(':').collect::<Vec<_>>();
-                                    if account_vec.len() >= 3 {
-                                        return Ok(account_vec[2].to_owned());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        let active_chain_id = self.get_active_chain_id().await;
+        if active_chain_id != chain_id {
+            return MmError::err(WalletConnectCtxError::ChainIdMismatch);
         }
 
-        // If the chain doesn't match, or no valid account is found, return an error
-        MmError::err(WalletConnectCtxError::NoAccountFound(chain_id.to_string()))
+        let session = self.session.lock().await;
+        let session = session.as_ref().ok_or(WalletConnectCtxError::NoAccountFound(
+            "No active session found".to_owned(),
+        ))?;
+
+        session
+            .namespaces
+            .iter()
+            .find_map(|(key, namespace)| self.find_account_in_namespace(namespace, key, chain_id))
+            .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
+                chain_id.to_string(),
+            )))
+    }
+
+    fn find_account_in_namespace(&self, namespace: &Namespace, namespace_key: &str, chain_id: &str) -> Option<String> {
+        let chains = namespace.chains.as_ref()?;
+        let key = format!("{namespace_key}:{chain_id}");
+
+        if !chains.contains(&key) {
+            return None;
+        }
+
+        let accounts = namespace.accounts.as_ref()?;
+        accounts.iter().find_map(|account_name| {
+            let parts: Vec<&str> = account_name.split(':').collect();
+            if parts.len() >= 3 && parts[1] == chain_id {
+                Some(parts[2].to_string())
+            } else {
+                None
+            }
+        })
     }
 
     pub async fn cosmos_get_account(
         &self,
-        account_index: u8,
+        account_index: usize,
         chain_id: &str,
     ) -> MmResult<CosmosAccount, WalletConnectCtxError> {
         let accounts = cosmos_get_accounts_impl(self, chain_id).await?;
@@ -216,11 +222,11 @@ impl WalletConnectCtx {
             return MmError::err(WalletConnectCtxError::EmptyAccount(chain_id.to_string()));
         };
 
-        if accounts.len() < account_index as usize + 1 {
+        if accounts.len() < account_index + 1 {
             return MmError::err(WalletConnectCtxError::NoAccountFoundForIndex(account_index));
         };
 
-        Ok(accounts[account_index as usize].clone())
+        Ok(accounts[account_index].clone())
     }
 
     pub async fn cosmos_send_sign_tx_request(
@@ -260,7 +266,7 @@ impl WalletConnectCtx {
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
-        info!("Otbound request sent!\n");
+        info!("Outbound request sent!\n");
 
         Ok(())
     }
@@ -330,7 +336,6 @@ impl WalletConnectCtx {
         let selfi = self.clone();
         let mut recv = self.inbound_message_handler.lock().await;
         while let Some(msg) = recv.next().await {
-            info!("received message");
             if let Err(e) = selfi.handle_published_message(msg).await {
                 info!("Error processing message: {:?}", e);
             }
