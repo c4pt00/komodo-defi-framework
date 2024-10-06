@@ -7,7 +7,7 @@ use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::rpc::params::{session_request::{Request as SessionRequest, SessionRequestRequest},
                              RequestParams, ResponseParamsSuccess};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use super::WcRequestMethods;
 
@@ -147,7 +147,6 @@ pub async fn cosmos_sign_tx_direct_impl(
     ctx: &WalletConnectCtx,
     sign_doc: Value,
     chain_id: &str,
-    signer_address: String,
 ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
     let session_topic = {
         let session = ctx.session.lock().await;

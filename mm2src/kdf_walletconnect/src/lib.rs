@@ -1,6 +1,6 @@
 pub mod chain;
+mod connection_handler;
 #[allow(unused)] pub mod error;
-mod handler;
 mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
@@ -9,16 +9,15 @@ pub mod session;
 mod storage;
 
 use chain::{build_required_namespaces,
-            cosmos::{cosmos_get_accounts_impl, cosmos_sign_tx_direct_impl, CosmosAccount, CosmosTxSignedData},
+            tendermint::{cosmos_get_accounts_impl, cosmos_sign_tx_direct_impl, CosmosAccount, CosmosTxSignedData},
             SUPPORTED_CHAINS};
 use common::executor::SpawnFuture;
-use common::{executor::Timer,
-             log::{error, info}};
+use common::{executor::Timer, log::info};
+use connection_handler::{maintain_client_connection, Handler};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
               lock::Mutex,
               StreamExt};
-use handler::Handler;
 use inbound_message::{process_inbound_request, process_inbound_response};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
@@ -99,7 +98,7 @@ impl WalletConnectCtx {
         })
     }
 
-    pub fn try_from_ctx_or_initialize(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
+    pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
         from_ctx(&ctx.wallet_connect, move || {
             Self::try_init(ctx).map_err(|err| err.to_string())
         })
@@ -228,9 +227,8 @@ impl WalletConnectCtx {
         &self,
         sign_doc: Value,
         chain_id: &str,
-        signer_address: String,
     ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
-        cosmos_sign_tx_direct_impl(self, sign_doc, chain_id, signer_address).await
+        cosmos_sign_tx_direct_impl(self, sign_doc, chain_id).await
     }
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
@@ -378,63 +376,20 @@ impl WalletConnectCtx {
 
         Ok(())
     }
-
-    async fn connection_live_watcher(self: Arc<Self>) {
-        let mut recv = self.connection_live_handler.lock().await;
-        let mut retry_count = 0;
-
-        while let Some(_msg) = recv.next().await {
-            info!("Connection disconnected. Attempting to reconnect...");
-
-            // Try reconnecting
-            match self.connect_client().await {
-                Ok(_) => {
-                    info!(
-                        "Successfully reconnected to client after {} attempt(s).",
-                        retry_count + 1
-                    );
-                    retry_count = 0;
-                },
-                Err(err) => {
-                    retry_count += 1;
-                    common::log::error!(
-                        "Error while reconnecting to client (attempt {}): {:?}. Retrying in 5 seconds...",
-                        retry_count,
-                        err
-                    );
-                    Timer::sleep(5.).await;
-                    continue;
-                },
-            }
-
-            // Subscribe to existing topics again after reconnecting
-            let subs = self.subscriptions.lock().await;
-            for topic in &*subs {
-                match self.client.subscribe(topic.clone()).await {
-                    Ok(_) => info!("Successfully reconnected to topic: {:?}", topic),
-                    Err(err) => error!("Failed to subscribe to topic: {:?}. Error: {:?}", topic, err),
-                }
-            }
-
-            info!("Reconnection process complete.");
-        }
-    }
 }
 
 /// This function spwans related WalletConnect related tasks and needed initialization before
 /// WalletConnect can be usable in KDF.
 pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectCtxError> {
     // Initialized WalletConnectCtx
-    let wallet_connect = WalletConnectCtx::try_from_ctx_or_initialize(ctx)?;
+    let wallet_connect = WalletConnectCtx::from_ctx(ctx)?;
 
-    // WalletConnectCtx is initialized, now we can connect to relayer client.
-    wallet_connect.connect_client().await?;
+    // WalletConnectCtx is initialized, now we can connect to relayer client and spawn a watcher
+    // loop for disconnection.
+    ctx.spawner().spawn(maintain_client_connection(wallet_connect.clone()));
 
     // spawn message handler event loop
-    ctx.spawner().spawn(wallet_connect.clone().message_handler_event_loop());
-
-    // spawn WalletConnect client disconnect task
-    ctx.spawner().spawn(wallet_connect.clone().connection_live_watcher());
+    ctx.spawner().spawn(wallet_connect.message_handler_event_loop());
 
     // load session from storage
     // wallet_connect.load_session_from_storage().await?;

@@ -1,7 +1,6 @@
 use super::{settle::send_session_settle_request, Session};
 use crate::{error::WalletConnectCtxError,
             session::{SessionKey, SessionType, THIRTY_DAYS},
-            storage::WalletConnectStorageOps,
             WalletConnectCtx};
 
 use chrono::Utc;

@@ -1,4 +1,4 @@
-pub mod cosmos;
+pub mod tendermint;
 use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
 use std::collections::BTreeMap;
 

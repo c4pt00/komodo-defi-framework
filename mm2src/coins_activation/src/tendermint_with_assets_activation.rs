@@ -18,7 +18,7 @@ use coins::tendermint::{tendermint_priv_key_policy, RpcNode, TendermintActivatio
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
 use common::{true_f, Future01CompatExt};
-use kdf_walletconnect::chain::cosmos::CosmosAccountAlgo;
+use kdf_walletconnect::chain::tendermint::CosmosAccountAlgo;
 use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -250,8 +250,7 @@ async fn get_walletconnect_pubkey(
         });
     };
 
-    let walletconnect_ctx =
-        WalletConnectCtx::try_from_ctx_or_initialize(ctx).expect("WalletConnectCtx should be initialized by now!");
+    let walletconnect_ctx = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
 
     let account = walletconnect_ctx
         .cosmos_get_account(param.account_index, chain_id)

@@ -12,7 +12,7 @@ pub struct GetSessionResponse {
 
 /// `delete connection` RPC command implementation.
 pub async fn get_session(ctx: MmArc, _req: EmptyRpcRequst) -> MmResult<GetSessionResponse, WalletConnectCtxError> {
-    let ctx = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+    let ctx = WalletConnectCtx::from_ctx(&ctx)?;
     let session = ctx.get_session().await;
 
     Ok(GetSessionResponse { session })

@@ -17,7 +17,7 @@ pub struct SessionPingRequest {
 
 /// `ping session` RPC command implementation.
 pub async fn ping_session(ctx: MmArc, req: SessionPingRequest) -> MmResult<SessionPingResponse, WalletConnectCtxError> {
-    let ctx = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+    let ctx = WalletConnectCtx::from_ctx(&ctx)?;
     send_session_ping_request(&ctx, &req.topic).await?;
 
     Ok(SessionPingResponse { successful: true })

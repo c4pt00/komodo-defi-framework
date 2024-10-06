@@ -13,7 +13,7 @@ pub struct GetChainIdResponse {
 
 /// `delete connection` RPC command implementation.
 pub async fn get_chain_id(ctx: MmArc, _req: EmptyRpcRequst) -> MmResult<GetChainIdResponse, WalletConnectCtxError> {
-    let ctx = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+    let ctx = WalletConnectCtx::from_ctx(&ctx)?;
     let chain_id = ctx.get_active_chain_id().await;
 
     Ok(GetChainIdResponse { chain_id })

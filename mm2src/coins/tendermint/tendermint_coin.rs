@@ -930,12 +930,10 @@ impl TendermintCoin {
 
         let tx_raw = match self.wallet_connection_type {
             TendermintWalletConnectionType::WalletConnect => {
-                let wallet_connect =
-                    try_tx_s!(WalletConnectCtx::try_from_ctx_or_initialize(&ctx).map_err(|e| ERRL!("{}", e)));
-                let my_address = try_tx_s!(self.my_address().map_err(|e| ERRL!("{}", e)));
+                let wallet_connect = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
                 let response = try_tx_s!(
                     wallet_connect
-                        .cosmos_send_sign_tx_request(tx_json, &self.chain_id.to_string(), my_address)
+                        .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
                         .await
                 );
                 let signature = try_tx_s!(general_purpose::STANDARD
@@ -1249,14 +1247,13 @@ impl TendermintCoin {
             println!("inside wc");
             let ctx = MmArc::from_weak(&self.ctx)
                 .ok_or(MyAddressError::InternalError(ERRL!("ctx must be initialized already")))?;
-            let wallet_connect = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)?;
+            let wallet_connect = WalletConnectCtx::from_ctx(&ctx)?;
 
-            let SerializedUnsignedTx { tx_json, body_bytes } =
+            let SerializedUnsignedTx { tx_json, body_bytes: _ } =
                 self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)?;
 
-            let my_address = self.my_address()?;
             let response = wallet_connect
-                .cosmos_send_sign_tx_request(tx_json, &self.chain_id.to_string(), my_address)
+                .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
                 .await?;
             let signature = general_purpose::STANDARD.decode(response.signature.signature)?;
             let body_bytes = general_purpose::STANDARD.decode(response.signed.body_bytes)?;
@@ -1385,7 +1382,7 @@ impl TendermintCoin {
         } else {
             json!({
                 "sign_doc": {
-                    "body_bytes": sign_doc.body_bytes.clone(),
+                    "body_bytes": &sign_doc.body_bytes,
                     "auth_info_bytes": sign_doc.auth_info_bytes,
                     "chain_id": sign_doc.chain_id,
                     "account_number": sign_doc.account_number,

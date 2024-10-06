@@ -12,8 +12,8 @@ pub struct GetSessionResponse {
 
 /// `delete connection` RPC command implementation.
 pub async fn get_session(ctx: MmArc, _req: EmptyRpcRequst) -> MmResult<GetSessionResponse, WalletConnectRpcError> {
-    let ctx = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)
-        .mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
+    let ctx =
+        WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     let session = ctx.get_session().await;
 
     Ok(GetSessionResponse { session })

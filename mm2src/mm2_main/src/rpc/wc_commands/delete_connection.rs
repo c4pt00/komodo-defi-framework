@@ -20,8 +20,8 @@ pub async fn delete_connection(
     ctx: MmArc,
     req: DeleteConnectionRequest,
 ) -> MmResult<DeleteConnectionResponse, WalletConnectRpcError> {
-    let ctx = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)
-        .mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
+    let ctx =
+        WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     send_session_delete_request(&ctx, &req.topic.into())
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;

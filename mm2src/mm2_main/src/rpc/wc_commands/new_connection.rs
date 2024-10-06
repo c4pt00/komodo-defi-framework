@@ -15,8 +15,8 @@ pub async fn new_connection(
     ctx: MmArc,
     _req: EmptyRpcRequst,
 ) -> MmResult<CreateConnectionResponse, WalletConnectRpcError> {
-    let ctx = WalletConnectCtx::try_from_ctx_or_initialize(&ctx)
-        .mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
+    let ctx =
+        WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     let url = ctx
         .new_connection(None)
         .await
