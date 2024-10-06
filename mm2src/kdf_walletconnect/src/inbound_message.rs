@@ -43,6 +43,7 @@ pub(crate) async fn process_inbound_request(
                 .await?
         },
         Params::SessionRequest(_param) => {
+            println!("SessionRequest: {_param:?}");
             // TODO: Implement when integrating KDF as a wallet.
             return MmError::err(WalletConnectCtxError::NotImplemented);
         },
@@ -94,20 +95,21 @@ pub(crate) async fn process_inbound_response(
                     },
                 },
                 SuccessResponses::Other(value) => {
+                    println!("Received: {value:?}");
                     ctx.session_request_sender
                         .lock()
                         .await
                         .send((message_id, value))
                         .await
                         .ok();
-                    println!("Sent");
                     Ok(())
                 },
             }
         },
         Response::Error(err) => {
+            // TODO: handle error properly
             println!("Error: {err:?}");
-            todo!()
+            Ok(())
         },
     }
 }

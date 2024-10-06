@@ -89,8 +89,10 @@ pub async fn cosmos_get_accounts_impl(
             chain_id: format!("cosmos:{chain_id}"),
         };
 
-        let session_request = RequestParams::SessionRequest(request);
-        ctx.publish_request(&topic, session_request).await?;
+        {
+            let session_request = RequestParams::SessionRequest(request);
+            ctx.publish_request(&topic, session_request).await?;
+        };
 
         let mut session_handler = ctx.session_request_handler.lock().await;
         if let Some((message_id, data)) = session_handler.next().await {
@@ -157,26 +159,21 @@ pub async fn cosmos_sign_tx_direct_impl(
         return MmError::err(WalletConnectCtxError::NotInitialized);
     }
 
-    let value = json!({
-        "signer_address": signer_address,
-        "sign_doc": sign_doc
-    });
-
-    println!("VALUE: {:?}", value);
-
     let request = SessionRequest {
         method: WcRequestMethods::CosmosSignDirect.as_ref().to_owned(),
         expiry: Some(Utc::now().timestamp() as u64 + 300),
-        params: value,
+        params: sign_doc,
     };
     let request = SessionRequestRequest {
         request,
         chain_id: format!("cosmos:{chain_id}"),
     };
 
-    let session_request = RequestParams::SessionRequest(request);
     let topic = session_topic.unwrap();
-    ctx.publish_request(&topic, session_request).await?;
+    {
+        let session_request = RequestParams::SessionRequest(request);
+        ctx.publish_request(&topic, session_request).await?;
+    }
 
     let mut session_handler = ctx.session_request_handler.lock().await;
     if let Some((message_id, data)) = session_handler.next().await {

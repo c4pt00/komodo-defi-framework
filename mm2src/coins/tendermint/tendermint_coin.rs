@@ -1370,14 +1370,28 @@ impl TendermintCoin {
         let auth_info = SignerInfo::single_direct(Some(pubkey), account_info.sequence).auth_info(fee);
         let sign_doc = SignDoc::new(&tx_body, &auth_info, &self.chain_id, account_info.account_number)?;
 
-        let tx_json = json!({
-            "sign_doc": {
-                "body_bytes": sign_doc.body_bytes,
-                "auth_info_bytes": sign_doc.auth_info_bytes,
-                "chain_id": sign_doc.chain_id,
-                "account_number": sign_doc.account_number,
-            }
-        });
+        let my_address = self.my_address().unwrap();
+        let tx_json = if self.wallet_connection_type == TendermintWalletConnectionType::WalletConnect {
+            // convert body_bytes, auth_info_bytes to base64.
+            json!({
+                "signerAddress": my_address,
+                "signDoc": {
+                    "accountNumber": sign_doc.account_number.to_string(),
+                    "chainId": sign_doc.chain_id,
+                    "bodyBytes": &sign_doc.body_bytes,
+                    "authInfoBytes": sign_doc.auth_info_bytes
+                }
+            })
+        } else {
+            json!({
+                "sign_doc": {
+                    "body_bytes": sign_doc.body_bytes.clone(),
+                    "auth_info_bytes": sign_doc.auth_info_bytes,
+                    "chain_id": sign_doc.chain_id,
+                    "account_number": sign_doc.account_number,
+                }
+            })
+        };
 
         Ok(SerializedUnsignedTx {
             tx_json,
