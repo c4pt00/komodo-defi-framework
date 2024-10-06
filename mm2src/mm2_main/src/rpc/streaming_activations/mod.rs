@@ -32,7 +32,7 @@ pub struct EnableStreamingRequest<T> {
 /// The success/ok response for any event streaming activation request.
 pub struct EnableStreamingResponse {
     pub streamer_id: String,
-    // FIXME: If the the streamer was already running, it is probably running with different configuration.
+    // TODO: If the the streamer was already running, it is probably running with different configuration.
     // We might want to inform the client that the configuration they asked for wasn't applied and return
     // the active configuration instead?
     // pub config: Json,

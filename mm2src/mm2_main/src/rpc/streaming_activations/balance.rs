@@ -80,7 +80,6 @@ pub async fn enable_balance(
             let streamer = TendermintBalanceEventStreamer::new(coin.clone());
             ctx.event_stream_manager.add(client_id, streamer, coin.spawner()).await
         },
-        // FIXME: What about tokens?!
         _ => Err(BalanceStreamingRequestError::CoinNotSupported)?,
     };
 
