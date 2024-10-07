@@ -379,39 +379,7 @@ pub struct NftMakerGasLimitV2 {
     pub erc1155_maker_refund_secret: u64,
 }
 
-pub trait NftGasLimit {
-    fn nft_gas_limit(&self, contract_type: &ContractType, method: PaymentMethod) -> u64;
-}
-
-impl NftGasLimit for EthGasLimitV2 {
-    fn nft_gas_limit(&self, contract_type: &ContractType, method: PaymentMethod) -> u64 {
-        match contract_type {
-            ContractType::Erc1155 => match method {
-                PaymentMethod::Send => self.nft_maker.erc1155_payment,
-                PaymentMethod::Spend => self.nft_maker.erc1155_taker_spend,
-                PaymentMethod::RefundTimelock => self.nft_maker.erc1155_maker_refund_timelock,
-                PaymentMethod::RefundSecret => self.nft_maker.erc1155_maker_refund_secret,
-            },
-            ContractType::Erc721 => match method {
-                PaymentMethod::Send => self.nft_maker.erc721_payment,
-                PaymentMethod::Spend => self.nft_maker.erc721_taker_spend,
-                PaymentMethod::RefundTimelock => self.nft_maker.erc721_maker_refund_timelock,
-                PaymentMethod::RefundSecret => self.nft_maker.erc721_maker_refund_secret,
-            },
-        }
-    }
-}
-
-pub trait GasLimit {
-    fn gas_limit(
-        &self,
-        coin_type: &EthCoinType,
-        payment_type: EthPaymentType,
-        method: PaymentMethod,
-    ) -> Result<(Address, u64), String>;
-}
-
-impl GasLimit for EthGasLimitV2 {
+impl EthGasLimitV2 {
     fn gas_limit(
         &self,
         coin_type: &EthCoinType,
@@ -454,6 +422,23 @@ impl GasLimit for EthGasLimitV2 {
                 Ok((*token_addr, gas_limit))
             },
             EthCoinType::Nft { .. } => Err("NFT protocol is not supported for ETH and ERC20 Swaps".to_string()),
+        }
+    }
+
+    fn nft_gas_limit(&self, contract_type: &ContractType, method: PaymentMethod) -> u64 {
+        match contract_type {
+            ContractType::Erc1155 => match method {
+                PaymentMethod::Send => self.nft_maker.erc1155_payment,
+                PaymentMethod::Spend => self.nft_maker.erc1155_taker_spend,
+                PaymentMethod::RefundTimelock => self.nft_maker.erc1155_maker_refund_timelock,
+                PaymentMethod::RefundSecret => self.nft_maker.erc1155_maker_refund_secret,
+            },
+            ContractType::Erc721 => match method {
+                PaymentMethod::Send => self.nft_maker.erc721_payment,
+                PaymentMethod::Spend => self.nft_maker.erc721_taker_spend,
+                PaymentMethod::RefundTimelock => self.nft_maker.erc721_maker_refund_timelock,
+                PaymentMethod::RefundSecret => self.nft_maker.erc721_maker_refund_secret,
+            },
         }
     }
 }
@@ -906,6 +891,7 @@ pub struct EthCoinImpl {
     pub(crate) platform_fee_estimator_state: Arc<FeeEstimatorState>,
     /// Config provided gas limits for swap and send transactions
     pub(crate) gas_limit: EthGasLimit,
+    /// Config provided gas limits v2 for swap v2 transactions
     pub(crate) gas_limit_v2: EthGasLimitV2,
     /// This spawner is used to spawn coin's related futures that should be aborted on coin deactivation
     /// and on [`MmArc::stop`].

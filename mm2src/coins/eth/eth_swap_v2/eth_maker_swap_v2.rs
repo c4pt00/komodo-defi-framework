@@ -1,7 +1,7 @@
 use super::{validate_from_to_and_status, validate_payment_args, EthPaymentType, PaymentMethod, PrepareTxDataError,
             ZERO_VALUE};
 use crate::coin_errors::{ValidatePaymentError, ValidatePaymentResult};
-use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType, GasLimit,
+use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType,
                  MakerPaymentStateV2, SignedEthTx, MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundMakerPaymentSecretArgs, RefundMakerPaymentTimelockArgs, SendMakerPaymentArgs,
             SpendMakerPaymentArgs, SwapTxTypeWithSecretHash, TransactionErr, ValidateMakerPaymentArgs,

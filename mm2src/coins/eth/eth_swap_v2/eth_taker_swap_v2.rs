@@ -1,6 +1,6 @@
 use super::{check_decoded_length, validate_from_to_and_status, validate_payment_args, validate_payment_state,
             EthPaymentType, PaymentMethod, PrepareTxDataError, ZERO_VALUE};
-use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType, GasLimit,
+use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType,
                  ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs,
                  SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr, ValidateSwapV2TxError,
                  ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};

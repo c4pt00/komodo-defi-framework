@@ -1,4 +1,3 @@
-use crate::coin_errors::{ValidatePaymentError, ValidatePaymentResult};
 use ethabi::{Contract, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, U256};
@@ -9,18 +8,19 @@ use mm2_number::BigDecimal;
 use num_traits::Signed;
 use web3::types::TransactionId;
 
-pub(crate) mod errors;
-use errors::{Erc721FunctionError, HtlcParamsError};
-mod structs;
-use structs::{ExpectedHtlcParams, ValidationParams};
-
-use super::{ContractType, NftGasLimit};
+use super::ContractType;
+use crate::coin_errors::{ValidatePaymentError, ValidatePaymentResult};
 use crate::eth::eth_swap_v2::{validate_from_to_and_status, validate_payment_state, EthPaymentType, PaymentMethod,
                               PaymentStatusErr, PrepareTxDataError, ZERO_VALUE};
 use crate::eth::{decode_contract_call, EthCoin, EthCoinType, MakerPaymentStateV2, SignedEthTx, ERC1155_CONTRACT,
                  ERC721_CONTRACT, NFT_MAKER_SWAP_V2};
 use crate::{ParseCoinAssocTypes, RefundNftMakerPaymentArgs, SendNftMakerPaymentArgs, SpendNftMakerPaymentArgs,
             TransactionErr, ValidateNftMakerPaymentArgs};
+
+pub(crate) mod errors;
+use errors::{Erc721FunctionError, HtlcParamsError};
+mod structs;
+use structs::{ExpectedHtlcParams, ValidationParams};
 
 impl EthCoin {
     pub(crate) async fn send_nft_maker_payment_v2_impl(
