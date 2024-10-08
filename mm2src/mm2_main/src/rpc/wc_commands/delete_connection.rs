@@ -1,4 +1,5 @@
-use kdf_walletconnect::{session::delete::send_session_delete_request, WalletConnectCtx};
+use kdf_walletconnect::session::rpc::delete::send_session_delete_request;
+use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use serde::{Deserialize, Serialize};

@@ -33,7 +33,7 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                                ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
 use serde_json::Value;
-use session::{propose::send_proposal_request, SessionManagement, SymKeyPair};
+use session::{key::SymKeyPair, rpc::propose::send_proposal_request, SessionManagement};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};

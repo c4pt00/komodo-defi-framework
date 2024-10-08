@@ -364,6 +364,10 @@ pub enum TendermintWalletConnectionType {
     Other,
 }
 
+impl Default for TendermintWalletConnectionType {
+    fn default() -> Self { Self::Other }
+}
+
 pub struct TendermintCoinImpl {
     ticker: String,
     /// As seconds
@@ -652,7 +656,7 @@ impl TendermintCoin {
         nodes: Vec<RpcNode>,
         tx_history: bool,
         activation_policy: TendermintActivationPolicy,
-        wallet_connection_type: TendermintWalletConnectionType,
+        wallet_connection_type: Option<TendermintWalletConnectionType>,
     ) -> MmResult<Self, TendermintInitError> {
         if nodes.is_empty() {
             return MmError::err(TendermintInitError {
@@ -717,7 +721,7 @@ impl TendermintCoin {
             client: TendermintRpcClient(AsyncMutex::new(client_impl)),
             chain_registry_name: protocol_info.chain_registry_name,
             ctx: ctx.weak(),
-            wallet_connection_type,
+            wallet_connection_type: wallet_connection_type.unwrap_or_default(),
         })))
     }
 
@@ -3506,7 +3510,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -3632,7 +3636,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -3695,7 +3699,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -3769,7 +3773,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -3956,7 +3960,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -4039,7 +4043,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -4115,7 +4119,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -4187,7 +4191,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 
@@ -4242,7 +4246,7 @@ pub mod tendermint_coin_tests {
             nodes,
             false,
             activation_policy,
-            false,
+            None,
         ))
         .unwrap();
 

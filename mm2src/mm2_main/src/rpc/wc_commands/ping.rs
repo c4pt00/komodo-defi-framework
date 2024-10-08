@@ -1,4 +1,5 @@
-use kdf_walletconnect::{session::ping::send_session_ping_request, WalletConnectCtx};
+use kdf_walletconnect::session::rpc::ping::send_session_ping_request;
+use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use serde::{Deserialize, Serialize};

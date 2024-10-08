@@ -8,13 +8,13 @@ use serde_json::Value;
 
 use crate::{error::WalletConnectCtxError,
             pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
-            session::{delete::reply_session_delete_request,
-                      event::SessionEvents,
-                      extend::reply_session_extend_request,
-                      ping::reply_session_ping_request,
-                      propose::{process_session_propose_response, reply_session_proposal_request},
-                      settle::reply_session_settle_request,
-                      update::reply_session_update_request},
+            session::rpc::{delete::reply_session_delete_request,
+                           event::SessionEvents,
+                           extend::reply_session_extend_request,
+                           ping::reply_session_ping_request,
+                           propose::{process_session_propose_response, reply_session_proposal_request},
+                           settle::reply_session_settle_request,
+                           update::reply_session_update_request},
             WalletConnectCtx};
 
 #[derive(Debug, Serialize, Deserialize)]

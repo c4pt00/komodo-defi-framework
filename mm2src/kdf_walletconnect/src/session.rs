@@ -1,19 +1,14 @@
-pub mod delete;
-pub(crate) mod event;
-pub(crate) mod extend;
-pub mod ping;
-pub(crate) mod propose;
-pub(crate) mod settle;
-pub(crate) mod update;
+pub(crate) mod key;
+pub mod rpc;
 
-use crate::error::SessionError;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use chrono::Utc;
 use dashmap::mapref::one::RefMut;
 use dashmap::DashMap;
 use futures::lock::Mutex;
-use mm2_err_handle::prelude::{MmError, MmResult};
+use key::SessionKey;
+use mm2_err_handle::prelude::MmResult;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::IrnMetadata;
@@ -22,95 +17,13 @@ use relay_rpc::{domain::{SubscriptionId, Topic},
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::sync::Arc;
-use x25519_dalek::{SharedSecret, StaticSecret};
-use {hkdf::Hkdf,
-     rand::{rngs::OsRng, CryptoRng, RngCore},
-     sha2::{Digest, Sha256},
-     std::fmt::Debug,
-     x25519_dalek::PublicKey};
 
 pub(crate) const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
 pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
-
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SessionKey {
-    pub(crate) sym_key: [u8; 32],
-    pub(crate) public_key: [u8; 32],
-}
-
-impl std::fmt::Debug for SessionKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SessionKey")
-            .field("sym_key", &"*******")
-            .field("public_key", &self.public_key)
-            .finish()
-    }
-}
-
-impl SessionKey {
-    /// Creates a new SessionKey with a given public key and empty symmetric key.
-    pub fn new(public_key: PublicKey) -> Self {
-        Self {
-            sym_key: [0u8; 32],
-            public_key: public_key.to_bytes(),
-        }
-    }
-
-    /// Creates new session key from `osrng`.
-    pub fn from_osrng(other_public_key: &[u8; 32]) -> Result<Self, SessionError> {
-        SessionKey::diffie_hellman(OsRng, other_public_key)
-    }
-    /// Performs Diffie-Hellman symmetric key derivation.
-    pub fn diffie_hellman<T>(csprng: T, other_public_key: &[u8; 32]) -> Result<Self, SessionError>
-    where
-        T: RngCore + CryptoRng,
-    {
-        let static_private_key = StaticSecret::random_from_rng(csprng);
-        let public_key = PublicKey::from(&static_private_key);
-        let shared_secret = static_private_key.diffie_hellman(&PublicKey::from(*other_public_key));
-
-        let mut session_key = Self {
-            sym_key: [0u8; 32],
-            public_key: public_key.to_bytes(),
-        };
-        session_key.derive_symmetric_key(&shared_secret)?;
-
-        Ok(session_key)
-    }
-
-    /// Generates the symmetric key given the ephemeral secret and the peer's public key.
-    pub fn generate_symmetric_key(
-        &mut self,
-        static_secret: &StaticSecret,
-        peer_public_key: &[u8; 32],
-    ) -> Result<(), SessionError> {
-        let shared_secret = static_secret.diffie_hellman(&PublicKey::from(*peer_public_key));
-        self.derive_symmetric_key(&shared_secret)
-    }
-
-    /// Derives the symmetric key from a shared secret.
-    fn derive_symmetric_key(&mut self, shared_secret: &SharedSecret) -> Result<(), SessionError> {
-        let hk = Hkdf::<Sha256>::new(None, shared_secret.as_bytes());
-        hk.expand(&[], &mut self.sym_key)
-            .map_err(|e| SessionError::SymKeyGeneration(e.to_string()))
-    }
-
-    /// Gets symmetic key reference.
-    pub fn symmetric_key(&self) -> &[u8; 32] { &self.sym_key }
-
-    /// Gets "our" public key used in symmetric key derivation.
-    pub fn diffie_public_key(&self) -> &[u8; 32] { &self.public_key }
-
-    /// Generates new session topic.
-    pub fn generate_topic(&self) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(self.sym_key);
-        hex::encode(hasher.finalize())
-    }
-}
 
 /// In the WalletConnect protocol, a session involves two parties: a controller
 /// (typically a wallet) and a proposer (typically a dApp). This enum is used
@@ -204,24 +117,12 @@ impl Session {
     pub(crate) fn extend(&mut self, till: u64) { self.expiry = till; }
 }
 
-pub(crate) struct SymKeyPair {
-    pub(crate) secret: StaticSecret,
-    pub(crate) public_key: PublicKey,
-}
-
-impl SymKeyPair {
-    pub(crate) fn new() -> Self {
-        let static_secret = StaticSecret::random_from_rng(OsRng);
-        let public_key = PublicKey::from(&static_secret);
-        Self {
-            secret: static_secret,
-            public_key,
-        }
-    }
-}
-
+/// Internal implementation of session management.
+#[derive(Default, Debug)]
 struct SessionManagementImpl {
+    /// The currently active session topic.
     active_topic: Mutex<Option<Topic>>,
+    /// A thread-safe map of sessions indexed by topic.
     sessions: DashMap<Topic, Session>,
 }
 
@@ -233,15 +134,10 @@ impl Default for SessionManagement {
 
 #[allow(unused)]
 impl SessionManagement {
-    pub fn new() -> Self {
-        let impl_ = SessionManagementImpl {
-            active_topic: Default::default(),
-            sessions: Default::default(),
-        };
+    pub fn new() -> Self { Self(Default::default()) }
 
-        Self(Arc::new(impl_))
-    }
-
+    /// Inserts the provided `Session` into the session store, associated with the specified topic.
+    /// If a session with the same topic already exists, it will be overwritten.
     pub(crate) async fn add_session(&self, session: Session) {
         // set active session topic.
         *self.0.active_topic.lock().await = Some(session.topic.clone());
@@ -250,6 +146,8 @@ impl SessionManagement {
         self.0.sessions.insert(session.topic.clone(), session);
     }
 
+    /// Removes the session corresponding to the specified topic from the session store.
+    /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
         let mut active_topic = self.0.active_topic.lock().await;
 
@@ -262,14 +160,17 @@ impl SessionManagement {
         self.0.sessions.remove(topic).map(|(_, session)| session)
     }
 
+    /// Retrieves a cloned session associated with a given topic.
     pub(crate) fn get_session(&self, topic: &Topic) -> Option<Session> {
         self.0.sessions.get(topic).map(|session| session.clone())
     }
 
+    /// Retrieves a mutable reference to the session associated with a given topic.
     pub(crate) async fn get_session_mut(&self, topic: &Topic) -> Option<RefMut<'_, Topic, Session>> {
         self.0.sessions.get_mut(topic)
     }
 
+    /// Returns an `Option<Session>` containing the active session if it exists; otherwise, returns `None`.
     pub async fn get_session_active(&self) -> Option<Session> {
         let active_topic = self.0.active_topic.lock().await;
         if let Some(ref topic) = *active_topic {
@@ -279,6 +180,7 @@ impl SessionManagement {
         }
     }
 
+    /// Retrieves all sessions(active and inactive)
     pub(crate) fn get_sessions(&self) -> Vec<Session> {
         self.0
             .sessions
@@ -288,12 +190,16 @@ impl SessionManagement {
             .collect()
     }
 
+    /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
+    /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
         if let Some(mut session) = self.0.sessions.get_mut(topic) {
             session.extend(till);
         }
     }
 
+    /// Updates the expiry time of the currently active session to the specified timestamp.
+    /// If there is no active session, this method does nothing.
     pub(crate) async fn extend_active_session(&self, till: u64) {
         let active_topic = self.0.active_topic.lock().await;
         if let Some(ref topic) = *active_topic {
@@ -301,6 +207,9 @@ impl SessionManagement {
         }
     }
 
+    /// This method checks all sessions for expiration based on the current time.
+    /// Expired sessions are removed from the session store and returned.
+    /// If the active session is expired, it is also removed, and the active session is set to `None`.
     pub(crate) async fn delete_expired_sessions(&self) -> Vec<Session> {
         let now = Utc::now().timestamp() as u64;
         let mut expired_sessions = Vec::new();
@@ -318,6 +227,7 @@ impl SessionManagement {
         expired_sessions
     }
 
+    /// Retrieves the symmetric key associated with a given topic.
     pub(crate) fn sym_key(&self, topic: &Topic) -> Option<Vec<u8>> {
         self.get_session(topic).map(|k| k.session_key.symmetric_key().to_vec())
     }

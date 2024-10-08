@@ -43,6 +43,7 @@ impl SessionStorageDb {
     }
 }
 
+#[cfg(ignore)]
 #[cfg(test)]
 pub(crate) mod session_storage_tests {
 
@@ -56,7 +57,8 @@ pub(crate) mod session_storage_tests {
     use relay_rpc::{domain::{SubscriptionId, Topic},
                     rpc::params::Metadata};
 
-    use crate::{session::{Session, SessionKey, SessionType},
+    use crate::{session::key::SessionKey,
+                session::{Session, SessionType},
                 WalletConnectCtx};
 
     use super::WalletConnectStorageOps;

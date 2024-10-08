@@ -1,5 +1,5 @@
-use super::{Session, THIRTY_DAYS};
 use crate::chain::{SUPPORTED_CHAINS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
+use crate::session::{Session, THIRTY_DAYS};
 use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 

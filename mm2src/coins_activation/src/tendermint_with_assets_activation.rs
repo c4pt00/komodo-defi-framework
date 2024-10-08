@@ -339,7 +339,7 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
             activation_request.nodes,
             activation_request.tx_history,
             activation_policy,
-            wallet_connectin_type,
+            Some(wallet_connectin_type),
         )
         .await
     }

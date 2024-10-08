@@ -1,6 +1,6 @@
-use super::{settle::send_session_settle_request, Session};
+use super::settle::send_session_settle_request;
 use crate::{error::WalletConnectCtxError,
-            session::{SessionKey, SessionType, THIRTY_DAYS},
+            session::{Session, SessionKey, SessionType, THIRTY_DAYS},
             WalletConnectCtx};
 
 use chrono::Utc;
@@ -46,7 +46,7 @@ pub async fn reply_session_proposal_request(
         .unwrap();
 
     let session_key = SessionKey::from_osrng(&sender_public_key)?;
-    let session_topic: Topic = session_key.generate_topic().into();
+    let session_topic = Topic::generate();
     let subscription_id = ctx
         .client
         .subscribe(session_topic.clone())
@@ -111,7 +111,7 @@ pub(crate) async fn process_session_propose_response(
     let mut session_key = SessionKey::new(ctx.key_pair.public_key);
     session_key.generate_symmetric_key(&ctx.key_pair.secret, &other_public_key)?;
 
-    let session_topic: Topic = session_key.generate_topic().into();
+    let session_topic = Topic::generate();
     let subscription_id = ctx
         .client
         .subscribe(session_topic.clone())
