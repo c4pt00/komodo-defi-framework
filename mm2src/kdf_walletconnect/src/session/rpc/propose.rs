@@ -1,5 +1,6 @@
 use super::settle::send_session_settle_request;
 use crate::{error::WalletConnectCtxError,
+            metadata::generate_metadata,
             session::{Session, SessionKey, SessionType, THIRTY_DAYS},
             WalletConnectCtx};
 
@@ -46,7 +47,7 @@ pub async fn reply_session_proposal_request(
         .unwrap();
 
     let session_key = SessionKey::from_osrng(&sender_public_key)?;
-    let session_topic = Topic::generate();
+    let session_topic: Topic = session_key.generate_topic().into();
     let subscription_id = ctx
         .client
         .subscribe(session_topic.clone())
@@ -79,7 +80,7 @@ pub async fn reply_session_proposal_request(
         ctx.session.add_session(session.clone()).await;
         // Add topic to subscription list
         let mut subs = ctx.subscriptions.lock().await;
-        subs.push(session_topic.clone());
+        subs.push(session_topic);
     }
 
     {
@@ -111,7 +112,7 @@ pub(crate) async fn process_session_propose_response(
     let mut session_key = SessionKey::new(ctx.key_pair.public_key);
     session_key.generate_symmetric_key(&ctx.key_pair.secret, &other_public_key)?;
 
-    let session_topic = Topic::generate();
+    let session_topic: Topic = session_key.generate_topic().into();
     let subscription_id = ctx
         .client
         .subscribe(session_topic.clone())
@@ -124,8 +125,8 @@ pub(crate) async fn process_session_propose_response(
         subscription_id,
         session_key,
         pairing_topic.clone(),
-        Metadata::default(),
-        SessionType::Controller,
+        generate_metadata(),
+        SessionType::Proposer,
     );
     session.relay = response.relay;
     session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;

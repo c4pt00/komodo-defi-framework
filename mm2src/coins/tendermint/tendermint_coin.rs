@@ -1373,14 +1373,14 @@ impl TendermintCoin {
 
         let my_address = self.my_address().unwrap();
         let tx_json = if self.wallet_connection_type == TendermintWalletConnectionType::WalletConnect {
-            // convert body_bytes, auth_info_bytes to base64.
+            //TODO:: maybe convert body_bytes, auth_info_bytes to base64.
             json!({
                 "signerAddress": my_address,
                 "signDoc": {
                     "accountNumber": sign_doc.account_number.to_string(),
                     "chainId": sign_doc.chain_id,
-                    "bodyBytes": &sign_doc.body_bytes,
-                    "authInfoBytes": sign_doc.auth_info_bytes
+                    "bodyBytes": general_purpose::STANDARD.encode(sign_doc.body_bytes.clone()),
+                    "authInfoBytes": general_purpose::STANDARD.encode(sign_doc.auth_info_bytes)
                 }
             })
         } else {
@@ -3407,7 +3407,7 @@ fn parse_expected_sequence_number(e: &str) -> MmResult<u64, TendermintCoinRpcErr
 }
 
 #[cfg(test)]
-pub mod tendermint_coin_tests {
+pub mod tendermint_falsecoin_tests {
     use super::*;
 
     use common::{block_on, block_on_f01, wait_until_ms, DEX_FEE_ADDR_RAW_PUBKEY};

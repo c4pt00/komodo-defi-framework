@@ -179,23 +179,27 @@ impl WalletConnectCtx {
         }
 
         let namespaces = self.namespaces.lock().await;
+        println!("namespaces: {namespaces:?}");
         namespaces
             .iter()
-            .find_map(|(key, namespace)| self.find_account_in_namespace(namespace, key, chain_id))
+            .find_map(|(key, namespace)| self.find_account_in_namespace(key, namespace, chain_id))
             .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
                 chain_id.to_string(),
             )))
     }
 
-    fn find_account_in_namespace(&self, namespace: &Namespace, namespace_key: &str, chain_id: &str) -> Option<String> {
+    fn find_account_in_namespace(&self, namespace_key: &str, namespace: &Namespace, chain_id: &str) -> Option<String> {
         let chains = namespace.chains.as_ref()?;
         let key = format!("{namespace_key}:{chain_id}");
+
+        println!("chains: {chains:?}");
 
         if !chains.contains(&key) {
             return None;
         }
 
         let accounts = namespace.accounts.as_ref()?;
+
         accounts.iter().find_map(|account_name| {
             let parts: Vec<&str> = account_name.split(':').collect();
             if parts.len() >= 3 && parts[1] == chain_id {

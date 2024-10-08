@@ -50,17 +50,19 @@ pub(crate) async fn reply_session_settle_request(
             session.controller = settle.controller.clone();
             session.relay = settle.relay.clone();
             session.expiry = settle.expiry;
-
             // Update storage session.
             ctx.storage
                 .db
                 .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
-
-            info!("Session successfully settled for topic: {:?}", topic);
         }
     }
+
+    let mut ctx_ns = ctx.namespaces.lock().await;
+    *ctx_ns = settle.namespaces;
+
+    info!("Session successfully settled for topic: {:?}", topic);
 
     let param = ResponseParamsSuccess::SessionSettle(true);
     ctx.publish_response_ok(topic, param, message_id).await?;

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
 use {hkdf::Hkdf,
      rand::{rngs::OsRng, CryptoRng, RngCore},
-     sha2::Sha256};
+     sha2::{Digest, Sha256}};
 
 pub(crate) struct SymKeyPair {
     pub(crate) secret: StaticSecret,
@@ -82,7 +82,7 @@ impl SessionKey {
     /// Derives the symmetric key from a shared secret.
     fn derive_symmetric_key(&mut self, shared_secret: &SharedSecret) -> Result<(), SessionError> {
         let hk = Hkdf::<Sha256>::new(None, shared_secret.as_bytes());
-        hk.expand(b"SessionKey Derivation", &mut self.sym_key)
+        hk.expand(&[], &mut self.sym_key)
             .map_err(|e| SessionError::SymKeyGeneration(e.to_string()))
     }
 
@@ -91,6 +91,13 @@ impl SessionKey {
 
     /// Gets "our" public key used in symmetric key derivation.
     pub fn diffie_public_key(&self) -> &[u8; 32] { &self.public_key }
+
+    /// Generates new session topic.
+    pub fn generate_topic(&self) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(self.sym_key);
+        hex::encode(hasher.finalize())
+    }
 }
 
 #[cfg(test)]
