@@ -14,7 +14,7 @@ pub struct GetSessionResponse {
 pub async fn get_session(ctx: MmArc, _req: EmptyRpcRequst) -> MmResult<GetSessionResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    let session = ctx.get_session().await;
+    let session = ctx.session.get_session_active().await;
 
     Ok(GetSessionResponse { session })
 }

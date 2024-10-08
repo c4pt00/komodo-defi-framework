@@ -73,39 +73,42 @@ pub async fn cosmos_get_accounts_impl(
 ) -> MmResult<Vec<CosmosAccount>, WalletConnectCtxError> {
     let account = ctx.get_account_for_chain_id(chain_id).await?;
 
-    let session_topic = {
-        let session = ctx.session.lock().await;
-        session.as_ref().map(|s| s.topic.clone())
+    let topic = {
+        let session = ctx.session.get_session_active().await;
+        // return not NotInitialized error if no session is found.
+        if session.is_none() {
+            return MmError::err(WalletConnectCtxError::NotInitialized);
+        };
+
+        session.unwrap().topic
     };
 
-    if let Some(topic) = session_topic {
-        let request = SessionRequest {
-            method: WcRequestMethods::CosmosGetAccounts.as_ref().to_owned(),
-            expiry: Some(Utc::now().timestamp() as u64 + 300),
-            params: serde_json::to_value(&account).unwrap(),
-        };
-        let request = SessionRequestRequest {
-            request,
-            chain_id: format!("cosmos:{chain_id}"),
-        };
+    let request = SessionRequest {
+        method: WcRequestMethods::CosmosGetAccounts.as_ref().to_owned(),
+        expiry: Some(Utc::now().timestamp() as u64 + 300),
+        params: serde_json::to_value(&account).unwrap(),
+    };
+    let request = SessionRequestRequest {
+        request,
+        chain_id: format!("cosmos:{chain_id}"),
+    };
 
-        {
-            let session_request = RequestParams::SessionRequest(request);
-            ctx.publish_request(&topic, session_request).await?;
-        };
+    {
+        let session_request = RequestParams::SessionRequest(request);
+        ctx.publish_request(&topic, session_request).await?;
+    };
 
-        let mut session_handler = ctx.session_request_handler.lock().await;
-        if let Some((message_id, data)) = session_handler.next().await {
-            info!("Got cosmos account: {data:?}");
-            let result = serde_json::from_value::<Vec<CosmosAccount>>(data)?;
-            let response = ResponseParamsSuccess::SessionEvent(true);
-            ctx.publish_response_ok(&topic, response, &message_id).await?;
+    let mut session_handler = ctx.session_request_handler.lock().await;
+    if let Some((message_id, data)) = session_handler.next().await {
+        info!("Got cosmos account: {data:?}");
+        let result = serde_json::from_value::<Vec<CosmosAccount>>(data)?;
+        let response = ResponseParamsSuccess::SessionEvent(true);
+        ctx.publish_response_ok(&topic, response, &message_id).await?;
 
-            return Ok(result);
-        }
-    }
+        return Ok(result);
+    };
 
-    MmError::err(WalletConnectCtxError::InvalidRequest)
+    MmError::err(WalletConnectCtxError::NoAccountFound(chain_id.to_owned()))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -148,15 +151,15 @@ pub async fn cosmos_sign_tx_direct_impl(
     sign_doc: Value,
     chain_id: &str,
 ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
-    let session_topic = {
-        let session = ctx.session.lock().await;
-        session.as_ref().map(|s| s.topic.clone())
-    };
+    let topic = {
+        let session = ctx.session.get_session_active().await;
+        // return not NotInitialized error if no session is found.
+        if session.is_none() {
+            return MmError::err(WalletConnectCtxError::NotInitialized);
+        };
 
-    // return not NotInitialized error if no session is found.
-    if session_topic.is_none() {
-        return MmError::err(WalletConnectCtxError::NotInitialized);
-    }
+        session.unwrap().topic
+    };
 
     let request = SessionRequest {
         method: WcRequestMethods::CosmosSignDirect.as_ref().to_owned(),
@@ -167,8 +170,6 @@ pub async fn cosmos_sign_tx_direct_impl(
         request,
         chain_id: format!("cosmos:{chain_id}"),
     };
-
-    let topic = session_topic.unwrap();
     {
         let session_request = RequestParams::SessionRequest(request);
         ctx.publish_request(&topic, session_request).await?;

@@ -24,7 +24,7 @@ pub(crate) async fn send_proposal_request(
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
         relays: vec![ctx.relay.clone()],
         proposer,
-        required_namespaces: required_namespaces.unwrap_or(ctx.namespaces.clone()),
+        required_namespaces: required_namespaces.unwrap_or(ctx.required_namespaces.clone()),
     });
 
     ctx.publish_request(&topic, session_proposal).await?;
@@ -75,8 +75,9 @@ pub async fn reply_session_proposal_request(
         //    .await
         //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
-        let mut old_session = ctx.session.lock().await;
-        *old_session = Some(session.clone());
+        // Add session to session lists
+        ctx.session.add_session(session.clone()).await;
+        // Add topic to subscription list
         let mut subs = ctx.subscriptions.lock().await;
         subs.push(session_topic.clone());
     }
@@ -138,8 +139,9 @@ pub(crate) async fn process_session_propose_response(
         //    .await
         //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
-        let mut old_session = ctx.session.lock().await;
-        *old_session = Some(session);
+        // Add session to session lists
+        ctx.session.add_session(session.clone()).await;
+        // Add topic to subscription list
         let mut subs = ctx.subscriptions.lock().await;
         subs.push(session_topic.clone());
     };

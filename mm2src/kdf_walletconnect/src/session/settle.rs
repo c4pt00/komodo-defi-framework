@@ -44,8 +44,8 @@ pub(crate) async fn reply_session_settle_request(
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectCtxError> {
     {
-        let mut session = ctx.session.lock().await;
-        if let Some(session) = session.as_mut() {
+        let session = ctx.session.get_session_mut(topic).await;
+        if let Some(mut session) = session {
             session.namespaces = settle.namespaces.0.clone();
             session.controller = settle.controller.clone();
             session.relay = settle.relay.clone();
@@ -54,7 +54,7 @@ pub(crate) async fn reply_session_settle_request(
             // Update storage session.
             ctx.storage
                 .db
-                .update_session(session)
+                .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 

@@ -4,7 +4,6 @@ mod connection_handler;
 mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
-pub mod rpc_commands;
 pub mod session;
 mod storage;
 
@@ -26,16 +25,17 @@ use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
                    ConnectionOptions, MessageIdGenerator};
-use relay_rpc::rpc::params::{session::Namespace, RelayProtocolMetadata, RequestParams};
+use relay_rpc::rpc::params::{session::{Namespace, SettleNamespaces},
+                             RelayProtocolMetadata, RequestParams};
 use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                 domain::{MessageId, Topic},
                 rpc::{params::{session::ProposeNamespaces, IrnMetadata, Metadata, Relay, ResponseParamsError,
                                ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
 use serde_json::Value;
-use session::{propose::send_proposal_request, Session, SymKeyPair};
+use session::{propose::send_proposal_request, SessionManagement, SymKeyPair};
 use std::{sync::Arc, time::Duration};
-use storage::{SessionStorageDb, WalletConnectStorageOps};
+use storage::SessionStorageDb;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
@@ -46,7 +46,7 @@ type SessionEventMessage = (MessageId, Value);
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
-    pub session: Arc<Mutex<Option<Session>>>,
+    pub session: SessionManagement,
     pub active_chain_id: Arc<Mutex<String>>,
 
     pub(crate) key_pair: SymKeyPair,
@@ -54,7 +54,8 @@ pub struct WalletConnectCtx {
 
     relay: Relay,
     metadata: Metadata,
-    namespaces: ProposeNamespaces,
+    namespaces: Arc<Mutex<SettleNamespaces>>,
+    required_namespaces: ProposeNamespaces,
     subscriptions: Arc<Mutex<Vec<Topic>>>,
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
@@ -83,10 +84,11 @@ impl WalletConnectCtx {
         Ok(Self {
             client,
             pairing,
-            session: Default::default(),
+            session: SessionManagement::new(),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
-            namespaces: required,
+            namespaces: Default::default(),
+            required_namespaces: required,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             storage,
@@ -169,8 +171,6 @@ impl WalletConnectCtx {
 
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
-    pub async fn get_session(&self) -> Option<Session> { self.session.lock().await.clone() }
-
     /// Retrieves the available account for a given chain ID.
     pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectCtxError> {
         let active_chain_id = self.get_active_chain_id().await;
@@ -178,13 +178,8 @@ impl WalletConnectCtx {
             return MmError::err(WalletConnectCtxError::ChainIdMismatch);
         }
 
-        let session = self.session.lock().await;
-        let session = session.as_ref().ok_or(WalletConnectCtxError::NoAccountFound(
-            "No active session found".to_owned(),
-        ))?;
-
-        session
-            .namespaces
+        let namespaces = self.namespaces.lock().await;
+        namespaces
             .iter()
             .find_map(|(key, namespace)| self.find_account_in_namespace(namespace, key, chain_id))
             .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
@@ -239,11 +234,8 @@ impl WalletConnectCtx {
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
         {
-            let session = self.session.lock().await;
-            if let Some(session) = session.as_ref() {
-                if &session.topic == topic {
-                    return Ok(session.session_key.symmetric_key().to_vec());
-                }
+            if let Some(key) = self.session.sym_key(topic) {
+                return Ok(key);
             }
         }
 
@@ -362,22 +354,22 @@ impl WalletConnectCtx {
     }
 
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectCtxError> {
-        let sessions = self
-            .storage
-            .db
-            .get_all_sessions()
-            .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
-        if let Some(session) = sessions.first() {
-            info!("Session found! activating :{}", session.topic);
-
-            let mut ctx_session = self.session.lock().await;
-            *ctx_session = Some(session.clone());
-
-            // subcribe to session topics
-            self.client.subscribe(session.topic.clone()).await?;
-            self.client.subscribe(session.pairing_topic.clone()).await?;
-        }
+        //let sessions = self
+        //    .storage
+        //    .db
+        //    .get_all_sessions()
+        //    .await
+        //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        //if let Some(session) = sessions.first() {
+        //    info!("Session found! activating :{}", session.topic);
+        //
+        //    let mut ctx_session = self.session.lock().await;
+        //    *ctx_session = Some(session.clone());
+        //
+        //    // subcribe to session topics
+        //    self.client.subscribe(session.topic.clone()).await?;
+        //self.client.subscribe(session.pairing_topic.clone()).await?;
+        //}
 
         Ok(())
     }

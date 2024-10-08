@@ -18,6 +18,7 @@ futures = { version = "0.3", package = "futures", features = [
 ] }
 hex = "0.4.2"
 hkdf = "0.12.4"
+dashmap = "6.1.0"
 mm2_core = { path = "../mm2_core" }
 mm2_db = { path = "../mm2_db" }
 mm2_err_handle = { path = "../mm2_err_handle" }

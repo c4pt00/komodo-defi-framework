@@ -38,7 +38,7 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResu
         ctx.client.unsubscribe(topic.clone()).await?;
     };
 
-    if let Some(session) = ctx.session.lock().await.as_mut().take() {
+    if let Some(session) = ctx.session.delete_session(topic).await {
         debug!(
             "No active sessions left for pairing {}, disconnecting",
             session.pairing_topic

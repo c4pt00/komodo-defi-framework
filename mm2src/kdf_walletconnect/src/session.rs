@@ -10,7 +10,10 @@ use crate::error::SessionError;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use chrono::Utc;
-use mm2_err_handle::prelude::MmResult;
+use dashmap::mapref::one::RefMut;
+use dashmap::DashMap;
+use futures::lock::Mutex;
+use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::IrnMetadata;
@@ -19,6 +22,7 @@ use relay_rpc::{domain::{SubscriptionId, Topic},
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use x25519_dalek::{SharedSecret, StaticSecret};
 use {hkdf::Hkdf,
      rand::{rngs::OsRng, CryptoRng, RngCore},
@@ -188,7 +192,7 @@ impl Session {
             controller,
             namespaces: BTreeMap::new(),
             proposer,
-            propose_namespaces: ctx.namespaces.clone(),
+            propose_namespaces: ctx.required_namespaces.clone(),
             relay: ctx.relay.clone(),
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
             pairing_topic,
@@ -196,6 +200,8 @@ impl Session {
             topic: session_topic,
         }
     }
+
+    pub(crate) fn extend(&mut self, till: u64) { self.expiry = till; }
 }
 
 pub(crate) struct SymKeyPair {
@@ -211,5 +217,108 @@ impl SymKeyPair {
             secret: static_secret,
             public_key,
         }
+    }
+}
+
+struct SessionManagementImpl {
+    active_topic: Mutex<Option<Topic>>,
+    sessions: DashMap<Topic, Session>,
+}
+
+pub struct SessionManagement(Arc<SessionManagementImpl>);
+
+impl Default for SessionManagement {
+    fn default() -> Self { Self::new() }
+}
+
+#[allow(unused)]
+impl SessionManagement {
+    pub fn new() -> Self {
+        let impl_ = SessionManagementImpl {
+            active_topic: Default::default(),
+            sessions: Default::default(),
+        };
+
+        Self(Arc::new(impl_))
+    }
+
+    pub(crate) async fn add_session(&self, session: Session) {
+        // set active session topic.
+        *self.0.active_topic.lock().await = Some(session.topic.clone());
+
+        // insert session
+        self.0.sessions.insert(session.topic.clone(), session);
+    }
+
+    pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
+        let mut active_topic = self.0.active_topic.lock().await;
+
+        if let Some(ref topic_) = *active_topic {
+            if topic_ == topic {
+                *active_topic = None;
+            };
+        };
+
+        self.0.sessions.remove(topic).map(|(_, session)| session)
+    }
+
+    pub(crate) fn get_session(&self, topic: &Topic) -> Option<Session> {
+        self.0.sessions.get(topic).map(|session| session.clone())
+    }
+
+    pub(crate) async fn get_session_mut(&self, topic: &Topic) -> Option<RefMut<'_, Topic, Session>> {
+        self.0.sessions.get_mut(topic)
+    }
+
+    pub async fn get_session_active(&self) -> Option<Session> {
+        let active_topic = self.0.active_topic.lock().await;
+        if let Some(ref topic) = *active_topic {
+            self.get_session(topic)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn get_sessions(&self) -> Vec<Session> {
+        self.0
+            .sessions
+            .clone()
+            .into_iter()
+            .map(|(_, session)| session)
+            .collect()
+    }
+
+    pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
+        if let Some(mut session) = self.0.sessions.get_mut(topic) {
+            session.extend(till);
+        }
+    }
+
+    pub(crate) async fn extend_active_session(&self, till: u64) {
+        let active_topic = self.0.active_topic.lock().await;
+        if let Some(ref topic) = *active_topic {
+            self.extend_session(topic, till);
+        }
+    }
+
+    pub(crate) async fn delete_expired_sessions(&self) -> Vec<Session> {
+        let now = Utc::now().timestamp() as u64;
+        let mut expired_sessions = Vec::new();
+
+        // Collect session arcs for processing
+        for session in self.0.sessions.iter() {
+            if session.expiry <= now {
+                // Remove the session from the map
+                if let Some(session) = self.delete_session(&session.topic).await {
+                    expired_sessions.push(session);
+                }
+            }
+        }
+
+        expired_sessions
+    }
+
+    pub(crate) fn sym_key(&self, topic: &Topic) -> Option<Vec<u8>> {
+        self.get_session(topic).map(|k| k.session_key.symmetric_key().to_vec())
     }
 }
