@@ -861,11 +861,71 @@ impl TendermintCoin {
                 )
             },
             TendermintActivationPolicy::PublicKey(_) => {
+                if let TendermintWalletConnectionType::WalletConnect = self.wallet_connection_type {
+                    return try_tx_s!(
+                        self.seq_safe_send_raw_tx_bytes(tx_payload, fee, timeout_height, memo)
+                            .timeout(expiration)
+                            .await
+                    );
+                };
+
                 try_tx_s!(
                     self.send_unsigned_tx_externally(tx_payload, fee, timeout_height, memo, expiration)
                         .timeout(expiration)
                         .await
                 )
+            },
+        }
+    }
+
+    async fn request_wc_tx_signing(&self, tx_json: serde_json::Value) -> Result<Raw, TransactionErr> {
+        let ctx = try_tx_s!(MmArc::from_weak(&self.ctx).ok_or(ERRL!("ctx must be initialized already")));
+        let wallet_connect = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
+
+        let response = try_tx_s!(
+            wallet_connect
+                .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
+                .await
+        );
+        let signature = try_tx_s!(general_purpose::STANDARD
+            .decode(response.signature.signature)
+            .map_err(|e| ERRL!("{}", e)));
+
+        Ok(TxRaw {
+            body_bytes: response.signed.body_bytes,
+            auth_info_bytes: response.signed.auth_info_bytes,
+            signatures: vec![signature],
+        }
+        .into())
+    }
+
+    async fn get_tx_raw(
+        &self,
+        account_info: &BaseAccount,
+        tx_payload: Any,
+        fee: Fee,
+        timeout_height: u64,
+        memo: String,
+    ) -> Result<Raw, TransactionErr> {
+        match self.wallet_connection_type {
+            TendermintWalletConnectionType::WalletConnect => {
+                // Handle WalletConnect signing
+                let SerializedUnsignedTx { tx_json, body_bytes: _ } =
+                    try_tx_s!(self.any_to_serialized_sign_doc(&account_info, tx_payload, fee, timeout_height, memo));
+
+                self.request_wc_tx_signing(tx_json).await
+            },
+            _ => {
+                // Handle local signing
+                let tx_raw = try_tx_s!(self.any_to_signed_raw_tx(
+                    try_tx_s!(self.activation_policy.activated_key_or_err()),
+                    &account_info,
+                    tx_payload,
+                    fee,
+                    timeout_height,
+                    memo,
+                ));
+                Ok(tx_raw)
             },
         }
     }
@@ -878,31 +938,36 @@ impl TendermintCoin {
         memo: String,
     ) -> Result<(String, Raw), TransactionErr> {
         let mut account_info = try_tx_s!(self.account_info(&self.account_id).await);
-        let (tx_id, tx_raw) = loop {
-            let tx_raw = try_tx_s!(self.any_to_signed_raw_tx(
-                try_tx_s!(self.activation_policy.activated_key_or_err()),
-                &account_info,
-                tx_payload.clone(),
-                fee.clone(),
-                timeout_height,
-                memo.clone(),
-            ));
 
-            match self.send_raw_tx_bytes(&try_tx_s!(tx_raw.to_bytes())).compat().await {
-                Ok(tx_id) => break (tx_id, tx_raw),
+        loop {
+            let tx_raw = try_tx_s!(
+                self.get_tx_raw(
+                    &account_info,
+                    tx_payload.clone(),
+                    fee.clone(),
+                    timeout_height,
+                    memo.clone(),
+                )
+                .await
+            );
+
+            // Attempt to send the transaction bytes
+            match self.send_raw_tx_bytes(try_tx_s!(&tx_raw.to_bytes())).compat().await {
+                Ok(tx_id) => {
+                    return Ok((tx_id, tx_raw));
+                },
                 Err(e) => {
+                    // Handle sequence number mismatch and retry
                     if e.contains(ACCOUNT_SEQUENCE_ERR) {
                         account_info.sequence = try_tx_s!(parse_expected_sequence_number(&e));
-                        debug!("Got wrong account sequence, trying again.");
+                        debug!("Account sequence mismatch, retrying...");
                         continue;
                     }
 
-                    return Err(crate::TransactionErr::Plain(ERRL!("{}", e)));
+                    return Err(TransactionErr::Plain(ERRL!("Transaction failed: {}", e)));
                 },
-            };
-        };
-
-        Ok((tx_id, tx_raw))
+            }
+        }
     }
 
     async fn send_unsigned_tx_externally(
@@ -932,37 +997,12 @@ impl TendermintCoin {
             .await
             .map_err(|e| ERRL!("{}", e)));
 
-        let tx_raw = match self.wallet_connection_type {
-            TendermintWalletConnectionType::WalletConnect => {
-                let wallet_connect = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
-                let response = try_tx_s!(
-                    wallet_connect
-                        .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
-                        .await
-                );
-                let signature = try_tx_s!(general_purpose::STANDARD
-                    .decode(response.signature.signature)
-                    .map_err(|e| ERRL!("{}", e)));
-                let body_bytes = try_tx_s!(general_purpose::STANDARD
-                    .decode(response.signed.body_bytes)
-                    .map_err(|e| ERRL!("{}", e)));
-                let auth_info_bytes = try_tx_s!(general_purpose::STANDARD
-                    .decode(response.signed.auth_info_bytes)
-                    .map_err(|e| ERRL!("{}", e)));
-                TxRaw {
-                    body_bytes,
-                    auth_info_bytes,
-                    signatures: vec![signature],
-                }
-            },
-            _ => {
-                let tx = try_tx_s!(self.request_tx(data.hash.clone()).await.map_err(|e| ERRL!("{}", e)));
-                TxRaw {
-                    body_bytes: tx.body.as_ref().map(Message::encode_to_vec).unwrap_or_default(),
-                    auth_info_bytes: tx.auth_info.as_ref().map(Message::encode_to_vec).unwrap_or_default(),
-                    signatures: tx.signatures,
-                }
-            },
+        let tx = try_tx_s!(self.request_tx(data.hash.clone()).await.map_err(|e| ERRL!("{}", e)));
+
+        let tx_raw = TxRaw {
+            body_bytes: tx.body.as_ref().map(Message::encode_to_vec).unwrap_or_default(),
+            auth_info_bytes: tx.auth_info.as_ref().map(Message::encode_to_vec).unwrap_or_default(),
+            signatures: tx.signatures,
         };
 
         if body_bytes != tx_raw.body_bytes {
@@ -1368,9 +1408,18 @@ impl TendermintCoin {
         let sign_doc = SignDoc::new(&tx_body, &auth_info, &self.chain_id, account_info.account_number)?;
 
         let my_address = self.my_address().unwrap();
-        let tx_json = if self.wallet_connection_type == TendermintWalletConnectionType::WalletConnect {
-            //todo:: maybe convert body_bytes, auth_info_bytes to base64.
-            json!({
+        let mut tx_json = json!({
+            "sign_doc": {
+                "body_bytes": &sign_doc.body_bytes,
+                "auth_info_bytes": sign_doc.auth_info_bytes,
+                "chain_id": sign_doc.chain_id,
+                "account_number": sign_doc.account_number,
+            }
+        });
+
+        // if wallet_connection_type is WalletConnect, update tx_json to use WalletConnect type.
+        if self.wallet_connection_type == TendermintWalletConnectionType::WalletConnect {
+            tx_json = json!({
                 "signerAddress": my_address,
                 "signDoc": {
                     "accountNumber": sign_doc.account_number.to_string(),
@@ -1379,16 +1428,7 @@ impl TendermintCoin {
                     "authInfoBytes": hex::encode(&sign_doc.auth_info_bytes)
                 }
             })
-        } else {
-            json!({
-                "sign_doc": {
-                    "body_bytes": &sign_doc.body_bytes,
-                    "auth_info_bytes": sign_doc.auth_info_bytes,
-                    "chain_id": sign_doc.chain_id,
-                    "account_number": sign_doc.account_number,
-                }
-            })
-        };
+        }
 
         Ok(SerializedUnsignedTx {
             tx_json,

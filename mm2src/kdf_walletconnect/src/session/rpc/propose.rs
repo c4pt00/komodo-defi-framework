@@ -10,7 +10,7 @@ use mm2_err_handle::prelude::*;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session::ProposeNamespaces,
                               session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
-                              Metadata, RequestParams, ResponseParamsSuccess}};
+                              RequestParams, ResponseParamsSuccess}};
 
 /// Creates a new session proposal form topic and metadata.
 pub(crate) async fn send_proposal_request(

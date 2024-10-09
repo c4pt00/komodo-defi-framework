@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+
 use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
 use common::log::info;
@@ -8,7 +7,7 @@ use futures::StreamExt;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::rpc::params::{session_request::{Request as SessionRequest, SessionRequestRequest},
                              RequestParams, ResponseParamsSuccess};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::WcRequestMethods;
@@ -60,12 +59,25 @@ where
             })
             .collect(),
         Value::String(data) => {
-            let data = general_purpose::STANDARD
-                .decode(data)
-                .map_err(|err| serde::de::Error::custom(err.to_string()))?;
+            let data = decode_data(&data).map_err(|err| serde::de::Error::custom(err.to_string()))?;
             Ok(data)
         },
         _ => Err(serde::de::Error::custom("Pubkey must be an string, object or array")),
+    }
+}
+
+fn decode_data(encoded: &str) -> Result<Vec<u8>, &'static str> {
+    // Check if the string is base64 or hex
+    if encoded.contains('=') || encoded.contains('/') || encoded.contains('+') {
+        // Try to decode as base64
+        general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|_| "Invalid base64 encoding")
+    } else if encoded.chars().all(|c| c.is_ascii_hexdigit()) && encoded.len() % 2 == 0 {
+        // Try to decode as hex
+        hex::decode(encoded).map_err(|_| "Invalid hex encoding")
+    } else {
+        Err("Unknown encoding format")
     }
 }
 
@@ -134,7 +146,7 @@ pub struct CosmosTxPublicKey {
 #[serde(rename_all = "camelCase")]
 pub struct CosmosSignData {
     pub chain_id: String,
-    pub account_number: AccountNumber,
+    pub account_number: String,
     #[serde(deserialize_with = "deserialize_vec_field")]
     pub auth_info_bytes: Vec<u8>,
     #[serde(deserialize_with = "deserialize_vec_field")]
@@ -148,7 +160,7 @@ pub struct AccountNumber {
     unsigned: bool,
 }
 
-pub async fn cosmos_sign_tx_direct_impl(
+pub async fn cosmos_sign_direct_impl(
     ctx: &WalletConnectCtx,
     sign_doc: Value,
     chain_id: &str,
@@ -179,7 +191,6 @@ pub async fn cosmos_sign_tx_direct_impl(
 
     let mut session_handler = ctx.session_request_handler.lock().await;
     if let Some((message_id, data)) = session_handler.next().await {
-        println!("DATA: {data:?}");
         let result = serde_json::from_value::<CosmosTxSignedData>(data)?;
         let response = ResponseParamsSuccess::SessionEvent(true);
         ctx.publish_response_ok(&topic, response, &message_id).await?;
@@ -191,18 +202,3 @@ pub async fn cosmos_sign_tx_direct_impl(
         "No response from wallet".to_string(),
     ))
 }
-
-//{
-//    "id": 1,
-//    "jsonrpc": "2.0",
-//    "method": "cosmos_signDirect",
-//    "params": {
-//        "signerAddress": "cosmos1sguafvgmel6f880ryvq8efh9522p8zvmrzlcrq",
-//        "signDoc":  {
-//            "chainId": "cosmoshub-4",
-//            "accountNumber": "1"
-//            "authInfoBytes": "CgoKABIECgIIARgBEhMKDQoFdWNvc20SBDIwMDAQwJoM",
-//            "bodyBytes": "CpABChwvY29zbW9zLmJhbmsudjFiZXRhMS5Nc2dTZW5kEnAKLWNvc21vczFwa3B0cmU3ZmRrbDZnZnJ6bGVzamp2aHhobGMzcjRnbW1rOHJzNhItY29zbW9zMXF5cHF4cHE5cWNyc3N6ZzJwdnhxNnJzMHpxZzN5eWM1bHp2N3h1GhAKBXVjb3NtEgcxMjM0NTY3"
-//        }
-//    }
-// }

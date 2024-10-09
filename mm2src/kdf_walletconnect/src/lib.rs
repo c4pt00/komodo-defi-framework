@@ -8,7 +8,7 @@ pub mod session;
 mod storage;
 
 use chain::{build_required_namespaces,
-            tendermint::{cosmos_get_accounts_impl, cosmos_sign_tx_direct_impl, CosmosAccount, CosmosTxSignedData},
+            tendermint::{cosmos_get_accounts_impl, cosmos_sign_direct_impl, CosmosAccount, CosmosTxSignedData},
             SUPPORTED_CHAINS};
 use common::executor::SpawnFuture;
 use common::log::info;
@@ -233,7 +233,7 @@ impl WalletConnectCtx {
         sign_doc: Value,
         chain_id: &str,
     ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
-        cosmos_sign_tx_direct_impl(self, sign_doc, chain_id).await
+        cosmos_sign_direct_impl(self, sign_doc, chain_id).await
     }
 
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
@@ -262,7 +262,7 @@ impl WalletConnectCtx {
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
-        info!("Outbound request sent!\n");
+        deb!("Outbound request sent!\n");
 
         Ok(())
     }
