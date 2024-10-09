@@ -179,7 +179,6 @@ impl WalletConnectCtx {
         }
 
         let namespaces = self.namespaces.lock().await;
-        println!("namespaces: {namespaces:?}");
         namespaces
             .iter()
             .find_map(|(key, namespace)| self.find_account_in_namespace(key, namespace, chain_id))
@@ -191,8 +190,6 @@ impl WalletConnectCtx {
     fn find_account_in_namespace(&self, namespace_key: &str, namespace: &Namespace, chain_id: &str) -> Option<String> {
         let chains = namespace.chains.as_ref()?;
         let key = format!("{namespace_key}:{chain_id}");
-
-        println!("chains: {chains:?}");
 
         if !chains.contains(&key) {
             return None;
@@ -262,7 +259,7 @@ impl WalletConnectCtx {
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
-        deb!("Outbound request sent!\n");
+        info!("Outbound request sent!\n");
 
         Ok(())
     }
