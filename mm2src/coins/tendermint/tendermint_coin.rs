@@ -1188,7 +1188,6 @@ impl TendermintCoin {
         withdraw_from: Option<WithdrawFrom>,
     ) -> Result<(AccountId, Option<H256>), WithdrawError> {
         if let TendermintActivationPolicy::PublicKey(_) = self.activation_policy {
-            println!("inside pubkey");
             return Ok((self.account_id.clone(), None));
         }
 
@@ -1234,9 +1233,7 @@ impl TendermintCoin {
         timeout_height: u64,
         memo: String,
     ) -> Result<TransactionData, ErrorReport> {
-        println!("before maybe");
         if let Some(priv_key) = maybe_pk {
-            println!("after maybe");
             let tx_raw = self.any_to_signed_raw_tx(&priv_key, account_info, message, fee, timeout_height, memo)?;
             let tx_bytes = tx_raw.to_bytes()?;
             let hash = sha256(&tx_bytes);
@@ -1248,7 +1245,6 @@ impl TendermintCoin {
         };
 
         if let TendermintWalletConnectionType::WalletConnect = self.wallet_connection_type {
-            println!("inside wc");
             let ctx = MmArc::from_weak(&self.ctx)
                 .ok_or(MyAddressError::InternalError(ERRL!("ctx must be initialized already")))?;
             let wallet_connect = WalletConnectCtx::from_ctx(&ctx)?;
@@ -1260,8 +1256,8 @@ impl TendermintCoin {
                 .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
                 .await?;
             let signature = general_purpose::STANDARD.decode(response.signature.signature)?;
-            let body_bytes = general_purpose::STANDARD.decode(response.signed.body_bytes)?;
-            let auth_info_bytes = general_purpose::STANDARD.decode(response.signed.auth_info_bytes)?;
+            let body_bytes = response.signed.body_bytes;
+            let auth_info_bytes = response.signed.auth_info_bytes;
             let tx_raw = TxRaw {
                 body_bytes,
                 auth_info_bytes,
@@ -1373,14 +1369,14 @@ impl TendermintCoin {
 
         let my_address = self.my_address().unwrap();
         let tx_json = if self.wallet_connection_type == TendermintWalletConnectionType::WalletConnect {
-            //TODO:: maybe convert body_bytes, auth_info_bytes to base64.
+            //todo:: maybe convert body_bytes, auth_info_bytes to base64.
             json!({
                 "signerAddress": my_address,
                 "signDoc": {
                     "accountNumber": sign_doc.account_number.to_string(),
                     "chainId": sign_doc.chain_id,
-                    "bodyBytes": general_purpose::STANDARD.encode(sign_doc.body_bytes.clone()),
-                    "authInfoBytes": general_purpose::STANDARD.encode(sign_doc.auth_info_bytes)
+                    "bodyBytes": hex::encode(&sign_doc.body_bytes),
+                    "authInfoBytes": hex::encode(&sign_doc.auth_info_bytes)
                 }
             })
         } else {
@@ -2397,7 +2393,6 @@ impl MmCoin for TendermintCoin {
 
             let account_info = coin.account_info(&account_id).await?;
 
-            println!("Before any_to_transaction_data");
             let tx = coin
                 .any_to_transaction_data(maybe_pk, msg_payload, &account_info, fee, timeout_height, memo.clone())
                 .await
