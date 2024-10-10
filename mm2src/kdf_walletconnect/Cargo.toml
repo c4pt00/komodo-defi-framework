@@ -29,7 +29,7 @@ relay_client = { git = "https://github.com/komodoplatform/walletconnectrust", br
 relay_rpc = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
 sha2 = "0.10.8"
 thiserror = "1.0.40"
-wc_common = { path = "../../../kdf-wc/wc_common" }
+wc_common = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
 secp256k1 = { version = "0.20" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
