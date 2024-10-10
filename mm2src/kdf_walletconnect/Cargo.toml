@@ -27,7 +27,7 @@ pairing_api = { git = "https://github.com/komodoplatform/walletconnectrust", bra
 rand = "0.8"
 relay_client = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
 relay_rpc = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
-sha2 = "0.10.8"
+sha2 = "0.10.7"
 thiserror = "1.0.40"
 wc_common = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
 secp256k1 = { version = "0.20" }

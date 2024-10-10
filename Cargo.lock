@@ -394,6 +394,15 @@ checksum = "6107fe1be6682a68940da878d9e9f5e90ca5745b3dec9fd1bb393c8777d4f581"
 
 [[package]]
 name = "base64"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b25d992356d2eb0ed82172f5248873db5560c4721f564b13cb5193bda5e668e"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
+name = "base64"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
@@ -492,7 +501,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93f2635620bf0b9d4576eb7bb9a38a55df78bd1205d26fa994b25911a69f212f"
 dependencies = [
  "bitcoin_hashes",
- "rand_core 0.6.4",
+ "rand_core 0.4.2",
  "zeroize",
 ]
 
@@ -522,7 +531,7 @@ dependencies = [
  "ripemd160",
  "serialization",
  "sha-1",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "sha3 0.9.1",
  "siphasher",
 ]
@@ -1094,7 +1103,7 @@ dependencies = [
  "serde_with",
  "serialization",
  "serialization_derive",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "sha3 0.9.1",
  "sia-rust",
  "solana-client",
@@ -1209,7 +1218,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_repr",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "shared_ref_counter",
  "tokio",
  "uuid 1.2.2",
@@ -1546,7 +1555,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "tokio",
  "trezor",
  "wasm-bindgen-test",
@@ -2082,7 +2091,7 @@ dependencies = [
  "ed25519 2.2.3",
  "rand_core 0.6.4",
  "serde",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "subtle",
  "zeroize",
 ]
@@ -2109,7 +2118,7 @@ dependencies = [
  "derivation-path 0.2.0",
  "ed25519-dalek 1.0.1",
  "hmac 0.12.1",
- "sha2 0.10.8",
+ "sha2 0.10.7",
 ]
 
 [[package]]
@@ -2493,21 +2502,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
-name = "foreign-types"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
-dependencies = [
- "foreign-types-shared",
-]
-
-[[package]]
-name = "foreign-types-shared"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
-
-[[package]]
 name = "form_urlencoded"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2654,7 +2648,7 @@ checksum = "e01fe9932a224b72b45336d96040aa86386d674a31d0af27d800ea7bc8ca97fe"
 dependencies = [
  "futures-io",
  "rustls 0.20.4",
- "webpki",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -3557,7 +3551,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "once_cell",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "signature 2.2.0",
 ]
 
@@ -3590,7 +3584,7 @@ dependencies = [
  "secp256k1 0.20.3",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "thiserror",
  "tokio",
  "wasm-bindgen",
@@ -3824,7 +3818,7 @@ dependencies = [
  "quick-protobuf-codec",
  "rand 0.8.4",
  "regex",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "smallvec 1.6.1",
  "unsigned-varint",
  "void",
@@ -3865,7 +3859,7 @@ dependencies = [
  "multihash",
  "quick-protobuf",
  "rand 0.8.4",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "thiserror",
  "zeroize",
 ]
@@ -3922,7 +3916,7 @@ dependencies = [
  "once_cell",
  "quick-protobuf",
  "rand 0.8.4",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "snow",
  "static_assertions",
  "thiserror",
@@ -4888,7 +4882,7 @@ dependencies = [
  "secp256k1 0.20.3",
  "serde",
  "serde_bytes",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "smallvec 1.6.1",
  "syn 2.0.77",
  "tokio",
@@ -5029,23 +5023,6 @@ dependencies = [
  "pin-project",
  "smallvec 1.6.1",
  "unsigned-varint",
-]
-
-[[package]]
-name = "native-tls"
-version = "0.2.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8614eb2c83d59d1c8cc974dd3f920198647674a0a035e1af1fa58707e317466"
-dependencies = [
- "libc",
- "log",
- "openssl",
- "openssl-probe",
- "openssl-sys",
- "schannel",
- "security-framework",
- "security-framework-sys",
- "tempfile",
 ]
 
 [[package]]
@@ -5281,48 +5258,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
-name = "openssl"
-version = "0.10.66"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9529f4786b70a3e8c61e11179af17ab6188ad8d0ded78c5529441ed39d4bd9c1"
-dependencies = [
- "bitflags 2.6.0",
- "cfg-if 1.0.0",
- "foreign-types",
- "libc",
- "once_cell",
- "openssl-macros",
- "openssl-sys",
-]
-
-[[package]]
-name = "openssl-macros"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
-dependencies = [
- "proc-macro2 1.0.86",
- "quote 1.0.37",
- "syn 2.0.77",
-]
-
-[[package]]
 name = "openssl-probe"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
-
-[[package]]
-name = "openssl-sys"
-version = "0.9.103"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
- "vcpkg",
-]
 
 [[package]]
 name = "ordered-float"
@@ -5370,7 +5309,7 @@ dependencies = [
 [[package]]
 name = "pairing_api"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6386,7 +6325,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "relay_client"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -6402,6 +6341,7 @@ dependencies = [
  "serde_qs",
  "thiserror",
  "tokio",
+ "tokio-rustls 0.10.3",
  "tokio-tungstenite-wasm 0.1.1-alpha.0 (git+https://github.com/KomodoPlatform/tokio-tungstenite-wasm.git?rev=8fc7e2f)",
  "tokio-util",
  "url",
@@ -6414,7 +6354,7 @@ dependencies = [
 [[package]]
 name = "relay_rpc"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
 dependencies = [
  "anyhow",
  "bs58 0.4.0",
@@ -6431,7 +6371,7 @@ dependencies = [
  "serde",
  "serde-aux",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "strum",
  "thiserror",
  "url",
@@ -6742,14 +6682,27 @@ dependencies = [
 
 [[package]]
 name = "rustls"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b25a18b1bf7387f0145e7f8324e700805aade3842dd3db2e74e4cdeb4677c09e"
+dependencies = [
+ "base64 0.10.1",
+ "log",
+ "ring 0.16.20",
+ "sct 0.6.1",
+ "webpki 0.21.4",
+]
+
+[[package]]
+name = "rustls"
 version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fbfeb8d0ddb84706bc597a5574ab8912817c52a397f819e5b614e2265206921"
 dependencies = [
  "log",
  "ring 0.16.20",
- "sct",
- "webpki",
+ "sct 0.7.0",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -6761,7 +6714,7 @@ dependencies = [
  "log",
  "ring 0.17.3",
  "rustls-webpki 0.101.7",
- "sct",
+ "sct 0.7.0",
 ]
 
 [[package]]
@@ -6916,6 +6869,16 @@ dependencies = [
  "primitives",
  "serde",
  "serialization",
+]
+
+[[package]]
+name = "sct"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
+dependencies = [
+ "ring 0.16.20",
+ "untrusted 0.7.1",
 ]
 
 [[package]]
@@ -7251,9 +7214,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.8"
+version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+checksum = "479fb9d862239e610720565ca91403019f2f00410f1864c5aa7479b950a76ed8"
 dependencies = [
  "cfg-if 1.0.0",
  "cpufeatures",
@@ -7416,7 +7379,7 @@ dependencies = [
  "rand_core 0.6.4",
  "ring 0.17.3",
  "rustc_version 0.4.0",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "subtle",
 ]
 
@@ -8273,7 +8236,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serialization",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "test_helpers",
 ]
 
@@ -8542,7 +8505,7 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_repr",
- "sha2 0.10.8",
+ "sha2 0.10.7",
  "signature 2.2.0",
  "subtle",
  "subtle-encoding",
@@ -8651,7 +8614,7 @@ dependencies = [
  "rand 0.8.4",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.7",
 ]
 
 [[package]]
@@ -8803,6 +8766,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-io"
+version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57fc868aae093479e3131e3d165c93b1c7474109d13c90ec0dda2a1bbfff0674"
+dependencies = [
+ "bytes 0.4.12",
+ "futures 0.1.29",
+ "log",
+]
+
+[[package]]
 name = "tokio-io-timeout"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8824,13 +8798,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-native-tls"
-version = "0.3.1"
+name = "tokio-rustls"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+checksum = "2d7cf08f990090abd6c6a73cab46fed62f85e8aef8b99e4b918a9f4a637f0676"
 dependencies = [
- "native-tls",
- "tokio",
+ "bytes 0.4.12",
+ "futures 0.1.29",
+ "iovec",
+ "rustls 0.16.0",
+ "tokio-io",
+ "webpki 0.21.4",
 ]
 
 [[package]]
@@ -8841,7 +8819,7 @@ checksum = "a27d5f2b839802bd8267fa19b0530f5a08b9c08cd417976be2a65d130fe1c11b"
 dependencies = [
  "rustls 0.20.4",
  "tokio",
- "webpki",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -8873,14 +8851,12 @@ checksum = "e80b39df6afcc12cdf752398ade96a6b9e99c903dfdc36e53ad10b9c366bca72"
 dependencies = [
  "futures-util",
  "log",
- "native-tls",
  "rustls 0.20.4",
  "rustls-native-certs",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls 0.23.2",
  "tungstenite",
- "webpki",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -9173,14 +9149,13 @@ dependencies = [
  "http 0.2.12",
  "httparse",
  "log",
- "native-tls",
  "rand 0.8.4",
  "rustls 0.20.4",
  "sha-1",
  "thiserror",
  "url",
  "utf-8",
- "webpki",
+ "webpki 0.22.0",
  "webpki-roots 0.22.3",
 ]
 
@@ -9568,7 +9543,7 @@ dependencies = [
 [[package]]
 name = "wc_common"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
@@ -9621,6 +9596,16 @@ dependencies = [
 
 [[package]]
 name = "webpki"
+version = "0.21.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
+dependencies = [
+ "ring 0.16.20",
+ "untrusted 0.7.1",
+]
+
+[[package]]
+name = "webpki"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f095d78192e208183081cc07bc5515ef55216397af48b873e5edcd72637fa1bd"
@@ -9635,7 +9620,7 @@ version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44d8de8415c823c8abd270ad483c6feeac771fad964890779f9a8cb24fbbc1bf"
 dependencies = [
- "webpki",
+ "webpki 0.22.0",
 ]
 
 [[package]]
