@@ -417,9 +417,12 @@ impl EthCoin {
             platform: protocol.platform,
             token_addr: protocol.token_addr,
         };
-        let max_eth_tx_type = get_max_eth_tx_type_conf(&ctx, &conf, &coin_type).await?;
+
+        // allow token params to override platform coin setting
+        let max_eth_tx_type = get_max_eth_tx_type_conf(&conf).await?.unwrap_or(self.max_eth_tx_type);
         let gas_limit = extract_gas_limit_from_conf(&conf)
-            .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?;
+            .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?
+            .unwrap_or(self.gas_limit.clone());
 
         let token = EthCoinImpl {
             priv_key_policy: self.priv_key_policy.clone(),
@@ -505,9 +508,12 @@ impl EthCoin {
         let coin_type = EthCoinType::Nft {
             platform: self.ticker.clone(),
         };
-        let max_eth_tx_type = get_max_eth_tx_type_conf(&ctx, &conf, &coin_type).await?;
+
+        // allow token params to override platform coin setting
+        let max_eth_tx_type = get_max_eth_tx_type_conf(&conf).await?.unwrap_or(self.max_eth_tx_type);
         let gas_limit = extract_gas_limit_from_conf(&conf)
-            .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?;
+            .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?
+            .unwrap_or(self.gas_limit.clone());
 
         let global_nft = EthCoinImpl {
             ticker,
@@ -636,15 +642,15 @@ pub async fn eth_coin_from_conf_and_request_v2(
     // Create an abortable system linked to the `MmCtx` so if the app is stopped on `MmArc::stop`,
     // all spawned futures related to `ETH` coin will be aborted as well.
     let abortable_system = ctx.abortable_system.create_subsystem()?;
-    let coin_type = EthCoinType::Eth;
-    let max_eth_tx_type = get_max_eth_tx_type_conf(ctx, conf, &coin_type).await?;
+    let max_eth_tx_type = get_max_eth_tx_type_conf(conf).await?.unwrap_or_default();
     let gas_limit = extract_gas_limit_from_conf(conf)
-        .map_to_mm(|e| EthActivationV2Error::InternalError(format!("invalid gas_limit config {}", e)))?;
+        .map_to_mm(|e| EthActivationV2Error::InternalError(format!("invalid gas_limit config {}", e)))?
+        .unwrap_or_default();
 
     let coin = EthCoinImpl {
         priv_key_policy,
         derivation_method: Arc::new(derivation_method),
-        coin_type,
+        coin_type: EthCoinType::Eth,
         sign_message_prefix,
         swap_contract_address: req.swap_contract_address,
         swap_v2_contracts: req.swap_v2_contracts,

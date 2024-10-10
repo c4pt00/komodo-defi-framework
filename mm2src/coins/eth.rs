@@ -250,7 +250,7 @@ pub mod gas_limit {
 }
 
 /// Coin conf param to override default gas limits
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct EthGasLimit {
     /// Gas limit for sending coins
@@ -634,7 +634,7 @@ pub struct EthCoinImpl {
     history_sync_state: Mutex<HistorySyncState>,
     required_confirmations: AtomicU64,
     swap_txfee_policy: Mutex<SwapTxFeePolicy>,
-    max_eth_tx_type: Option<u64>,
+    max_eth_tx_type: u64,
     /// Coin needs access to the context in order to reuse the logging and shutdown facilities.
     /// Using a weak reference by default in order to avoid circular references and leaks.
     pub ctx: MmWeak,
@@ -3564,7 +3564,7 @@ impl EthCoin {
             TxType::Type2 => 2_u64,
             TxType::Invalid => return false,
         };
-        let max_tx_type = self.max_eth_tx_type.unwrap_or(0_u64);
+        let max_tx_type = self.max_eth_tx_type;
         tx_type_as_num <= max_tx_type
     }
 
@@ -6101,36 +6101,17 @@ fn rpc_event_handlers_for_eth_transport(ctx: &MmArc, ticker: String) -> Vec<RpcT
     vec![CoinTransportMetrics::new(metrics, ticker, RpcClientType::Ethereum).into_shared()]
 }
 
-async fn get_max_eth_tx_type_conf(ctx: &MmArc, conf: &Json, coin_type: &EthCoinType) -> Result<Option<u64>, String> {
-    fn check_max_eth_tx_type_conf(conf: &Json) -> Result<Option<u64>, String> {
-        if !conf["max_eth_tx_type"].is_null() {
-            let max_eth_tx_type = conf["max_eth_tx_type"]
-                .as_u64()
-                .ok_or_else(|| "max_eth_tx_type in coins is invalid".to_string())?;
-            if max_eth_tx_type > ETH_MAX_TX_TYPE {
-                return Err("max_eth_tx_type in coins is too big".to_string());
-            }
-            Ok(Some(max_eth_tx_type))
-        } else {
-            Ok(None)
+async fn get_max_eth_tx_type_conf(conf: &Json) -> Result<Option<u64>, String> {
+    if !conf["max_eth_tx_type"].is_null() {
+        let max_eth_tx_type = conf["max_eth_tx_type"]
+            .as_u64()
+            .ok_or_else(|| "max_eth_tx_type in coins is invalid".to_string())?;
+        if max_eth_tx_type > ETH_MAX_TX_TYPE {
+            return Err("max_eth_tx_type in coins is too big".to_string());
         }
-    }
-
-    match &coin_type {
-        EthCoinType::Eth => check_max_eth_tx_type_conf(conf),
-        EthCoinType::Erc20 { platform, .. } | EthCoinType::Nft { platform } => {
-            let coin_max_eth_tx_type = check_max_eth_tx_type_conf(conf)?;
-            // Normally we suppose max_eth_tx_type is in platform coin but also try to get it from tokens for tests to work:
-            if let Some(coin_max_eth_tx_type) = coin_max_eth_tx_type {
-                Ok(Some(coin_max_eth_tx_type))
-            } else {
-                let platform_coin = lp_coinfind_or_err(ctx, platform).await;
-                match platform_coin {
-                    Ok(MmCoinEnum::EthCoin(eth_coin)) => Ok(eth_coin.max_eth_tx_type),
-                    _ => Ok(None),
-                }
-            }
-        },
+        Ok(Some(max_eth_tx_type))
+    } else {
+        Ok(None)
     }
 }
 
@@ -6308,17 +6289,27 @@ pub async fn eth_coin_from_conf_and_request(
     // This is a deprecated method to activate tokens this way. We should eth_coin_from_conf_and_request_v2 instead
     let (max_eth_tx_type, gas_limit, gas_fee_estimator) = match &coin_type {
         EthCoinType::Eth => (
-            get_max_eth_tx_type_conf(ctx, conf, &coin_type).await?,
-            extract_gas_limit_from_conf(conf)?,
-            extract_gas_fee_estimator_from_value(req)?,
+            get_max_eth_tx_type_conf(conf).await?.unwrap_or_default(),
+            extract_gas_limit_from_conf(conf)?.unwrap_or_default(),
+            extract_gas_fee_estimator_from_value(req)?.unwrap_or_default(),
         ),
-        EthCoinType::Erc20 { platform, .. } | EthCoinType::Nft { platform } => match lp_coinfind(ctx, platform).await {
-            Ok(Some(MmCoinEnum::EthCoin(platform_coin))) => (
-                platform_coin.max_eth_tx_type,
-                platform_coin.gas_limit.clone(),
-                platform_coin.gas_fee_estimator.clone(),
-            ),
-            _ => (Default::default(), Default::default(), Default::default()),
+        EthCoinType::Erc20 { platform, .. } | EthCoinType::Nft { platform } => {
+            let max_eth_tx_type = get_max_eth_tx_type_conf(conf).await?;
+            let gas_limit = extract_gas_limit_from_conf(conf)?;
+            let gas_fee_estimator = extract_gas_fee_estimator_from_value(req)?;
+            match lp_coinfind(ctx, platform).await {
+                Ok(Some(MmCoinEnum::EthCoin(platform_coin))) => (
+                    // use platform coins settings if token does not have explicit settings
+                    max_eth_tx_type.unwrap_or(platform_coin.max_eth_tx_type),
+                    gas_limit.unwrap_or(platform_coin.gas_limit.clone()),
+                    gas_fee_estimator.unwrap_or(platform_coin.gas_fee_estimator.clone()),
+                ),
+                _ => (
+                    max_eth_tx_type.unwrap_or_default(),
+                    gas_limit.unwrap_or_default(),
+                    gas_fee_estimator.unwrap_or_default(),
+                ),
+            }
         },
     };
 
@@ -6969,19 +6960,23 @@ pub fn pubkey_from_extended(extended_pubkey: &Secp256k1ExtendedPublicKey) -> Pub
     pubkey_uncompressed
 }
 
-fn extract_gas_limit_from_conf(coin_conf: &Json) -> Result<EthGasLimit, String> {
+fn extract_gas_limit_from_conf(coin_conf: &Json) -> Result<Option<EthGasLimit>, String> {
     if coin_conf["gas_limit"].is_null() {
-        Ok(Default::default())
+        Ok(None)
     } else {
-        json::from_value(coin_conf["gas_limit"].clone()).map_err(|e| e.to_string())
+        json::from_value(coin_conf["gas_limit"].clone())
+            .map_err(|e| e.to_string())
+            .map(Some)
     }
 }
 
-fn extract_gas_fee_estimator_from_value(value: &Json) -> Result<GasFeeEstimator, String> {
+fn extract_gas_fee_estimator_from_value(value: &Json) -> Result<Option<GasFeeEstimator>, String> {
     if value["gas_fee_estimator"].is_null() {
-        Ok(Default::default())
+        Ok(None)
     } else {
-        json::from_value(value["gas_fee_estimator"].clone()).map_err(|e| e.to_string())
+        json::from_value(value["gas_fee_estimator"].clone())
+            .map_err(|e| e.to_string())
+            .map(Some)
     }
 }
 
