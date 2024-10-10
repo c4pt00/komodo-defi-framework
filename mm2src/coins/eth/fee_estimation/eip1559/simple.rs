@@ -10,6 +10,8 @@ use ethereum_types::U256;
 use num_traits::FromPrimitive;
 use web3::types::BlockNumber;
 
+#[cfg(test)] use std::str::FromStr;
+
 /// Simple priority fee per gas estimator based on fee history
 /// normally used if gas api provider is not available
 pub(crate) struct FeePerGasSimpleEstimator {}
@@ -35,10 +37,10 @@ impl FeePerGasSimpleEstimator {
     const ADJUST_MAX_PRIORITY_FEE: [f64; FEE_PER_GAS_LEVELS] = [1.0, 1.0, 1.0];
 
     /// block depth for eth_feeHistory
-    pub fn history_depth() -> u64 { Self::FEE_PRIORITY_DEPTH }
+    fn history_depth() -> u64 { Self::FEE_PRIORITY_DEPTH }
 
     /// percentiles for priority rewards obtained with eth_feeHistory
-    pub fn history_percentiles() -> &'static [f64] { &Self::HISTORY_PERCENTILES }
+    fn history_percentiles() -> &'static [f64] { &Self::HISTORY_PERCENTILES }
 
     /// percentile for vector
     fn percentile_of(v: &[U256], percent: f64) -> U256 {
@@ -56,7 +58,7 @@ impl FeePerGasSimpleEstimator {
     pub(crate) fn is_chain_supported(_chain_id: u64) -> bool { true }
 
     /// Estimate simplified gas priority fees based on fee history
-    pub async fn estimate_fee_by_history(coin: &EthCoin) -> Web3RpcResult<FeePerGasEstimated> {
+    pub(crate) async fn estimate_fee_by_history(coin: &EthCoin) -> Web3RpcResult<FeePerGasEstimated> {
         let res: Result<FeeHistoryResult, web3::Error> = coin
             .eth_fee_history(
                 U256::from(Self::history_depth()),
@@ -136,4 +138,96 @@ impl FeePerGasSimpleEstimator {
             priority_fee_trend: String::default(),
         })
     }
+}
+
+#[test]
+fn test_gas_fee_history_estimator() {
+    // depth = 5 levels = 3
+    let test_history = FeeHistoryResult {
+        oldest_block: U256::from_dec_str("0").unwrap(),
+        base_fee_per_gas: vec![
+            U256::from_dec_str("45333333333").unwrap(),
+            U256::from_dec_str("51345678912").unwrap(),
+            U256::from_dec_str("60200000000").unwrap(),
+            U256::from_dec_str("55131313131").unwrap(),
+            U256::from_dec_str("40000000000").unwrap(),
+        ],
+        gas_used_ratio: vec![],
+        priority_rewards: Some(vec![
+            vec![
+                U256::from_dec_str("2000000000").unwrap(),
+                U256::from_dec_str("5000000000").unwrap(),
+                U256::from_dec_str("7200000000").unwrap(),
+            ],
+            vec![
+                U256::from_dec_str("1000000000").unwrap(),
+                U256::from_dec_str("5500000000").unwrap(),
+                U256::from_dec_str("7100000000").unwrap(),
+            ],
+            vec![
+                U256::from_dec_str("2500000000").unwrap(),
+                U256::from_dec_str("4500000000").unwrap(),
+                U256::from_dec_str("7500000000").unwrap(),
+            ],
+            vec![
+                U256::from_dec_str("3000000000").unwrap(),
+                U256::from_dec_str("3500000000").unwrap(),
+                U256::from_dec_str("7300000000").unwrap(),
+            ],
+            vec![
+                U256::from_dec_str("1500000000").unwrap(),
+                U256::from_dec_str("6000000000").unwrap(),
+                U256::from_dec_str("7400000000").unwrap(),
+            ],
+        ]),
+    };
+
+    let estimated = FeePerGasSimpleEstimator::calculate_with_history(&test_history).unwrap();
+
+    let base_fee_latest = BigDecimal::from_str("45.333333333").unwrap();
+
+    // fee percentiles how they are set in simple estimator (in gwei)
+    let base_fee_perc_75 = BigDecimal::from_str("55.131313131").unwrap();
+    let low_perc50 = BigDecimal::from_str("2").unwrap();
+    let medium_perc50 = BigDecimal::from_str("5").unwrap();
+    let high_perc50 = BigDecimal::from_str("7.3").unwrap();
+
+    // adjust priority fee
+    let max_priority_low = low_perc50.clone();
+    let max_priority_medium = medium_perc50.clone();
+    let max_priority_high = high_perc50.clone();
+
+    // adjust max fee
+    let max_fee_low =
+        base_fee_latest.clone() * BigDecimal::from_f64(1.1).unwrap() + low_perc50 * BigDecimal::from_f64(1.0).unwrap();
+    let max_fee_medium = base_fee_latest.clone() * BigDecimal::from_f64(1.175).unwrap()
+        + medium_perc50 * BigDecimal::from_f64(1.0).unwrap();
+    let max_fee_high =
+        base_fee_latest * BigDecimal::from_f64(1.25).unwrap() + high_perc50 * BigDecimal::from_f64(1.0).unwrap();
+
+    assert_eq!(wei_from_gwei_decimal!(&base_fee_perc_75).unwrap(), estimated.base_fee);
+    assert_eq!(
+        wei_from_gwei_decimal!(&max_priority_low).unwrap(),
+        estimated.low.max_priority_fee_per_gas
+    );
+    assert_eq!(
+        wei_from_gwei_decimal!(&max_fee_low).unwrap(),
+        estimated.low.max_fee_per_gas
+    );
+    assert_eq!(
+        wei_from_gwei_decimal!(&max_priority_medium).unwrap(),
+        estimated.medium.max_priority_fee_per_gas
+    );
+    assert_eq!(
+        wei_from_gwei_decimal!(&max_fee_medium).unwrap(),
+        estimated.medium.max_fee_per_gas
+    );
+    assert_eq!(
+        wei_from_gwei_decimal!(&max_priority_high).unwrap(),
+        estimated.high.max_priority_fee_per_gas
+    );
+    assert_eq!(
+        wei_from_gwei_decimal!(&max_fee_high).unwrap(),
+        estimated.high.max_fee_per_gas
+    );
 }
