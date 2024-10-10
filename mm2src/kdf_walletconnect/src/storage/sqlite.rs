@@ -126,11 +126,11 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
         .map_to_mm(AsyncConnError::from)
     }
 
-    async fn get_session(&self, topic: &Topic) -> MmResult<Option<Session>, Self::Error> { Ok(None) }
+    async fn get_session(&self, _topic: &Topic) -> MmResult<Option<Session>, Self::Error> { Ok(None) }
 
     async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error> { Ok(vec![]) }
 
-    async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error> { todo!() }
+    async fn delete_session(&self, _topic: &Topic) -> MmResult<(), Self::Error> { todo!() }
 
     async fn update_session(&self, _session: &Session) -> MmResult<(), Self::Error> { Ok(()) }
 }

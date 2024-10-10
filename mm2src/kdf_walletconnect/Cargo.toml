@@ -23,10 +23,10 @@ dashmap = "6.1.0"
 mm2_core = { path = "../mm2_core" }
 mm2_db = { path = "../mm2_db" }
 mm2_err_handle = { path = "../mm2_err_handle" }
-pairing_api = { path = "../../../kdf-wc/pairing_api" }
+pairing_api = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
 rand = "0.8"
-relay_client = { path = "../../../kdf-wc/relay_client" }
-relay_rpc = { path = "../../../kdf-wc/relay_rpc" }
+relay_client = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
+relay_rpc = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
 sha2 = "0.10.8"
 thiserror = "1.0.40"
 wc_common = { path = "../../../kdf-wc/wc_common" }

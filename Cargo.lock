@@ -3596,7 +3596,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
- "wc_common",
+ "wc_common 0.1.0",
  "web-sys",
  "x25519-dalek 2.0.1",
 ]
@@ -5369,6 +5369,7 @@ dependencies = [
 [[package]]
 name = "pairing_api"
 version = "0.1.0"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5385,7 +5386,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
- "wc_common",
+ "wc_common 0.1.0 (git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api)",
 ]
 
 [[package]]
@@ -6384,6 +6385,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "relay_client"
 version = "0.1.0"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -6411,6 +6413,7 @@ dependencies = [
 [[package]]
 name = "relay_rpc"
 version = "0.1.0"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
 dependencies = [
  "anyhow",
  "bs58 0.4.0",
@@ -9564,6 +9567,16 @@ dependencies = [
 [[package]]
 name = "wc_common"
 version = "0.1.0"
+dependencies = [
+ "base64 0.21.7",
+ "chacha20poly1305",
+ "thiserror",
+]
+
+[[package]]
+name = "wc_common"
+version = "0.1.0"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#9836e93fc788504318927a3ea8d3f5c7052c2e8f"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
