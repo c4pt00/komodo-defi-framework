@@ -911,7 +911,7 @@ impl TendermintCoin {
             TendermintWalletConnectionType::WalletConnect => {
                 // Handle WalletConnect signing
                 let SerializedUnsignedTx { tx_json, body_bytes: _ } =
-                    try_tx_s!(self.any_to_serialized_sign_doc(&account_info, tx_payload, fee, timeout_height, memo));
+                    try_tx_s!(self.any_to_serialized_sign_doc(account_info, tx_payload, fee, timeout_height, memo));
 
                 self.request_wc_tx_signing(tx_json).await
             },
@@ -919,7 +919,7 @@ impl TendermintCoin {
                 // Handle local signing
                 let tx_raw = try_tx_s!(self.any_to_signed_raw_tx(
                     try_tx_s!(self.activation_policy.activated_key_or_err()),
-                    &account_info,
+                    account_info,
                     tx_payload,
                     fee,
                     timeout_height,

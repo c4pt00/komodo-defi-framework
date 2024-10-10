@@ -4,15 +4,18 @@ pub mod rpc;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use chrono::Utc;
+use common::log::debug;
 use dashmap::mapref::one::RefMut;
 use dashmap::DashMap;
 use futures::lock::Mutex;
 use key::SessionKey;
 use mm2_err_handle::prelude::MmResult;
+use relay_client::websocket::Client;
+use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::IrnMetadata;
-use relay_rpc::{domain::{SubscriptionId, Topic},
+use relay_rpc::{domain::SubscriptionId,
                 rpc::params::{session::ProposeNamespaces, session_settle::Controller, Metadata, Relay}};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -45,11 +48,21 @@ impl ToString for SessionType {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SessionRpcInfo {
+    pub topic: String,
+    pub metadata: Metadata,
+    pub peer_pubkey: String,
+    pub pairing_topic: String,
+    pub namespaces: BTreeMap<String, Namespace>,
+    pub subscription_id: SubscriptionId,
+}
+
 /// This struct is typically used in the core session management logic of a WalletConnect
 /// implementation. It's used to store, retrieve, and update session information throughout
 /// the lifecycle of a WalletConnect connection.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Session {
+pub(crate) struct Session {
     /// Session topic
     pub topic: Topic,
     /// Pairing subscription id.
@@ -149,6 +162,7 @@ impl SessionManagement {
     /// Removes the session corresponding to the specified topic from the session store.
     /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
+        debug!("Deleting session with topic: {topic}");
         let mut active_topic = self.0.active_topic.lock().await;
 
         if let Some(ref topic_) = *active_topic {
@@ -157,12 +171,28 @@ impl SessionManagement {
             };
         };
 
-        self.0.sessions.remove(topic).map(|(_, session)| session)
+        let removed_session = self.0.sessions.remove(topic).map(|(_, session)| session);
+
+        // Update active session
+        if active_topic.is_none() {}
+        if let Some(session) = self.0.sessions.iter().next() {
+            debug!("New session with topic: {} activated!", session.topic);
+            *active_topic = Some(session.topic.clone());
+        }
+
+        removed_session
     }
 
     /// Retrieves a cloned session associated with a given topic.
-    pub(crate) fn get_session(&self, topic: &Topic) -> Option<Session> {
-        self.0.sessions.get(topic).map(|session| session.clone())
+    pub fn get_session(&self, topic: &Topic) -> Option<SessionRpcInfo> {
+        self.0.sessions.get(topic).map(|(session)| SessionRpcInfo {
+            topic: topic.to_string(),
+            metadata: session.controller.metadata.clone(),
+            peer_pubkey: session.controller.public_key.clone(),
+            pairing_topic: session.pairing_topic.to_string(),
+            namespaces: session.namespaces.clone(),
+            subscription_id: session.subscription_id.clone(),
+        })
     }
 
     /// Retrieves a mutable reference to the session associated with a given topic.
@@ -171,7 +201,7 @@ impl SessionManagement {
     }
 
     /// Returns an `Option<Session>` containing the active session if it exists; otherwise, returns `None`.
-    pub async fn get_session_active(&self) -> Option<Session> {
+    pub async fn get_session_active(&self) -> Option<SessionRpcInfo> {
         let active_topic = self.0.active_topic.lock().await;
         if let Some(ref topic) = *active_topic {
             self.get_session(topic)
@@ -181,29 +211,28 @@ impl SessionManagement {
     }
 
     /// Retrieves all sessions(active and inactive)
-    pub(crate) fn get_sessions(&self) -> Vec<Session> {
+    pub fn get_sessions(&self) -> Vec<SessionRpcInfo> {
         self.0
             .sessions
             .clone()
             .into_iter()
-            .map(|(_, session)| session)
+            .map(|(topic, session)| SessionRpcInfo {
+                topic: topic.to_string(),
+                metadata: session.controller.metadata.clone(),
+                peer_pubkey: session.controller.public_key.clone(),
+                pairing_topic: session.pairing_topic.to_string(),
+                namespaces: session.namespaces.clone(),
+                subscription_id: session.subscription_id,
+            })
             .collect()
     }
 
     /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
     /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
+        debug!("Extending session with topic: {topic}");
         if let Some(mut session) = self.0.sessions.get_mut(topic) {
             session.extend(till);
-        }
-    }
-
-    /// Updates the expiry time of the currently active session to the specified timestamp.
-    /// If there is no active session, this method does nothing.
-    pub(crate) async fn extend_active_session(&self, till: u64) {
-        let active_topic = self.0.active_topic.lock().await;
-        if let Some(ref topic) = *active_topic {
-            self.extend_session(topic, till);
         }
     }
 
@@ -229,6 +258,16 @@ impl SessionManagement {
 
     /// Retrieves the symmetric key associated with a given topic.
     pub(crate) fn sym_key(&self, topic: &Topic) -> Option<Vec<u8>> {
-        self.get_session(topic).map(|k| k.session_key.symmetric_key().to_vec())
+        self.0
+            .sessions
+            .get(topic)
+            .map(|k| k.session_key.symmetric_key().to_vec())
+    }
+
+    pub async fn disconnect_session(&self, topic: &Topic, client: &Client) -> MmResult<(), WalletConnectCtxError> {
+        client.unsubscribe(topic.clone()).await?;
+        self.delete_session(topic).await;
+
+        Ok(())
     }
 }

@@ -2,7 +2,6 @@ use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
-use common::log::info;
 use futures::StreamExt;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::rpc::params::{session_request::{Request as SessionRequest, SessionRequestRequest},
@@ -45,7 +44,7 @@ where
                         return Err(serde::de::Error::custom("Invalid byte value"));
                     }
                 } else {
-                    return Err(serde::de::Error::custom("Invalid pubkey format"));
+                    return Err(serde::de::Error::custom("Invalid format"));
                 }
             }
             Ok(vec)
@@ -88,12 +87,10 @@ pub async fn cosmos_get_accounts_impl(
     let account = ctx.get_account_for_chain_id(chain_id).await?;
 
     let topic = {
-        let session = ctx.session.get_session_active().await;
-        if session.is_none() {
-            return MmError::err(WalletConnectCtxError::NotInitialized);
-        };
-
-        session.unwrap().topic
+        match ctx.session.get_session_active().await {
+            Some(session) => session.topic.into(),
+            None => return MmError::err(WalletConnectCtxError::NotInitialized),
+        }
     };
 
     let request = SessionRequest {
@@ -166,13 +163,10 @@ pub async fn cosmos_sign_direct_impl(
     chain_id: &str,
 ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
     let topic = {
-        let session = ctx.session.get_session_active().await;
-        // return not NotInitialized error if no session is found.
-        if session.is_none() {
-            return MmError::err(WalletConnectCtxError::NotInitialized);
-        };
-
-        session.unwrap().topic
+        match ctx.session.get_session_active().await {
+            Some(session) => session.topic.into(),
+            None => return MmError::err(WalletConnectCtxError::NotInitialized),
+        }
     };
 
     let request = SessionRequest {

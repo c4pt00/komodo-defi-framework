@@ -1,21 +1,24 @@
 mod delete_connection;
 mod get_chain_id;
-mod get_session;
 mod new_connection;
 mod ping;
+mod sessions;
 
 use common::HttpStatusCode;
 pub use delete_connection::delete_connection;
 use derive_more::Display;
 pub use get_chain_id::get_chain_id;
-pub use get_session::get_session;
 use http::StatusCode;
 pub use new_connection::new_connection;
 pub use ping::ping_session;
 use serde::Deserialize;
+pub use sessions::*;
 
 #[derive(Deserialize)]
 pub struct EmptyRpcRequst {}
+
+#[derive(Debug, Serialize)]
+pub struct EmptyRpcResponse {}
 
 #[derive(Serialize, Display, SerializeErrorType)]
 #[serde(tag = "error_type", content = "error_data")]

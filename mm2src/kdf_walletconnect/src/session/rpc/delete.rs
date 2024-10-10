@@ -43,10 +43,10 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResu
             "No active sessions left for pairing {}, disconnecting",
             session.pairing_topic
         );
+        //Attempt to unsubscribe from topic
+        ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
         // Attempt to disconnect the pairing
-        ctx.pairing
-            .disconnect(session.pairing_topic.as_ref(), &ctx.client)
-            .await?;
+        ctx.pairing.delete(session.pairing_topic.as_ref()).await;
     }
 
     Ok(())

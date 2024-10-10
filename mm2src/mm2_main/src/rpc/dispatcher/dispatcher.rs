@@ -1,3 +1,4 @@
+use super::wc_commands::{disconnect_session, get_all_sessions, get_session};
 use super::{DispatcherError, DispatcherResult, PUBLIC_METHODS};
 use crate::lp_native_dex::init_hw::{cancel_init_trezor, init_trezor, init_trezor_status, init_trezor_user_action};
 #[cfg(target_arch = "wasm32")]
@@ -7,7 +8,7 @@ use crate::lp_ordermatch::{best_orders_rpc_v2, orderbook_rpc_v2, start_simple_ma
 use crate::lp_swap::swap_v2_rpcs::{active_swaps_rpc, my_recent_swaps_rpc, my_swap_status_rpc};
 use crate::lp_wallet::{get_mnemonic_rpc, get_wallet_names_rpc};
 use crate::rpc::rate_limiter::{process_rate_limit, RateLimitContext};
-use crate::rpc::wc_commands::{delete_connection, get_chain_id, get_session, new_connection, ping_session};
+use crate::rpc::wc_commands::{delete_connection, get_chain_id, new_connection, ping_session};
 use crate::{lp_stats::{add_node_to_version_stat, remove_node_from_version_stat, start_version_stat_collection,
                        stop_version_stat_collection, update_version_stat_collection},
             lp_swap::{get_locked_amount_rpc, max_maker_vol, recreate_swap_data, trade_preimage_rpc},
@@ -227,6 +228,8 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "wc_delete_connection" => handle_mmrpc(ctx, request, delete_connection).await,
         "wc_get_chain_id" => handle_mmrpc(ctx, request, get_chain_id).await,
         "wc_get_session" => handle_mmrpc(ctx, request, get_session).await,
+        "wc_get_sessions" => handle_mmrpc(ctx, request, get_all_sessions).await,
+        "wc_disconnect_session" => handle_mmrpc(ctx, request, disconnect_session).await,
         "wc_ping_session" => handle_mmrpc(ctx, request, ping_session).await,
         #[cfg(not(target_arch = "wasm32"))]
         native_only_methods => match native_only_methods {
