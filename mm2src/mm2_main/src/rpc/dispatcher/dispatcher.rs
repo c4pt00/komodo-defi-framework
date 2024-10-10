@@ -1,5 +1,6 @@
 use super::wc_commands::{disconnect_session, get_all_sessions, get_session};
 use super::{DispatcherError, DispatcherResult, PUBLIC_METHODS};
+use crate::lp_healthcheck::peer_connection_healthcheck_rpc;
 use crate::lp_native_dex::init_hw::{cancel_init_trezor, init_trezor, init_trezor_status, init_trezor_user_action};
 #[cfg(target_arch = "wasm32")]
 use crate::lp_native_dex::init_metamask::{cancel_connect_metamask, connect_metamask, connect_metamask_status};
@@ -216,6 +217,7 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "withdraw" => handle_mmrpc(ctx, request, withdraw).await,
         "ibc_chains" => handle_mmrpc(ctx, request, ibc_chains).await,
         "ibc_transfer_channels" => handle_mmrpc(ctx, request, ibc_transfer_channels).await,
+        "peer_connection_healthcheck" => handle_mmrpc(ctx, request, peer_connection_healthcheck_rpc).await,
         "withdraw_nft" => handle_mmrpc(ctx, request, withdraw_nft).await,
         "start_eth_fee_estimator" => handle_mmrpc(ctx, request, start_eth_fee_estimator).await,
         "stop_eth_fee_estimator" => handle_mmrpc(ctx, request, stop_eth_fee_estimator).await,
