@@ -33,6 +33,10 @@ impl HttpStatusCode for GetFeeEstimationRequestError {
     }
 }
 
+/// get_eth_estimated_fee_per_gas rpc implementation.
+/// TODO: maybe should we add a rate limiter for calling it as for simple estimator the interval is blocktime (12s) so no need to call it more often  
+/// For blocknative and infura gas api there is number of requests per license so we would like to limit it.
+/// Maybe the intermediate kdf proxy will have a rate limiter instead.
 pub async fn get_eth_estimated_fee_per_gas(
     ctx: MmArc,
     req: GetFeeEstimationRequest,
