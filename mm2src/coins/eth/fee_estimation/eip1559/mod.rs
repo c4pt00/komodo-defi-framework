@@ -88,7 +88,6 @@ impl GasFeeEstimator {
 }
 
 pub(crate) async fn call_gas_fee_estimator(coin: &EthCoin, use_simple: bool) -> Web3RpcResult<FeePerGasEstimated> {
-    println!("call_gas_fee_estimator use_simple={use_simple}");
     if !use_simple && coin.gas_fee_estimator.is_chain_supported(coin.chain_id) {
         return coin
             .gas_fee_estimator
@@ -96,10 +95,6 @@ pub(crate) async fn call_gas_fee_estimator(coin: &EthCoin, use_simple: bool) -> 
             .or_else(|provider_err| {
                 debug!(
                     "Call to evm gas api provider failed {}, using internal fee estimator",
-                    provider_err
-                );
-                println!(
-                    "call_gas_fee_estimator falling back to simple... err={:?}",
                     provider_err
                 );
                 // use simple if third party estimator has failed
@@ -112,7 +107,6 @@ pub(crate) async fn call_gas_fee_estimator(coin: &EthCoin, use_simple: bool) -> 
             })
             .await;
     }
-    println!("call_gas_fee_estimator default to simple");
     FeePerGasSimpleEstimator::estimate_fee_by_history(coin).await
 }
 
