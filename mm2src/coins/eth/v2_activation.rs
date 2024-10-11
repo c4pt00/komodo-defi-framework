@@ -419,7 +419,7 @@ impl EthCoin {
         };
 
         // allow token params to override platform coin setting
-        let max_eth_tx_type = get_max_eth_tx_type_conf(&conf).await?.unwrap_or(self.max_eth_tx_type);
+        let max_eth_tx_type = get_max_eth_tx_type_conf(&conf)?.unwrap_or(self.max_eth_tx_type);
         let gas_limit = extract_gas_limit_from_conf(&conf)
             .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?
             .unwrap_or(self.gas_limit.clone());
@@ -510,7 +510,7 @@ impl EthCoin {
         };
 
         // allow token params to override platform coin setting
-        let max_eth_tx_type = get_max_eth_tx_type_conf(&conf).await?.unwrap_or(self.max_eth_tx_type);
+        let max_eth_tx_type = get_max_eth_tx_type_conf(&conf)?.unwrap_or(self.max_eth_tx_type);
         let gas_limit = extract_gas_limit_from_conf(&conf)
             .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?
             .unwrap_or(self.gas_limit.clone());
@@ -642,7 +642,7 @@ pub async fn eth_coin_from_conf_and_request_v2(
     // Create an abortable system linked to the `MmCtx` so if the app is stopped on `MmArc::stop`,
     // all spawned futures related to `ETH` coin will be aborted as well.
     let abortable_system = ctx.abortable_system.create_subsystem()?;
-    let max_eth_tx_type = get_max_eth_tx_type_conf(conf).await?.unwrap_or_default();
+    let max_eth_tx_type = get_max_eth_tx_type_conf(conf)?.unwrap_or_default();
     let gas_limit = extract_gas_limit_from_conf(conf)
         .map_to_mm(|e| EthActivationV2Error::InternalError(format!("invalid gas_limit config {}", e)))?
         .unwrap_or_default();

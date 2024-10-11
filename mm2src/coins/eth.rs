@@ -6101,7 +6101,7 @@ fn rpc_event_handlers_for_eth_transport(ctx: &MmArc, ticker: String) -> Vec<RpcT
     vec![CoinTransportMetrics::new(metrics, ticker, RpcClientType::Ethereum).into_shared()]
 }
 
-async fn get_max_eth_tx_type_conf(conf: &Json) -> Result<Option<u64>, String> {
+fn get_max_eth_tx_type_conf(conf: &Json) -> Result<Option<u64>, String> {
     if !conf["max_eth_tx_type"].is_null() {
         let max_eth_tx_type = conf["max_eth_tx_type"]
             .as_u64()
@@ -6290,7 +6290,7 @@ pub async fn eth_coin_from_conf_and_request(
     let (max_eth_tx_type, gas_limit, gas_fee_estimator) = {
         let coin_type = coin_type.clone();
         (async move || -> Result<_, String> {
-            let max_eth_tx_type = get_max_eth_tx_type_conf(conf).await?;
+            let max_eth_tx_type = get_max_eth_tx_type_conf(conf)?;
             let gas_limit = extract_gas_limit_from_conf(conf)?;
             let gas_fee_estimator = extract_gas_fee_estimator_from_value(req)?;
             if let EthCoinType::Erc20 { platform, .. } | EthCoinType::Nft { platform } = &coin_type {
