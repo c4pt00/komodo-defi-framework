@@ -6287,30 +6287,29 @@ pub async fn eth_coin_from_conf_and_request(
 
     // Get some eth params from the platform coin, if it is a token being activated
     // This is a deprecated method to activate tokens this way. We should eth_coin_from_conf_and_request_v2 instead
-    let (max_eth_tx_type, gas_limit, gas_fee_estimator) = match &coin_type {
-        EthCoinType::Eth => (
-            get_max_eth_tx_type_conf(conf).await?.unwrap_or_default(),
-            extract_gas_limit_from_conf(conf)?.unwrap_or_default(),
-            extract_gas_fee_estimator_from_value(req)?.unwrap_or_default(),
-        ),
-        EthCoinType::Erc20 { platform, .. } | EthCoinType::Nft { platform } => {
+    let (max_eth_tx_type, gas_limit, gas_fee_estimator) = {
+        let coin_type = coin_type.clone();
+        (async move || -> Result<_, String> {
             let max_eth_tx_type = get_max_eth_tx_type_conf(conf).await?;
             let gas_limit = extract_gas_limit_from_conf(conf)?;
             let gas_fee_estimator = extract_gas_fee_estimator_from_value(req)?;
-            match lp_coinfind(ctx, platform).await {
-                Ok(Some(MmCoinEnum::EthCoin(platform_coin))) => (
-                    // use platform coins settings if token does not have explicit settings
-                    max_eth_tx_type.unwrap_or(platform_coin.max_eth_tx_type),
-                    gas_limit.unwrap_or(platform_coin.gas_limit.clone()),
-                    gas_fee_estimator.unwrap_or(platform_coin.gas_fee_estimator.clone()),
-                ),
-                _ => (
-                    max_eth_tx_type.unwrap_or_default(),
-                    gas_limit.unwrap_or_default(),
-                    gas_fee_estimator.unwrap_or_default(),
-                ),
+            if let EthCoinType::Erc20 { platform, .. } | EthCoinType::Nft { platform } = &coin_type {
+                if let Ok(Some(MmCoinEnum::EthCoin(platform_coin))) = lp_coinfind(ctx, platform).await {
+                    return Ok((
+                        // use platform coins settings if token does not have explicit settings
+                        max_eth_tx_type.unwrap_or(platform_coin.max_eth_tx_type),
+                        gas_limit.unwrap_or(platform_coin.gas_limit.clone()),
+                        gas_fee_estimator.unwrap_or(platform_coin.gas_fee_estimator.clone()),
+                    ));
+                }
             }
-        },
+            Ok((
+                max_eth_tx_type.unwrap_or_default(),
+                gas_limit.unwrap_or_default(),
+                gas_fee_estimator.unwrap_or_default(),
+            ))
+        })()
+        .await?
     };
 
     let coin = EthCoinImpl {
