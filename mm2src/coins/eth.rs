@@ -6285,8 +6285,8 @@ pub async fn eth_coin_from_conf_and_request(
     // all spawned futures related to `ETH` coin will be aborted as well.
     let abortable_system = try_s!(ctx.abortable_system.create_subsystem());
 
-    // Get some eth params from the platform coin, if it is a token being activated
-    // This is a deprecated method to activate tokens this way. We should eth_coin_from_conf_and_request_v2 instead
+    // Allow for token to override some eth params from the platform coin.
+    // This is a deprecated method to activate tokens this way, we should eth_coin_from_conf_and_request_v2 instead
     let (max_eth_tx_type, gas_limit, gas_fee_estimator) = {
         let coin_type = coin_type.clone();
         (async move || -> Result<_, String> {
