@@ -306,17 +306,16 @@ impl StreamingManager {
     /// In this case, we need to remove the streamer and de-list it from all clients.
     fn remove_streamer_if_down(&self, streamer_id: &str) {
         let mut this = self.write();
-        if let Some(streamer_info) = this.streamers.get_mut(streamer_id) {
-            if streamer_info.is_down() {
-                // Remove the streamer from our registry.
-                if let Some(streamer_info) = this.streamers.remove(streamer_id) {
-                    // And remove the streamer from all clients listening to it.
-                    for client_id in streamer_info.clients {
-                        if let Some(info) = this.clients.get_mut(&client_id) {
-                            info.remove_streamer(streamer_id);
-                        }
-                    }
-                }
+        let Some(streamer_info) = this.streamers.get(streamer_id) else { return };
+        if !streamer_info.is_down() {
+            return;
+        }
+        // Remove the streamer from our registry.
+        let Some(streamer_info) = this.streamers.remove(streamer_id) else { return };
+        // And remove the streamer from all clients listening to it.
+        for client_id in streamer_info.clients {
+            if let Some(info) = this.clients.get_mut(&client_id) {
+                info.remove_streamer(streamer_id);
             }
         }
     }
