@@ -37,69 +37,70 @@ where
         ready_tx: oneshot::Sender<Result<(), String>>,
         data_rx: impl StreamHandlerInput<Self::DataInType>,
     );
+}
 
-    /// Spawns the `Self::handle` in a separate thread.
-    ///
-    /// Returns a `oneshot::Sender` to shutdown the handler and an optional `mpsc::UnboundedSender`
-    /// to send data to the handler.
-    ///
-    /// This method should not be overridden.
-    async fn spawn(
-        self,
-        spawner: WeakSpawner,
-        streaming_manager: StreamingManager,
-    ) -> Result<(oneshot::Sender<()>, Option<mpsc::UnboundedSender<Box<dyn Any + Send>>>), String> {
-        let streamer_id = self.streamer_id();
-        info!("Spawning event streamer: {streamer_id}");
+/// Spawns the `EventStreamer::handle` in a separate thread.
+///
+/// Returns a `oneshot::Sender` to shutdown the handler and an optional `mpsc::UnboundedSender`
+/// to send data to the handler.
+pub(crate) async fn spawn<S>(
+    streamer: S,
+    spawner: WeakSpawner,
+    streaming_manager: StreamingManager,
+) -> Result<(oneshot::Sender<()>, Option<mpsc::UnboundedSender<Box<dyn Any + Send>>>), String>
+where
+    S: EventStreamer,
+{
+    let streamer_id = streamer.streamer_id();
+    info!("Spawning event streamer: {streamer_id}");
 
-        // A oneshot channel to receive the initialization status of the handler through.
-        let (tx_ready, ready_rx) = oneshot::channel();
-        // A oneshot channel to shutdown the handler.
-        let (tx_shutdown, rx_shutdown) = oneshot::channel::<()>();
-        // An unbounded channel to send data to the handler.
-        let (any_data_sender, any_data_receiver) = mpsc::unbounded::<Box<dyn Any + Send>>();
-        // A middleware to cast the data of type `Box<dyn Any>` to the actual input datatype of this streamer.
-        let data_receiver = any_data_receiver.filter_map({
+    // A oneshot channel to receive the initialization status of the handler through.
+    let (tx_ready, ready_rx) = oneshot::channel();
+    // A oneshot channel to shutdown the handler.
+    let (tx_shutdown, rx_shutdown) = oneshot::channel::<()>();
+    // An unbounded channel to send data to the handler.
+    let (any_data_sender, any_data_receiver) = mpsc::unbounded::<Box<dyn Any + Send>>();
+    // A middleware to cast the data of type `Box<dyn Any>` to the actual input datatype of this streamer.
+    let data_receiver = any_data_receiver.filter_map({
+        let streamer_id = streamer_id.clone();
+        move |any_input_data| {
             let streamer_id = streamer_id.clone();
-            move |any_input_data| {
-                let streamer_id = streamer_id.clone();
-                Box::pin(async move {
-                    if let Ok(input_data) = any_input_data.downcast() {
-                        Some(*input_data)
-                    } else {
-                        error!("Couldn't downcast a received message to {}. This message wasn't intended to be sent to this streamer ({streamer_id}).", any::type_name::<Self::DataInType>());
-                        None
-                    }
-                })
-            }
-        });
-
-        let handler_with_shutdown = {
-            let streamer_id = streamer_id.clone();
-            async move {
-                select! {
-                    _ = rx_shutdown.fuse() => {
-                        info!("Manually shutting down event streamer: {streamer_id}.")
-                    }
-                    _ = self.handle(Broadcaster::new(streaming_manager), tx_ready, data_receiver).fuse() => {}
+            Box::pin(async move {
+                if let Ok(input_data) = any_input_data.downcast() {
+                    Some(*input_data)
+                } else {
+                    error!("Couldn't downcast a received message to {}. This message wasn't intended to be sent to this streamer ({streamer_id}).", any::type_name::<<S as EventStreamer>::DataInType>());
+                    None
                 }
-            }
-        };
-        let settings = AbortSettings::info_on_abort(format!("{streamer_id} streamer has stopped."));
-        spawner.spawn_with_settings(handler_with_shutdown, settings);
-
-        ready_rx.await.unwrap_or_else(|e| {
-            Err(format!(
-                "The handler was aborted before sending event initialization status: {e}"
-            ))
-        })?;
-
-        // If the handler takes no input data, return `None` for the data sender.
-        if any::TypeId::of::<Self::DataInType>() == any::TypeId::of::<NoDataIn>() {
-            Ok((tx_shutdown, None))
-        } else {
-            Ok((tx_shutdown, Some(any_data_sender)))
+            })
         }
+    });
+
+    let handler_with_shutdown = {
+        let streamer_id = streamer_id.clone();
+        async move {
+            select! {
+                _ = rx_shutdown.fuse() => {
+                    info!("Manually shutting down event streamer: {streamer_id}.")
+                }
+                _ = streamer.handle(Broadcaster::new(streaming_manager), tx_ready, data_receiver).fuse() => {}
+            }
+        }
+    };
+    let settings = AbortSettings::info_on_abort(format!("{streamer_id} streamer has stopped."));
+    spawner.spawn_with_settings(handler_with_shutdown, settings);
+
+    ready_rx.await.unwrap_or_else(|e| {
+        Err(format!(
+            "The handler was aborted before sending event initialization status: {e}"
+        ))
+    })?;
+
+    // If the handler takes no input data, return `None` for the data sender.
+    if any::TypeId::of::<<S as EventStreamer>::DataInType>() == any::TypeId::of::<NoDataIn>() {
+        Ok((tx_shutdown, None))
+    } else {
+        Ok((tx_shutdown, Some(any_data_sender)))
     }
 }
 
@@ -198,8 +199,7 @@ mod tests {
     async fn test_spawn_periodic_streamer() {
         let system = AbortableQueue::default();
         // Spawn the periodic streamer.
-        let (_, data_in) = PeriodicStreamer
-            .spawn(system.weak_spawner(), StreamingManager::default())
+        let (_, data_in) = spawn(PeriodicStreamer, system.weak_spawner(), StreamingManager::default())
             .await
             .unwrap();
         // Periodic streamer shouldn't be ingesting any input.
@@ -210,8 +210,7 @@ mod tests {
     async fn test_spawn_reactive_streamer() {
         let system = AbortableQueue::default();
         // Spawn the reactive streamer.
-        let (_, data_in) = ReactiveStreamer
-            .spawn(system.weak_spawner(), StreamingManager::default())
+        let (_, data_in) = spawn(ReactiveStreamer, system.weak_spawner(), StreamingManager::default())
             .await
             .unwrap();
         // Reactive streamer should be ingesting some input.
@@ -222,8 +221,7 @@ mod tests {
     async fn test_spawn_erroring_streamer() {
         let system = AbortableQueue::default();
         // Try to spawn the erroring streamer.
-        let err = InitErrorStreamer
-            .spawn(system.weak_spawner(), StreamingManager::default())
+        let err = spawn(InitErrorStreamer, system.weak_spawner(), StreamingManager::default())
             .await
             .unwrap_err();
         // The streamer should return an error.

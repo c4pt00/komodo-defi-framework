@@ -2,6 +2,7 @@ use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::streamer::spawn;
 use crate::{Event, EventStreamer};
 use common::executor::abortable_queue::WeakSpawner;
 use common::log;
@@ -144,8 +145,7 @@ impl StreamingManager {
         }
 
         // Spawn a new streamer.
-        let (shutdown, data_in) = streamer
-            .spawn(spawner, self.clone())
+        let (shutdown, data_in) = spawn(streamer, spawner, self.clone())
             .await
             .map_err(StreamingManagerError::SpawnError)?;
         let streamer_info = StreamerInfo::new(data_in, shutdown);
