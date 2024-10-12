@@ -2,9 +2,9 @@ use serde_json::Value as Json;
 
 // Note `Event` shouldn't be `Clone`able, but rather Arc/Rc wrapped and then shared.
 // This is only for testing.
+/// Multi-purpose/generic event type that can easily be used over the event streaming
 #[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 #[derive(Default)]
-/// Multi-purpose/generic event type that can easily be used over the event streaming
 pub struct Event {
     /// The type of the event (balance, network, swap, etc...).
     event_type: String,
@@ -16,7 +16,7 @@ pub struct Event {
 
 impl Event {
     /// Creates a new `Event` instance with the specified event type and message.
-    #[inline]
+    #[inline(always)]
     pub fn new(streamer_id: String, message: Json) -> Self {
         Self {
             event_type: streamer_id,
@@ -26,7 +26,7 @@ impl Event {
     }
 
     /// Create a new error `Event` instance with the specified error event type and message.
-    #[inline]
+    #[inline(always)]
     pub fn err(streamer_id: String, message: Json) -> Self {
         Self {
             event_type: streamer_id,
@@ -36,8 +36,10 @@ impl Event {
     }
 
     /// Returns the `event_type` (the ID of the streamer firing this event).
+    #[inline(always)]
     pub fn origin(&self) -> &str { &self.event_type }
 
+    /// Returns the event type and message as a pair.
     pub fn get(&self) -> (String, Json) {
         let prefix = if self.error { "ERROR:" } else { "" };
         (format!("{prefix}{}", self.event_type), self.message.clone())

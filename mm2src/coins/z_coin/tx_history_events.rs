@@ -19,8 +19,10 @@ pub struct ZCoinTxHistoryEventStreamer {
 }
 
 impl ZCoinTxHistoryEventStreamer {
+    #[inline(always)]
     pub fn new(coin: ZCoin) -> Self { Self { coin } }
 
+    #[inline(always)]
     pub fn derive_streamer_id(coin: &str) -> String { format!("TX_HISTORY:{coin}") }
 }
 

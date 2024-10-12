@@ -12,9 +12,11 @@ use uuid::Uuid;
 pub struct SwapStatusStreamer;
 
 impl SwapStatusStreamer {
+    #[inline(always)]
     pub fn new() -> Self { Self }
 
-    pub fn derive_streamer_id() -> &'static str { "SWAP_STATUS" }
+    #[inline(always)]
+    pub const fn derive_streamer_id() -> &'static str { "SWAP_STATUS" }
 }
 
 #[derive(Serialize)]

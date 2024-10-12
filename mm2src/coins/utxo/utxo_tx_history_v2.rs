@@ -590,6 +590,7 @@ where
 
         let my_addresses = try_or_stop_unknown!(ctx.coin.my_addresses().await, "Error on getting my addresses");
 
+        let streaming_manager = ctx.coin.get_ctx().unwrap().event_stream_manager.clone();
         for (tx_hash, height) in self.all_tx_ids_with_height {
             let tx_hash_string = format!("{:02x}", tx_hash);
             match ctx.storage.history_has_tx_hash(&wallet_id, &tx_hash_string).await {
@@ -621,10 +622,7 @@ where
                 },
             };
 
-            ctx.coin
-                .get_ctx()
-                .unwrap()
-                .event_stream_manager
+            streaming_manager
                 .send_fn(&TxHistoryEventStreamer::derive_streamer_id(ctx.coin.ticker()), || {
                     tx_details.clone()
                 })

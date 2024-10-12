@@ -3,7 +3,7 @@ use super::ser::FeePerGasEstimated;
 use crate::{lp_coinfind, MmCoinEnum};
 use common::HttpStatusCode;
 use mm2_core::mm_ctx::MmArc;
-use mm2_err_handle::mm_error::MmResult;
+use mm2_err_handle::mm_error::{MmError, MmResult};
 
 use http::StatusCode;
 use std::convert::TryFrom;
@@ -36,13 +36,8 @@ pub async fn get_eth_estimated_fee_per_gas(
     ctx: MmArc,
     req: GetFeeEstimationRequest,
 ) -> MmResult<FeePerGasEstimated, GetFeeEstimationRequestError> {
-    let coin = lp_coinfind(&ctx, &req.coin)
-        .await
-        .map_err(GetFeeEstimationRequestError::Internal)?
-        .ok_or(GetFeeEstimationRequestError::CoinNotFound)?;
-
-    match coin {
-        MmCoinEnum::EthCoin(coin) => {
+    match lp_coinfind(&ctx, &req.coin).await {
+        Ok(Some(MmCoinEnum::EthCoin(coin))) => {
             let use_simple = matches!(req.estimator_type, EstimatorType::Simple);
             let fee = coin
                 .get_eip1559_gas_fee(use_simple)
@@ -52,6 +47,8 @@ pub async fn get_eth_estimated_fee_per_gas(
                 FeePerGasEstimated::try_from(fee).map_err(|e| GetFeeEstimationRequestError::Internal(e.to_string()))?;
             Ok(ser_fee)
         },
-        _ => Err(GetFeeEstimationRequestError::CoinNotSupported)?,
+        Ok(Some(_)) => MmError::err(GetFeeEstimationRequestError::CoinNotSupported),
+        Ok(None) => MmError::err(GetFeeEstimationRequestError::CoinNotFound),
+        Err(e) => MmError::err(GetFeeEstimationRequestError::Internal(e)),
     }
 }

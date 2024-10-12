@@ -21,11 +21,11 @@ pub trait RpcTask: RpcTaskTypes + Sized + Send + 'static {
     async fn run(&mut self, task_handle: RpcTaskHandleShared<Self>) -> Result<Self::Item, MmError<Self::Error>>;
 }
 
-#[derive(Deserialize)]
 /// The general request for initializing an RPC Task.
 ///
 /// `client_id` is used to identify the client to which the task should stream out update events
 /// to and is common in each request. Other data is request-specific.
+#[derive(Deserialize)]
 pub struct RpcInitReq<T> {
     // If the client ID isn't included, assume it's 0.
     #[serde(default)]

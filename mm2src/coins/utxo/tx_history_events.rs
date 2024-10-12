@@ -10,8 +10,10 @@ pub struct TxHistoryEventStreamer {
 }
 
 impl TxHistoryEventStreamer {
+    #[inline(always)]
     pub fn new(coin: String) -> Self { Self { coin } }
 
+    #[inline(always)]
     pub fn derive_streamer_id(coin: &str) -> String { format!("TX_HISTORY:{coin}") }
 }
 

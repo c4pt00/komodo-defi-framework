@@ -588,6 +588,7 @@ where
                 "could not get rpc client"
             );
 
+            let streaming_manager = coin.get_ctx().unwrap().event_stream_manager.clone();
             loop {
                 let response = try_or_return_stopped_as_err!(
                     client
@@ -755,9 +756,7 @@ where
                     log::debug!("Tx '{}' successfully parsed.", tx.hash);
                 }
 
-                coin.get_ctx()
-                    .unwrap()
-                    .event_stream_manager
+                streaming_manager
                     .send_fn(&TxHistoryEventStreamer::derive_streamer_id(coin.ticker()), || {
                         tx_details.clone()
                     })

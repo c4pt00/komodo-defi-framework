@@ -14,16 +14,19 @@ pub enum SwapStatusStreamingRequestError {
 }
 
 impl HttpStatusCode for SwapStatusStreamingRequestError {
-    fn status_code(&self) -> StatusCode { StatusCode::BAD_REQUEST }
+    fn status_code(&self) -> StatusCode {
+        match self {
+            SwapStatusStreamingRequestError::EnableError(_) => StatusCode::BAD_REQUEST,
+        }
+    }
 }
 
 pub async fn enable_swap_status(
     ctx: MmArc,
     req: EnableStreamingRequest<()>,
 ) -> MmResult<EnableStreamingResponse, SwapStatusStreamingRequestError> {
-    let swap_status_streamer = SwapStatusStreamer::new();
     ctx.event_stream_manager
-        .add(req.client_id, swap_status_streamer, ctx.spawner())
+        .add(req.client_id, SwapStatusStreamer::new(), ctx.spawner())
         .await
         .map(EnableStreamingResponse::new)
         .map_to_mm(|e| SwapStatusStreamingRequestError::EnableError(format!("{e:?}")))

@@ -8,9 +8,11 @@ use futures::StreamExt;
 pub struct OrderStatusStreamer;
 
 impl OrderStatusStreamer {
+    #[inline(always)]
     pub fn new() -> Self { Self }
 
-    pub fn derive_streamer_id() -> &'static str { "ORDER_STATUS" }
+    #[inline(always)]
+    pub const fn derive_streamer_id() -> &'static str { "ORDER_STATUS" }
 }
 
 #[derive(Serialize)]

@@ -1,3 +1,4 @@
+use http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CACHE_CONTROL, CONTENT_TYPE};
 use hyper::{body::Bytes, Body, Request, Response};
 use mm2_core::mm_ctx::MmArc;
 use serde_json::json;
@@ -49,10 +50,10 @@ pub async fn handle_sse(request: Request<Body>, ctx_h: u32) -> Result<Response<B
 
     let response = Response::builder()
         .status(200)
-        .header("Content-Type", "text/event-stream")
-        .header("Cache-Control", "no-cache")
+        .header(CONTENT_TYPE, "text/event-stream")
+        .header(CACHE_CONTROL, "no-cache")
         .header(
-            "Access-Control-Allow-Origin",
+            ACCESS_CONTROL_ALLOW_ORIGIN,
             event_streaming_config.access_control_allow_origin,
         )
         .body(body);

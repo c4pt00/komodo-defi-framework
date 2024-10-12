@@ -43,6 +43,7 @@ pub struct EthFeeEventStreamer {
 }
 
 impl EthFeeEventStreamer {
+    #[inline(always)]
     pub fn new(config: EthFeeStreamingConfig, coin: EthCoin) -> Self { Self { config, coin } }
 }
 

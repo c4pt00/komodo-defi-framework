@@ -8,15 +8,15 @@ use mm2_err_handle::{map_to_mm::MapToMmResult, mm_error::MmResult};
 
 use http::StatusCode;
 
-#[derive(Deserialize)]
 /// The request used for any event streaming deactivation.
+#[derive(Deserialize)]
 pub struct DisableStreamingRequest {
     pub client_id: u64,
     pub streamer_id: String,
 }
 
-#[derive(Serialize)]
 /// The success/ok response for any event streaming deactivation request.
+#[derive(Serialize)]
 pub struct DisableStreamingResponse {
     result: &'static str,
 }
