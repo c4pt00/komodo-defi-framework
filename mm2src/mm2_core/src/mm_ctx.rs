@@ -333,8 +333,8 @@ impl MmCtx {
     pub fn use_trading_proto_v2(&self) -> bool { self.conf["use_trading_proto_v2"].as_bool().unwrap_or_default() }
 
     /// Returns the event streaming configuration in use.
-    pub fn event_streaming_configuration(&self) -> EventStreamingConfiguration {
-        serde_json::from_value(self.conf["event_streaming_configuration"].clone()).unwrap_or_default()
+    pub fn event_streaming_configuration(&self) -> Option<EventStreamingConfiguration> {
+        serde_json::from_value(self.conf["event_streaming_configuration"].clone()).ok()
     }
 
     /// Returns the cloneable `WeakSpawner`.

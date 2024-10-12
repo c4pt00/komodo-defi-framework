@@ -423,8 +423,7 @@ fn migration_1(_ctx: &MmArc) {}
 
 #[cfg(target_arch = "wasm32")]
 fn init_wasm_event_streaming(ctx: &MmArc) {
-    let event_streaming_config = ctx.event_streaming_configuration();
-    if !event_streaming_config.disabled {
+    if let Some(event_streaming_config) = ctx.event_streaming_configuration() {
         ctx.spawner()
             .spawn(handle_worker_stream(ctx.clone(), event_streaming_config.worker_path));
     }

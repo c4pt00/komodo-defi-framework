@@ -12,10 +12,9 @@ pub async fn handle_sse(request: Request<Body>, ctx_h: u32) -> Result<Response<B
         Err(err) => return handle_internal_error(err).await,
     };
 
-    let event_streaming_config = ctx.event_streaming_configuration();
-    if event_streaming_config.disabled {
-        return handle_internal_error("Event streaming is explicitly disabled".to_string()).await;
-    }
+    let Some(event_streaming_config) = ctx.event_streaming_configuration() else {
+        return handle_internal_error("Event streaming is disabled".to_string()).await;
+    };
 
     let client_id = match request.uri().query().and_then(|query| {
         query
