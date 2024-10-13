@@ -36,6 +36,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
@@ -65,22 +66,17 @@ pub struct SiaCoinGeneric<T: SiaApiClient + ApiClientHelpers> {
     /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
     /// and on [`MmArc::stop`].
     pub abortable_system: Arc<AbortableQueue>,
+    required_confirmations: Arc<AtomicU64>,
 }
 
 pub type SiaCoin = SiaCoinGeneric<SiaClientType>;
 
-#[derive(Debug, Display)]
-pub enum SiaConfError {
-    #[display(fmt = "'foo' field is not found in config")]
-    Foo,
-    Bar(String),
-}
-
-pub type SiaConfResult<T> = Result<T, MmError<SiaConfError>>;
-
-#[derive(Clone, Debug)]
+/// The JSON configuration loaded from `coins` file
+#[derive(Clone, Debug, Deserialize)]
 pub struct SiaCoinConf {
+    #[serde(rename = "coin")]
     pub ticker: String,
+    pub required_confirmations: u64,
 }
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
@@ -97,7 +93,7 @@ pub struct SiaCoinActivationParams {
 pub async fn sia_coin_from_conf_and_params(
     ctx: &MmArc,
     ticker: &str,
-    conf: &Json,
+    json_conf: Json,
     params: &SiaCoinActivationParams,
     priv_key_policy: PrivKeyBuildPolicy,
 ) -> Result<SiaCoin, MmError<SiaCoinBuildError>> {
@@ -106,13 +102,14 @@ pub async fn sia_coin_from_conf_and_params(
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
     let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
+    let conf : SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinBuildError::InvalidConf)?;
     SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params).build().await
 }
 
 pub struct SiaCoinBuilder<'a> {
     ctx: &'a MmArc,
     ticker: &'a str,
-    conf: &'a Json,
+    conf: SiaCoinConf,
     key_pair: SiaKeypair,
     params: &'a SiaCoinActivationParams,
 }
@@ -121,7 +118,7 @@ impl<'a> SiaCoinBuilder<'a> {
     pub fn new(
         ctx: &'a MmArc,
         ticker: &'a str,
-        conf: &'a Json,
+        conf: SiaCoinConf,
         key_pair: SiaKeypair,
         params: &'a SiaCoinActivationParams,
     ) -> Self {
@@ -134,18 +131,9 @@ impl<'a> SiaCoinBuilder<'a> {
         }
     }
 
-    #[allow(dead_code)]
-    fn ctx(&self) -> &MmArc { self.ctx }
-
-    #[allow(dead_code)]
-    fn conf(&self) -> &Json { self.conf }
-
-    fn ticker(&self) -> &str { self.ticker }
-
     async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
-        let conf = SiaCoinConf{ ticker: self.ticker().to_owned()};
-        let abortable_queue: AbortableQueue = self.ctx().abortable_system.create_subsystem().map_to_mm(|_| {
-            SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker()))
+        let abortable_queue: AbortableQueue = self.ctx.abortable_system.create_subsystem().map_to_mm(|_| {
+            SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker))
         })?;
         let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.params.tx_history {
@@ -153,14 +141,19 @@ impl<'a> SiaCoinBuilder<'a> {
         } else {
             HistorySyncState::NotEnabled
         };
+
+        // Use required_confirmations from activation request if it's set, otherwise use the value from coins conf
+        let required_confirmations : AtomicU64  = self.params.required_confirmations.unwrap_or_else(|| self.conf.required_confirmations).into();
+
         Ok(SiaCoin {
-            conf,
+            conf: self.conf,
             client: Arc::new(SiaClientType::new(self.params.http_conf.clone())
                 .await
                 .map_to_mm(SiaCoinBuildError::ClientError)?),
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair).into(),
             history_sync_state: Mutex::new(history_sync_state).into(),
             abortable_system,
+            required_confirmations: required_confirmations.into(),
         })
     }
 }
@@ -186,17 +179,18 @@ fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<u128, MmError<NumConversEr
     )))?)
 }
 
-impl From<SiaConfError> for SiaCoinBuildError {
-    fn from(e: SiaConfError) -> Self { SiaCoinBuildError::ConfError(e) }
-}
-
 #[derive(Debug, Display)]
 pub enum SiaCoinBuildError {
-    ConfError(SiaConfError),
+    #[display(fmt = "Invalid Sia conf, JSON deserialization failed {}", _0)]
+    InvalidConf(serde_json::Error),
     UnsupportedPrivKeyPolicy,
     ClientError(SiaApiClientError),
     InvalidSecretKey(KeypairError),
     InternalError(String),
+}
+
+impl From<serde_json::Error> for SiaCoinBuildError {
+    fn from(e: serde_json::Error) -> Self { SiaCoinBuildError::InvalidConf(e) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -489,11 +483,14 @@ impl MmCoin for SiaCoin {
         unimplemented!()
     }
 
-    fn required_confirmations(&self) -> u64 { unimplemented!() }
+    fn required_confirmations(&self) -> u64 { self.required_confirmations.load(AtomicOrdering::Relaxed) }
 
     fn requires_notarization(&self) -> bool { false }
 
-    fn set_required_confirmations(&self, _confirmations: u64) { unimplemented!() }
+    fn set_required_confirmations(&self, confirmations: u64) {
+        self.required_confirmations
+            .store(confirmations, AtomicOrdering::Relaxed);
+    }
 
     fn set_requires_notarization(&self, _requires_nota: bool) { unimplemented!() }
 
