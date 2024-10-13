@@ -31,7 +31,7 @@ use serde_json::Value as Json;
 use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
 use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
                                 TxpoolBroadcastRequest};
-use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, SpendPolicy, V1Transaction, V2Transaction, Keypair as SiaKeypair, KeypairError};
+use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, V1Transaction, V2Transaction, Keypair as SiaKeypair, KeypairError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
