@@ -82,19 +82,19 @@ pub struct SiaCoinConf {
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
 // for additional fields needed
 #[derive(Clone, Debug, Deserialize)]
-pub struct SiaCoinActivationParams {
+pub struct SiaCoinActivationRequest {
     #[serde(default)]
     pub tx_history: bool,
     pub required_confirmations: Option<u64>,
     pub gap_limit: Option<u32>,
-    pub http_conf: SiaClientConf,
+    pub client_conf: SiaClientConf,
 }
 
-pub async fn sia_coin_from_conf_and_params(
+pub async fn sia_coin_from_conf_and_request(
     ctx: &MmArc,
     ticker: &str,
     json_conf: Json,
-    params: &SiaCoinActivationParams,
+    request: &SiaCoinActivationRequest,
     priv_key_policy: PrivKeyBuildPolicy,
 ) -> Result<SiaCoin, MmError<SiaCoinBuildError>> {
     let priv_key = match priv_key_policy {
@@ -103,7 +103,7 @@ pub async fn sia_coin_from_conf_and_params(
     };
     let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
     let conf : SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinBuildError::InvalidConf)?;
-    SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params).build().await
+    SiaCoinBuilder::new(ctx, ticker, conf, key_pair, request).build().await
 }
 
 pub struct SiaCoinBuilder<'a> {
@@ -111,7 +111,7 @@ pub struct SiaCoinBuilder<'a> {
     ticker: &'a str,
     conf: SiaCoinConf,
     key_pair: SiaKeypair,
-    params: &'a SiaCoinActivationParams,
+    request: &'a SiaCoinActivationRequest,
 }
 
 impl<'a> SiaCoinBuilder<'a> {
@@ -120,14 +120,14 @@ impl<'a> SiaCoinBuilder<'a> {
         ticker: &'a str,
         conf: SiaCoinConf,
         key_pair: SiaKeypair,
-        params: &'a SiaCoinActivationParams,
+        request: &'a SiaCoinActivationRequest,
     ) -> Self {
         SiaCoinBuilder {
             ctx,
             ticker,
             conf,
             key_pair,
-            params,
+            request,
         }
     }
 
@@ -136,18 +136,18 @@ impl<'a> SiaCoinBuilder<'a> {
             SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker))
         })?;
         let abortable_system = Arc::new(abortable_queue);
-        let history_sync_state = if self.params.tx_history {
+        let history_sync_state = if self.request.tx_history {
             HistorySyncState::NotStarted
         } else {
             HistorySyncState::NotEnabled
         };
 
         // Use required_confirmations from activation request if it's set, otherwise use the value from coins conf
-        let required_confirmations : AtomicU64  = self.params.required_confirmations.unwrap_or_else(|| self.conf.required_confirmations).into();
+        let required_confirmations : AtomicU64  = self.request.required_confirmations.unwrap_or_else(|| self.conf.required_confirmations).into();
 
         Ok(SiaCoin {
             conf: self.conf,
-            client: Arc::new(SiaClientType::new(self.params.http_conf.clone())
+            client: Arc::new(SiaClientType::new(self.request.client_conf.clone())
                 .await
                 .map_to_mm(SiaCoinBuildError::ClientError)?),
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair).into(),

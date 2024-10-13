@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use coins::coin_balance::{CoinBalanceReport, IguanaWalletBalance};
 use coins::coin_errors::MyAddressError;
 use coins::my_tx_history_v2::TxHistoryStorage;
-use coins::siacoin::{sia_coin_from_conf_and_params, SiaCoin, SiaCoinActivationParams, SiaCoinBuildError,
+use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinBuildError,
                      SiaCoinProtocolInfo};
 use coins::tx_history_storage::CreateTxHistoryStorageError;
 use coins::{lp_spawn_tx_history, BalanceError, CoinBalance, CoinProtocol, MarketCoinOps, PrivKeyBuildPolicy,
@@ -181,7 +181,7 @@ impl TryFromCoinProtocol for SiaCoinProtocolInfo {
 
 #[async_trait]
 impl InitStandaloneCoinActivationOps for SiaCoin {
-    type ActivationRequest = SiaCoinActivationParams;
+    type ActivationRequest = SiaCoinActivationRequest;
     type StandaloneProtocol = SiaCoinProtocolInfo;
     type ActivationResult = SiaCoinActivationResult;
     type ActivationError = SiaCoinInitError;
@@ -197,13 +197,13 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
         ctx: MmArc,
         ticker: String,
         coin_conf: Json,
-        activation_request: &SiaCoinActivationParams,
+        activation_request: &SiaCoinActivationRequest,
         _protocol_info: SiaCoinProtocolInfo,
         _task_handle: SiaCoinRpcTaskHandleShared,
     ) -> MmResult<Self, SiaCoinInitError> {
         let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx)?;
 
-        let coin = sia_coin_from_conf_and_params(&ctx, &ticker, &coin_conf, activation_request, priv_key_policy)
+        let coin = sia_coin_from_conf_and_request(&ctx, &ticker, coin_conf, activation_request, priv_key_policy)
             .await
             .mm_err(|e| SiaCoinInitError::from_build_err(e, ticker))?;
 
