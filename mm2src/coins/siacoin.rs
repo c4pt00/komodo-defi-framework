@@ -128,8 +128,7 @@ pub async fn sia_coin_from_conf_and_params(
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
     let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
-    let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
-    builder.build().await
+    SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params).build().await
 }
 
 pub struct SiaCoinBuilder<'a> {
