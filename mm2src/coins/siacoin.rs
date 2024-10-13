@@ -214,8 +214,6 @@ pub struct SiaFeeDetails {
 impl MmCoin for SiaCoin {
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
 
-    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
-    // This trait can handle all methods that are only used by dispatcher methods.
     fn get_raw_transaction(&self, _req: RawTransactionRequest) -> RawTransactionFut { unimplemented!() }
 
     fn get_tx_hex_by_hash(&self, _tx_hash: Vec<u8>) -> RawTransactionFut { unimplemented!() }
@@ -231,8 +229,6 @@ impl MmCoin for SiaCoin {
 
     fn decimals(&self) -> u8 { 24 }
 
-    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
-    // This trait can handle all methods that are only used by dispatcher methods.
     fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> { unimplemented!() }
 
     fn validate_address(&self, address: &str) -> ValidateAddressResult {
@@ -583,19 +579,10 @@ impl MarketCoinOps for SiaCoin {
         Ok(public_key.to_string())
     }
 
-    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
-    // This trait can handle all methods that are only used by dispatcher methods.
-    // this is literally only used by sign_message impls and doesn't need to be a method
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { unimplemented!() }
 
-    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
-    // This trait can handle all methods that are only used by dispatcher methods.
-    // only used by "sign_message" rpc method
     fn sign_message(&self, _message: &str) -> SignatureResult<String> { unimplemented!() }
 
-    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
-    // This trait can handle all methods that are only used by dispatcher methods.
-    // only used by "verify_message" rpc method
     fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> {
         unimplemented!()
     }
@@ -834,7 +821,7 @@ impl MakerSwapTakerCoin for SiaCoin {
 }
 
 // TODO ideally we would not have to implement this trait for SiaCoin
-// requires significant refactoring
+// requires significant refactoring because of WatcherOps trait bound on MmCoin
 #[async_trait]
 impl WatcherOps for SiaCoin {
     fn send_maker_payment_spend_preimage(&self, _input: SendMakerPaymentSpendPreimageInput) -> TransactionFut {

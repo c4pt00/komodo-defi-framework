@@ -1947,10 +1947,19 @@ pub trait MarketCoinOps {
 
     async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>>;
 
+    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
+    // This trait can handle all methods that are only used by dispatcher methods.
+    // this is literally only used by sign_message impls and doesn't need to be a method
     fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]>;
 
+    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
+    // This trait can handle all methods that are only used by dispatcher methods.
+    // only used by "sign_message" rpc method
     fn sign_message(&self, _message: &str) -> SignatureResult<String>;
 
+    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
+    // This trait can handle all methods that are only used by dispatcher methods.
+    // only used by "verify_message" rpc method
     fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool>;
 
     fn get_non_zero_balance(&self) -> NonZeroBalanceFut<MmNumber> {
@@ -3304,16 +3313,26 @@ pub trait MmCoin:
 
     fn withdraw(&self, req: WithdrawRequest) -> WithdrawFut;
 
+    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
+    // This trait can handle all methods that are only used by dispatcher methods.
+    // only used by "get_raw_transaction" dispatcher method.
     fn get_raw_transaction(&self, req: RawTransactionRequest) -> RawTransactionFut;
 
+    // TODO Alright: this method is only applicable to Watcher logic and could be moved to WatcherOps
     fn get_tx_hex_by_hash(&self, tx_hash: Vec<u8>) -> RawTransactionFut;
 
     /// Maximum number of digits after decimal point used to denominate integer coin units (satoshis, wei, etc.)
     fn decimals(&self) -> u8;
 
     /// Convert input address to the specified address format.
+    // TODO Alright: should be separated into a "OptionalDispatcherOps" trait.
+    // This trait can handle all methods that are only used by dispatcher methods.
     fn convert_to_address(&self, from: &str, to_address_format: Json) -> Result<String, String>;
 
+    // TODO Alright: could be separated into a "OptionalDispatcherOps" trait.
+    // only used by "verify_message" and "validate_address" dispatcher methods.
+    // Consider using traits to track which methods are neccesary for which UIs
+    // eg, "KomodoWalletOps" for the Komodo wallet, "ReactWalletOps" for the react wallet, etc.
     fn validate_address(&self, address: &str) -> ValidateAddressResult;
 
     /// Loop collecting coin transaction history and saving it to local DB
