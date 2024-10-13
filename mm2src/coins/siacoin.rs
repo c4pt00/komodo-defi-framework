@@ -34,7 +34,6 @@ use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequ
 use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, V1Transaction, V2Transaction, Keypair as SiaKeypair, KeypairError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
