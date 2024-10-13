@@ -477,7 +477,19 @@ impl MmCoin for SiaCoin {
         })
     }
 
-    fn get_receiver_trade_fee(&self, _stage: FeeApproxStage) -> TradePreimageFut<TradeFee> { unimplemented!() }
+    /// Get the transaction fee required to spend the HTLC output
+    // TODO Dummy value for now
+    fn get_receiver_trade_fee(&self, _stage: FeeApproxStage) -> TradePreimageFut<TradeFee> {
+        let ticker = self.conf.ticker.clone();
+        let fut = async move {
+            Ok(TradeFee {
+                coin: ticker,
+                amount: Default::default(),
+                paid_from_trading_vol: false,
+            })
+        };
+        Box::new(fut.boxed().compat())
+    }
 
     async fn get_fee_to_send_taker_fee(
         &self,
@@ -612,7 +624,6 @@ impl MarketCoinOps for SiaCoin {
         Box::new(fut.boxed().compat())
     }
 
-    // Todo: Revise this method if we ever implement SiaFund
     fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { Box::new(self.my_balance().map(|res| res.spendable)) }
 
     fn platform_ticker(&self) -> &str { "TSIA" }
