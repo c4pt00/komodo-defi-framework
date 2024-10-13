@@ -57,7 +57,7 @@ mod sia_withdraw;
 pub struct SiaCoinGeneric<T: SiaApiClient + ApiClientHelpers> {
     /// SIA coin config
     pub conf: SiaCoinConf,
-    pub priv_key_policy: PrivKeyPolicy<SiaKeypair>,
+    pub priv_key_policy: Arc<PrivKeyPolicy<SiaKeypair>>,
     /// Client used to interact with the blockchain, most likely a HTTP(s) client
     pub client: Arc<T>,
     /// State of the transaction history loop (enabled, started, in progress, etc.)
@@ -158,7 +158,7 @@ impl<'a> SiaCoinBuilder<'a> {
             client: Arc::new(SiaClientType::new(self.params.http_conf.clone())
                 .await
                 .map_to_mm(SiaCoinBuildError::ClientError)?),
-            priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
+            priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair).into(),
             history_sync_state: Mutex::new(history_sync_state).into(),
             abortable_system,
         })
@@ -527,7 +527,7 @@ impl MarketCoinOps for SiaCoin {
 
     // needs test coverage FIXME COME BACK
     fn my_address(&self) -> MmResult<String, MyAddressError> {
-        let key_pair = match &self.priv_key_policy {
+        let key_pair = match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
                 return Err(MyAddressError::UnexpectedDerivationMethod(
@@ -554,8 +554,8 @@ impl MarketCoinOps for SiaCoin {
     }
 
     async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
-        let key_pair = match &self.priv_key_policy {
-            PrivKeyPolicy::Iguana(key_pair) => key_pair,
+        let public_key = match &*self.priv_key_policy {
+            PrivKeyPolicy::Iguana(key_pair) => key_pair.public(),
             PrivKeyPolicy::Trezor => {
                 return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
@@ -567,7 +567,7 @@ impl MarketCoinOps for SiaCoin {
                 return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
         };
-        Ok(key_pair.public().to_string())
+        Ok(public_key.to_string())
     }
 
     // TODO Alright: I think this method can be removed from this trait
@@ -582,7 +582,7 @@ impl MarketCoinOps for SiaCoin {
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
         let coin = self.clone();
         let fut = async move {
-            let my_address = match &coin.priv_key_policy {
+            let my_address = match &*coin.priv_key_policy {
                 PrivKeyPolicy::Iguana(key_pair) => key_pair.public().address(),
                 _ => {
                     return MmError::err(BalanceError::UnexpectedDerivationMethod(
@@ -920,7 +920,7 @@ impl SiaCoin {
     }
 
     pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
-        let my_address = match &self.priv_key_policy {
+        let my_address = match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair.public().address(),
             _ => {
                 return MmError::err(ERRL!("Unexpected derivation method. Expected single address."));
