@@ -7114,12 +7114,12 @@ dependencies = [
 [[package]]
 name = "sia-rust"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/sia-rust.git?branch=dev#ab123381af7559f748e8edd8c08038c257686dd4"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
  "blake2b_simd",
  "chrono",
+ "curve25519-dalek 3.2.0",
  "derive_more",
  "ed25519-dalek",
  "futures 0.3.28",
@@ -7127,6 +7127,7 @@ dependencies = [
  "hex",
  "http 0.2.12",
  "js-sys",
+ "log",
  "nom",
  "percent-encoding",
  "reqwest",
@@ -7134,7 +7135,6 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "serde_with",
  "thiserror",
  "url",
  "wasm-bindgen",
