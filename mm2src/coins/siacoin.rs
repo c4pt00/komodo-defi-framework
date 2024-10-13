@@ -106,8 +106,8 @@ pub struct SiaCoinFieldsGeneric<T: SiaApiClient + ApiClientHelpers> {
     /// SIA coin config
     pub conf: SiaCoinConf,
     pub priv_key_policy: PrivKeyPolicy<SiaKeypair>,
-    /// HTTP(s) client
-    pub http_client: T,
+    /// Client used to interact with the blockchain, most likely a HTTP(s) client
+    pub client: T,
     /// State of the transaction history loop (enabled, started, in progress, etc.)
     pub history_sync_state: Mutex<HistorySyncState>,
     /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
@@ -178,7 +178,7 @@ impl<'a> SiaCoinBuilder<'a> {
         };
         let sia_fields = SiaCoinFields {
             conf,
-            http_client: SiaApiClient::new(self.params.http_conf.clone())
+            client: SiaApiClient::new(self.params.http_conf.clone())
                 .await
                 .map_to_mm(SiaCoinBuildError::ClientError)?,
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
@@ -641,7 +641,7 @@ impl MarketCoinOps for SiaCoin {
             };
             let balance = coin
                 .0
-                .http_client
+                .client
                 .address_balance(my_address)
                 .await
                 .map_to_mm(|e| BalanceError::Transport(e.to_string()))?;
@@ -660,7 +660,7 @@ impl MarketCoinOps for SiaCoin {
 
     /// Receives raw transaction bytes in hexadecimal format as input and returns tx hash in hexadecimal format
     fn send_raw_tx(&self, tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> {
-        let http_client = self.0.http_client.clone();
+        let client = self.0.client.clone();
         let tx = tx.to_owned();
 
         let fut = async move {
@@ -672,7 +672,7 @@ impl MarketCoinOps for SiaCoin {
                 v2transactions: vec![transaction],
             };
 
-            http_client.dispatcher(request).await.map_err(|e| e.to_string())?;
+            client.dispatcher(request).await.map_err(|e| e.to_string())?;
             Ok(txid)
         };
         Box::new(fut.boxed().compat())
@@ -695,9 +695,9 @@ impl MarketCoinOps for SiaCoin {
     }
 
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
-        let http_client = self.0.http_client.clone(); // Clone the client
+        let client = self.0.client.clone(); // Clone the client
 
-        let height_fut = async move { http_client.current_height().await.map_err(|e| e.to_string()) }
+        let height_fut = async move { client.current_height().await.map_err(|e| e.to_string()) }
             .boxed() // Make the future 'static by boxing
             .compat(); // Convert to a futures 0.1-compatible future
 
@@ -955,7 +955,7 @@ impl SiaCoin {
             limit: None,
             offset: None,
         };
-        let res = self.0.http_client.dispatcher(request).await?;
+        let res = self.0.client.dispatcher(request).await?;
         Ok(res)
     }
 
@@ -965,7 +965,7 @@ impl SiaCoin {
             limit: None,
             offset: None,
         };
-        let res = self.0.http_client.dispatcher(request).await?;
+        let res = self.0.client.dispatcher(request).await?;
         Ok(res)
     }
 
