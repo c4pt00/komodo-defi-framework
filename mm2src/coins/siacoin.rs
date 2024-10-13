@@ -105,7 +105,7 @@ impl<'a> SiaConfBuilder<'a> {
 pub struct SiaCoinFieldsGeneric<T: SiaApiClient + ApiClientHelpers> {
     /// SIA coin config
     pub conf: SiaCoinConf,
-    pub priv_key_policy: PrivKeyPolicy<Keypair>,
+    pub priv_key_policy: PrivKeyPolicy<SiaKeypair>,
     /// HTTP(s) client
     pub http_client: T,
     /// State of the transaction history loop (enabled, started, in progress, etc.)
@@ -128,7 +128,7 @@ pub async fn sia_coin_from_conf_and_params(
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = Keypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
+    let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
     let builder = SiaCoinBuilder::new(ctx, ticker, conf, key_pair, params);
     builder.build().await
 }
@@ -137,7 +137,7 @@ pub struct SiaCoinBuilder<'a> {
     ctx: &'a MmArc,
     ticker: &'a str,
     conf: &'a Json,
-    key_pair: Keypair,
+    key_pair: SiaKeypair,
     params: &'a SiaCoinActivationParams,
 }
 
@@ -146,7 +146,7 @@ impl<'a> SiaCoinBuilder<'a> {
         ctx: &'a MmArc,
         ticker: &'a str,
         conf: &'a Json,
-        key_pair: Keypair,
+        key_pair: SiaKeypair,
         params: &'a SiaCoinActivationParams,
     ) -> Self {
         SiaCoinBuilder {
