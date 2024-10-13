@@ -598,7 +598,7 @@ impl MarketCoinOps for SiaCoin {
                 .into());
             },
         };
-        let address = SpendPolicy::PublicKey(key_pair.public()).address();
+        let address = key_pair.public.address();
         Ok(address.to_string())
     }
 
@@ -632,7 +632,7 @@ impl MarketCoinOps for SiaCoin {
         let coin = self.clone();
         let fut = async move {
             let my_address = match &coin.0.priv_key_policy {
-                PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public()).address(),
+                PrivKeyPolicy::Iguana(key_pair) => key_pair.public.address(),
                 _ => {
                     return MmError::err(BalanceError::UnexpectedDerivationMethod(
                         UnexpectedDerivationMethod::ExpectedSingleAddress,
@@ -971,7 +971,7 @@ impl SiaCoin {
 
     pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
         let my_address = match &self.0.priv_key_policy {
-            PrivKeyPolicy::Iguana(key_pair) => SpendPolicy::PublicKey(key_pair.public()).address(),
+            PrivKeyPolicy::Iguana(key_pair) => key_pair.public.address(),
             _ => {
                 return MmError::err(ERRL!("Unexpected derivation method. Expected single address."));
             },

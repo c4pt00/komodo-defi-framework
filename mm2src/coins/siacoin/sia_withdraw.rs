@@ -21,8 +21,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
     pub fn new(coin: &'a SiaCoin, req: WithdrawRequest) -> Result<Self, MmError<WithdrawError>> {
         let (key_pair, from_address) = match &coin.0.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => {
-                let from_address = SpendPolicy::PublicKey(key_pair.public()).address();
-                (key_pair, from_address)
+                (key_pair, key_pair.public.address())
             },
             _ => {
                 return Err(WithdrawError::UnsupportedError(
