@@ -6,7 +6,7 @@ use common::log::{error, info};
 
 use async_trait::async_trait;
 use futures::channel::{mpsc, oneshot};
-use futures::{select, FutureExt, Stream, StreamExt};
+use futures::{future, select, FutureExt, Stream, StreamExt};
 
 /// A marker to indicate that the event streamer doesn't take any input data.
 pub struct NoDataIn;
@@ -65,14 +65,14 @@ where
         let streamer_id = streamer_id.clone();
         move |any_input_data| {
             let streamer_id = streamer_id.clone();
-            Box::pin(async move {
+            future::ready(
                 if let Ok(input_data) = any_input_data.downcast() {
                     Some(*input_data)
                 } else {
                     error!("Couldn't downcast a received message to {}. This message wasn't intended to be sent to this streamer ({streamer_id}).", any::type_name::<<S as EventStreamer>::DataInType>());
                     None
                 }
-            })
+            )
         }
     });
 
