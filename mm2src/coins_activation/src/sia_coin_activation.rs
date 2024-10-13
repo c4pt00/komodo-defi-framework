@@ -242,5 +242,6 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
         _storage: impl TxHistoryStorage,
         _current_balances: HashMap<String, BigDecimal>,
     ) {
+        // TODO Alright unclear what this is
     }
 }
