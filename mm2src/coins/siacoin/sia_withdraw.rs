@@ -19,7 +19,7 @@ pub struct SiaWithdrawBuilder<'a> {
 impl<'a> SiaWithdrawBuilder<'a> {
     #[allow(clippy::result_large_err)]
     pub fn new(coin: &'a SiaCoin, req: WithdrawRequest) -> Result<Self, MmError<WithdrawError>> {
-        let (key_pair, from_address) = match &coin.0.priv_key_policy {
+        let (key_pair, from_address) = match &coin.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => {
                 (key_pair, key_pair.public().address())
             },
