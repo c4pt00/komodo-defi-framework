@@ -29,14 +29,14 @@ use mm2_core::mm_ctx::{MmArc, MmCtx};
 use mm2_err_handle::common_errors::InternalError;
 use mm2_err_handle::prelude::*;
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
-use mm2_libp2p::behaviours::atomicdex::{GossipsubConfig, DEPRECATED_NETID_LIST};
+use mm2_libp2p::behaviours::atomicdex::{generate_ed25519_keypair, GossipsubConfig, DEPRECATED_NETID_LIST};
 use mm2_libp2p::{spawn_gossipsub, AdexBehaviourError, NodeType, RelayAddress, RelayAddressError, SeedNodeInfo,
                  SwarmRuntime, WssCerts};
 use mm2_metrics::mm_gauge;
 use mm2_net::network_event::NetworkEvent;
 use mm2_net::p2p::P2PContext;
 use rpc_task::RpcTaskError;
-use serde_json::{self as json};
+use serde_json as json;
 use std::convert::TryInto;
 use std::io;
 use std::path::PathBuf;
@@ -47,8 +47,9 @@ use std::{fs, usize};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::database::init_and_migrate_sql_db;
 use crate::heartbeat_event::HeartbeatEvent;
+use crate::lp_healthcheck::peer_healthcheck_topic;
 use crate::lp_message_service::{init_message_service, InitMessageServiceError};
-use crate::lp_network::{lp_network_ports, p2p_event_process_loop, NetIdError};
+use crate::lp_network::{lp_network_ports, p2p_event_process_loop, subscribe_to_topic, NetIdError};
 use crate::lp_ordermatch::{broadcast_maker_orders_keep_alive_loop, clean_memory_loop, init_ordermatch_context,
                            lp_ordermatch_loop, orders_kick_start, BalanceUpdateOrdermatchHandler, OrdermatchInitError};
 use crate::lp_swap::{running_swaps_num, swap_kick_starts};
@@ -498,9 +499,11 @@ pub async fn lp_init_continue(ctx: MmArc) -> MmInitResult<()> {
 pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitResult<()> {
     info!("Version: {} DT {}", version, datetime);
 
+    // Ensure the database root directory exists before initializing the wallet passphrase.
+    // This is necessary to store the encrypted wallet passphrase if needed.
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let dbdir = ctx.dbdir();
+        let dbdir = ctx.db_root();
         fs::create_dir_all(&dbdir).map_to_mm(|e| MmInitError::ErrorCreatingDbDir {
             path: dbdir.clone(),
             error: e.to_string(),
@@ -558,6 +561,20 @@ async fn kick_start(ctx: MmArc) -> MmInitResult<()> {
     Ok(())
 }
 
+fn get_p2p_key(ctx: &MmArc, i_am_seed: bool) -> P2PResult<[u8; 32]> {
+    // TODO: Use persistent peer ID regardless the node  type.
+    if i_am_seed {
+        if let Ok(crypto_ctx) = CryptoCtx::from_ctx(ctx) {
+            let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
+            return Ok(key.take());
+        }
+    }
+
+    let mut p2p_key = [0; 32];
+    common::os_rng(&mut p2p_key).map_err(|e| P2PInitError::Internal(e.to_string()))?;
+    Ok(p2p_key)
+}
+
 pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
     let i_am_seed = ctx.conf["i_am_seed"].as_bool().unwrap_or(false);
     let netid = ctx.netid();
@@ -569,13 +586,8 @@ pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
     let seednodes = seednodes(&ctx)?;
 
     let ctx_on_poll = ctx.clone();
-    let force_p2p_key = if i_am_seed {
-        let crypto_ctx = CryptoCtx::from_ctx(&ctx).mm_err(|e| P2PInitError::Internal(e.to_string()))?;
-        let key = sha256(crypto_ctx.mm2_internal_privkey_slice());
-        Some(key.take())
-    } else {
-        None
-    };
+
+    let p2p_key = get_p2p_key(&ctx, i_am_seed)?;
 
     let node_type = if i_am_seed {
         relay_node_type(&ctx).await?
@@ -590,9 +602,8 @@ pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
         .try_into()
         .unwrap_or(usize::MAX);
 
-    let mut gossipsub_config = GossipsubConfig::new(netid, spawner, node_type);
+    let mut gossipsub_config = GossipsubConfig::new(netid, spawner, node_type, p2p_key);
     gossipsub_config.to_dial(seednodes);
-    gossipsub_config.force_key(force_p2p_key);
     gossipsub_config.max_num_streams(max_num_streams);
 
     let spawn_result = spawn_gossipsub(gossipsub_config, move |swarm| {
@@ -625,13 +636,17 @@ pub async fn init_p2p(ctx: MmArc) -> P2PResult<()> {
         );
     })
     .await;
+
     let (cmd_tx, event_rx, peer_id) = spawn_result?;
-    ctx.peer_id.pin(peer_id.to_string()).map_to_mm(P2PInitError::Internal)?;
-    let p2p_context = P2PContext::new(cmd_tx);
+
+    let p2p_context = P2PContext::new(cmd_tx, generate_ed25519_keypair(p2p_key));
     p2p_context.store_to_mm_arc(&ctx);
 
     let fut = p2p_event_process_loop(ctx.weak(), event_rx, i_am_seed);
     ctx.spawner().spawn(fut);
+
+    // Listen for health check messages.
+    subscribe_to_topic(&ctx, peer_healthcheck_topic(&peer_id.into()));
 
     Ok(())
 }

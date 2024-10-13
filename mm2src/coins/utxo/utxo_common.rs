@@ -15,19 +15,20 @@ use crate::watcher_common::validate_watcher_reward;
 use crate::{scan_for_new_addresses_impl, CanRefundHtlc, CoinBalance, CoinWithDerivationMethod, ConfirmPaymentInput,
             DexFee, GenPreimageResult, GenTakerPaymentPreimageArgs, GenTakerPaymentSpendArgs,
             GetWithdrawSenderAddress, RawTransactionError, RawTransactionRequest, RawTransactionRes,
-            RawTransactionResult, RefundFundingSecretArgs, RefundMakerPaymentArgs, RefundPaymentArgs, RewardTarget,
-            SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
-            SendTakerFundingArgs, SignRawTransactionEnum, SignRawTransactionRequest, SignUtxoTransactionParams,
-            SignatureError, SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs, SwapOps,
-            SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, TradePreimageValue, TransactionData, TransactionFut,
-            TransactionResult, TxFeeDetails, TxGenError, TxMarshalingErr, TxPreimageWithSig, ValidateAddressResult,
-            ValidateOtherPubKeyErr, ValidatePaymentFut, ValidatePaymentInput, ValidateSwapV2TxError,
-            ValidateSwapV2TxResult, ValidateTakerFundingArgs, ValidateTakerFundingSpendPreimageError,
-            ValidateTakerFundingSpendPreimageResult, ValidateTakerPaymentSpendPreimageError,
-            ValidateTakerPaymentSpendPreimageResult, ValidateWatcherSpendInput, VerificationError, VerificationResult,
-            WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput,
-            WithdrawResult, WithdrawSenderAddress, EARLY_CONFIRMATION_ERR_LOG, INVALID_RECEIVER_ERR_LOG,
-            INVALID_REFUND_TX_ERR_LOG, INVALID_SCRIPT_ERR_LOG, INVALID_SENDER_ERR_LOG, OLD_TRANSACTION_ERR_LOG};
+            RawTransactionResult, RefundFundingSecretArgs, RefundMakerPaymentSecretArgs, RefundPaymentArgs,
+            RewardTarget, SearchForSwapTxSpendInput, SendMakerPaymentArgs, SendMakerPaymentSpendPreimageInput,
+            SendPaymentArgs, SendTakerFundingArgs, SignRawTransactionEnum, SignRawTransactionRequest,
+            SignUtxoTransactionParams, SignatureError, SignatureResult, SpendMakerPaymentArgs, SpendPaymentArgs,
+            SwapOps, SwapTxTypeWithSecretHash, TakerCoinSwapOpsV2, TradePreimageValue, TransactionData,
+            TransactionFut, TransactionResult, TxFeeDetails, TxGenError, TxMarshalingErr, TxPreimageWithSig,
+            ValidateAddressResult, ValidateOtherPubKeyErr, ValidatePaymentFut, ValidatePaymentInput,
+            ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs,
+            ValidateTakerFundingSpendPreimageError, ValidateTakerFundingSpendPreimageResult,
+            ValidateTakerPaymentSpendPreimageError, ValidateTakerPaymentSpendPreimageResult,
+            ValidateWatcherSpendInput, VerificationError, VerificationResult, WatcherSearchForSwapTxSpendInput,
+            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawResult, WithdrawSenderAddress,
+            EARLY_CONFIRMATION_ERR_LOG, INVALID_RECEIVER_ERR_LOG, INVALID_REFUND_TX_ERR_LOG, INVALID_SCRIPT_ERR_LOG,
+            INVALID_SENDER_ERR_LOG, OLD_TRANSACTION_ERR_LOG};
 use crate::{MmCoinEnum, WatcherReward, WatcherRewardError};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
@@ -3068,13 +3069,12 @@ pub async fn wait_for_output_spend_impl(
     wait_until: u64,
     check_every: f64,
 ) -> MmResult<UtxoTx, WaitForOutputSpendErr> {
+    let script_pubkey = &tx
+        .outputs
+        .get(output_index)
+        .or_mm_err(|| WaitForOutputSpendErr::NoOutputWithIndex(output_index))?
+        .script_pubkey;
     loop {
-        let script_pubkey = &tx
-            .outputs
-            .get(output_index)
-            .or_mm_err(|| WaitForOutputSpendErr::NoOutputWithIndex(output_index))?
-            .script_pubkey;
-
         match coin
             .rpc_client
             .find_output_spend(
@@ -5096,14 +5096,14 @@ where
     let expected_amount_sat = sat_from_big_decimal(&total_expected_amount, coin.as_ref().decimals)?;
 
     let time_lock = args
-        .time_lock
+        .funding_time_lock
         .try_into()
-        .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::LocktimeOverflow(e.to_string()))?;
+        .map_to_mm(|e: TryFromIntError| ValidateSwapV2TxError::Overflow(e.to_string()))?;
 
     let redeem_script = swap_proto_v2_scripts::taker_funding_script(
         time_lock,
         args.taker_secret_hash,
-        args.other_pub,
+        args.taker_pub,
         maker_htlc_key_pair.public(),
     );
     let expected_output = TransactionOutput {
@@ -5279,7 +5279,7 @@ pub async fn spend_maker_payment_v2<T: UtxoCommonOps + SwapOps>(
 /// Common implementation of maker payment v2 reclaim for UTXO coins using immediate refund path with secret reveal.
 pub async fn refund_maker_payment_v2_secret<T>(
     coin: T,
-    args: RefundMakerPaymentArgs<'_, T>,
+    args: RefundMakerPaymentSecretArgs<'_, T>,
 ) -> Result<UtxoTx, TransactionErr>
 where
     T: UtxoCommonOps + SwapOps,
