@@ -656,7 +656,8 @@ impl MarketCoinOps for SiaCoin {
     // Todo: revise this when working on swaps
     fn min_tx_amount(&self) -> BigDecimal { siacoin_from_hastings(1) }
 
-    fn min_trading_vol(&self) -> MmNumber { unimplemented!() }
+    // TODO Alright: research a sensible value for this. It represents the minimum amount of coins that can be traded
+    fn min_trading_vol(&self) -> MmNumber { siacoin_from_hastings(1).into() }
 
     fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
 }
