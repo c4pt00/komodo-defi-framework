@@ -51,10 +51,23 @@ use sia_rust::transport::client::wasm::Conf as SiaClientConf;
 pub mod sia_hd_wallet;
 mod sia_withdraw;
 
+// TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521668313
+// for additional fields needed
 #[derive(Clone)]
-pub struct SiaCoin(SiaArc);
-#[derive(Clone)]
-pub struct SiaArc(Arc<SiaCoinFields>);
+pub struct SiaCoinGeneric<T: SiaApiClient + ApiClientHelpers> {
+    /// SIA coin config
+    pub conf: SiaCoinConf,
+    pub priv_key_policy: PrivKeyPolicy<SiaKeypair>,
+    /// Client used to interact with the blockchain, most likely a HTTP(s) client
+    pub client: Arc<T>,
+    /// State of the transaction history loop (enabled, started, in progress, etc.)
+    pub history_sync_state: Arc<Mutex<HistorySyncState>>,
+    /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
+    /// and on [`MmArc::stop`].
+    pub abortable_system: Arc<AbortableQueue>,
+}
+
+pub type SiaCoin = SiaCoinGeneric<SiaClientType>;
 
 #[derive(Debug, Display)]
 pub enum SiaConfError {
@@ -65,10 +78,9 @@ pub enum SiaConfError {
 
 pub type SiaConfResult<T> = Result<T, MmError<SiaConfError>>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SiaCoinConf {
-    ticker: String,
-    pub foo: u32,
+    pub ticker: String,
 }
 
 // TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521660384
@@ -81,40 +93,6 @@ pub struct SiaCoinActivationParams {
     pub gap_limit: Option<u32>,
     pub http_conf: SiaClientConf,
 }
-
-pub struct SiaConfBuilder<'a> {
-    #[allow(dead_code)]
-    conf: &'a Json,
-    ticker: &'a str,
-}
-
-impl<'a> SiaConfBuilder<'a> {
-    pub fn new(conf: &'a Json, ticker: &'a str) -> Self { SiaConfBuilder { conf, ticker } }
-
-    pub fn build(&self) -> SiaConfResult<SiaCoinConf> {
-        Ok(SiaCoinConf {
-            ticker: self.ticker.to_owned(),
-            foo: 0,
-        })
-    }
-}
-
-// TODO see https://github.com/KomodoPlatform/komodo-defi-framework/pull/2086#discussion_r1521668313
-// for additional fields needed
-pub struct SiaCoinFieldsGeneric<T: SiaApiClient + ApiClientHelpers> {
-    /// SIA coin config
-    pub conf: SiaCoinConf,
-    pub priv_key_policy: PrivKeyPolicy<SiaKeypair>,
-    /// Client used to interact with the blockchain, most likely a HTTP(s) client
-    pub client: T,
-    /// State of the transaction history loop (enabled, started, in progress, etc.)
-    pub history_sync_state: Mutex<HistorySyncState>,
-    /// This abortable system is used to spawn coin's related futures that should be aborted on coin deactivation
-    /// and on [`MmArc::stop`].
-    pub abortable_system: AbortableQueue,
-}
-
-pub type SiaCoinFields = SiaCoinFieldsGeneric<SiaClientType>;
 
 pub async fn sia_coin_from_conf_and_params(
     ctx: &MmArc,
@@ -165,27 +143,25 @@ impl<'a> SiaCoinBuilder<'a> {
     fn ticker(&self) -> &str { self.ticker }
 
     async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
-        let conf = SiaConfBuilder::new(self.conf, self.ticker()).build()?;
-        let abortable_system: AbortableQueue = self.ctx().abortable_system.create_subsystem().map_to_mm(|_| {
+        let conf = SiaCoinConf{ ticker: self.ticker().to_owned()};
+        let abortable_queue: AbortableQueue = self.ctx().abortable_system.create_subsystem().map_to_mm(|_| {
             SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker()))
         })?;
+        let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.params.tx_history {
             HistorySyncState::NotStarted
         } else {
             HistorySyncState::NotEnabled
         };
-        let sia_fields = SiaCoinFields {
+        Ok(SiaCoin {
             conf,
-            client: SiaApiClient::new(self.params.http_conf.clone())
+            client: Arc::new(SiaClientType::new(self.params.http_conf.clone())
                 .await
-                .map_to_mm(SiaCoinBuildError::ClientError)?,
+                .map_to_mm(SiaCoinBuildError::ClientError)?),
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair),
-            history_sync_state: Mutex::new(history_sync_state),
+            history_sync_state: Mutex::new(history_sync_state).into(),
             abortable_system,
-        };
-        let sia_arc = SiaArc::new(sia_fields);
-
-        Ok(SiaCoin::from(sia_arc))
+        })
     }
 }
 
@@ -223,29 +199,6 @@ pub enum SiaCoinBuildError {
     InternalError(String),
 }
 
-impl Deref for SiaArc {
-    type Target = SiaCoinFields;
-    fn deref(&self) -> &SiaCoinFields { &self.0 }
-}
-
-impl From<SiaCoinFields> for SiaArc {
-    fn from(coin: SiaCoinFields) -> SiaArc { SiaArc::new(coin) }
-}
-
-impl From<Arc<SiaCoinFields>> for SiaArc {
-    fn from(arc: Arc<SiaCoinFields>) -> SiaArc { SiaArc(arc) }
-}
-
-impl From<SiaArc> for SiaCoin {
-    fn from(coin: SiaArc) -> SiaCoin { SiaCoin(coin) }
-}
-
-impl SiaArc {
-    pub fn new(fields: SiaCoinFields) -> SiaArc { SiaArc(Arc::new(fields)) }
-
-    pub fn with_arc(inner: Arc<SiaCoinFields>) -> SiaArc { SiaArc(inner) }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SiaCoinProtocolInfo;
 
@@ -265,7 +218,7 @@ pub struct SiaFeeDetails {
 
 #[async_trait]
 impl MmCoin for SiaCoin {
-    fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.0.abortable_system) }
+    fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
 
     fn get_raw_transaction(&self, _req: RawTransactionRequest) -> RawTransactionFut { unimplemented!() }
 
@@ -314,7 +267,7 @@ impl MmCoin for SiaCoin {
                         ctx,
                         "",
                         "tx_history",
-                        "coin" => coin.0.conf.ticker;
+                        "coin" => coin.conf.ticker;
                         fmt = "Error {} on 'load_history_from_file', stop the history loop", e
                     );
                     return;
@@ -338,15 +291,15 @@ impl MmCoin for SiaCoin {
                 {
                     let coins_ctx = CoinsContext::from_ctx(&ctx).unwrap();
                     let coins = coins_ctx.coins.lock().await;
-                    if !coins.contains_key(&coin.0.conf.ticker) {
-                        log_tag!(ctx, "", "tx_history", "coin" => coin.0.conf.ticker; fmt = "Loop stopped");
+                    if !coins.contains_key(&coin.conf.ticker) {
+                        log_tag!(ctx, "", "tx_history", "coin" => coin.conf.ticker; fmt = "Loop stopped");
                         attempts += 1;
                         if attempts > 6 {
                             log_tag!(
                                 ctx,
                                 "",
                                 "tx_history",
-                                "coin" => coin.0.conf.ticker;
+                                "coin" => coin.conf.ticker;
                                 fmt = "Loop stopped after 6 attempts to find coin in coins context"
                             );
                             break;
@@ -363,7 +316,7 @@ impl MmCoin for SiaCoin {
                             ctx,
                             "",
                             "tx_history",
-                            "coin" => coin.0.conf.ticker;
+                            "coin" => coin.conf.ticker;
                             fmt = "Error {:?} on getting balance", err
                         );
                         None
@@ -396,7 +349,7 @@ impl MmCoin for SiaCoin {
                             ctx,
                             "",
                             "tx_history",
-                            "coin" => coin.0.conf.ticker;
+                            "coin" => coin.conf.ticker;
                             fmt = "Error {} on 'request_events_history', stop the history loop", e
                         );
 
@@ -417,7 +370,7 @@ impl MmCoin for SiaCoin {
                             ctx,
                             "",
                             "tx_history",
-                            "coin" => coin.0.conf.ticker;
+                            "coin" => coin.conf.ticker;
                             fmt = "Error {} on 'save_history_to_file', stop the history loop", e
                         );
                         return;
@@ -425,12 +378,12 @@ impl MmCoin for SiaCoin {
                 }
 
                 let mut transactions_left = if requested_ids.len() > history_map.len() {
-                    *coin.0.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
+                    *coin.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
                         "transactions_left": requested_ids.len() - history_map.len()
                     }));
                     requested_ids.len() - history_map.len()
                 } else {
-                    *coin.0.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
+                    *coin.history_sync_state.lock().unwrap() = HistorySyncState::InProgress(json!({
                         "transactions_left": 0
                     }));
                     0
@@ -448,7 +401,7 @@ impl MmCoin for SiaCoin {
                                             ctx,
                                             "",
                                             "tx_history",
-                                            "coin" => coin.0.conf.ticker;
+                                            "coin" => coin.conf.ticker;
                                             fmt = "Error {} on 'tx_details_from_event', stop the history loop", e
                                         );
                                         return;
@@ -457,7 +410,7 @@ impl MmCoin for SiaCoin {
                                 e.insert(tx_details);
                                 if transactions_left > 0 {
                                     transactions_left -= 1;
-                                    *coin.0.history_sync_state.lock().unwrap() =
+                                    *coin.history_sync_state.lock().unwrap() =
                                         HistorySyncState::InProgress(json!({ "transactions_left": transactions_left }));
                                 }
                                 updated = true;
@@ -466,7 +419,7 @@ impl MmCoin for SiaCoin {
                                 ctx,
                                 "",
                                 "tx_history",
-                                "coin" => coin.0.conf.ticker;
+                                "coin" => coin.conf.ticker;
                                 fmt = "Transaction with id {} not found in the events list", txid
                             ),
                         },
@@ -479,21 +432,21 @@ impl MmCoin for SiaCoin {
                                 ctx,
                                 "",
                                 "tx_history",
-                                "coin" => coin.0.conf.ticker;
+                                "coin" => coin.conf.ticker;
                                 fmt = "Error {} on 'save_history_to_file', stop the history loop", e
                             );
                             return;
                         };
                     }
                 }
-                *coin.0.history_sync_state.lock().unwrap() = HistorySyncState::Finished;
+                *coin.history_sync_state.lock().unwrap() = HistorySyncState::Finished;
 
                 if success_iteration == 0 {
                     log_tag!(
                         ctx,
                         "😅",
                         "tx_history",
-                        "coin" => coin.0.conf.ticker;
+                        "coin" => coin.conf.ticker;
                         fmt = "history has been loaded successfully"
                     );
                 }
@@ -507,7 +460,7 @@ impl MmCoin for SiaCoin {
         Box::new(fut.map(|_| Ok(())).boxed().compat())
     }
 
-    fn history_sync_status(&self) -> HistorySyncState { self.0.history_sync_state.lock().unwrap().clone() }
+    fn history_sync_status(&self) -> HistorySyncState { self.history_sync_state.lock().unwrap().clone() }
 
     /// Get fee to be paid per 1 swap transaction
     fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> { unimplemented!() }
@@ -520,7 +473,7 @@ impl MmCoin for SiaCoin {
         _include_refund_fee: bool,
     ) -> TradePreimageResult<TradeFee> {
         Ok(TradeFee {
-            coin: self.0.conf.ticker.clone(),
+            coin: self.conf.ticker.clone(),
             amount: Default::default(),
             paid_from_trading_vol: false,
         })
@@ -570,11 +523,11 @@ impl MmCoin for SiaCoin {
 // TODO Alright - Dummy values for these functions allow minimal functionality to produce signatures
 #[async_trait]
 impl MarketCoinOps for SiaCoin {
-    fn ticker(&self) -> &str { &self.0.conf.ticker }
+    fn ticker(&self) -> &str { &self.conf.ticker }
 
     // needs test coverage FIXME COME BACK
     fn my_address(&self) -> MmResult<String, MyAddressError> {
-        let key_pair = match &self.0.priv_key_policy {
+        let key_pair = match &self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
                 return Err(MyAddressError::UnexpectedDerivationMethod(
@@ -596,12 +549,12 @@ impl MarketCoinOps for SiaCoin {
                 .into());
             },
         };
-        let address = key_pair.public.address();
+        let address = key_pair.public().address();
         Ok(address.to_string())
     }
 
     async fn get_public_key(&self) -> Result<String, MmError<UnexpectedDerivationMethod>> {
-        let key_pair = match &self.0.priv_key_policy {
+        let key_pair = match &self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
                 return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
@@ -614,7 +567,7 @@ impl MarketCoinOps for SiaCoin {
                 return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
         };
-        Ok(key_pair.public.to_string())
+        Ok(key_pair.public().to_string())
     }
 
     // TODO Alright: I think this method can be removed from this trait
@@ -629,8 +582,8 @@ impl MarketCoinOps for SiaCoin {
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
         let coin = self.clone();
         let fut = async move {
-            let my_address = match &coin.0.priv_key_policy {
-                PrivKeyPolicy::Iguana(key_pair) => key_pair.public.address(),
+            let my_address = match &coin.priv_key_policy {
+                PrivKeyPolicy::Iguana(key_pair) => key_pair.public().address(),
                 _ => {
                     return MmError::err(BalanceError::UnexpectedDerivationMethod(
                         UnexpectedDerivationMethod::ExpectedSingleAddress,
@@ -638,7 +591,6 @@ impl MarketCoinOps for SiaCoin {
                 },
             };
             let balance = coin
-                .0
                 .client
                 .address_balance(my_address)
                 .await
@@ -658,7 +610,7 @@ impl MarketCoinOps for SiaCoin {
 
     /// Receives raw transaction bytes in hexadecimal format as input and returns tx hash in hexadecimal format
     fn send_raw_tx(&self, tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> {
-        let client = self.0.client.clone();
+        let client = self.client.clone();
         let tx = tx.to_owned();
 
         let fut = async move {
@@ -693,7 +645,7 @@ impl MarketCoinOps for SiaCoin {
     }
 
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
-        let client = self.0.client.clone(); // Clone the client
+        let client = self.client.clone(); // Clone the client
 
         let height_fut = async move { client.current_height().await.map_err(|e| e.to_string()) }
             .boxed() // Make the future 'static by boxing
@@ -709,7 +661,7 @@ impl MarketCoinOps for SiaCoin {
 
     fn min_trading_vol(&self) -> MmNumber { unimplemented!() }
 
-    fn is_trezor(&self) -> bool { self.0.priv_key_policy.is_trezor() }
+    fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
 }
 
 #[async_trait]
@@ -953,7 +905,7 @@ impl SiaCoin {
             limit: None,
             offset: None,
         };
-        let res = self.0.client.dispatcher(request).await?;
+        let res = self.client.dispatcher(request).await?;
         Ok(res)
     }
 
@@ -963,13 +915,13 @@ impl SiaCoin {
             limit: None,
             offset: None,
         };
-        let res = self.0.client.dispatcher(request).await?;
+        let res = self.client.dispatcher(request).await?;
         Ok(res)
     }
 
     pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
-        let my_address = match &self.0.priv_key_policy {
-            PrivKeyPolicy::Iguana(key_pair) => key_pair.public.address(),
+        let my_address = match &self.priv_key_policy {
+            PrivKeyPolicy::Iguana(key_pair) => key_pair.public().address(),
             _ => {
                 return MmError::err(ERRL!("Unexpected derivation method. Expected single address."));
             },
