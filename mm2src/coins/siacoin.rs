@@ -616,7 +616,7 @@ impl MarketCoinOps for SiaCoin {
                 return MmError::err(UnexpectedDerivationMethod::ExpectedSingleAddress);
             },
         };
-        Ok(key_pair.public().to_string())
+        Ok(key_pair.public.to_string())
     }
 
     // TODO Alright: I think this method can be removed from this trait

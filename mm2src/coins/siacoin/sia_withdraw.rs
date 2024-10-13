@@ -101,7 +101,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
 
         // Add inputs
         for output in selected_outputs {
-            tx_builder = tx_builder.add_siacoin_input(output, SpendPolicy::PublicKey(self.key_pair.public()));
+            tx_builder = tx_builder.add_siacoin_input(output, SpendPolicy::PublicKey(self.key_pair.public.clone()));
         }
 
         // Add output for recipient
