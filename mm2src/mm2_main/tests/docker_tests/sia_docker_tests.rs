@@ -2,7 +2,7 @@ use common::block_on;
 use sia_rust::transport::client::native::{Conf, NativeClient};
 use sia_rust::transport::client::ApiClient;
 use sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, GetAddressUtxosRequest,
-                                TxpoolBroadcastRequest};
+                                     TxpoolBroadcastRequest};
 use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::process::Command;
 use std::str::FromStr;
