@@ -832,7 +832,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        assert!(blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .is_ok());
     //
@@ -852,7 +852,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        assert!(blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .is_ok());
     //
@@ -897,7 +897,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        assert!(blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .is_ok());
     //
@@ -928,7 +928,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        assert!(blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .is_ok());
     //
@@ -1098,7 +1098,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .unwrap();
     //        assert_eq!(walletdb.get_balance(AccountId(0)).await.unwrap(), value);
@@ -1155,7 +1155,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .unwrap();
     //
@@ -1191,7 +1191,7 @@ mod wasm_test {
     //        // Scan the cache
     //        let scan = DataConnStmtCacheWrapper::new(DataConnStmtCacheWasm(walletdb.clone()));
     //        blockdb
-    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan), None, None)
+    //            .process_blocks_with_mode(consensus_params.clone(), BlockProcessingMode::Scan(scan, None), None, None)
     //            .await
     //            .unwrap();
     //
