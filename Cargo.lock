@@ -860,7 +860,6 @@ dependencies = [
  "futures 0.3.28",
  "futures-ticker",
  "futures-util",
- "getrandom 0.2.9",
  "group 0.8.0",
  "gstuff",
  "hex",
