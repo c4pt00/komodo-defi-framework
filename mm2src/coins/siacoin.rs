@@ -146,7 +146,7 @@ impl<'a> SiaCoinBuilder<'a> {
         let required_confirmations: AtomicU64 = self
             .request
             .required_confirmations
-            .unwrap_or_else(|| self.conf.required_confirmations)
+            .unwrap_or(self.conf.required_confirmations)
             .into();
 
         Ok(SiaCoin {
