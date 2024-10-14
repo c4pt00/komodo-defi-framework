@@ -33,11 +33,9 @@ pub async fn cosmos_get_accounts_impl(
 ) -> MmResult<Vec<CosmosAccount>, WalletConnectCtxError> {
     let account = ctx.get_account_for_chain_id(chain_id).await?;
 
-    let topic = {
-        match ctx.session.get_session_active().await {
-            Some(session) => session.topic.into(),
-            None => return MmError::err(WalletConnectCtxError::NotInitialized),
-        }
+    let topic = match ctx.session.get_session_active().await {
+        Some(session) => session.topic.clone(),
+        None => return MmError::err(WalletConnectCtxError::NotInitialized),
     };
 
     let request = SessionRequest {
@@ -102,11 +100,9 @@ pub async fn cosmos_sign_direct_impl(
     sign_doc: Value,
     chain_id: &str,
 ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
-    let topic = {
-        match ctx.session.get_session_active().await {
-            Some(session) => session.topic.into(),
-            None => return MmError::err(WalletConnectCtxError::NotInitialized),
-        }
+    let topic = match ctx.session.get_session_active().await {
+        Some(session) => session.topic.clone(),
+        None => return MmError::err(WalletConnectCtxError::NotInitialized),
     };
 
     let request = SessionRequest {
@@ -176,15 +172,12 @@ where
 }
 
 fn decode_data(encoded: &str) -> Result<Vec<u8>, &'static str> {
-    // Check if the string is base64 or hex
-    if encoded.contains('=') || encoded.contains('/') || encoded.contains('+') {
-        // Try to decode as base64
+    if encoded.chars().all(|c| c.is_ascii_hexdigit()) && encoded.len() % 2 == 0 {
+        hex::decode(encoded).map_err(|_| "Invalid hex encoding")
+    } else if encoded.contains('=') || encoded.contains('/') || encoded.contains('+') || encoded.len() % 4 == 0 {
         general_purpose::STANDARD
             .decode(encoded)
             .map_err(|_| "Invalid base64 encoding")
-    } else if encoded.chars().all(|c| c.is_ascii_hexdigit()) && encoded.len() % 2 == 0 {
-        // Try to decode as hex
-        hex::decode(encoded).map_err(|_| "Invalid hex encoding")
     } else {
         Err("Unknown encoding format")
     }

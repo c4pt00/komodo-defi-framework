@@ -5,7 +5,7 @@ use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
 use chrono::Utc;
 use common::log::debug;
-use dashmap::mapref::one::RefMut;
+use dashmap::mapref::one::{Ref, RefMut};
 use dashmap::DashMap;
 use futures::lock::Mutex;
 use key::SessionKey;
@@ -17,7 +17,7 @@ use relay_rpc::rpc::params::session_propose::Proposer;
 use relay_rpc::rpc::params::IrnMetadata;
 use relay_rpc::{domain::SubscriptionId,
                 rpc::params::{session::ProposeNamespaces, session_settle::Controller, Metadata, Relay}};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
@@ -56,13 +56,42 @@ pub struct SessionRpcInfo {
     pub pairing_topic: String,
     pub namespaces: BTreeMap<String, Namespace>,
     pub subscription_id: SubscriptionId,
+    pub properties: Option<SessionProperties>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyInfo {
+    pub chain_id: String,
+    pub name: String,
+    pub algo: String,
+    pub pub_key: String,
+    pub address: String,
+    pub bech32_address: String,
+    pub ethereum_hex_address: String,
+    pub is_nano_ledger: bool,
+    pub is_keystone: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionProperties {
+    #[serde(deserialize_with = "deserialize_keys_from_string")]
+    pub keys: Vec<KeyInfo>,
+}
+
+fn deserialize_keys_from_string<'de, D>(deserializer: D) -> Result<Vec<KeyInfo>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let key_string = String::deserialize(deserializer)?;
+    serde_json::from_str(&key_string).map_err(serde::de::Error::custom)
 }
 
 /// This struct is typically used in the core session management logic of a WalletConnect
 /// implementation. It's used to store, retrieve, and update session information throughout
 /// the lifecycle of a WalletConnect connection.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct Session {
+pub struct Session {
     /// Session topic
     pub topic: Topic,
     /// Pairing subscription id.
@@ -85,6 +114,7 @@ pub(crate) struct Session {
     pub pairing_topic: Topic,
     /// Indicates whether this session info represents a Controller or Proposer perspective.
     pub session_type: SessionType,
+    pub session_properties: Option<SessionProperties>,
 }
 
 impl Session {
@@ -124,6 +154,7 @@ impl Session {
             pairing_topic,
             session_type,
             topic: session_topic,
+            session_properties: None,
         }
     }
 
@@ -143,6 +174,20 @@ pub struct SessionManagement(Arc<SessionManagementImpl>);
 
 impl Default for SessionManagement {
     fn default() -> Self { Self::new() }
+}
+
+impl From<Session> for SessionRpcInfo {
+    fn from(value: Session) -> Self {
+        Self {
+            topic: value.topic.to_string(),
+            metadata: value.controller.metadata,
+            peer_pubkey: value.controller.public_key,
+            pairing_topic: value.pairing_topic.to_string(),
+            namespaces: value.namespaces,
+            subscription_id: value.subscription_id,
+            properties: value.session_properties,
+        }
+    }
 }
 
 #[allow(unused)]
@@ -165,35 +210,26 @@ impl SessionManagement {
         debug!("Deleting session with topic: {topic}");
         let mut active_topic = self.0.active_topic.lock().await;
 
-        if let Some(ref topic_) = *active_topic {
-            if topic_ == topic {
-                *active_topic = None;
-            };
-        };
-
+        // Remove the session and get the removed session (if any)
         let removed_session = self.0.sessions.remove(topic).map(|(_, session)| session);
 
-        // Update active session
-        if active_topic.is_none() {}
-        if let Some(session) = self.0.sessions.iter().next() {
-            debug!("New session with topic: {} activated!", session.topic);
-            *active_topic = Some(session.topic.clone());
+        // Update active topic if necessary
+        if active_topic.as_ref() == Some(topic) {
+            // If the deleted session was the active one, find a new active session
+            *active_topic = self.0.sessions.iter().next().map(|session| session.topic.clone());
+
+            if let Some(new_active_topic) = active_topic.as_ref() {
+                debug!("New session with topic: {} activated!", new_active_topic);
+            } else {
+                debug!("No active sessions remaining");
+            }
         }
 
         removed_session
     }
 
     /// Retrieves a cloned session associated with a given topic.
-    pub fn get_session(&self, topic: &Topic) -> Option<SessionRpcInfo> {
-        self.0.sessions.get(topic).map(|(session)| SessionRpcInfo {
-            topic: topic.to_string(),
-            metadata: session.controller.metadata.clone(),
-            peer_pubkey: session.controller.public_key.clone(),
-            pairing_topic: session.pairing_topic.to_string(),
-            namespaces: session.namespaces.clone(),
-            subscription_id: session.subscription_id.clone(),
-        })
-    }
+    pub fn get_session(&self, topic: &Topic) -> Option<Ref<'_, Topic, Session>> { self.0.sessions.get(topic) }
 
     /// Retrieves a mutable reference to the session associated with a given topic.
     pub(crate) async fn get_session_mut(&self, topic: &Topic) -> Option<RefMut<'_, Topic, Session>> {
@@ -201,7 +237,7 @@ impl SessionManagement {
     }
 
     /// Returns an `Option<Session>` containing the active session if it exists; otherwise, returns `None`.
-    pub async fn get_session_active(&self) -> Option<SessionRpcInfo> {
+    pub async fn get_session_active(&self) -> Option<Ref<'_, Topic, Session>> {
         let active_topic = self.0.active_topic.lock().await;
         if let Some(ref topic) = *active_topic {
             self.get_session(topic)
@@ -223,6 +259,7 @@ impl SessionManagement {
                 pairing_topic: session.pairing_topic.to_string(),
                 namespaces: session.namespaces.clone(),
                 subscription_id: session.subscription_id,
+                properties: session.session_properties,
             })
             .collect()
     }

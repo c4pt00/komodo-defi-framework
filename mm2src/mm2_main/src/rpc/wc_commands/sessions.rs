@@ -17,7 +17,7 @@ pub async fn get_all_sessions(
 ) -> MmResult<GetSessionsResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    let sessions = ctx.session.get_sessions();
+    let sessions = ctx.session.get_sessions().map(|s| SessionRpcInfo::from(s));
 
     Ok(GetSessionsResponse { sessions })
 }
@@ -36,7 +36,10 @@ pub struct GetSessionRequest {
 pub async fn get_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<GetSessionResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    let session = ctx.session.get_session(&req.topic.into());
+    let session = ctx
+        .session
+        .get_session(&req.topic.into())
+        .map(|s| SessionRpcInfo::from(s));
 
     Ok(GetSessionResponse { session })
 }

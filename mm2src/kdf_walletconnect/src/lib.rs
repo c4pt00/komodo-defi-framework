@@ -20,7 +20,6 @@ use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
 use inbound_message::{process_inbound_request, process_inbound_response};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
-use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
 use relay_client::{websocket::{Client, PublishedMessage},
@@ -33,10 +32,12 @@ use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
                                ResponseParamsSuccess},
                       ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
 use serde_json::Value;
-use session::{key::SymKeyPair, rpc::propose::send_proposal_request, SessionManagement};
+use session::{key::SymKeyPair, SessionManagement};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
+
+use crate::session::rpc::propose::send_proposal_request;
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 const DEFAULT_CHAIN_ID: &str = "cosmoshub-4"; // tendermint e.g ATOM
@@ -146,20 +147,17 @@ impl WalletConnectCtx {
         Ok(url)
     }
 
-    /// Connect to a WalletConnect pairing url.
-    pub async fn connect_to_pairing(&self, url: &str, activate: bool) -> MmResult<Topic, WalletConnectCtxError> {
-        let topic = self.pairing.pair(url, activate).await?;
-
-        info!("Subscribing to topic: {topic:?}");
-        self.client.subscribe(topic.clone()).await?;
-        info!("Subscribed to topic: {topic:?}");
-
-        {
-            let mut subs = self.subscriptions.lock().await;
-            subs.push(topic.clone());
-        };
-
-        Ok(topic)
+    pub async fn is_keplr_from_ledger(&self) -> bool {
+        self.session
+            .get_session_active()
+            .await
+            .map(|session| {
+                session
+                    .session_properties
+                    .as_ref()
+                    .map(|props| props.keys.first().map(|key| key.is_nano_ledger))
+            })
+            .is_some()
     }
 
     pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|chain| chain == &chain_id) }
@@ -181,20 +179,13 @@ impl WalletConnectCtx {
         let namespaces = self.namespaces.lock().await;
         namespaces
             .iter()
-            .find_map(|(key, namespace)| self.find_account_in_namespace(key, namespace, chain_id))
+            .find_map(|(_key, namespace)| self.find_account_in_namespace(namespace, chain_id))
             .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
                 chain_id.to_string(),
             )))
     }
 
-    fn find_account_in_namespace(&self, namespace_key: &str, namespace: &Namespace, chain_id: &str) -> Option<String> {
-        let chains = namespace.chains.as_ref()?;
-        let key = format!("{namespace_key}:{chain_id}");
-
-        if !chains.contains(&key) {
-            return None;
-        }
-
+    fn find_account_in_namespace(&self, namespace: &Namespace, chain_id: &str) -> Option<String> {
         let accounts = namespace.accounts.as_ref()?;
 
         accounts.iter().find_map(|account_name| {

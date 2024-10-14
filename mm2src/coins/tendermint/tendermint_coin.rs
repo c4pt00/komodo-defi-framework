@@ -359,13 +359,14 @@ impl RpcCommonOps for TendermintCoin {
 
 #[derive(PartialEq)]
 pub enum TendermintWalletConnectionType {
+    Wc,
+    WcWithLedger,
     KeplrLedger,
-    WalletConnect,
-    Other,
+    Internal,
 }
 
 impl Default for TendermintWalletConnectionType {
-    fn default() -> Self { Self::Other }
+    fn default() -> Self { Self::Internal }
 }
 
 pub struct TendermintCoinImpl {
@@ -388,7 +389,7 @@ pub struct TendermintCoinImpl {
     client: TendermintRpcClient,
     pub(crate) chain_registry_name: Option<String>,
     pub(crate) ctx: MmWeak,
-    pub(crate) wallet_connection_type: TendermintWalletConnectionType,
+    pub(crate) wallet_type: TendermintWalletConnectionType,
 }
 
 #[derive(Clone)]
@@ -656,7 +657,7 @@ impl TendermintCoin {
         nodes: Vec<RpcNode>,
         tx_history: bool,
         activation_policy: TendermintActivationPolicy,
-        wallet_connection_type: Option<TendermintWalletConnectionType>,
+        wallet_type: Option<TendermintWalletConnectionType>,
     ) -> MmResult<Self, TendermintInitError> {
         if nodes.is_empty() {
             return MmError::err(TendermintInitError {
@@ -721,7 +722,7 @@ impl TendermintCoin {
             client: TendermintRpcClient(AsyncMutex::new(client_impl)),
             chain_registry_name: protocol_info.chain_registry_name,
             ctx: ctx.weak(),
-            wallet_connection_type: wallet_connection_type.unwrap_or_default(),
+            wallet_type: wallet_type.unwrap_or_default(),
         })))
     }
 
@@ -861,7 +862,7 @@ impl TendermintCoin {
                 )
             },
             TendermintActivationPolicy::PublicKey(_) => {
-                if let TendermintWalletConnectionType::WalletConnect = self.wallet_connection_type {
+                if let TendermintWalletConnectionType::Wc = self.wallet_type {
                     return try_tx_s!(
                         self.seq_safe_send_raw_tx_bytes(tx_payload, fee, timeout_height, memo)
                             .timeout(expiration)
@@ -907,8 +908,8 @@ impl TendermintCoin {
         timeout_height: u64,
         memo: String,
     ) -> Result<Raw, TransactionErr> {
-        match self.wallet_connection_type {
-            TendermintWalletConnectionType::WalletConnect => {
+        match self.wallet_type {
+            TendermintWalletConnectionType::Wc => {
                 // Handle WalletConnect signing
                 let SerializedUnsignedTx { tx_json, body_bytes: _ } =
                     try_tx_s!(self.any_to_serialized_sign_doc(account_info, tx_payload, fee, timeout_height, memo));
@@ -1284,7 +1285,7 @@ impl TendermintCoin {
             ));
         };
 
-        if let TendermintWalletConnectionType::WalletConnect = self.wallet_connection_type {
+        if let TendermintWalletConnectionType::Wc = self.wallet_type {
             let ctx = MmArc::from_weak(&self.ctx)
                 .ok_or(MyAddressError::InternalError(ERRL!("ctx must be initialized already")))?;
             let wallet_connect = WalletConnectCtx::from_ctx(&ctx)?;
@@ -1417,15 +1418,15 @@ impl TendermintCoin {
             }
         });
 
-        // if wallet_connection_type is WalletConnect, update tx_json to use WalletConnect type.
-        if self.wallet_connection_type == TendermintWalletConnectionType::WalletConnect {
+        // if wallet_type is WalletConnect, update tx_json to use WalletConnect type.
+        if self.wallet_type == TendermintWalletConnectionType::Wc {
             tx_json = json!({
                 "signerAddress": my_address,
                 "signDoc": {
                     "accountNumber": sign_doc.account_number.to_string(),
                     "chainId": sign_doc.chain_id,
-                    "bodyBytes": hex::encode(&sign_doc.body_bytes),
-                    "authInfoBytes": hex::encode(&sign_doc.auth_info_bytes)
+                    "bodyBytes": general_purpose::STANDARD.encode(&sign_doc.body_bytes),
+                    "authInfoBytes": general_purpose::STANDARD.encode(&sign_doc.auth_info_bytes)
                 }
             })
         }
@@ -2208,9 +2209,7 @@ impl TendermintCoin {
         None
     }
 
-    pub fn is_keplr_from_ledger(&self) -> bool {
-        TendermintWalletConnectionType::KeplrLedger == self.wallet_connection_type
-    }
+    pub fn is_keplr_from_ledger(&self) -> bool { TendermintWalletConnectionType::KeplrLedger == self.wallet_type }
 }
 
 fn clients_from_urls(ctx: &MmArc, nodes: Vec<RpcNode>) -> MmResult<Vec<HttpClient>, TendermintInitErrorKind> {

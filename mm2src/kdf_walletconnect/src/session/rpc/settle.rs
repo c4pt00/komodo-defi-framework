@@ -1,5 +1,5 @@
 use crate::chain::{SUPPORTED_CHAINS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
-use crate::session::{Session, THIRTY_DAYS};
+use crate::session::{Session, SessionProperties, THIRTY_DAYS};
 use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectCtxError, WalletConnectCtx};
 
@@ -29,6 +29,7 @@ pub(crate) async fn send_session_settle_request(
         controller: session_info.controller.clone(),
         namespaces: SettleNamespaces(settled_namespaces),
         expiry: Utc::now().timestamp() as u64 + THIRTY_DAYS,
+        session_properties: None,
     });
 
     ctx.publish_request(&session_info.topic, request).await?;
@@ -50,6 +51,11 @@ pub(crate) async fn reply_session_settle_request(
             session.controller = settle.controller.clone();
             session.relay = settle.relay.clone();
             session.expiry = settle.expiry;
+
+            if let Some(value) = settle.session_properties {
+                let session_properties = serde_json::from_str::<SessionProperties>(&value.to_string())?;
+                session.session_properties = Some(session_properties);
+            }
             // Update storage session.
             ctx.storage
                 .db

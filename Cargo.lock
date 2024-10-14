@@ -394,15 +394,6 @@ checksum = "6107fe1be6682a68940da878d9e9f5e90ca5745b3dec9fd1bb393c8777d4f581"
 
 [[package]]
 name = "base64"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b25d992356d2eb0ed82172f5248873db5560c4721f564b13cb5193bda5e668e"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
-name = "base64"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
@@ -1562,6 +1553,7 @@ dependencies = [
  "num-traits",
  "parking_lot 0.12.0",
  "primitives",
+ "rand 0.8.5",
  "rpc",
  "rpc_task",
  "rustc-hex",
@@ -2478,7 +2470,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcf0ed7fe52a17a03854ec54a9f76d6d84508d1c0e66bc1793301c73fc8493c"
 dependencies = [
  "byteorder",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rustc-hex",
  "static_assertions",
 ]
@@ -2664,7 +2656,7 @@ checksum = "e01fe9932a224b72b45336d96040aa86386d674a31d0af27d800ea7bc8ca97fe"
 dependencies = [
  "futures-io",
  "rustls 0.20.4",
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -3600,7 +3592,7 @@ dependencies = [
  "mm2_err_handle",
  "mm2_test_helpers",
  "pairing_api",
- "rand 0.8.4",
+ "rand 0.8.5",
  "relay_client",
  "relay_rpc",
  "secp256k1 0.20.3",
@@ -3773,7 +3765,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "pin-project",
  "quick-protobuf",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rw-stream-sink",
  "smallvec 1.6.1",
  "thiserror",
@@ -3810,7 +3802,7 @@ dependencies = [
  "log",
  "quick-protobuf",
  "quick-protobuf-codec",
- "rand 0.8.4",
+ "rand 0.8.5",
  "smallvec 1.6.1",
  "thiserror",
 ]
@@ -3838,7 +3830,7 @@ dependencies = [
  "prometheus-client",
  "quick-protobuf",
  "quick-protobuf-codec",
- "rand 0.8.4",
+ "rand 0.8.5",
  "regex",
  "sha2 0.10.7",
  "smallvec 1.6.1",
@@ -3880,7 +3872,7 @@ dependencies = [
  "log",
  "multihash",
  "quick-protobuf",
- "rand 0.8.4",
+ "rand 0.8.5",
  "sha2 0.10.7",
  "thiserror",
  "zeroize",
@@ -3898,7 +3890,7 @@ dependencies = [
  "libp2p-identity",
  "libp2p-swarm",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "smallvec 1.6.1",
  "socket2 0.5.3",
  "tokio",
@@ -3937,7 +3929,7 @@ dependencies = [
  "multihash",
  "once_cell",
  "quick-protobuf",
- "rand 0.8.4",
+ "rand 0.8.5",
  "sha2 0.10.7",
  "snow",
  "static_assertions",
@@ -3959,7 +3951,7 @@ dependencies = [
  "libp2p-identity",
  "libp2p-swarm",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "void",
 ]
 
@@ -3975,7 +3967,7 @@ dependencies = [
  "libp2p-identity",
  "libp2p-swarm",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "smallvec 1.6.1",
  "void",
 ]
@@ -3996,7 +3988,7 @@ dependencies = [
  "log",
  "multistream-select",
  "once_cell",
- "rand 0.8.4",
+ "rand 0.8.5",
  "smallvec 1.6.1",
  "tokio",
  "void",
@@ -4108,7 +4100,7 @@ dependencies = [
  "libsecp256k1-core 0.3.0",
  "libsecp256k1-gen-ecmult 0.3.0",
  "libsecp256k1-gen-genmult 0.3.0",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
  "sha2 0.9.9",
  "typenum",
@@ -5331,14 +5323,14 @@ dependencies = [
 [[package]]
 name = "pairing_api"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
 dependencies = [
  "anyhow",
  "chrono",
  "hex",
  "lazy_static",
  "paste",
- "rand 0.8.4",
+ "rand 0.8.5",
  "regex",
  "relay_client",
  "relay_rpc",
@@ -6044,14 +6036,13 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.4"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e7573632e6454cf6b99d7aac4ccca54be06da05aca2ef7423d22d27d4d4bcd8"
+checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
- "rand_hc 0.3.1",
 ]
 
 [[package]]
@@ -6133,15 +6124,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core 0.5.1",
-]
-
-[[package]]
-name = "rand_hc"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51e9f596de227fda2ea6c84607f5558e196eeaf43c986b724ba4fb8fdf497e7"
-dependencies = [
- "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -6347,7 +6329,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "relay_client"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -6363,7 +6345,6 @@ dependencies = [
  "serde_qs",
  "thiserror",
  "tokio",
- "tokio-rustls 0.10.3",
  "tokio-tungstenite-wasm 0.1.1-alpha.0 (git+https://github.com/KomodoPlatform/tokio-tungstenite-wasm.git?rev=8fc7e2f)",
  "tokio-util",
  "url",
@@ -6376,7 +6357,7 @@ dependencies = [
 [[package]]
 name = "relay_rpc"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
 dependencies = [
  "anyhow",
  "bs58 0.4.0",
@@ -6388,7 +6369,7 @@ dependencies = [
  "jsonwebtoken",
  "once_cell",
  "paste",
- "rand 0.8.4",
+ "rand 0.8.5",
  "regex",
  "serde",
  "serde-aux",
@@ -6704,27 +6685,14 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b25a18b1bf7387f0145e7f8324e700805aade3842dd3db2e74e4cdeb4677c09e"
-dependencies = [
- "base64 0.10.1",
- "log",
- "ring 0.16.20",
- "sct 0.6.1",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "rustls"
 version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fbfeb8d0ddb84706bc597a5574ab8912817c52a397f819e5b614e2265206921"
 dependencies = [
  "log",
  "ring 0.16.20",
- "sct 0.7.0",
- "webpki 0.22.0",
+ "sct",
+ "webpki",
 ]
 
 [[package]]
@@ -6736,7 +6704,7 @@ dependencies = [
  "log",
  "ring 0.17.3",
  "rustls-webpki 0.101.7",
- "sct 0.7.0",
+ "sct",
 ]
 
 [[package]]
@@ -6891,16 +6859,6 @@ dependencies = [
  "primitives",
  "serde",
  "serialization",
-]
-
-[[package]]
-name = "sct"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
-dependencies = [
- "ring 0.16.20",
- "untrusted 0.7.1",
 ]
 
 [[package]]
@@ -7447,7 +7405,7 @@ dependencies = [
  "futures 0.3.28",
  "httparse",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "sha-1",
 ]
 
@@ -8633,7 +8591,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2 0.10.7",
@@ -8788,17 +8746,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-io"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57fc868aae093479e3131e3d165c93b1c7474109d13c90ec0dda2a1bbfff0674"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.29",
- "log",
-]
-
-[[package]]
 name = "tokio-io-timeout"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8821,27 +8768,13 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d7cf08f990090abd6c6a73cab46fed62f85e8aef8b99e4b918a9f4a637f0676"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.29",
- "iovec",
- "rustls 0.16.0",
- "tokio-io",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "tokio-rustls"
 version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a27d5f2b839802bd8267fa19b0530f5a08b9c08cd417976be2a65d130fe1c11b"
 dependencies = [
  "rustls 0.20.4",
  "tokio",
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -8878,7 +8811,7 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.23.2",
  "tungstenite",
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -8995,7 +8928,7 @@ dependencies = [
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite 0.2.9",
- "rand 0.8.4",
+ "rand 0.8.5",
  "slab",
  "tokio",
  "tokio-util",
@@ -9123,7 +9056,7 @@ dependencies = [
  "idna",
  "ipnet",
  "lazy_static",
- "rand 0.8.4",
+ "rand 0.8.5",
  "smallvec 1.6.1",
  "socket2 0.4.9",
  "thiserror",
@@ -9171,13 +9104,13 @@ dependencies = [
  "http 0.2.12",
  "httparse",
  "log",
- "rand 0.8.4",
+ "rand 0.8.5",
  "rustls 0.20.4",
  "sha-1",
  "thiserror",
  "url",
  "utf-8",
- "webpki 0.22.0",
+ "webpki",
  "webpki-roots 0.22.3",
 ]
 
@@ -9349,7 +9282,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "422ee0de9031b5b948b97a8fc04e3aa35230001a722ddd27943e0be31564ce4c"
 dependencies = [
  "getrandom 0.2.9",
- "rand 0.8.4",
+ "rand 0.8.5",
  "serde",
 ]
 
@@ -9565,7 +9498,7 @@ dependencies = [
 [[package]]
 name = "wc_common"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#81753315dee132d53eac1ad6b6b18467a267a314"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
@@ -9604,7 +9537,7 @@ dependencies = [
  "log",
  "parking_lot 0.12.0",
  "pin-project",
- "rand 0.8.4",
+ "rand 0.8.5",
  "reqwest",
  "rlp",
  "serde",
@@ -9614,16 +9547,6 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
-]
-
-[[package]]
-name = "webpki"
-version = "0.21.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
-dependencies = [
- "ring 0.16.20",
- "untrusted 0.7.1",
 ]
 
 [[package]]
@@ -9642,7 +9565,7 @@ version = "0.22.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44d8de8415c823c8abd270ad483c6feeac771fad964890779f9a8cb24fbbc1bf"
 dependencies = [
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -10046,7 +9969,7 @@ dependencies = [
  "nohash-hasher",
  "parking_lot 0.12.0",
  "pin-project",
- "rand 0.8.4",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
@@ -10062,7 +9985,7 @@ dependencies = [
  "nohash-hasher",
  "parking_lot 0.12.0",
  "pin-project",
- "rand 0.8.4",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
