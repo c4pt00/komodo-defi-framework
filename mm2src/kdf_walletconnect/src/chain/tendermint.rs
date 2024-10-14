@@ -33,8 +33,8 @@ pub async fn cosmos_get_accounts_impl(
 ) -> MmResult<Vec<CosmosAccount>, WalletConnectCtxError> {
     let account = ctx.get_account_for_chain_id(chain_id).await?;
 
-    let topic = match ctx.sessin.get_session_active().await {
-        Some(session) => session.topic.clonse(;),
+    let topic = match ctx.session.get_session_active().await {
+        Some(session) => session.topic.clone(),
         None => return MmError::err(WalletConnectCtxError::NotInitialized),
     };
 

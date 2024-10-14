@@ -17,7 +17,12 @@ pub async fn get_all_sessions(
 ) -> MmResult<GetSessionsResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    let sessions = ctx.session.get_sessions().map(|s| SessionRpcInfo::from(s));
+    let sessions = ctx
+        .session
+        .get_sessions()
+        .into_iter()
+        .map(SessionRpcInfo::from)
+        .collect::<Vec<_>>();
 
     Ok(GetSessionsResponse { sessions })
 }
@@ -39,7 +44,7 @@ pub async fn get_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<GetSess
     let session = ctx
         .session
         .get_session(&req.topic.into())
-        .map(|s| SessionRpcInfo::from(s));
+        .map(|s| SessionRpcInfo::from(s.clone()));
 
     Ok(GetSessionResponse { session })
 }

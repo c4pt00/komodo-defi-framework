@@ -360,7 +360,7 @@ impl RpcCommonOps for TendermintCoin {
 #[derive(PartialEq)]
 pub enum TendermintWalletConnectionType {
     Wc,
-    WcWithLedger,
+    WcLedger,
     KeplrLedger,
     Internal,
 }
@@ -987,7 +987,7 @@ impl TendermintCoin {
         let ctx = try_tx_s!(MmArc::from_weak(&self.ctx).ok_or(ERRL!("ctx must be initialized already")));
 
         let account_info = try_tx_s!(self.account_info(&self.account_id).await);
-        let SerializedUnsignedTx { tx_json, body_bytes } = if self.is_keplr_from_ledger() {
+        let SerializedUnsignedTx { tx_json, body_bytes } = if self.is_ledger_connection() {
             try_tx_s!(self.any_to_legacy_amino_json(&account_info, tx_payload, fee, timeout_height, memo))
         } else {
             try_tx_s!(self.any_to_serialized_sign_doc(&account_info, tx_payload, fee, timeout_height, memo))
@@ -1314,7 +1314,7 @@ impl TendermintCoin {
             ));
         };
 
-        let SerializedUnsignedTx { tx_json, .. } = if self.is_keplr_from_ledger() {
+        let SerializedUnsignedTx { tx_json, .. } = if self.is_ledger_connection() {
             self.any_to_legacy_amino_json(account_info, message, fee, timeout_height, memo)
         } else {
             self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)
@@ -1408,28 +1408,31 @@ impl TendermintCoin {
         let auth_info = SignerInfo::single_direct(Some(pubkey), account_info.sequence).auth_info(fee);
         let sign_doc = SignDoc::new(&tx_body, &auth_info, &self.chain_id, account_info.account_number)?;
 
-        let my_address = self.my_address().unwrap();
-        let mut tx_json = json!({
-            "sign_doc": {
-                "body_bytes": &sign_doc.body_bytes,
-                "auth_info_bytes": sign_doc.auth_info_bytes,
-                "chain_id": sign_doc.chain_id,
-                "account_number": sign_doc.account_number,
-            }
-        });
-
-        // if wallet_type is WalletConnect, update tx_json to use WalletConnect type.
-        if self.wallet_type == TendermintWalletConnectionType::Wc {
-            tx_json = json!({
-                "signerAddress": my_address,
-                "signDoc": {
-                    "accountNumber": sign_doc.account_number.to_string(),
-                    "chainId": sign_doc.chain_id,
-                    "bodyBytes": general_purpose::STANDARD.encode(&sign_doc.body_bytes),
-                    "authInfoBytes": general_purpose::STANDARD.encode(&sign_doc.auth_info_bytes)
-                }
-            })
-        }
+        let tx_json = match self.wallet_type {
+            TendermintWalletConnectionType::Wc => {
+                // if wallet_type is WalletConnect, update tx_json to use WalletConnect type.
+                let my_address = self.my_address().unwrap();
+                json!({
+                    "signerAddress": my_address,
+                    "signDoc": {
+                        "accountNumber": sign_doc.account_number.to_string(),
+                        "chainId": sign_doc.chain_id,
+                        "bodyBytes": general_purpose::STANDARD.encode(&sign_doc.body_bytes),
+                        "authInfoBytes": general_purpose::STANDARD.encode(&sign_doc.auth_info_bytes)
+                    }
+                })
+            },
+            _ => {
+                json!({
+                    "sign_doc": {
+                        "body_bytes": &sign_doc.body_bytes,
+                        "auth_info_bytes": sign_doc.auth_info_bytes,
+                        "chain_id": sign_doc.chain_id,
+                        "account_number": sign_doc.account_number,
+                    }
+                })
+            },
+        };
 
         Ok(SerializedUnsignedTx {
             tx_json,
@@ -2209,7 +2212,12 @@ impl TendermintCoin {
         None
     }
 
-    pub fn is_keplr_from_ledger(&self) -> bool { TendermintWalletConnectionType::KeplrLedger == self.wallet_type }
+    pub fn is_ledger_connection(&self) -> bool {
+        matches!(
+            self.wallet_type,
+            TendermintWalletConnectionType::WcLedger | TendermintWalletConnectionType::KeplrLedger
+        )
+    }
 }
 
 fn clients_from_urls(ctx: &MmArc, nodes: Vec<RpcNode>) -> MmResult<Vec<HttpClient>, TendermintInitErrorKind> {
@@ -2294,7 +2302,7 @@ impl MmCoin for TendermintCoin {
         let coin_conf = crate::coin_conf(ctx, self.ticker());
         let wallet_only_conf = coin_conf["wallet_only"].as_bool().unwrap_or(false);
 
-        wallet_only_conf || self.is_keplr_from_ledger()
+        wallet_only_conf || self.is_ledger_connection()
     }
 
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
@@ -2378,7 +2386,7 @@ impl MmCoin for TendermintCoin {
                 )
                 .await?;
 
-            let fee_amount_u64 = if coin.is_keplr_from_ledger() {
+            let fee_amount_u64 = if coin.is_ledger_connection() {
                 // When using `SIGN_MODE_LEGACY_AMINO_JSON`, Keplr ignores the fee we calculated
                 // and calculates another one which is usually double what we calculate.
                 // To make sure the transaction doesn't fail on the Keplr side (because if Keplr

@@ -55,7 +55,7 @@ pub enum TendermintPubkeyActivationParams {
     WithPubkey {
         #[serde(deserialize_with = "deserialize_account_public_key")]
         pubkey: TendermintPublicKey,
-        is_keplr_from_ledger: bool,
+        is_ledger_connection: bool,
     },
     /// Activation via WalletConnect
     WalletConnect(WalletConnectParams),
@@ -242,6 +242,7 @@ async fn get_walletconnect_pubkey(
     param: &WalletConnectParams,
     chain_id: &str,
     ticker: &str,
+    wallet_type: &mut TendermintWalletConnectionType,
 ) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
     if ctx.is_watcher() || ctx.use_watchers() {
         return MmError::err(TendermintInitError {
@@ -270,6 +271,12 @@ async fn get_walletconnect_pubkey(
         kind: TendermintInitErrorKind::Internal(e),
     })?;
 
+    if walletconnect_ctx.is_ledger_connection().await {
+        *wallet_type = TendermintWalletConnectionType::WcLedger;
+    } else {
+        *wallet_type = TendermintWalletConnectionType::Wc;
+    };
+
     Ok(TendermintActivationPolicy::with_public_key(pubkey))
 }
 
@@ -292,7 +299,7 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
         protocol_conf: Self::PlatformProtocolInfo,
     ) -> Result<Self, MmError<Self::ActivationError>> {
         let conf = TendermintConf::try_from_json(&ticker, coin_conf)?;
-        let mut wallet_connectin_type = TendermintWalletConnectionType::Other;
+        let mut wallet_connectin_type = TendermintWalletConnectionType::Internal;
 
         let activation_policy = if let Some(params) = activation_request.activation_params {
             if ctx.is_watcher() || ctx.use_watchers() {
@@ -305,17 +312,23 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
             match params {
                 TendermintPubkeyActivationParams::WithPubkey {
                     pubkey,
-                    is_keplr_from_ledger,
+                    is_ledger_connection,
                 } => {
-                    if is_keplr_from_ledger {
+                    if is_ledger_connection {
                         wallet_connectin_type = TendermintWalletConnectionType::KeplrLedger;
                     };
 
                     TendermintActivationPolicy::with_public_key(pubkey)
                 },
                 TendermintPubkeyActivationParams::WalletConnect(params) => {
-                    wallet_connectin_type = TendermintWalletConnectionType::WalletConnect;
-                    get_walletconnect_pubkey(&ctx, &params, protocol_conf.chain_id.as_ref(), &ticker).await?
+                    get_walletconnect_pubkey(
+                        &ctx,
+                        &params,
+                        protocol_conf.chain_id.as_ref(),
+                        &ticker,
+                        &mut wallet_connectin_type,
+                    )
+                    .await?
                 },
             }
         } else {

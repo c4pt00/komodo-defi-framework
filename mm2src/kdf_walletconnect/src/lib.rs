@@ -147,7 +147,7 @@ impl WalletConnectCtx {
         Ok(url)
     }
 
-    pub async fn is_keplr_from_ledger(&self) -> bool {
+    pub async fn is_ledger_connection(&self) -> bool {
         self.session
             .get_session_active()
             .await

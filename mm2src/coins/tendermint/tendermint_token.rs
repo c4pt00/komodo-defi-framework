@@ -476,7 +476,7 @@ impl MmCoin for TendermintToken {
         let coin_conf = crate::coin_conf(ctx, self.ticker());
         let wallet_only_conf = coin_conf["wallet_only"].as_bool().unwrap_or(false);
 
-        wallet_only_conf || self.platform_coin.is_keplr_from_ledger()
+        wallet_only_conf || self.platform_coin.is_ledger_connection()
     }
 
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
