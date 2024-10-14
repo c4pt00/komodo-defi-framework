@@ -6,7 +6,7 @@ use common::now_sec;
 use mm2_err_handle::mm_error::MmError;
 use mm2_err_handle::prelude::*;
 use sia_rust::transport::endpoints::GetAddressUtxosResponse;
-use sia_rust::types::{Address, Currency, SpendPolicy, SiacoinOutput, V2TransactionBuilder, Keypair};
+use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::str::FromStr;
 
 pub struct SiaWithdrawBuilder<'a> {
@@ -20,9 +20,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
     #[allow(clippy::result_large_err)]
     pub fn new(coin: &'a SiaCoin, req: WithdrawRequest) -> Result<Self, MmError<WithdrawError>> {
         let (key_pair, from_address) = match &*coin.priv_key_policy {
-            PrivKeyPolicy::Iguana(key_pair) => {
-                (key_pair, key_pair.public().address())
-            },
+            PrivKeyPolicy::Iguana(key_pair) => (key_pair, key_pair.public().address()),
             _ => {
                 return Err(WithdrawError::UnsupportedError(
                     "Only Iguana keypair is supported for Sia coin for now!".to_string(),

@@ -5,15 +5,14 @@ use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
             NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult,
-            SearchForSwapTxSpendInput, SendMakerPaymentSpendPreimageInput, SendPaymentArgs,
-            SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult,
-            TradePreimageValue, TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult,
-            ValidateFeeArgs, ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError,
-            ValidatePaymentFut, ValidatePaymentInput, ValidatePaymentResult, ValidateWatcherSpendInput,
-            VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError,
-            WatcherSearchForSwapTxSpendInput, WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut,
-            WithdrawRequest};
+            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
+            SendMakerPaymentSpendPreimageInput, SendPaymentArgs, SignatureResult, SpendPaymentArgs,
+            TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue, TransactionResult,
+            TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
+            ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
+            ValidatePaymentInput, ValidatePaymentResult, ValidateWatcherSpendInput, VerificationResult,
+            WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput,
+            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
@@ -30,13 +29,14 @@ use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
 use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
 use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
-                                TxpoolBroadcastRequest};
-use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, V1Transaction, V2Transaction, Keypair as SiaKeypair, KeypairError};
+                                     TxpoolBroadcastRequest};
+use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
+                      KeypairError, V1Transaction, V2Transaction};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+use std::sync::{Arc, Mutex};
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
@@ -102,7 +102,7 @@ pub async fn sia_coin_from_conf_and_request(
         _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
     };
     let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
-    let conf : SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinBuildError::InvalidConf)?;
+    let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinBuildError::InvalidConf)?;
     SiaCoinBuilder::new(ctx, ticker, conf, key_pair, request).build().await
 }
 
@@ -143,13 +143,19 @@ impl<'a> SiaCoinBuilder<'a> {
         };
 
         // Use required_confirmations from activation request if it's set, otherwise use the value from coins conf
-        let required_confirmations : AtomicU64  = self.request.required_confirmations.unwrap_or_else(|| self.conf.required_confirmations).into();
+        let required_confirmations: AtomicU64 = self
+            .request
+            .required_confirmations
+            .unwrap_or_else(|| self.conf.required_confirmations)
+            .into();
 
         Ok(SiaCoin {
             conf: self.conf,
-            client: Arc::new(SiaClientType::new(self.request.client_conf.clone())
-                .await
-                .map_to_mm(SiaCoinBuildError::ClientError)?),
+            client: Arc::new(
+                SiaClientType::new(self.request.client_conf.clone())
+                    .await
+                    .map_to_mm(SiaCoinBuildError::ClientError)?,
+            ),
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair).into(),
             history_sync_state: Mutex::new(history_sync_state).into(),
             abortable_system,

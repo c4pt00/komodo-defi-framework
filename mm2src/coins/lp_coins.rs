@@ -255,7 +255,8 @@ pub use test_coin::TestCoin;
 pub mod tx_history_storage;
 
 #[cfg(feature = "enable-sia")] pub mod siacoin;
-#[cfg(feature = "enable-sia")] use siacoin::{SiaCoin, SiaFeeDetails, SiaTransactionTypes};
+#[cfg(feature = "enable-sia")]
+use siacoin::{SiaCoin, SiaFeeDetails, SiaTransactionTypes};
 
 pub mod utxo;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
@@ -2043,7 +2044,9 @@ pub trait MarketCoinOps {
     /// Signs raw utxo transaction in hexadecimal format as input and returns signed transaction in hexadecimal format
     /// This method is only used by the sign_raw_transaction RPC method. Optional to implement.
     async fn sign_raw_tx(&self, _args: &SignRawTransactionRequest) -> RawTransactionResult {
-        MmError::err(RawTransactionError::NotImplemented{ coin: self.ticker().to_string() })
+        MmError::err(RawTransactionError::NotImplemented {
+            coin: self.ticker().to_string(),
+        })
     }
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send>;
