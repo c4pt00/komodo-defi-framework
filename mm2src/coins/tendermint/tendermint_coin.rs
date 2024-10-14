@@ -851,7 +851,10 @@ impl TendermintCoin {
         // As there wouldn't be enough time to process the data, to mitigate potential edge problems (such as attempting to send transaction
         // bytes half a second before expiration, which may take longer to send and result in the transaction amount being wasted due to a timeout),
         // reduce the expiration time by 5 seconds.
-        let expiration = timeout - Duration::from_secs(5);
+        const SAFETY_MARGIN: Duration = Duration::from_secs(5);
+        let expiration = try_tx_s!(timeout
+            .checked_sub(SAFETY_MARGIN)
+            .ok_or("Timeout duration is too short"));
 
         match self.activation_policy {
             TendermintActivationPolicy::PrivateKey(_) => {
@@ -861,20 +864,17 @@ impl TendermintCoin {
                         .await
                 )
             },
-            TendermintActivationPolicy::PublicKey(_) => {
-                if let TendermintWalletConnectionType::Wc = self.wallet_type {
-                    return try_tx_s!(
-                        self.seq_safe_send_raw_tx_bytes(tx_payload, fee, timeout_height, memo)
-                            .timeout(expiration)
-                            .await
-                    );
-                };
-
-                try_tx_s!(
+            TendermintActivationPolicy::PublicKey(_) => match self.wallet_type {
+                TendermintWalletConnectionType::WcLedger | TendermintWalletConnectionType::Wc => try_tx_s!(
+                    self.seq_safe_send_raw_tx_bytes(tx_payload, fee, timeout_height, memo)
+                        .timeout(expiration)
+                        .await
+                ),
+                _ => try_tx_s!(
                     self.send_unsigned_tx_externally(tx_payload, fee, timeout_height, memo, expiration)
                         .timeout(expiration)
                         .await
-                )
+                ),
             },
         }
     }
@@ -909,7 +909,7 @@ impl TendermintCoin {
         memo: String,
     ) -> Result<Raw, TransactionErr> {
         match self.wallet_type {
-            TendermintWalletConnectionType::Wc => {
+            TendermintWalletConnectionType::Wc | TendermintWalletConnectionType::WcLedger => {
                 // Handle WalletConnect signing
                 let SerializedUnsignedTx { tx_json, body_bytes: _ } =
                     try_tx_s!(self.any_to_serialized_sign_doc(account_info, tx_payload, fee, timeout_height, memo));
