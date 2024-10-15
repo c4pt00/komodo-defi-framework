@@ -20,8 +20,9 @@ impl OrderbookStreamer {
 #[derive(Serialize)]
 #[serde(tag = "order_type", content = "order_data")]
 pub enum OrderbookItemChangeEvent {
+    // NOTE(clippy): This is box-ed due to in-balance of the size of enum variants.
     /// New or updated orderbook item.
-    NewOrUpdatedItem(OrderbookP2PItem),
+    NewOrUpdatedItem(Box<OrderbookP2PItem>),
     /// Removed orderbook item (only UUID is relevant in this case).
     RemovedItem(Uuid),
 }

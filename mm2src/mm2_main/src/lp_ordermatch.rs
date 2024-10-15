@@ -2652,7 +2652,7 @@ impl Orderbook {
 
         self.streaming_manager
             .send_fn(&OrderbookStreamer::derive_streamer_id(&order.base, &order.rel), || {
-                OrderbookItemChangeEvent::NewOrUpdatedItem(order.clone().into())
+                OrderbookItemChangeEvent::NewOrUpdatedItem(Box::new(order.clone().into()))
             })
             .ok();
         self.order_set.insert(order.uuid, order);
