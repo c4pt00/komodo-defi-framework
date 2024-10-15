@@ -3533,6 +3533,7 @@ impl SpawnAbortable for CoinFutSpawner {
     }
 }
 
+// FIXME Alright this must be a trait - this causes so much pain throughout the codebase as its used extensively
 #[derive(Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum MmCoinEnum {
