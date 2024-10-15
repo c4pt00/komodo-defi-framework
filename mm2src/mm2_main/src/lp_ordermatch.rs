@@ -42,6 +42,7 @@ use http::Response;
 use keys::{AddressFormat, KeyPair};
 use mm2_core::mm_ctx::{from_ctx, MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
+use mm2_event_stream::StreamingManager;
 use mm2_libp2p::{decode_signed, encode_and_sign, encode_message, pub_sub_topic, PublicKey, TopicHash, TopicPrefix,
                  TOPIC_SEPARATOR};
 use mm2_metrics::mm_gauge;
@@ -55,6 +56,7 @@ use my_orders_storage::{delete_my_maker_order, delete_my_taker_order, save_maker
                         MyOrdersHistory, MyOrdersStorage};
 use num_traits::identities::Zero;
 use order_events::{OrderStatusEvent, OrderStatusStreamer};
+use orderbook_events::{OrderbookItemChangeEvent, OrderbookStreamer};
 use parking_lot::Mutex as PaMutex;
 use rpc::v1::types::H256 as H256Json;
 use serde_json::{self as json, Value as Json};
@@ -106,6 +108,7 @@ mod new_protocol;
 pub(crate) mod order_events;
 mod order_requests_tracker;
 mod orderbook_depth;
+pub(crate) mod orderbook_events;
 mod orderbook_rpc;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "ordermatch_tests.rs"]
@@ -2512,6 +2515,8 @@ struct Orderbook {
     /// MemoryDB instance to store Patricia Tries data
     memory_db: MemoryDB<Blake2Hasher64>,
     my_p2p_pubkeys: HashSet<String>,
+    /// A copy of the streaming manager to stream orderbook events out.
+    streaming_manager: StreamingManager,
 }
 
 impl Default for Orderbook {
@@ -2527,6 +2532,7 @@ impl Default for Orderbook {
             topics_subscribed_to: HashMap::default(),
             memory_db: MemoryDB::default(),
             my_p2p_pubkeys: HashSet::default(),
+            streaming_manager: Default::default(),
         }
     }
 }
@@ -2534,6 +2540,13 @@ impl Default for Orderbook {
 fn hashed_null_node<T: TrieConfiguration>() -> TrieHash<T> { <T::Codec as NodeCodecT>::hashed_null_node() }
 
 impl Orderbook {
+    fn new(streaming_manager: StreamingManager) -> Orderbook {
+        Orderbook {
+            streaming_manager,
+            ..Default::default()
+        }
+    }
+
     fn find_order_by_uuid_and_pubkey(&self, uuid: &Uuid, from_pubkey: &str) -> Option<OrderbookItem> {
         self.order_set.get(uuid).and_then(|order| {
             if order.pubkey == from_pubkey {
@@ -2637,6 +2650,11 @@ impl Orderbook {
             .or_insert_with(HashSet::new)
             .insert(order.uuid);
 
+        self.streaming_manager
+            .send_fn(&OrderbookStreamer::derive_streamer_id(&order.base, &order.rel), || {
+                OrderbookItemChangeEvent::NewOrUpdatedItem(order.clone().into())
+            })
+            .ok();
         self.order_set.insert(order.uuid, order);
     }
 
@@ -2694,6 +2712,12 @@ impl Orderbook {
                 next_root: *pair_state,
             });
         }
+
+        self.streaming_manager
+            .send_fn(&OrderbookStreamer::derive_streamer_id(&order.base, &order.rel), || {
+                OrderbookItemChangeEvent::RemovedItem(order.uuid)
+            })
+            .ok();
         Some(order)
     }
 
@@ -2795,7 +2819,7 @@ pub fn init_ordermatch_context(ctx: &MmArc) -> OrdermatchInitResult<()> {
     let ordermatch_context = OrdermatchContext {
         maker_orders_ctx: PaMutex::new(MakerOrdersContext::new(ctx)?),
         my_taker_orders: Default::default(),
-        orderbook: Default::default(),
+        orderbook: PaMutex::new(Orderbook::new(ctx.event_stream_manager.clone())),
         pending_maker_reserved: Default::default(),
         orderbook_tickers,
         original_tickers,
@@ -2825,7 +2849,7 @@ impl OrdermatchContext {
             Ok(OrdermatchContext {
                 maker_orders_ctx: PaMutex::new(try_s!(MakerOrdersContext::new(ctx))),
                 my_taker_orders: Default::default(),
-                orderbook: Default::default(),
+                orderbook: PaMutex::new(Orderbook::new(ctx.event_stream_manager.clone())),
                 pending_maker_reserved: Default::default(),
                 orderbook_tickers: Default::default(),
                 original_tickers: Default::default(),
@@ -4039,7 +4063,7 @@ pub async fn lp_auto_buy(
 /// Orderbook Item P2P message
 /// DO NOT CHANGE - it will break backwards compatibility
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct OrderbookP2PItem {
+pub struct OrderbookP2PItem {
     pubkey: String,
     base: String,
     rel: String,
