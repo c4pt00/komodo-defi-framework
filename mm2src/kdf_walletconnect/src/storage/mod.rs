@@ -165,7 +165,6 @@ pub(crate) mod session_storage_tests {
             .await
             .unwrap()
             .unwrap();
-        assert_ne!(modified_sample_session, sample_session);
         assert_ne!(sample_session.expiry, db_session.expiry);
 
         assert_eq!(modified_sample_session, db_session);

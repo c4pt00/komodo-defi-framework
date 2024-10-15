@@ -162,7 +162,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
             let session_data = serde_json::to_string(&session).map_err(|err| AsyncConnError::from(err.to_string()))?;
             let params = [session_data, session.expiry.to_string(), session.topic.to_string()];
             let _row = conn.prepare(&sql)?.execute(params)?;
-            println!("{_row}");
 
             Ok(())
         })

@@ -354,7 +354,6 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    #[allow(unused)]
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectCtxError> {
         let sessions = self
             .storage
