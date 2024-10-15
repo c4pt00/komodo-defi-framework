@@ -35,6 +35,7 @@ use serde_json::Value;
 use session::{key::SymKeyPair, SessionManagement};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
+use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 use crate::session::rpc::propose::send_proposal_request;
@@ -62,6 +63,12 @@ pub struct WalletConnectCtx {
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
     session_request_sender: Arc<Mutex<UnboundedSender<SessionEventMessage>>>,
     session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
+}
+
+impl Drop for WalletConnectCtx {
+    fn drop(&mut self) {
+        println!("drop");
+    }
 }
 
 impl WalletConnectCtx {
@@ -152,10 +159,12 @@ impl WalletConnectCtx {
             .get_session_active()
             .await
             .map(|session| {
-                session
-                    .session_properties
-                    .as_ref()
-                    .map(|props| props.keys.first().map(|key| key.is_nano_ledger))
+                session.session_properties.as_ref().map(|props| {
+                    props
+                        .keys
+                        .as_ref()
+                        .map(|keys| keys.first().map(|key| key.is_nano_ledger))
+                })
             })
             .is_some()
     }
@@ -347,22 +356,23 @@ impl WalletConnectCtx {
 
     #[allow(unused)]
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectCtxError> {
-        //let sessions = self
-        //    .storage
-        //    .db
-        //    .get_all_sessions()
-        //    .await
-        //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
-        //if let Some(session) = sessions.first() {
-        //    info!("Session found! activating :{}", session.topic);
-        //
-        //    let mut ctx_session = self.session.lock().await;
-        //    *ctx_session = Some(session.clone());
-        //
-        //    // subcribe to session topics
-        //    self.client.subscribe(session.topic.clone()).await?;
-        //self.client.subscribe(session.pairing_topic.clone()).await?;
-        //}
+        let sessions = self
+            .storage
+            .get_all_sessions()
+            .await
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+
+        for session in sessions {
+            let topic = session.topic.clone();
+            let pairing_topic = session.pairing_topic.clone();
+
+            info!("Session found! activating :{}", topic);
+            self.session.add_session(session).await;
+
+            // subcribe to session topics
+            self.client.subscribe(topic).await?;
+            self.client.subscribe(pairing_topic).await?;
+        }
 
         Ok(())
     }
@@ -371,8 +381,13 @@ impl WalletConnectCtx {
 /// This function spwans related WalletConnect related tasks and needed initialization before
 /// WalletConnect can be usable in KDF.
 pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectCtxError> {
+    info!("Initializing WalletConnect");
+
     // Initialized WalletConnectCtx
     let wallet_connect = WalletConnectCtx::from_ctx(ctx)?;
+
+    // Intialize storage.
+    wallet_connect.storage.init().await.unwrap();
 
     // WalletConnectCtx is initialized, now we can connect to relayer client and spawn a watcher
     // loop for disconnection.
@@ -381,8 +396,7 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
     // spawn message handler event loop
     ctx.spawner().spawn(wallet_connect.message_handler_event_loop());
 
-    // load session from storage
-    // wallet_connect.load_session_from_storage().await?;
+    info!("WalletConnect initialization completed successfully");
 
     Ok(())
 }

@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use async_trait::async_trait;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::MmResult;
@@ -22,40 +24,39 @@ pub(crate) trait WalletConnectStorageOps {
     async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error>;
 }
 
-pub(crate) struct SessionStorageDb {
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) db: indexed_db::IDBSessionStorage,
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) db: sqlite::SqliteSessionStorage,
+#[cfg(target_arch = "wasm32")]
+type DB = indexed_db::IDBSessionStorage;
+#[cfg(not(target_arch = "wasm32"))]
+type DB = sqlite::SqliteSessionStorage;
+
+pub(crate) struct SessionStorageDb(DB);
+
+impl Deref for SessionStorageDb {
+    type Target = DB;
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl SessionStorageDb {
     pub(crate) fn init(ctx: &MmArc) -> MmResult<Self, WalletConnectCtxError> {
-        let selfi = SessionStorageDb {
-            #[cfg(target_arch = "wasm32")]
-            db: indexed_db::IDBSessionStorage::new(ctx)
-                .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?,
-            #[cfg(not(target_arch = "wasm32"))]
-            db: sqlite::SqliteSessionStorage::new(ctx).mm_err(WalletConnectCtxError::StorageError)?,
-        };
+        #[cfg(target_arch = "wasm32")]
+        let db = indexed_db::IDBSessionStorage::new(ctx)
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let db = sqlite::SqliteSessionStorage::new(ctx).mm_err(WalletConnectCtxError::StorageError)?;
 
-        Ok(selfi)
+        Ok(SessionStorageDb(db))
     }
 }
 
-#[cfg(ignore)]
 #[cfg(test)]
 pub(crate) mod session_storage_tests {
-
-    #[cfg(target_arch = "wasm32")]
     common::cfg_wasm32! {
         use wasm_bindgen_test::*;
         wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     }
     use common::cross_test;
     use mm2_test_helpers::for_tests::mm_ctx_with_custom_async_db;
-    use relay_rpc::{domain::{SubscriptionId, Topic},
-                    rpc::params::Metadata};
+    use relay_rpc::{domain::SubscriptionId, rpc::params::Metadata};
 
     use crate::{session::key::SessionKey,
                 session::{Session, SessionType},
@@ -63,9 +64,7 @@ pub(crate) mod session_storage_tests {
 
     use super::WalletConnectStorageOps;
 
-    cross_test!(save_session_impl, {
-        let mm_ctx = mm_ctx_with_custom_async_db().await;
-        let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
+    fn sample_test_session(wc_ctx: &WalletConnectCtx) -> Session {
         let session_key = SessionKey {
             sym_key: [
                 115, 159, 247, 31, 199, 84, 88, 59, 158, 252, 98, 225, 51, 125, 201, 239, 142, 34, 9, 201, 128, 114,
@@ -77,21 +76,99 @@ pub(crate) mod session_storage_tests {
             ],
         };
 
-        let session = Session::new(
-            &wc_ctx,
-            Topic::generate(),
+        Session::new(
+            wc_ctx,
+            "bb89e3bae8cb89e5549f4d9bcc5a1ac2aae6dd90ef37eb2f59d80c5773f36343".into(),
             SubscriptionId::generate(),
             session_key,
-            Topic::generate(),
+            "5af44bdf8d6b11f4635c964a15e9e2d50942534824791757b2c26528e8feef39".into(),
             Metadata::default(),
             SessionType::Controller,
-        );
+        )
+    }
+
+    cross_test!(save_and_get_session_test, {
+        let mm_ctx = mm_ctx_with_custom_async_db().await;
+        let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
+        wc_ctx.storage.init().await.unwrap();
+
+        let sample_session = sample_test_session(&wc_ctx);
 
         // try save session
-        wc_ctx.storage.db.save_session(&session).await.unwrap();
+        wc_ctx.storage.save_session(&sample_session).await.unwrap();
 
         // try get session
-        let db_session = wc_ctx.storage.db.get_session(&session.topic).await.unwrap();
-        assert_eq!(session, db_session.unwrap());
+        let db_session = wc_ctx.storage.get_session(&sample_session.topic).await.unwrap();
+        assert_eq!(sample_session, db_session.unwrap());
+    });
+
+    cross_test!(delete_session_test, {
+        let mm_ctx = mm_ctx_with_custom_async_db().await;
+        let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
+        wc_ctx.storage.init().await.unwrap();
+
+        let sample_session = sample_test_session(&wc_ctx);
+
+        // try save session
+        wc_ctx.storage.save_session(&sample_session).await.unwrap();
+
+        // try get session
+        let db_session = wc_ctx
+            .storage
+            .get_session(&sample_session.topic)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(sample_session, db_session);
+
+        // try delete session
+        wc_ctx.storage.delete_session(&db_session.topic).await.unwrap();
+
+        // try get_session deleted again
+        let db_session = wc_ctx.storage.get_session(&db_session.topic).await;
+        assert!(db_session.is_err());
+    });
+
+    cross_test!(update_session_test, {
+        let mm_ctx = mm_ctx_with_custom_async_db().await;
+        let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
+        wc_ctx.storage.init().await.unwrap();
+
+        let sample_session = sample_test_session(&wc_ctx);
+
+        // try save session
+        wc_ctx.storage.save_session(&sample_session).await.unwrap();
+
+        // try get session
+        let db_session = wc_ctx
+            .storage
+            .get_session(&sample_session.topic)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(sample_session, db_session);
+
+        // modify sample_session
+        let mut modified_sample_session = sample_session.clone();
+        modified_sample_session.expiry = 100;
+
+        // assert that original session expiry isn't the same as our new expiry.
+        assert_ne!(sample_session.expiry, modified_sample_session.expiry);
+
+        // try update session
+        wc_ctx.storage.update_session(&modified_sample_session).await.unwrap();
+
+        // try get_session again with new updated expiry
+        let db_session = wc_ctx
+            .storage
+            .get_session(&sample_session.topic)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(modified_sample_session, sample_session);
+        assert_ne!(sample_session.expiry, db_session.expiry);
+
+        assert_eq!(modified_sample_session, db_session);
+        assert_eq!(100, db_session.expiry);
     });
 }

@@ -58,7 +58,6 @@ pub(crate) async fn reply_session_settle_request(
             }
             // Update storage session.
             ctx.storage
-                .db
                 .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;

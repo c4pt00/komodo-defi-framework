@@ -1,4 +1,5 @@
 use super::settle::send_session_settle_request;
+use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectCtxError,
             metadata::generate_metadata,
             session::{Session, SessionKey, SessionType, THIRTY_DAYS},
@@ -70,11 +71,10 @@ pub async fn reply_session_proposal_request(
 
     {
         // save session to storage
-        //ctx.storage
-        //    .db
-        //    .save_session(&session)
-        //    .await
-        //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        ctx.storage
+            .save_session(&session)
+            .await
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
         // Add session to session lists
         ctx.session.add_session(session.clone()).await;
@@ -134,11 +134,10 @@ pub(crate) async fn process_session_propose_response(
 
     {
         // save session to storage
-        //ctx.storage
-        //    .db
-        //    .save_session(&session)
-        //    .await
-        //    .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+        ctx.storage
+            .save_session(&session)
+            .await
+            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
         // Add session to session lists
         ctx.session.add_session(session.clone()).await;

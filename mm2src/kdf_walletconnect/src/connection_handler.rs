@@ -86,6 +86,11 @@ async fn initial_connection(this: &WalletConnectCtx) {
     }
 
     info!("Successfully connected to client after {} attempt(s).", retry_count + 1);
+
+    // load session from storage
+    if let Err(err) = this.load_session_from_storage().await {
+        error!("Unable to load session from storage: {err:?}");
+    };
 }
 
 async fn handle_disconnections(this: &WalletConnectCtx) {

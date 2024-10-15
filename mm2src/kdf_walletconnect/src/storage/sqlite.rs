@@ -12,24 +12,16 @@ use std::sync::Arc;
 use super::WalletConnectStorageOps;
 use crate::session::Session;
 
-const SESSION_TBALE_NAME: &str = "session";
+const SESSION_TABLE_NAME: &str = "wc_session";
 
 /// Sessions table
 fn create_sessions_table() -> SqlResult<String> {
-    validate_table_name(SESSION_TBALE_NAME)?;
+    validate_table_name(SESSION_TABLE_NAME)?;
     Ok(format!(
-        "CREATE TABLE IF NOT EXISTS {SESSION_TBALE_NAME} (
+        "CREATE TABLE IF NOT EXISTS {SESSION_TABLE_NAME} (
         topic VARCHAR(255) PRIMARY KEY,
-        subscription_id VARCHAR(255) NOT NULL,
-        session_key TEXT NOT NULL,
-        expiry BIGINT NOT NULL,
-        pairing_topic VARCHAR(255) NOT NULL,
-        session_type VARCHAR(50) NOT NULL,
-        proposer TEXT NOT NULL,
-        controller TEXT NOT NULL,
-        relay TEXT NOT NULL,
-        namespaces TEXT,
-        proposed_namespace TEXT
+        data TEXT NOT NULL,
+        expiry BIGINT NOT NULL
     );"
     ))
 }
@@ -67,9 +59,10 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn is_initialized(&self) -> MmResult<bool, Self::Error> {
         let lock = self.lock_db().await;
-        validate_table_name(SESSION_TBALE_NAME).map_err(AsyncConnError::from)?;
+        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
+
         lock.call(move |conn| {
-            let initialized = query_single_row(conn, CHECK_TABLE_EXISTS_SQL, [SESSION_TBALE_NAME], string_from_row)?;
+            let initialized = query_single_row(conn, CHECK_TABLE_EXISTS_SQL, [SESSION_TABLE_NAME], string_from_row)?;
             Ok(initialized.is_some())
         })
         .await
@@ -77,46 +70,21 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
     }
 
     async fn save_session(&self, session: &Session) -> MmResult<(), Self::Error> {
+        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
         let lock = self.lock_db().await;
-        validate_table_name(SESSION_TBALE_NAME).map_err(AsyncConnError::from)?;
-        let sql = format!(
-            "INSERT INTO {} (
-            topic, subscription_id, session_key, expiry, pairing_topic, session_type, proposer, controller, relay, namespace, propose_namespaces
-        ) VALUES (
-            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11
-        );",
-            SESSION_TBALE_NAME
-        );
 
         let session = session.clone();
         lock.call(move |conn| {
+            let sql = format!(
+                "INSERT INTO {} (topic, data, expiry) VALUES (?1, ?2, ?3);",
+                SESSION_TABLE_NAME
+            );
             let transaction = conn.transaction()?;
 
-            //let session_key =
-            //    serde_json::to_string(&session.session_key).map_err(|err| AsyncConnError::from(err.to_string()))?;
-            let relay = serde_json::to_string(&session.relay).map_err(|err| AsyncConnError::from(err.to_string()))?;
-            let proposer =
-                serde_json::to_string(&session.proposer).map_err(|err| AsyncConnError::from(err.to_string()))?;
-            let controller =
-                serde_json::to_string(&session.controller).map_err(|err| AsyncConnError::from(err.to_string()))?;
-            let namespaces =
-                serde_json::to_string(&session.namespaces).map_err(|err| AsyncConnError::from(err.to_string()))?;
-            let propose_namespaces = serde_json::to_string(&session.propose_namespaces)
-                .map_err(|err| AsyncConnError::from(err.to_string()))?;
+            let session_data = serde_json::to_string(&session).map_err(|err| AsyncConnError::from(err.to_string()))?;
 
-            let params = [
-                session.topic.to_string(),
-                session.subscription_id.to_string(),
-                "session_key".to_string(),
-                session.expiry.to_string(),
-                session.pairing_topic.to_string(),
-                session.session_type.to_string(),
-                proposer,
-                controller,
-                relay,
-                namespaces,
-                propose_namespaces,
-            ];
+            let params = [session.topic.to_string(), session_data, session.expiry.to_string()];
+
             transaction.execute(&sql, params)?;
             transaction.commit()?;
 
@@ -126,11 +94,79 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
         .map_to_mm(AsyncConnError::from)
     }
 
-    async fn get_session(&self, _topic: &Topic) -> MmResult<Option<Session>, Self::Error> { Ok(None) }
+    async fn get_session(&self, topic: &Topic) -> MmResult<Option<Session>, Self::Error> {
+        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
+        let lock = self.lock_db().await;
+        let topic = topic.clone();
+        let session_str = lock
+            .call(move |conn| {
+                let sql = format!("SELECT topic, data, expiry FROM {} WHERE topic=?1;", SESSION_TABLE_NAME);
+                let mut stmt = conn.prepare(&sql)?;
+                let session: String = stmt.query_row([topic.to_string()], |row| row.get::<_, String>(1))?;
+                Ok(session)
+            })
+            .await
+            .map_to_mm(AsyncConnError::from)?;
 
-    async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error> { Ok(vec![]) }
+        let session = serde_json::from_str(&session_str).map_to_mm(|err| AsyncConnError::from(err.to_string()))?;
+        Ok(session)
+    }
 
-    async fn delete_session(&self, _topic: &Topic) -> MmResult<(), Self::Error> { todo!() }
+    async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error> {
+        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
+        let lock = self.lock_db().await;
+        let sessions_str = lock
+            .call(move |conn| {
+                let sql = format!("SELECT topic, data, expiry FROM {};", SESSION_TABLE_NAME);
+                let mut stmt = conn.prepare(&sql)?;
+                let sessions = stmt.query_map([], |row| row.get::<_, String>(1))?.collect::<Vec<_>>();
+                Ok(sessions)
+            })
+            .await
+            .map_to_mm(AsyncConnError::from)?;
 
-    async fn update_session(&self, _session: &Session) -> MmResult<(), Self::Error> { Ok(()) }
+        let mut sessions = Vec::with_capacity(sessions_str.len());
+        for session in sessions_str {
+            let session = serde_json::from_str(&session.map_to_mm(AsyncConnError::from)?)
+                .map_to_mm(|err| AsyncConnError::from(err.to_string()))?;
+            sessions.push(session);
+        }
+
+        Ok(sessions)
+    }
+
+    async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error> {
+        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
+        let topic = topic.clone();
+        let lock = self.lock_db().await;
+        lock.call(move |conn| {
+            let sql = format!("DELETE FROM {} WHERE topic = ?1", SESSION_TABLE_NAME);
+            let mut stmt = conn.prepare(&sql)?;
+            let _ = stmt.execute([topic.to_string()])?;
+
+            Ok(())
+        })
+        .await
+        .map_to_mm(AsyncConnError::from)
+    }
+
+    async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error> {
+        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
+        let session = session.clone();
+        let lock = self.lock_db().await;
+        lock.call(move |conn| {
+            let sql = format!(
+                "UPDATE {} SET data = ?1, expiry = ?2 WHERE topic = ?3",
+                SESSION_TABLE_NAME
+            );
+            let session_data = serde_json::to_string(&session).map_err(|err| AsyncConnError::from(err.to_string()))?;
+            let params = [session_data, session.expiry.to_string(), session.topic.to_string()];
+            let _row = conn.prepare(&sql)?.execute(params)?;
+            println!("{_row}");
+
+            Ok(())
+        })
+        .await
+        .map_to_mm(AsyncConnError::from)
+    }
 }

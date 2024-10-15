@@ -75,16 +75,29 @@ pub struct KeyInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SessionProperties {
-    #[serde(deserialize_with = "deserialize_keys_from_string")]
-    pub keys: Vec<KeyInfo>,
+    #[serde(default, deserialize_with = "deserialize_keys_from_string")]
+    pub keys: Option<Vec<KeyInfo>>,
 }
 
-fn deserialize_keys_from_string<'de, D>(deserializer: D) -> Result<Vec<KeyInfo>, D::Error>
+fn deserialize_keys_from_string<'de, D>(deserializer: D) -> Result<Option<Vec<KeyInfo>>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let key_string = String::deserialize(deserializer)?;
-    serde_json::from_str(&key_string).map_err(serde::de::Error::custom)
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum KeysField {
+        String(String),
+        Vec(Vec<KeyInfo>),
+        None,
+    }
+
+    match KeysField::deserialize(deserializer)? {
+        KeysField::String(key_string) => serde_json::from_str(&key_string)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+        KeysField::Vec(keys) => Ok(Some(keys)),
+        KeysField::None => Ok(None),
+    }
 }
 
 /// This struct is typically used in the core session management logic of a WalletConnect
@@ -306,5 +319,68 @@ impl SessionManagement {
         self.delete_session(topic).await;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_sample_key_info() -> KeyInfo {
+        KeyInfo {
+            chain_id: "test-chain".to_string(),
+            name: "Test Key".to_string(),
+            algo: "secp256k1".to_string(),
+            pub_key: "0123456789ABCDEF".to_string(),
+            address: "test_address".to_string(),
+            bech32_address: "bech32_test_address".to_string(),
+            ethereum_hex_address: "0xtest_eth_address".to_string(),
+            is_nano_ledger: false,
+            is_keystone: false,
+        }
+    }
+
+    #[test]
+    fn test_deserialize_keys_from_string() {
+        let key_info = create_sample_key_info();
+        let key_json = serde_json::to_string(&vec![key_info.clone()]).unwrap();
+        let json = format!(r#"{{"keys": "{}"}}"#, key_json.replace('\"', "\\\""));
+        let session: SessionProperties = serde_json::from_str(&json).unwrap();
+        assert!(session.keys.is_some());
+        assert_eq!(session.keys.unwrap(), vec![key_info]);
+    }
+
+    #[test]
+    fn test_deserialize_keys_from_vec() {
+        let key_info = create_sample_key_info();
+        let json = format!(r#"{{"keys": [{}]}}"#, serde_json::to_string(&key_info).unwrap());
+        let session: SessionProperties = serde_json::from_str(&json).unwrap();
+        assert!(session.keys.is_some());
+        assert_eq!(session.keys.unwrap(), vec![key_info]);
+    }
+
+    #[test]
+    fn test_deserialize_empty_keys() {
+        let json = r#"{"keys": []}"#;
+        let session: SessionProperties = serde_json::from_str(json).unwrap();
+        assert_eq!(session.keys, Some(vec![]));
+    }
+
+    #[test]
+    fn test_deserialize_no_keys() {
+        let json = r#"{}"#;
+        let session: SessionProperties = serde_json::from_str(json).unwrap();
+        assert_eq!(session.keys, None);
+    }
+
+    #[test]
+    fn test_serialize_deserialize_roundtrip() {
+        let key_info = create_sample_key_info();
+        let original = SessionProperties {
+            keys: Some(vec![key_info]),
+        };
+        let serialized = serde_json::to_string(&original).unwrap();
+        let deserialized: SessionProperties = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(original, deserialized);
     }
 }
