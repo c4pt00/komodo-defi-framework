@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use coins::coin_balance::{CoinBalanceReport, IguanaWalletBalance};
 use coins::coin_errors::MyAddressError;
 use coins::my_tx_history_v2::TxHistoryStorage;
-use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinBuildError,
+use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinError,
                      SiaCoinProtocolInfo};
 use coins::tx_history_storage::CreateTxHistoryStorageError;
 use coins::{lp_spawn_tx_history, BalanceError, CoinBalance, CoinProtocol, MarketCoinOps, PrivKeyBuildPolicy,
@@ -93,7 +93,7 @@ pub enum SiaCoinInitError {
 }
 
 impl SiaCoinInitError {
-    pub fn from_build_err(build_err: SiaCoinBuildError, ticker: String) -> Self {
+    pub fn from_build_err(build_err: SiaCoinError, ticker: String) -> Self {
         SiaCoinInitError::CoinCreationError {
             ticker,
             error: build_err.to_string(),
