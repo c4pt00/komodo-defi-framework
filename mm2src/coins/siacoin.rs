@@ -38,6 +38,19 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
+const FEE_PUBLIC_KEY_STR : &str = "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead";
+
+pub const FEE_PUBLIC_KEY: [u8; 32] = {
+    let mut arr = [0u8; 32];
+    let bytes = FEE_PUBLIC_KEY_STR.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && i < 32 {
+        arr[i] = bytes[i];
+        i += 1;
+    }
+    arr
+};
+
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
 use sia_rust::transport::client::native::Conf as SiaClientConf;
