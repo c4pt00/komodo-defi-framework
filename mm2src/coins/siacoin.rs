@@ -647,8 +647,40 @@ impl MarketCoinOps for SiaCoin {
         unimplemented!()
     }
 
-    fn wait_for_confirmations(&self, _input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
-        unimplemented!()
+    fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
+        let tx: SiaTransaction = try_fus!(serde_json::from_slice(&input.payment_tx)
+                .map_err(|e| format!("siacoin wait_for_confirmations payment_tx deser failed: {}", e).to_string()));
+        let txid = tx.txid();
+        let client = self.client.clone();
+        let tx_request = GetEventRequest { txid: txid.clone() };
+        
+        let fut = async move {
+            loop {
+                if now_sec() > input.wait_until {
+                    return ERR!(
+                        "Waited too long until {} for payment {} to be received",
+                        input.wait_until,
+                        tx.txid()
+                    );
+                }
+
+                match client.dispatcher(tx_request.clone()).await {
+                    Ok(event) => {
+                        // if event.confirmations >= input.confirmations {
+                        if event.index.height > 0 {
+                            return Ok(()); // Transaction is confirmed at least once
+                        }
+                    },
+                    Err(e) => info!("Waiting for confirmation of Sia txid {}: {}", txid, e),
+                }
+                // TODO Alright above is a placeholder to allow swaps to progress after 1 confirmation.
+                // Sia team will add a "confirmations" field in GetEventResponse for us to use here.
+
+                Timer::sleep(input.check_every as f64).await;
+            }
+        };
+
+        Box::new(fut.boxed().compat())
     }
 
     fn wait_for_htlc_tx_spend(&self, _args: WaitForHTLCTxSpendArgs<'_>) -> TransactionFut { unimplemented!() }
