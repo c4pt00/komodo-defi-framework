@@ -99,13 +99,13 @@ pub async fn sia_coin_from_conf_and_request(
     json_conf: Json,
     request: &SiaCoinActivationRequest,
     priv_key_policy: PrivKeyBuildPolicy,
-) -> Result<SiaCoin, MmError<SiaCoinBuildError>> {
+) -> Result<SiaCoin, MmError<SiaCoinError>> {
     let priv_key = match priv_key_policy {
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
-        _ => return Err(SiaCoinBuildError::UnsupportedPrivKeyPolicy.into()),
+        _ => return Err(SiaCoinError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinBuildError::InvalidSecretKey)?;
-    let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinBuildError::InvalidConf)?;
+    let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidSecretKey)?;
+    let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinError::InvalidConf)?;
     SiaCoinBuilder::new(ctx, ticker, conf, key_pair, request).build().await
 }
 
@@ -134,9 +134,9 @@ impl<'a> SiaCoinBuilder<'a> {
         }
     }
 
-    async fn build(self) -> MmResult<SiaCoin, SiaCoinBuildError> {
+    async fn build(self) -> MmResult<SiaCoin, SiaCoinError> {
         let abortable_queue: AbortableQueue = self.ctx.abortable_system.create_subsystem().map_to_mm(|_| {
-            SiaCoinBuildError::InternalError(format!("Failed to create abortable system for {}", self.ticker))
+            SiaCoinError::InternalError(format!("Failed to create abortable system for {}", self.ticker))
         })?;
         let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.request.tx_history {
@@ -157,7 +157,7 @@ impl<'a> SiaCoinBuilder<'a> {
             client: Arc::new(
                 SiaClientType::new(self.request.client_conf.clone())
                     .await
-                    .map_to_mm(SiaCoinBuildError::ClientError)?,
+                    .map_to_mm(SiaCoinError::ClientError)?,
             ),
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair).into(),
             history_sync_state: Mutex::new(history_sync_state).into(),
@@ -189,7 +189,7 @@ fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<u128, MmError<NumConversEr
 }
 
 #[derive(Debug, Display)]
-pub enum SiaCoinBuildError {
+pub enum SiaCoinError {
     #[display(fmt = "Invalid Sia conf, JSON deserialization failed {}", _0)]
     InvalidConf(serde_json::Error),
     UnsupportedPrivKeyPolicy,
@@ -198,8 +198,8 @@ pub enum SiaCoinBuildError {
     InternalError(String),
 }
 
-impl From<serde_json::Error> for SiaCoinBuildError {
-    fn from(e: serde_json::Error) -> Self { SiaCoinBuildError::InvalidConf(e) }
+impl From<serde_json::Error> for SiaCoinError {
+    fn from(e: serde_json::Error) -> Self { SiaCoinError::InvalidConf(e) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1189,7 +1189,7 @@ impl SiaCoin {
                     memo: None,
                 })
             },
-            EventDataWrapper::ClaimPayout(_)
+            EventDataWrapper::ClaimPayout(_) // TODO this can be moved to the above case with Miner and Foundation payouts
             | EventDataWrapper::V2FileContractResolution(_)
             | EventDataWrapper::EventV1ContractResolution(_) => MmError::err(ERRL!("Unsupported event type")),
         }
@@ -1201,6 +1201,64 @@ mod tests {
     use super::*;
     use mm2_number::BigDecimal;
     use std::str::FromStr;
+
+    fn valid_transaction() -> SiaTransaction {
+        let j = json!(
+            {
+                "siacoinInputs": [
+                    {
+                        "parent": {
+                            "id": "h:f59e395dc5cbe3217ee80eff60585ffc9802e7ca580d55297782d4a9b4e08589",
+                            "leafIndex": 3,
+                            "merkleProof": [
+                                "h:ab0e1726444c50e2c0f7325eb65e5bd262a97aad2647d2816c39d97958d9588a",
+                                "h:467e2be4d8482eca1f99440b6efd531ab556d10a8371a98a05b00cb284620cf0",
+                                "h:64d5766fce1ff78a13a4a4744795ad49a8f8d187c01f9f46544810049643a74a",
+                                "h:31d5151875152bc25d1df18ca6bbda1bef5b351e8d53c277791ecf416fcbb8a8",
+                                "h:12a92a1ba87c7b38f3c4e264c399abfa28fb46274cfa429605a6409bd6d0a779",
+                                "h:eda1d58a9282dbf6c3f1beb4d6c7bdc036d14a1cfee8ab1e94fabefa9bd63865",
+                                "h:e03dee6e27220386c906f19fec711647353a5f6d76633a191cbc2f6dce239e89",
+                                "h:e70fcf0129c500f7afb49f4f2bb82950462e952b7cdebb2ad0aa1561dc6ea8eb"
+                            ],
+                            "siacoinOutput": {
+                                "value": "300000000000000000000000000000",
+                                "address": "addr:f7843ac265b037658b304468013da4fd0f304a1b73df0dc68c4273c867bfa38d01a7661a187f"
+                            },
+                            "maturityHeight": 145
+                        },
+                        "satisfiedPolicy": {
+                            "policy": {
+                                "type": "uc",
+                                "policy": {
+                                    "timelock": 0,
+                                    "publicKeys": [
+                                        "ed25519:cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+                                    ],
+                                    "signaturesRequired": 1
+                                }
+                            },
+                            "signatures": [
+                                "sig:f0a29ba576eb0dbc3438877ac1d3a6da4f3c4cbafd9030709c8a83c2fffa64f4dd080d37444261f023af3bd7a10a9597c33616267d5371bf2c0ade5e25e61903"
+                            ]
+                        }
+                    }
+                ],
+                "siacoinOutputs": [
+                    {
+                        "value": "1000000000000000000000000000",
+                        "address": "addr:000000000000000000000000000000000000000000000000000000000000000089eb0d6a8a69"
+                    },
+                    {
+                        "value": "299000000000000000000000000000",
+                        "address": "addr:f7843ac265b037658b304468013da4fd0f304a1b73df0dc68c4273c867bfa38d01a7661a187f"
+                    }
+                ],
+                "minerFee": "0"
+            }
+        );
+        let tx = serde_json::from_value::<V2Transaction>(j).unwrap();
+        SiaTransaction(tx)
+    }
 
     #[test]
     fn test_siacoin_from_hastings() {
