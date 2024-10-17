@@ -10,8 +10,8 @@ mod storage;
 use chain::{build_required_namespaces,
             tendermint::{cosmos_get_accounts_impl, cosmos_sign_direct_impl, CosmosAccount, CosmosTxSignedData},
             SUPPORTED_CHAINS};
-use common::executor::SpawnFuture;
 use common::log::info;
+use common::{executor::SpawnFuture, log::error};
 use connection_handler::{maintain_client_connection, Handler};
 use error::WalletConnectCtxError;
 use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
@@ -158,15 +158,11 @@ impl WalletConnectCtx {
         self.session
             .get_session_active()
             .await
-            .map(|session| {
-                session.session_properties.as_ref().map(|props| {
-                    props
-                        .keys
-                        .as_ref()
-                        .map(|keys| keys.first().map(|key| key.is_nano_ledger))
-                })
-            })
-            .is_some()
+            .and_then(|session| session.session_properties.clone())
+            .and_then(|props| props.keys.as_ref().cloned())
+            .and_then(|keys| keys.first().cloned())
+            .map(|key| key.is_nano_ledger)
+            .unwrap_or(false)
     }
 
     pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|chain| chain == &chain_id) }
@@ -185,7 +181,14 @@ impl WalletConnectCtx {
             return MmError::err(WalletConnectCtxError::ChainIdMismatch);
         }
 
-        let namespaces = self.namespaces.lock().await;
+        let namespaces = &self
+            .session
+            .get_session_active()
+            .await
+            .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
+                chain_id.to_string(),
+            )))?
+            .namespaces;
         namespaces
             .iter()
             .find_map(|(_key, namespace)| self.find_account_in_namespace(namespace, chain_id))
@@ -355,13 +358,25 @@ impl WalletConnectCtx {
     }
 
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectCtxError> {
-        let sessions = self
+        let now = chrono::Utc::now().timestamp() as u64;
+        let mut sessions = self
             .storage
             .get_all_sessions()
             .await
             .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
 
+        sessions.sort_by(|a, b| a.expiry.cmp(&b.expiry));
+
         for session in sessions {
+            // delete expired session
+            if now > session.expiry {
+                info!("Session {} expired, trying to delete from storage", session.topic);
+                if let Err(err) = self.storage.delete_session(&session.topic).await {
+                    error!("Unable to delete session: {:?} from storage", err);
+                }
+                continue;
+            };
+
             let topic = session.topic.clone();
             let pairing_topic = session.pairing_topic.clone();
 
