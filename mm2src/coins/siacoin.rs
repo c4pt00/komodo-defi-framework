@@ -12,10 +12,11 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
             ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
             ValidatePaymentInput, ValidatePaymentResult, ValidateWatcherSpendInput, VerificationResult,
             WaitForHTLCTxSpendArgs, WatcherOps, WatcherReward, WatcherRewardError, WatcherSearchForSwapTxSpendInput,
-            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest};
+            WatcherValidatePaymentInput, WatcherValidateTakerFeeInput, WithdrawFut, WithdrawRequest, Transaction, now_sec};
 use async_trait::async_trait;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
+use common::log::info;
 use futures::compat::Future01CompatExt;
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
@@ -28,10 +29,10 @@ use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
 use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
-use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse,
+use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse, GetEventRequest,
                                      TxpoolBroadcastRequest};
 use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
-                      KeypairError, V1Transaction, V2Transaction};
+                      KeypairError, V1Transaction, V2Transaction, Hash256};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -936,6 +937,27 @@ impl WatcherOps for SiaCoin {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(transparent)] 
+pub struct SiaTransaction(pub V2Transaction);
+
+impl SiaTransaction {
+    pub fn txid(&self) -> Hash256 { self.0.txid() }
+}
+
+impl Transaction for SiaTransaction {
+    // serde should always be succesful but write an empty vec just in case.
+    // FIXME Alright this trait should be refactored to return a Result for this method
+    fn tx_hex(&self) -> Vec<u8> { serde_json::ser::to_vec(self).unwrap_or_default() }
+
+    fn tx_hash_as_bytes(&self) -> BytesJson { BytesJson(self.txid().0.to_vec()) }
+}
+
+/// Represents the different types of transactions that can be sent to a wallet.
+/// This enum is generally only useful for displaying wallet history.
+/// We do not support any operations for any type other than V2Transaction, but we want the ability
+/// to display other event types within the wallet history.
+/// Use SiaTransaction type instead.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum SiaTransactionTypes {
     V1Transaction(V1Transaction),
@@ -1213,6 +1235,16 @@ mod tests {
         let siacoin = BigDecimal::from_str("57769875000").unwrap();
         let hastings = siacoin_to_hastings(siacoin).unwrap();
         assert_eq!(hastings, 57769875000000000000000000000000000);
+    }
+
+    #[test]
+    fn test_sia_transaction_serde_roundtrip() {
+        let tx = valid_transaction();
+
+        let vec = serde_json::ser::to_vec(&tx).unwrap();
+        let tx2: SiaTransaction = serde_json::from_slice(&vec).unwrap();
+
+        assert_eq!(tx, tx2);
     }
 }
 

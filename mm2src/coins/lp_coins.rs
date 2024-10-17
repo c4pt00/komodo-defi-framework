@@ -256,7 +256,7 @@ pub mod tx_history_storage;
 
 #[cfg(feature = "enable-sia")] pub mod siacoin;
 #[cfg(feature = "enable-sia")]
-use siacoin::{SiaCoin, SiaFeeDetails, SiaTransactionTypes};
+use siacoin::{SiaCoin, SiaFeeDetails, SiaTransactionTypes, SiaTransaction};
 
 pub mod utxo;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
@@ -589,6 +589,8 @@ pub enum TransactionEnum {
     CosmosTransaction(CosmosTransaction),
     #[cfg(not(target_arch = "wasm32"))]
     LightningPayment(LightningPayment),
+    #[cfg(feature = "enable-sia")]
+    SiaTransaction(SiaTransaction),
 }
 
 ifrom!(TransactionEnum, UtxoTx);
@@ -596,6 +598,8 @@ ifrom!(TransactionEnum, SignedEthTx);
 ifrom!(TransactionEnum, ZTransaction);
 #[cfg(not(target_arch = "wasm32"))]
 ifrom!(TransactionEnum, LightningPayment);
+#[cfg(feature = "enable-sia")]
+ifrom!(TransactionEnum, SiaTransaction);
 
 impl TransactionEnum {
     #[cfg(not(target_arch = "wasm32"))]
@@ -616,6 +620,7 @@ impl Deref for TransactionEnum {
             TransactionEnum::CosmosTransaction(ref t) => t,
             #[cfg(not(target_arch = "wasm32"))]
             TransactionEnum::LightningPayment(ref p) => p,
+            TransactionEnum::SiaTransaction(ref t) => t,
         }
     }
 }
