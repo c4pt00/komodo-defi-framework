@@ -131,6 +131,8 @@ const TRIE_STATE_HISTORY_TIMEOUT: u64 = 3;
 const TRIE_ORDER_HISTORY_TIMEOUT: u64 = 300;
 #[cfg(test)]
 const TRIE_ORDER_HISTORY_TIMEOUT: u64 = 3;
+/// Ordermatching protocol version
+const ORDERMATCHING_PROTOCOL: u32 = 1;
 
 pub type OrderbookP2PHandlerResult = Result<(), MmError<OrderbookP2PHandlerError>>;
 
@@ -1033,6 +1035,7 @@ fn maker_order_created_p2p_notify(
     order: &MakerOrder,
     base_protocol_info: Vec<u8>,
     rel_protocol_info: Vec<u8>,
+    ordermatching_protocol: Option<u32>,
 ) {
     let topic = order.orderbook_topic();
     let message = new_protocol::MakerOrderCreated {
@@ -1048,6 +1051,7 @@ fn maker_order_created_p2p_notify(
         pair_trie_root: H64::default(),
         base_protocol_info,
         rel_protocol_info,
+        ordermatching_protocol,
     };
 
     let to_broadcast = new_protocol::OrdermatchMessage::MakerOrderCreated(message.clone());
@@ -1195,6 +1199,9 @@ pub struct TakerRequest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordermatching_protocol: Option<u32>,
 }
 
 impl TakerRequest {
@@ -1215,6 +1222,7 @@ impl TakerRequest {
             conf_settings: Some(message.conf_settings),
             base_protocol_info: message.base_protocol_info,
             rel_protocol_info: message.rel_protocol_info,
+            ordermatching_protocol: message.ordermatching_protocol,
         }
     }
 
@@ -1260,6 +1268,7 @@ impl From<TakerOrder> for new_protocol::OrdermatchMessage {
             conf_settings: taker_order.request.conf_settings.unwrap(),
             base_protocol_info: taker_order.request.base_protocol_info,
             rel_protocol_info: taker_order.request.rel_protocol_info,
+            ordermatching_protocol: taker_order.request.ordermatching_protocol,
         })
     }
 }
@@ -1285,6 +1294,7 @@ pub struct TakerOrderBuilder<'a> {
     min_volume: Option<MmNumber>,
     timeout: u64,
     save_in_history: bool,
+    ordermatching_protocol: u32,
 }
 
 pub enum TakerOrderBuildError {
@@ -1364,6 +1374,7 @@ impl<'a> TakerOrderBuilder<'a> {
             order_type: OrderType::GoodTillCancelled,
             timeout: TAKER_ORDER_TIMEOUT,
             save_in_history: true,
+            ordermatching_protocol: ORDERMATCHING_PROTOCOL,
         }
     }
 
@@ -1515,6 +1526,7 @@ impl<'a> TakerOrderBuilder<'a> {
                 conf_settings: self.conf_settings,
                 base_protocol_info: Some(base_protocol_info),
                 rel_protocol_info: Some(rel_protocol_info),
+                ordermatching_protocol: Some(self.ordermatching_protocol),
             },
             matches: Default::default(),
             min_volume,
@@ -1555,6 +1567,7 @@ impl<'a> TakerOrderBuilder<'a> {
                 conf_settings: self.conf_settings,
                 base_protocol_info: Some(base_protocol_info),
                 rel_protocol_info: Some(rel_protocol_info),
+                ordermatching_protocol: Some(self.ordermatching_protocol),
             },
             matches: HashMap::new(),
             min_volume: Default::default(),
@@ -1716,6 +1729,9 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordermatching_protocol: Option<u32>,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -1728,6 +1744,7 @@ pub struct MakerOrderBuilder<'a> {
     rel_orderbook_ticker: Option<String>,
     conf_settings: Option<OrderConfirmationsSettings>,
     save_in_history: bool,
+    pub ordermatching_protocol: u32,
 }
 
 pub enum MakerOrderBuildError {
@@ -1877,6 +1894,7 @@ impl<'a> MakerOrderBuilder<'a> {
             price: 0.into(),
             conf_settings: None,
             save_in_history: true,
+            ordermatching_protocol: ORDERMATCHING_PROTOCOL,
         }
     }
 
@@ -1971,6 +1989,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
+            ordermatching_protocol: Some(self.ordermatching_protocol),
         })
     }
 
@@ -1995,6 +2014,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
+            ordermatching_protocol: None,
         }
     }
 }
@@ -2125,6 +2145,7 @@ impl From<TakerOrder> for MakerOrder {
                 base_orderbook_ticker: taker_order.base_orderbook_ticker,
                 rel_orderbook_ticker: taker_order.rel_orderbook_ticker,
                 p2p_privkey: taker_order.p2p_privkey,
+                ordermatching_protocol: taker_order.request.ordermatching_protocol,
             },
             // The "buy" taker order is recreated with reversed pair as Maker order is always considered as "sell"
             TakerAction::Buy => {
@@ -2147,6 +2168,7 @@ impl From<TakerOrder> for MakerOrder {
                     base_orderbook_ticker: taker_order.rel_orderbook_ticker,
                     rel_orderbook_ticker: taker_order.base_orderbook_ticker,
                     p2p_privkey: taker_order.p2p_privkey,
+                    ordermatching_protocol: taker_order.request.ordermatching_protocol,
                 }
             },
         }
@@ -2199,6 +2221,9 @@ pub struct MakerReserved {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordermatching_protocol: Option<u32>,
 }
 
 impl MakerReserved {
@@ -2226,6 +2251,7 @@ impl MakerReserved {
             conf_settings: Some(message.conf_settings),
             base_protocol_info: message.base_protocol_info,
             rel_protocol_info: message.rel_protocol_info,
+            ordermatching_protocol: message.ordermatching_protocol,
         }
     }
 }
@@ -2242,6 +2268,7 @@ impl From<MakerReserved> for new_protocol::OrdermatchMessage {
             conf_settings: maker_reserved.conf_settings.unwrap(),
             base_protocol_info: maker_reserved.base_protocol_info,
             rel_protocol_info: maker_reserved.rel_protocol_info,
+            ordermatching_protocol: maker_reserved.ordermatching_protocol,
         })
     }
 }
@@ -3346,6 +3373,7 @@ pub async fn lp_ordermatch_loop(ctx: MmArc) {
                         &order,
                         base.coin_protocol_info(None),
                         rel.coin_protocol_info(Some(order.max_base_vol.clone() * order.price.clone())),
+                        order.ordermatching_protocol,
                     );
                 }
             }
@@ -3445,6 +3473,7 @@ async fn handle_timed_out_taker_orders(ctx: MmArc, ordermatch_ctx: &OrdermatchCo
                 &maker_order,
                 base.coin_protocol_info(None),
                 rel.coin_protocol_info(Some(maker_order.max_base_vol.clone() * maker_order.price.clone())),
+                maker_order.ordermatching_protocol,
             );
         }
     }
@@ -3742,6 +3771,7 @@ async fn process_taker_request(ctx: MmArc, from_pubkey: H256Json, taker_request:
                     }),
                     base_protocol_info: Some(base_coin.coin_protocol_info(None)),
                     rel_protocol_info: Some(rel_coin.coin_protocol_info(Some(rel_amount.clone()))),
+                    ordermatching_protocol: order.ordermatching_protocol,
                 };
                 let topic = order.orderbook_topic();
                 log::debug!("Request matched sending reserved {:?}", reserved);
@@ -4741,6 +4771,7 @@ pub async fn create_maker_order(ctx: &MmArc, req: SetPriceReq) -> Result<MakerOr
         &new_order,
         base_coin.coin_protocol_info(None),
         rel_coin.coin_protocol_info(Some(volume * req.price)),
+        new_order.ordermatching_protocol,
     );
 
     ordermatch_ctx
