@@ -971,7 +971,7 @@ impl SiaCoin {
     async fn get_unspent_outputs(
         &self,
         address: Address,
-    ) -> Result<GetAddressUtxosResponse, MmError<SiaApiClientError>> {
+    ) -> Result<Vec<SiacoinElement>, MmError<SiaApiClientError>> {
         let request = GetAddressUtxosRequest {
             address,
             limit: None,
