@@ -28,8 +28,8 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
-use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetAddressUtxosResponse, GetEventRequest,
+pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
+pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                      TxpoolBroadcastRequest};
 use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
                       KeypairError, V1Transaction, V2Transaction, Hash256};

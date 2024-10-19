@@ -40,9 +40,9 @@ impl<'a> SiaWithdrawBuilder<'a> {
     #[allow(clippy::result_large_err)]
     fn select_outputs(
         &self,
-        mut unspent_outputs: GetAddressUtxosResponse,
+        mut unspent_outputs: Vec<SiacoinElement>,
         total_amount: u128,
-    ) -> Result<GetAddressUtxosResponse, MmError<WithdrawError>> {
+    ) -> Result<Vec<SiacoinElement>, MmError<WithdrawError>> {
         // Sort outputs from largest to smallest
         unspent_outputs.sort_by(|a, b| b.siacoin_output.value.0.cmp(&a.siacoin_output.value.0));
 
