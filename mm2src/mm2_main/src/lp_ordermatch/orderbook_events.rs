@@ -66,6 +66,7 @@ impl EventStreamer for OrderbookStreamer {
 }
 
 async fn sanity_checks(ctx: &MmArc, base: &str, rel: &str) -> Result<(), String> {
+    // TODO: This won't work with no-login mode.
     lp_coinfind(ctx, base)
         .await
         .map_err(|e| format!("Coin {base} not found: {e}"))?;
