@@ -127,8 +127,6 @@ pub struct MakerOrderCreated {
     pub base_protocol_info: Vec<u8>,
     #[serde(default)]
     pub rel_protocol_info: Vec<u8>,
-    #[serde(default)]
-    pub ordermatching_protocol: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
@@ -267,9 +265,6 @@ pub struct TakerRequest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ordermatching_protocol: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -287,9 +282,6 @@ pub struct MakerReserved {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ordermatching_protocol: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
