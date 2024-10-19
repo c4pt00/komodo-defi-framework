@@ -70,18 +70,18 @@ impl SessionEvent {
     ) -> MmResult<(), WalletConnectCtxError> {
         if ctx.is_chain_supported(chain_id) {
             if let Some((key, chain)) = parse_chain_and_chain_id(chain_id) {
-                let namespaces = ctx.namespaces.lock().await;
-                if let Some(namespace) = namespaces.get(&key) {
-                    let chains = namespace.chains.clone().unwrap_or_default();
-                    if chains.contains(&chain) {
-                        // TODO: Notify GUI about chain changed.
-                        // Update active chain_id
-                        ctx.set_active_chain(chain_id.clone()).await;
+                if let Some(session) = ctx.session.get_session_active().await {
+                    if let Some(namespace) = session.namespaces.get(&key) {
+                        let chains = namespace.chains.clone().unwrap_or_default();
+                        if chains.contains(&chain) {
+                            // TODO: Notify GUI about chain changed.
+                            ctx.set_active_chain(chain_id.clone()).await;
 
-                        let params = ResponseParamsSuccess::SessionEvent(true);
-                        ctx.publish_response_ok(topic, params, message_id).await?;
+                            let params = ResponseParamsSuccess::SessionEvent(true);
+                            ctx.publish_response_ok(topic, params, message_id).await?;
 
-                        return Ok(());
+                            return Ok(());
+                        }
                     }
                 }
             }

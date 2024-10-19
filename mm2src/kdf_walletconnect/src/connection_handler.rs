@@ -1,13 +1,15 @@
-use futures::StreamExt;
-use std::sync::Arc;
-
-use common::{executor::Timer,
-             log::{error, info}};
-use futures::channel::mpsc::UnboundedSender;
-use relay_client::{error::ClientError,
-                   websocket::{CloseFrame, ConnectionHandler, PublishedMessage}};
-
 use crate::WalletConnectCtx;
+
+use common::executor::Timer;
+use common::log::{error, info};
+use futures::channel::mpsc::UnboundedSender;
+use futures::StreamExt;
+use relay_client::error::ClientError;
+use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
+
+const INITIAL_RETRY_SECS: f64 = 5.0;
+const RETRY_INCREMENT: f64 = 5.0;
+const RECONNECT_DELAY: f64 = 5.0;
 
 pub struct Handler {
     name: &'static str,
@@ -62,16 +64,7 @@ impl ConnectionHandler for Handler {
     }
 }
 
-const INITIAL_RETRY_SECS: f64 = 5.0;
-const RETRY_INCREMENT: f64 = 5.0;
-const RECONNECT_DELAY: f64 = 5.0;
-
-pub(crate) async fn maintain_client_connection(this: Arc<WalletConnectCtx>) {
-    initial_connection(&this).await;
-    handle_disconnections(&this).await;
-}
-
-async fn initial_connection(this: &WalletConnectCtx) {
+pub(crate) async fn initial_connection(this: &WalletConnectCtx) {
     let mut retry_count = 0;
     let mut retry_secs = INITIAL_RETRY_SECS;
 
@@ -93,7 +86,7 @@ async fn initial_connection(this: &WalletConnectCtx) {
     };
 }
 
-async fn handle_disconnections(this: &WalletConnectCtx) {
+pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
     let mut recv = this.connection_live_handler.lock().await;
 
     while let Some(_msg) = recv.next().await {

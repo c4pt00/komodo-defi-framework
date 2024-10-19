@@ -1,11 +1,3 @@
-use common::log::info;
-use futures::SinkExt;
-use mm2_err_handle::prelude::{MmError, MmResult};
-use relay_rpc::{domain::Topic,
-                rpc::{params::ResponseParamsSuccess, Params, Request, Response}};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
 use crate::{error::WalletConnectCtxError,
             pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
             session::rpc::{delete::reply_session_delete_request,
@@ -16,6 +8,14 @@ use crate::{error::WalletConnectCtxError,
                            settle::reply_session_settle_request,
                            update::reply_session_update_request},
             WalletConnectCtx};
+
+use common::log::info;
+use futures::sink::SinkExt;
+use mm2_err_handle::prelude::{MmError, MmResult};
+use relay_rpc::domain::Topic;
+use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]

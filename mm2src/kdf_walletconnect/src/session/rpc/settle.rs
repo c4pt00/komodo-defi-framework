@@ -64,9 +64,6 @@ pub(crate) async fn reply_session_settle_request(
         }
     }
 
-    let mut ctx_ns = ctx.namespaces.lock().await;
-    *ctx_ns = settle.namespaces;
-
     info!("Session successfully settled for topic: {:?}", topic);
 
     let param = ResponseParamsSuccess::SessionSettle(true);

@@ -7,30 +7,28 @@ mod metadata;
 pub mod session;
 mod storage;
 
-use chain::{build_required_namespaces,
-            tendermint::{cosmos_get_accounts_impl, cosmos_sign_direct_impl, CosmosAccount, CosmosTxSignedData},
-            SUPPORTED_CHAINS};
+use chain::{build_required_namespaces, cosmos_get_accounts_impl, cosmos_sign_direct_impl, CosmosAccount,
+            CosmosTxSignedData, SUPPORTED_CHAINS};
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
-use connection_handler::{maintain_client_connection, Handler};
+use connection_handler::Handler;
 use error::WalletConnectCtxError;
-use futures::{channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
-              lock::Mutex,
-              StreamExt};
+use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::lock::Mutex;
+use futures::StreamExt;
 use inbound_message::{process_inbound_request, process_inbound_response};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
-use relay_client::{websocket::{Client, PublishedMessage},
-                   ConnectionOptions, MessageIdGenerator};
-use relay_rpc::rpc::params::{session::{Namespace, SettleNamespaces},
-                             RelayProtocolMetadata, RequestParams};
-use relay_rpc::{auth::{ed25519_dalek::SigningKey, AuthToken},
-                domain::{MessageId, Topic},
-                rpc::{params::{session::ProposeNamespaces, IrnMetadata, Metadata, Relay, ResponseParamsError,
-                               ResponseParamsSuccess},
-                      ErrorResponse, Payload, Request, Response, SuccessfulResponse}};
+use relay_client::websocket::{Client, PublishedMessage};
+use relay_client::{ConnectionOptions, MessageIdGenerator};
+use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
+use relay_rpc::domain::{MessageId, Topic};
+use relay_rpc::rpc::params::session::{Namespace, ProposeNamespaces};
+use relay_rpc::rpc::params::{IrnMetadata, Metadata, Relay, RelayProtocolMetadata, RequestParams, ResponseParamsError,
+                             ResponseParamsSuccess};
+use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
 use serde_json::Value;
 use session::{key::SymKeyPair, SessionManagement};
 use std::{sync::Arc, time::Duration};
@@ -56,7 +54,6 @@ pub struct WalletConnectCtx {
 
     relay: Relay,
     metadata: Metadata,
-    namespaces: Arc<Mutex<SettleNamespaces>>,
     required_namespaces: ProposeNamespaces,
     subscriptions: Arc<Mutex<Vec<Topic>>>,
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
@@ -95,7 +92,6 @@ impl WalletConnectCtx {
             session: SessionManagement::new(),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
-            namespaces: Default::default(),
             required_namespaces: required,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
@@ -191,23 +187,10 @@ impl WalletConnectCtx {
             .namespaces;
         namespaces
             .iter()
-            .find_map(|(_key, namespace)| self.find_account_in_namespace(namespace, chain_id))
+            .find_map(|(_key, namespace)| find_account_in_namespace(namespace, chain_id))
             .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
                 chain_id.to_string(),
             )))
-    }
-
-    fn find_account_in_namespace(&self, namespace: &Namespace, chain_id: &str) -> Option<String> {
-        let accounts = namespace.accounts.as_ref()?;
-
-        accounts.iter().find_map(|account_name| {
-            let parts: Vec<&str> = account_name.split(':').collect();
-            if parts.len() >= 3 && parts[1] == chain_id {
-                Some(parts[2].to_string())
-            } else {
-                None
-            }
-        })
     }
 
     pub async fn cosmos_get_account(
@@ -328,16 +311,6 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    pub async fn message_handler_event_loop(self: Arc<Self>) {
-        let selfi = self.clone();
-        let mut recv = self.inbound_message_handler.lock().await;
-        while let Some(msg) = recv.next().await {
-            if let Err(e) = selfi.handle_published_message(msg).await {
-                info!("Error processing message: {:?}", e);
-            }
-        }
-    }
-
     async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectCtxError> {
         let message = {
             let key = self.sym_key(&msg.topic).await?;
@@ -405,12 +378,39 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
 
     // WalletConnectCtx is initialized, now we can connect to relayer client and spawn a watcher
     // loop for disconnection.
-    ctx.spawner().spawn(maintain_client_connection(wallet_connect.clone()));
+    ctx.spawner().spawn({
+        let this = wallet_connect.clone();
+        async move {
+            connection_handler::initial_connection(&this).await;
+            connection_handler::handle_disconnections(&this).await;
+        }
+    });
 
     // spawn message handler event loop
-    ctx.spawner().spawn(wallet_connect.message_handler_event_loop());
+    ctx.spawner().spawn(async move {
+        let selfi = wallet_connect.clone();
+        let mut recv = wallet_connect.inbound_message_handler.lock().await;
+        while let Some(msg) = recv.next().await {
+            if let Err(e) = selfi.handle_published_message(msg).await {
+                info!("Error processing message: {:?}", e);
+            }
+        }
+    });
 
     info!("WalletConnect initialization completed successfully");
 
     Ok(())
+}
+
+fn find_account_in_namespace(namespace: &Namespace, chain_id: &str) -> Option<String> {
+    let accounts = namespace.accounts.as_ref()?;
+
+    accounts.iter().find_map(|account_name| {
+        let parts: Vec<&str> = account_name.split(':').collect();
+        if parts.len() >= 3 && parts[1] == chain_id {
+            Some(parts[2].to_string())
+        } else {
+            None
+        }
+    })
 }

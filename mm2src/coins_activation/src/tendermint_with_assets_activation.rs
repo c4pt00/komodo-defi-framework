@@ -18,7 +18,7 @@ use coins::tendermint::{tendermint_priv_key_policy, RpcNode, TendermintActivatio
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
 use common::{true_f, Future01CompatExt};
-use kdf_walletconnect::chain::tendermint::CosmosAccountAlgo;
+use kdf_walletconnect::chain::CosmosAccountAlgo;
 use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;

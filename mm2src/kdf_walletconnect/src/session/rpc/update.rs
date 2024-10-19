@@ -16,15 +16,14 @@ pub(crate) async fn reply_session_update_request(
 ) -> MmResult<(), WalletConnectCtxError> {
     {
         if let Some(mut session) = ctx.session.get_session_mut(topic).await {
-            let mut ctx_ns = ctx.namespaces.lock().await;
-            *ctx_ns = update.namespaces.clone();
             session.namespaces = update.namespaces.0;
-            info!("Updated extended, info: {:?}", session);
             //  Update storage session.
             ctx.storage
                 .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+
+            info!("Updated extended, info: {:?}", session);
         };
     }
 
