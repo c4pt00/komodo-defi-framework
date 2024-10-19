@@ -1,12 +1,10 @@
 use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaFeePolicy,
-                     SiaTransactionTypes};
+                     SiaTransactionTypes, Address, Currency, Keypair, SiacoinElement, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
             WithdrawRequest, WithdrawResult};
 use common::now_sec;
 use mm2_err_handle::mm_error::MmError;
 use mm2_err_handle::prelude::*;
-use sia_rust::transport::endpoints::GetAddressUtxosResponse;
-use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::str::FromStr;
 
 pub struct SiaWithdrawBuilder<'a> {

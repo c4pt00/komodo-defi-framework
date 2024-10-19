@@ -31,13 +31,15 @@ use serde_json::Value as Json;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                      TxpoolBroadcastRequest};
-use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
-                      KeypairError, V1Transaction, V2Transaction, Hash256};
+pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
+                      KeypairError, V1Transaction, V2Transaction, Hash256, SiacoinElement, PublicKey, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
+
+
 
 const FEE_PUBLIC_KEY_STR : &str = "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead";
 
