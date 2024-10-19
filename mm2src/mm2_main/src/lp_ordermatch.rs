@@ -131,6 +131,8 @@ const TRIE_STATE_HISTORY_TIMEOUT: u64 = 3;
 const TRIE_ORDER_HISTORY_TIMEOUT: u64 = 300;
 #[cfg(test)]
 const TRIE_ORDER_HISTORY_TIMEOUT: u64 = 3;
+/// Swap protocol version
+const SWAP_VERSION: u32 = 2;
 
 pub type OrderbookP2PHandlerResult = Result<(), MmError<OrderbookP2PHandlerError>>;
 
@@ -1195,6 +1197,9 @@ pub struct TakerRequest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swap_version: Option<u32>,
 }
 
 impl TakerRequest {
@@ -1215,6 +1220,7 @@ impl TakerRequest {
             conf_settings: Some(message.conf_settings),
             base_protocol_info: message.base_protocol_info,
             rel_protocol_info: message.rel_protocol_info,
+            swap_version: message.swap_version,
         }
     }
 
@@ -1260,6 +1266,7 @@ impl From<TakerOrder> for new_protocol::OrdermatchMessage {
             conf_settings: taker_order.request.conf_settings.unwrap(),
             base_protocol_info: taker_order.request.base_protocol_info,
             rel_protocol_info: taker_order.request.rel_protocol_info,
+            swap_version: taker_order.request.swap_version,
         })
     }
 }
@@ -1285,6 +1292,7 @@ pub struct TakerOrderBuilder<'a> {
     min_volume: Option<MmNumber>,
     timeout: u64,
     save_in_history: bool,
+    swap_version: u32,
 }
 
 pub enum TakerOrderBuildError {
@@ -1364,6 +1372,7 @@ impl<'a> TakerOrderBuilder<'a> {
             order_type: OrderType::GoodTillCancelled,
             timeout: TAKER_ORDER_TIMEOUT,
             save_in_history: true,
+            swap_version: SWAP_VERSION,
         }
     }
 
@@ -1515,6 +1524,7 @@ impl<'a> TakerOrderBuilder<'a> {
                 conf_settings: self.conf_settings,
                 base_protocol_info: Some(base_protocol_info),
                 rel_protocol_info: Some(rel_protocol_info),
+                swap_version: Some(self.swap_version),
             },
             matches: Default::default(),
             min_volume,
@@ -1555,6 +1565,7 @@ impl<'a> TakerOrderBuilder<'a> {
                 conf_settings: self.conf_settings,
                 base_protocol_info: Some(base_protocol_info),
                 rel_protocol_info: Some(rel_protocol_info),
+                swap_version: Some(self.swap_version),
             },
             matches: HashMap::new(),
             min_volume: Default::default(),
@@ -1716,6 +1727,9 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swap_version: Option<u32>,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -1728,6 +1742,7 @@ pub struct MakerOrderBuilder<'a> {
     rel_orderbook_ticker: Option<String>,
     conf_settings: Option<OrderConfirmationsSettings>,
     save_in_history: bool,
+    swap_version: u32,
 }
 
 pub enum MakerOrderBuildError {
@@ -1877,6 +1892,7 @@ impl<'a> MakerOrderBuilder<'a> {
             price: 0.into(),
             conf_settings: None,
             save_in_history: true,
+            swap_version: SWAP_VERSION,
         }
     }
 
@@ -1971,6 +1987,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
+            swap_version: Some(self.swap_version),
         })
     }
 
@@ -1995,6 +2012,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
+            swap_version: Some(self.swap_version),
         }
     }
 }
@@ -2125,6 +2143,7 @@ impl From<TakerOrder> for MakerOrder {
                 base_orderbook_ticker: taker_order.base_orderbook_ticker,
                 rel_orderbook_ticker: taker_order.rel_orderbook_ticker,
                 p2p_privkey: taker_order.p2p_privkey,
+                swap_version: taker_order.request.swap_version,
             },
             // The "buy" taker order is recreated with reversed pair as Maker order is always considered as "sell"
             TakerAction::Buy => {
@@ -2147,6 +2166,7 @@ impl From<TakerOrder> for MakerOrder {
                     base_orderbook_ticker: taker_order.rel_orderbook_ticker,
                     rel_orderbook_ticker: taker_order.base_orderbook_ticker,
                     p2p_privkey: taker_order.p2p_privkey,
+                    swap_version: taker_order.request.swap_version,
                 }
             },
         }
@@ -2199,6 +2219,9 @@ pub struct MakerReserved {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub swap_version: Option<u32>,
 }
 
 impl MakerReserved {
@@ -2226,6 +2249,7 @@ impl MakerReserved {
             conf_settings: Some(message.conf_settings),
             base_protocol_info: message.base_protocol_info,
             rel_protocol_info: message.rel_protocol_info,
+            swap_version: message.swap_version,
         }
     }
 }
@@ -2242,6 +2266,7 @@ impl From<MakerReserved> for new_protocol::OrdermatchMessage {
             conf_settings: maker_reserved.conf_settings.unwrap(),
             base_protocol_info: maker_reserved.base_protocol_info,
             rel_protocol_info: maker_reserved.rel_protocol_info,
+            swap_version: maker_reserved.swap_version,
         })
     }
 }
@@ -3005,6 +3030,11 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             },
         };
 
+        // TODO fallback
+        if maker_match.request.swap_version.is_none() || maker_match.request.swap_version == Some(1) {
+            todo!()
+        }
+
         if ctx.use_trading_proto_v2() {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
             match (maker_coin, taker_coin) {
@@ -3155,6 +3185,11 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             taker_coin.ticker(),
             uuid
         );
+
+        // TODO fallback
+        if taker_match.reserved.swap_version.is_none() || taker_match.reserved.swap_version == Some(1) {
+            todo!()
+        }
 
         let now = now_sec();
         if ctx.use_trading_proto_v2() {
@@ -3742,6 +3777,7 @@ async fn process_taker_request(ctx: MmArc, from_pubkey: H256Json, taker_request:
                     }),
                     base_protocol_info: Some(base_coin.coin_protocol_info(None)),
                     rel_protocol_info: Some(rel_coin.coin_protocol_info(Some(rel_amount.clone()))),
+                    swap_version: order.swap_version,
                 };
                 let topic = order.orderbook_topic();
                 log::debug!("Request matched sending reserved {:?}", reserved);
