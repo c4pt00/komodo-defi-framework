@@ -3031,9 +3031,9 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
         };
 
         // TODO fallback
-        if maker_match.request.swap_version.is_none() || maker_match.request.swap_version == Some(1) {
-            todo!()
-        }
+        // if maker_match.request.swap_version.is_none() || maker_match.request.swap_version == Some(1) {
+        //     todo!()
+        // }
 
         if ctx.use_trading_proto_v2() {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
@@ -3187,9 +3187,9 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
         );
 
         // TODO fallback
-        if taker_match.reserved.swap_version.is_none() || taker_match.reserved.swap_version == Some(1) {
-            todo!()
-        }
+        // if taker_match.reserved.swap_version.is_none() || taker_match.reserved.swap_version == Some(1) {
+        //     todo!()
+        // }
 
         let now = now_sec();
         if ctx.use_trading_proto_v2() {
