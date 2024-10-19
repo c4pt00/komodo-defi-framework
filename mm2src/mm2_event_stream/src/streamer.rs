@@ -39,9 +39,9 @@ where
     );
 }
 
-/// Spawns the `EventStreamer::handle` in a separate thread.
+/// Spawns the [`EventStreamer::handle`] in a separate task using [`WeakSpawner`].
 ///
-/// Returns a `oneshot::Sender` to shutdown the handler and an optional `mpsc::UnboundedSender`
+/// Returns a [`oneshot::Sender`] to shutdown the handler and an optional [`mpsc::UnboundedSender`]
 /// to send data to the handler.
 pub(crate) async fn spawn<S>(
     streamer: S,
