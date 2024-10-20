@@ -48,7 +48,7 @@ lazy_static! {
 
     pub static ref FEE_PUBLIC_KEY: PublicKey = PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).expect("DEX_FEE_PUBKEY_ED25510 is a valid PublicKey");
 
-    pub static ref FEE_ADDR: Address = Address::from_pubkey(&FEE_PUBLIC_KEY).expect("FEE_PUBLIC_KEY is a valid PublicKey");
+    pub static ref FEE_ADDR: Address = Address::from_public_key(&FEE_PUBLIC_KEY);
 }
 
 // TODO consider if this is the best way to handle wasm vs native
