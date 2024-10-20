@@ -1,3 +1,27 @@
+/*
+This file is not included in the workspace. It's intended to be used to trigger the tests within docker_tests/sia_docker_tests.rs on their own 
+without running unrelated docker containers from the docker_tests_main.rs::docker_tests_runner function.
+
+An environment variable, SKIP_DOCKER_TESTS_RUNNER, can be set to skip the docker container initialization. This will run the tests with the assumption
+that there is a walletd instance at 127.0.0.1:9980. This was added to help with debugging the tests in a local environment.
+It can be useful otherwise to inspect the state of the walletd instance after the tests have run.
+
+Usage:
+    Run all sia docker tests:
+        cargo test --test docker_tests_sia_unique --all-features -- --nocapture
+
+    Run a specific test:
+        cargo test --test docker_tests_sia_unique --all-features test_sia_endpoint_debug_mine -- --nocapture
+
+    Run all sia docker tests without running the docker container:
+        SKIP_DOCKER_TESTS_RUNNER=1 cargo test --test docker_tests_sia_unique --all-features -- --nocapture
+
+    Run a specific test without running the docker container:
+        SKIP_DOCKER_TESTS_RUNNER=1 cargo test --test docker_tests_sia_unique --all-features test_sia_endpoint_debug_mine -- --nocapture
+
+note: `--nocapture` is shown in the example usage, but it is not neccesary. 
+*/
+
 #![allow(unused_imports, dead_code)]
 #![cfg(feature = "enable-sia")]
 #![feature(async_closure)]
