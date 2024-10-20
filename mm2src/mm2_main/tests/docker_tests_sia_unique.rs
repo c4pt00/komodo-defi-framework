@@ -77,7 +77,6 @@ pub fn docker_tests_runner(tests: &[&TestDescAndFn]) {
         }
 
         let sia_node = sia_docker_node(&docker, "SIA", 9980);
-        println!("ran container?");
         containers.push(sia_node);
     }
     // detect if docker is installed
