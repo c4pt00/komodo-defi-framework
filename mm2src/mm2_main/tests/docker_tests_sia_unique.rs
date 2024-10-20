@@ -1,6 +1,5 @@
 /*
-This file is not included in the workspace. It's intended to be used to trigger the tests within docker_tests/sia_docker_tests.rs on their own 
-without running unrelated docker containers from the docker_tests_main.rs::docker_tests_runner function.
+Sia docker tests runner. This module is used to run the tests in the sia_docker_tests module.
 
 An environment variable, SKIP_DOCKER_TESTS_RUNNER, can be set to skip the docker container initialization. This will run the tests with the assumption
 that there is a walletd instance at 127.0.0.1:9980. This was added to help with debugging the tests in a local environment.
@@ -21,15 +20,10 @@ Usage:
 
 note: `--nocapture` is shown in the example usage, but it is not neccesary. 
 */
-
-#![allow(unused_imports, dead_code)]
 #![cfg(feature = "enable-sia")]
-#![feature(async_closure)]
 #![feature(custom_test_frameworks)]
 #![feature(test)]
 #![test_runner(docker_tests_runner)]
-#![feature(drain_filter)]
-#![feature(hash_raw_entry)]
 #![cfg(not(target_arch = "wasm32"))]
 
 #[cfg(test)]
@@ -44,16 +38,18 @@ extern crate lazy_static;
 #[cfg(test)]
 #[macro_use]
 extern crate serde_json;
-#[cfg(test)] extern crate ser_error_derive;
 #[cfg(test)] extern crate test;
 
 use std::env;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
 use std::process::Command;
 use test::{test_main, StaticBenchFn, StaticTestFn, TestDescAndFn};
 use testcontainers::clients::Cli;
 
+// TODO This docker_tests module is a mess.
+// Separate common pieces into a docker_tests_common module that doesn't import an insane amount of unrelated code.
+// the use of this tests_runner feature seems unnecessary. Why can't each module initialize its own docker containers?
+#[allow(unused_imports, dead_code)]
 mod docker_tests;
 use docker_tests::docker_tests_common::*;
 
