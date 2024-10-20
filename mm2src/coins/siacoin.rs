@@ -40,6 +40,7 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
 
 lazy_static! {
@@ -777,8 +778,16 @@ impl MarketCoinOps for SiaCoin {
 
 #[async_trait]
 impl SwapOps for SiaCoin {
-    fn send_taker_fee(&self, _fee_addr: &[u8], _dex_fee: DexFee, _uuid: &[u8], _expire_at: u64) -> TransactionFut {
-        unimplemented!()
+    fn send_taker_fee(&self, _fee_addr: &[u8], _dex_fee: DexFee, uuid: &[u8], _expire_at: u64) -> TransactionFut {
+        let uuid_result = Uuid::from_slice(uuid).map_err(
+            |e| {
+                let err_msg = format!("siacoin send_taker_fee: failed to parse uuid from bytes: {}", e);
+                TransactionErr::Plain(ERRL!("{}", err_msg))
+            }
+        );
+        let uuid = try_tx_fus!(uuid_result);
+        todo!()
+
     }
 
     fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
