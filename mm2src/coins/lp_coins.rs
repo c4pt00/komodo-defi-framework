@@ -1122,6 +1122,8 @@ pub enum WatcherRewardError {
 /// Swap operations (mostly based on the Hash/Time locked transactions implemented by coin wallets).
 #[async_trait]
 pub trait SwapOps {
+    // TODO Alright - uuid should be Uuid type as it literally just does Uuid->slice->Uuid in all cases that use it
+    // expire_at is only used by tendermint, likely shouldn't be here at all
     fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, uuid: &[u8], expire_at: u64) -> TransactionFut;
 
     fn send_maker_payment(&self, maker_payment_args: SendPaymentArgs<'_>) -> TransactionFut;
