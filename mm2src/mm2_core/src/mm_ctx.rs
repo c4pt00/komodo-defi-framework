@@ -451,6 +451,7 @@ pub fn path_to_dbdir(db_root: Option<&str>, db_id: &H160) -> PathBuf {
 
 pub struct MmArc(pub SharedRc<MmCtx>);
 
+// TODO Alright Remove Send + Sync
 // NB: Explicit `Send` and `Sync` marks here should become unnecessary later,
 // after we finish the initial port and replace the C values with the corresponding Rust alternatives.
 #[allow(clippy::non_send_fields_in_send_ty)]
