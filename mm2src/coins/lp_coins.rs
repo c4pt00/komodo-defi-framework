@@ -3742,6 +3742,8 @@ impl MmCoinStruct {
 }
 
 /// Represents the different types of DEX fees.
+// TODO Alright this shouldn't require an enum just to cover a single edge case with KMD
+// the associated functions like `dex_fee_amount` can be methods on the type itself
 #[derive(Clone, Debug, PartialEq)]
 pub enum DexFee {
     /// Standard dex fee which will be sent to the dex fee address
