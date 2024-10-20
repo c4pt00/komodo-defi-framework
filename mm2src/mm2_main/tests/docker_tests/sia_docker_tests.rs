@@ -31,7 +31,7 @@ fn mine_blocks(n: u64, addr: &Address) {
 fn test_sia_new_client() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
-        password: None,
+        password: Some("password".to_string()),
         timeout: Some(10),
     };
     let _api_client = block_on(NativeClient::new(conf)).unwrap();
@@ -41,7 +41,7 @@ fn test_sia_new_client() {
 fn test_sia_client_consensus_tip() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
-        password: None,
+        password: Some("password".to_string()),
         timeout: Some(10),
     };
     let api_client = block_on(NativeClient::new(conf)).unwrap();
@@ -54,7 +54,7 @@ fn test_sia_client_consensus_tip() {
 fn test_sia_client_address_balance() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
-        password: None,
+        password: Some("password".to_string()),
         timeout: Some(10),
     };
     let api_client = block_on(NativeClient::new(conf)).unwrap();
@@ -75,7 +75,7 @@ fn test_sia_client_address_balance() {
 fn test_sia_client_build_tx() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
-        password: None,
+        password: Some("password".to_string()),
         timeout: Some(10),
     };
     let api_client = block_on(NativeClient::new(conf)).unwrap();
