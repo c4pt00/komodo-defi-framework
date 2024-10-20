@@ -198,49 +198,6 @@ fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<u128, MmError<NumConversEr
     )))?)
 }
 
-/// Takes a list of unspent Siacoin outputs (`unspent_outputs`) and attempts to select outputs
-/// whose total value is at least `total_amount`. The outputs are sorted from largest to smallest to minimize
-/// the number of outputs selected. The function returns a vector of the selected outputs and the difference between
-/// the total value of the selected outputs and the required amount, aka the change.
-///
-/// # Arguments
-///
-/// * `unspent_outputs` - A vector of `SiacoinElement`s representing unspent Siacoin outputs.
-/// * `total_amount` - The total amount (in u128) required for the selection.
-///
-/// # Returns
-///
-/// This function returns a `Result`:
-/// * `Ok((Vec<SiacoinElement>, Currency))` - A tuple containing, a vector of the selected unspent outputs and the change amount.
-/// * `Err(MmError<SelectOutputsError>)` - An error is returned if the available outputs cannot meet the required amount.
-pub fn select_outputs( mut unspent_outputs: Vec<SiacoinElement>, total_amount: u128) -> Result<(Vec<SiacoinElement>, Currency), MmError<SelectOutputsError>> {
-    // Sort outputs from largest to smallest
-    unspent_outputs.sort_by(|a, b| b.siacoin_output.value.0.cmp(&a.siacoin_output.value.0));
-
-    let mut selected = Vec::new();
-    let mut selected_amount = 0;
-
-    // Select outputs until the total amount is reached
-    for output in unspent_outputs {
-        selected_amount += *output.siacoin_output.value;
-        selected.push(output);
-
-        if selected_amount >= total_amount {
-            break;
-        }
-    }
-
-    if selected_amount < total_amount {
-        return Err(MmError::new(SelectOutputsError {
-            available: selected_amount.into(),
-            required: total_amount.into(),
-        }));
-    }
-    let change = selected_amount as u128 - total_amount as u128;
-
-    Ok((selected, change.into()))
-}
-
 #[derive(Debug, Display)]
 #[display(fmt = "Sia select_outputs insufficent amount, available: {:?} required: {:?}", available, required)]
 pub struct SelectOutputsError {
