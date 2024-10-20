@@ -779,13 +779,13 @@ impl MarketCoinOps for SiaCoin {
 #[async_trait]
 impl SwapOps for SiaCoin {
     fn send_taker_fee(&self, _fee_addr: &[u8], _dex_fee: DexFee, uuid: &[u8], _expire_at: u64) -> TransactionFut {
-        let uuid_result = Uuid::from_slice(uuid).map_err(
-            |e| {
-                let err_msg = format!("siacoin send_taker_fee: failed to parse uuid from bytes: {}", e);
-                TransactionErr::Plain(ERRL!("{}", err_msg))
-            }
-        );
-        let uuid = try_tx_fus!(uuid_result);
+        // let uuid_result = Uuid::from_slice(uuid).map_err(
+        //     |e| {
+        //         let err_msg = format!("siacoin send_taker_fee: failed to parse uuid from bytes: {}", e);
+        //         TransactionErr::Plain(ERRL!("{}", err_msg))
+        //     }
+        // );
+        // let uuid = try_tx_fus!(uuid_result);
         todo!()
 
     }
@@ -1374,6 +1374,15 @@ mod tests {
         let tx2: SiaTransaction = serde_json::from_slice(&vec).unwrap();
 
         assert_eq!(tx, tx2);
+    }
+
+    /// Test the .expect()s used during lazy_static initialization of FEE_PUBLIC_KEY
+    #[test]
+    fn test_sia_fee_pubkey_init() {
+        let pubkey_bytes: Vec<u8> = hex::decode(DEX_FEE_PUBKEY_ED25510).unwrap();
+        let pubkey =  PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).unwrap();
+        assert_eq!(pubkey_bytes, *FEE_PUBLIC_KEY_BYTES);
+        assert_eq!(pubkey, *FEE_PUBLIC_KEY);
     }
 }
 
