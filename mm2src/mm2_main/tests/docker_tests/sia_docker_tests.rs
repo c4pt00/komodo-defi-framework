@@ -34,7 +34,7 @@ fn test_sia_new_client() {
 }
 
 #[test]
-fn test_sia_client_consensus_tip() {
+fn test_sia_endpoint_consensus_tip() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: Some("password".to_string()),
@@ -72,7 +72,7 @@ fn test_sia_endpoint_debug_mine() {
 // This test likely needs to be removed because mine_blocks has possibility of interfering with other async tests
 // related to block height
 #[test]
-fn test_sia_client_address_balance() {
+fn test_sia_endpoint_address_balance() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: Some("password".to_string()),
@@ -93,7 +93,7 @@ fn test_sia_client_address_balance() {
 }
 
 #[test]
-fn test_sia_client_build_tx() {
+fn test_sia_build_tx() {
     let conf = Conf {
         server_url: Url::parse("http://localhost:9980/").unwrap(),
         password: Some("password".to_string()),
