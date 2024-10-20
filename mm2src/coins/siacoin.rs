@@ -16,10 +16,12 @@ use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPay
 use async_trait::async_trait;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
+use common::DEX_FEE_PUBKEY_ED25510;
 use common::log::info;
 use futures::compat::Future01CompatExt;
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
+use hex;
 use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -40,8 +42,11 @@ use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
 
 
+lazy_static! {
+    pub static ref FEE_PUBLIC_KEY_BYTES: Vec<u8> = hex::decode(DEX_FEE_PUBKEY_ED25510).expect("DEX_FEE_PUBKEY_ED25510 is a valid hex string");
 
-const FEE_PUBLIC_KEY_STR : &str = "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead";
+    pub static ref FEE_PUBLIC_KEY: PublicKey = PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).expect("DEX_FEE_PUBKEY_ED25510 is a valid PublicKey");
+}
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
