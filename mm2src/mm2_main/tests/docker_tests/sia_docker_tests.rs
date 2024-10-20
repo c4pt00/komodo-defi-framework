@@ -1,8 +1,8 @@
 use common::block_on;
 use sia_rust::transport::client::native::{Conf, NativeClient};
-use sia_rust::transport::client::ApiClient;
+use sia_rust::transport::client::{ApiClient, ApiClientError, ApiClientHelpers};
 use sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, GetAddressUtxosRequest,
-                                     TxpoolBroadcastRequest};
+                                     TxpoolBroadcastRequest, DebugMineRequest};
 use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::process::Command;
 use std::str::FromStr;
@@ -15,16 +15,12 @@ See block comment in ../docker_tests_sia_unique.rs for more information.
 */
 
 #[cfg(test)]
-fn mine_blocks(n: u64, addr: &Address) {
-    Command::new("docker")
-        .arg("exec")
-        .arg("sia-docker")
-        .arg("walletd")
-        .arg("mine")
-        .arg(format!("-addr={}", addr))
-        .arg(format!("-n={}", n))
-        .status()
-        .expect("Failed to execute docker command");
+fn mine_blocks(client: &NativeClient, n: i64, addr: &Address) -> Result<(), ApiClientError> {
+    block_on(client.dispatcher(DebugMineRequest {
+        address: addr.clone(),
+        blocks: n,
+    }))?;
+    Ok(())
 }
 
 #[test]
@@ -48,6 +44,31 @@ fn test_sia_client_consensus_tip() {
     let _response = block_on(api_client.dispatcher(ConsensusTipRequest)).unwrap();
 }
 
+#[test]
+fn test_sia_endpoint_debug_mine() {
+    let conf = Conf {
+        server_url: Url::parse("http://localhost:9980/").unwrap(),
+        password: Some("password".to_string()),
+        timeout: Some(10),
+    };
+    let api_client = block_on(NativeClient::new(conf)).unwrap();
+
+    let address =
+        Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
+    block_on(api_client.dispatcher(DebugMineRequest {
+        address: address.clone(),
+        blocks: 100,
+    })).unwrap();
+
+    let height = block_on(api_client.current_height()).unwrap();
+    assert_eq!(height, 100);
+
+    // test the helper function as well
+    mine_blocks(&api_client, 100, &address).unwrap();
+    let response = block_on(api_client.dispatcher(ConsensusTipRequest)).unwrap();
+    assert_eq!(response.height, 200);
+}
+
 // This test likely needs to be removed because mine_blocks has possibility of interfering with other async tests
 // related to block height
 #[test]
@@ -61,7 +82,7 @@ fn test_sia_client_address_balance() {
 
     let address =
         Address::from_str("addr:591fcf237f8854b5653d1ac84ae4c107b37f148c3c7b413f292d48db0c25a8840be0653e411f").unwrap();
-    mine_blocks(10, &address);
+    mine_blocks(&api_client, 10, &address).unwrap();
 
     let request = AddressBalanceRequest { address };
     let response = block_on(api_client.dispatcher(request)).unwrap();
@@ -87,7 +108,7 @@ fn test_sia_client_build_tx() {
 
     let address = spend_policy.address();
 
-    mine_blocks(201, &address);
+    mine_blocks(&api_client, 201, &address).unwrap();
 
     let utxos = block_on(api_client.dispatcher(GetAddressUtxosRequest {
         address: address.clone(),
