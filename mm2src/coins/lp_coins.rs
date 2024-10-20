@@ -3668,6 +3668,7 @@ impl MmCoinStruct {
 }
 
 /// Represents the different types of DEX fees.
+/// WithBurn is a special case for KMD see: dex_fee_amount function
 #[derive(Clone, Debug, PartialEq)]
 pub enum DexFee {
     /// Standard dex fee which will be sent to the dex fee address
