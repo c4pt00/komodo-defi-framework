@@ -8,6 +8,12 @@ use std::process::Command;
 use std::str::FromStr;
 use url::Url;
 
+/*
+These tests are not included in the workspace and must be run manually.
+
+See block comment in ../docker_tests_sia_unique.rs for more information.
+*/
+
 #[cfg(test)]
 fn mine_blocks(n: u64, addr: &Address) {
     Command::new("docker")
