@@ -5,6 +5,8 @@ An environment variable, SKIP_DOCKER_TESTS_RUNNER, can be set to skip the docker
 that there is a walletd instance at 127.0.0.1:9980. This was added to help with debugging the tests in a local environment.
 It can be useful otherwise to inspect the state of the walletd instance after the tests have run.
 
+This module used the existing docker test suite at the time of Sia integration. It is not a good example of how to write tests in the mm2 codebase.
+
 Usage:
     Run all sia docker tests:
         cargo test --test docker_tests_sia_unique --all-features -- --nocapture

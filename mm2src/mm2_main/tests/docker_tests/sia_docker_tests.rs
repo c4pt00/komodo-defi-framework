@@ -7,20 +7,72 @@ use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
+use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
+use coins::PrivKeyBuildPolicy;
+use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinConf, SiaCoinActivationRequest};
+use mm2_main::lp_wallet::initialize_wallet_passphrase;
 
 /*
-These tests are not included in the workspace and must be run manually.
-
-See block comment in ../docker_tests_sia_unique.rs for more information.
+These tests are intended to ran manually for now.
+Otherwise, they can interfere with each other since there is only one docker container initialized for all of them.
+TODO: refactor; see block comment in ../docker_tests_sia_unique.rs for more information.
 */
 
-#[cfg(test)]
 fn mine_blocks(client: &NativeClient, n: i64, addr: &Address) -> Result<(), ApiClientError> {
     block_on(client.dispatcher(DebugMineRequest {
         address: addr.clone(),
         blocks: n,
     }))?;
     Ok(())
+}
+
+async fn init_ctx(passphrase: &str, netid: u16) -> MmArc {
+    let kdf_conf = json!({
+        "gui": "sia-docker-tests",
+        "netid": netid,
+        "rpc_password": "rpc_password",
+        "passphrase": passphrase,
+    });
+
+    let ctx = MmCtxBuilder::new()
+        .with_conf(kdf_conf)
+        .into_mm_arc();
+
+    initialize_wallet_passphrase(&ctx).await.unwrap();
+    ctx
+}
+
+async fn init_siacoin(ctx: MmArc, ticker: &str, request: &SiaCoinActivationRequest) -> SiaCoin {
+    let coin_conf_str = json!(
+        {
+            "coin": ticker,
+            "required_confirmations": 1,
+        }
+    );
+
+    let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).unwrap();
+
+    sia_coin_from_conf_and_request(&ctx, ticker, coin_conf_str, request, priv_key_policy).await.unwrap()
+}
+
+fn default_activation_request() -> SiaCoinActivationRequest {
+    let activation_request_json = json!(
+        {
+            "tx_history": true,
+            "client_conf": {
+                "server_url": "http://localhost:9980/",
+                "password": "password"
+            }
+        }
+    );
+    serde_json::from_value::<SiaCoinActivationRequest>(activation_request_json).unwrap()
+}
+
+#[test]
+fn test_sia_init_siacoin() {
+    let ctx = block_on(init_ctx("horribly insecure passphrase", 9995));
+    let coin = block_on(init_siacoin(ctx, "TSIA", &default_activation_request()));
+    assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
 }
 
 #[test]
@@ -69,8 +121,6 @@ fn test_sia_endpoint_debug_mine() {
     assert_eq!(response.height, 200);
 }
 
-// This test likely needs to be removed because mine_blocks has possibility of interfering with other async tests
-// related to block height
 #[test]
 fn test_sia_endpoint_address_balance() {
     let conf = Conf {
