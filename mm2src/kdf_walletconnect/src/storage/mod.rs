@@ -39,8 +39,8 @@ impl Deref for SessionStorageDb {
 impl SessionStorageDb {
     pub(crate) fn init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
         #[cfg(target_arch = "wasm32")]
-        let db = indexed_db::IDBSessionStorage::new(ctx)
-            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
+        let db =
+            indexed_db::IDBSessionStorage::new(ctx).mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
         #[cfg(not(target_arch = "wasm32"))]
         let db = sqlite::SqliteSessionStorage::new(ctx).mm_err(WalletConnectError::StorageError)?;
 
