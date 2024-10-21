@@ -11,14 +11,14 @@ use async_trait::async_trait;
 use coins::hd_wallet::HDPathAccountToAddressId;
 use coins::my_tx_history_v2::TxHistoryStorage;
 use coins::tendermint::tendermint_tx_history_v2::tendermint_history_loop;
-use coins::tendermint::{tendermint_priv_key_policy, RpcNode, TendermintActivationPolicy, TendermintCoin,
-                        TendermintCommons, TendermintConf, TendermintInitError, TendermintInitErrorKind,
-                        TendermintProtocolInfo, TendermintPublicKey, TendermintToken, TendermintTokenActivationParams,
-                        TendermintTokenInitError, TendermintTokenProtocolInfo, TendermintWalletConnectionType};
+use coins::tendermint::{cosmos_get_accounts_impl, tendermint_priv_key_policy, CosmosAccountAlgo, RpcNode,
+                        TendermintActivationPolicy, TendermintCoin, TendermintCommons, TendermintConf,
+                        TendermintInitError, TendermintInitErrorKind, TendermintProtocolInfo, TendermintPublicKey,
+                        TendermintToken, TendermintTokenActivationParams, TendermintTokenInitError,
+                        TendermintTokenProtocolInfo, TendermintWalletConnectionType};
 use coins::{CoinBalance, CoinProtocol, MarketCoinOps, MmCoin, MmCoinEnum, PrivKeyBuildPolicy};
 use common::executor::{AbortSettings, SpawnAbortable};
 use common::{true_f, Future01CompatExt};
-use kdf_walletconnect::chain::CosmosAccountAlgo;
 use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -251,10 +251,9 @@ async fn get_walletconnect_pubkey(
         });
     };
 
-    let walletconnect_ctx = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
+    let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
 
-    let account = walletconnect_ctx
-        .cosmos_get_account(param.account_index, chain_id)
+    let account = cosmos_get_accounts_impl(&wc, chain_id, Some(param.account_index))
         .await
         .mm_err(|err| TendermintInitError {
             ticker: ticker.to_string(),
@@ -271,7 +270,7 @@ async fn get_walletconnect_pubkey(
         kind: TendermintInitErrorKind::Internal(e),
     })?;
 
-    if walletconnect_ctx.is_ledger_connection().await {
+    if wc.is_ledger_connection().await {
         *wallet_type = TendermintWalletConnectionType::WcLedger;
     } else {
         *wallet_type = TendermintWalletConnectionType::Wc;

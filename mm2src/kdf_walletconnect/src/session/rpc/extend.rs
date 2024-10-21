@@ -1,4 +1,4 @@
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use mm2_err_handle::prelude::MmResult;
 use relay_rpc::{domain::{MessageId, Topic},
@@ -10,7 +10,7 @@ pub(crate) async fn reply_session_extend_request(
     topic: &Topic,
     message_id: &MessageId,
     extend: SessionExtendRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     ctx.session.extend_session(topic, extend.expiry);
 
     let param = ResponseParamsSuccess::SessionExtend(true);

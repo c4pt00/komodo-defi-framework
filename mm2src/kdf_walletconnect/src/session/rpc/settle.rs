@@ -1,7 +1,7 @@
 use crate::chain::{SUPPORTED_CHAINS, SUPPORTED_EVENTS, SUPPORTED_METHODS};
 use crate::session::{Session, SessionProperties, THIRTY_DAYS};
 use crate::storage::WalletConnectStorageOps;
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
 use common::log::info;
@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 pub(crate) async fn send_session_settle_request(
     ctx: &WalletConnectCtx,
     session_info: &Session,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let mut settled_namespaces = BTreeMap::<String, Namespace>::new();
     settled_namespaces.insert("eip155".to_string(), Namespace {
         chains: Some(SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect()),
@@ -43,7 +43,7 @@ pub(crate) async fn reply_session_settle_request(
     topic: &Topic,
     message_id: &MessageId,
     settle: SessionSettleRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     {
         let session = ctx.session.get_session_mut(topic).await;
         if let Some(mut session) = session {
@@ -60,7 +60,7 @@ pub(crate) async fn reply_session_settle_request(
             ctx.storage
                 .update_session(&session)
                 .await
-                .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+                .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
         }
     }
 

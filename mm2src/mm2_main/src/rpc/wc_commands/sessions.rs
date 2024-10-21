@@ -1,4 +1,6 @@
-use kdf_walletconnect::{session::SessionRpcInfo, WalletConnectCtx};
+use kdf_walletconnect::session::SessionRpcInfo;
+use kdf_walletconnect::session::{disconnect_session_rpc_rpc, rpc::send_session_ping_request};
+use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
 use serde::Serialize;
@@ -37,7 +39,7 @@ pub struct GetSessionRequest {
     topic: String,
 }
 
-/// `Get all sessions connection` RPC command implementation.
+/// `Get session connection` RPC command implementation.
 pub async fn get_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<GetSessionResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
@@ -49,17 +51,32 @@ pub async fn get_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<GetSess
     Ok(GetSessionResponse { session })
 }
 
-/// `Get all sessions connection` RPC command implementation.
+/// `Delete session connection` RPC command implementation.
 pub async fn disconnect_session(
     ctx: MmArc,
     req: GetSessionRequest,
 ) -> MmResult<EmptyRpcResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    ctx.session
-        .disconnect_session(&req.topic.into(), &ctx.client)
+    disconnect_session_rpc_rpc(&ctx, &req.topic.into())
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 
     Ok(EmptyRpcResponse {})
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct SessionPingResponse {
+    pub successful: bool,
+}
+
+/// `ping session` RPC command implementation.
+pub async fn ping_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<SessionPingResponse, WalletConnectRpcError> {
+    let ctx =
+        WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
+    send_session_ping_request(&ctx, &req.topic.into())
+        .await
+        .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
+
+    Ok(SessionPingResponse { successful: true })
 }

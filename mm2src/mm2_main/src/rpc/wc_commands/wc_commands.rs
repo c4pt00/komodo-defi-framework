@@ -1,7 +1,6 @@
 mod delete_connection;
 mod get_chain_id;
 mod new_connection;
-mod ping;
 mod sessions;
 
 use common::HttpStatusCode;
@@ -10,7 +9,6 @@ use derive_more::Display;
 pub use get_chain_id::get_chain_id;
 use http::StatusCode;
 pub use new_connection::new_connection;
-pub use ping::ping_session;
 use serde::Deserialize;
 pub use sessions::*;
 

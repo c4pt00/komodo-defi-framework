@@ -6,7 +6,7 @@ use mm2_err_handle::prelude::MmResult;
 use mm2_err_handle::prelude::*;
 use relay_rpc::domain::Topic;
 
-use crate::{error::WalletConnectCtxError, session::Session};
+use crate::{error::WalletConnectError, session::Session};
 
 #[cfg(target_arch = "wasm32")] pub(crate) mod indexed_db;
 #[cfg(not(target_arch = "wasm32"))] pub(crate) mod sqlite;
@@ -37,12 +37,12 @@ impl Deref for SessionStorageDb {
 }
 
 impl SessionStorageDb {
-    pub(crate) fn init(ctx: &MmArc) -> MmResult<Self, WalletConnectCtxError> {
+    pub(crate) fn init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
         #[cfg(target_arch = "wasm32")]
         let db = indexed_db::IDBSessionStorage::new(ctx)
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
         #[cfg(not(target_arch = "wasm32"))]
-        let db = sqlite::SqliteSessionStorage::new(ctx).mm_err(WalletConnectCtxError::StorageError)?;
+        let db = sqlite::SqliteSessionStorage::new(ctx).mm_err(WalletConnectError::StorageError)?;
 
         Ok(SessionStorageDb(db))
     }

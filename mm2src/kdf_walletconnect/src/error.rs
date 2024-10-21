@@ -41,7 +41,7 @@ pub(crate) const UNSUPPORTED_NAMESPACE_KEY: i32 = 5104;
 pub(crate) const USER_REQUESTED: i64 = 6000;
 
 #[derive(Debug, Serialize, Deserialize, EnumFromStringify, thiserror::Error)]
-pub enum WalletConnectCtxError {
+pub enum WalletConnectError {
     #[error("Pairing Error: {0}")]
     #[from_stringify("PairingClientError")]
     PairingError(String),
@@ -86,12 +86,12 @@ pub enum WalletConnectCtxError {
     ChainIdMismatch,
 }
 
-impl From<Error<PublishError>> for WalletConnectCtxError {
-    fn from(error: Error<PublishError>) -> Self { WalletConnectCtxError::PublishError(format!("{error:?}")) }
+impl From<Error<PublishError>> for WalletConnectError {
+    fn from(error: Error<PublishError>) -> Self { WalletConnectError::PublishError(format!("{error:?}")) }
 }
 
-impl From<Error<SubscriptionError>> for WalletConnectCtxError {
-    fn from(error: Error<SubscriptionError>) -> Self { WalletConnectCtxError::SubscriptionError(format!("{error:?}")) }
+impl From<Error<SubscriptionError>> for WalletConnectError {
+    fn from(error: Error<SubscriptionError>) -> Self { WalletConnectError::SubscriptionError(format!("{error:?}")) }
 }
 
 /// Session key and topic derivation errors.

@@ -1,4 +1,4 @@
-use crate::{error::{WalletConnectCtxError, USER_REQUESTED},
+use crate::{error::{WalletConnectError, USER_REQUESTED},
             storage::WalletConnectStorageOps,
             WalletConnectCtx};
 
@@ -12,7 +12,7 @@ pub(crate) async fn reply_session_delete_request(
     topic: &Topic,
     message_id: &MessageId,
     _delete_params: SessionDeleteRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let param = ResponseParamsSuccess::SessionDelete(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
 
@@ -22,7 +22,7 @@ pub(crate) async fn reply_session_delete_request(
 pub async fn send_session_delete_request(
     ctx: &WalletConnectCtx,
     session_topic: &Topic,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let delete_request = SessionDeleteRequest {
         code: USER_REQUESTED,
         message: "User Disconnected".to_owned(),
@@ -34,7 +34,7 @@ pub async fn send_session_delete_request(
     session_delete_cleanup(ctx, session_topic).await
 }
 
-async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectCtxError> {
+async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
     {
         ctx.client.unsubscribe(topic.clone()).await?;
     };
@@ -57,7 +57,7 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResu
         ctx.storage
             .delete_session(topic)
             .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
     };
 
     Ok(())

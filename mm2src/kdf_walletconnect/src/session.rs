@@ -1,7 +1,7 @@
 pub(crate) mod key;
 pub mod rpc;
 
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
 use common::log::debug;
@@ -10,7 +10,6 @@ use dashmap::DashMap;
 use futures::lock::Mutex;
 use key::SessionKey;
 use mm2_err_handle::prelude::MmResult;
-use relay_client::websocket::Client;
 use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
@@ -26,7 +25,7 @@ use std::sync::Arc;
 pub(crate) const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
 
-pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectCtxError>;
+pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectError>;
 
 /// In the WalletConnect protocol, a session involves two parties: a controller
 /// (typically a wallet) and a proposer (typically a dApp). This enum is used
@@ -176,16 +175,16 @@ impl Session {
 
 /// Internal implementation of session management.
 #[derive(Default, Debug)]
-struct SessionManagementImpl {
+struct SessionManagerImpl {
     /// The currently active session topic.
     active_topic: Mutex<Option<Topic>>,
     /// A thread-safe map of sessions indexed by topic.
     sessions: DashMap<Topic, Session>,
 }
 
-pub struct SessionManagement(Arc<SessionManagementImpl>);
+pub struct SessionManager(Arc<SessionManagerImpl>);
 
-impl Default for SessionManagement {
+impl Default for SessionManager {
     fn default() -> Self { Self::new() }
 }
 
@@ -204,7 +203,7 @@ impl From<Session> for SessionRpcInfo {
 }
 
 #[allow(unused)]
-impl SessionManagement {
+impl SessionManager {
     pub fn new() -> Self { Self(Default::default()) }
 
     /// Inserts the provided `Session` into the session store, associated with the specified topic.
@@ -314,12 +313,18 @@ impl SessionManagement {
             .map(|k| k.session_key.symmetric_key().to_vec())
     }
 
-    pub async fn disconnect_session(&self, topic: &Topic, client: &Client) -> MmResult<(), WalletConnectCtxError> {
-        client.unsubscribe(topic.clone()).await?;
+    async fn disconnect_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
         self.delete_session(topic).await;
 
         Ok(())
     }
+}
+
+pub async fn disconnect_session_rpc_rpc(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
+    ctx.client.unsubscribe(topic.clone()).await?;
+    ctx.session.delete_session(topic).await;
+
+    Ok(())
 }
 
 #[cfg(test)]

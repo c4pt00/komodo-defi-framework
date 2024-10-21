@@ -5,3 +5,5 @@ pub mod ping;
 pub(crate) mod propose;
 pub(crate) mod settle;
 pub(crate) mod update;
+
+pub use ping::*;

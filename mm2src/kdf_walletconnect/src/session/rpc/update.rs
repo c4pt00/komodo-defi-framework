@@ -1,5 +1,5 @@
 use crate::storage::WalletConnectStorageOps;
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use common::log::info;
 use mm2_err_handle::prelude::*;
@@ -13,7 +13,7 @@ pub(crate) async fn reply_session_update_request(
     topic: &Topic,
     message_id: &MessageId,
     update: SessionUpdateRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     {
         if let Some(mut session) = ctx.session.get_session_mut(topic).await {
             session.namespaces = update.namespaces.0;
@@ -21,7 +21,7 @@ pub(crate) async fn reply_session_update_request(
             ctx.storage
                 .update_session(&session)
                 .await
-                .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+                .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
             info!("Updated extended, info: {:?}", session);
         };

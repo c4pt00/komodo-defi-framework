@@ -3,6 +3,7 @@ use super::htlc::{ClaimHtlcMsg, ClaimHtlcProto, CreateHtlcMsg, CreateHtlcProto, 
                   QueryHtlcResponse, TendermintHtlc, HTLC_STATE_COMPLETED, HTLC_STATE_OPEN, HTLC_STATE_REFUNDED};
 use super::ibc::transfer_v1::MsgTransfer;
 use super::ibc::IBC_GAS_LIMIT_DEFAULT;
+use super::wallet_connect::{cosmos_request_wc_signed_tx, CosmosTxSignedData};
 use super::{rpc::*, TENDERMINT_COIN_PROTOCOL_TYPE};
 use crate::coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentResult};
 use crate::hd_wallet::{HDPathAccountToAddressId, WithdrawFrom};
@@ -63,7 +64,8 @@ use futures01::Future;
 use hex::FromHexError;
 use instant::Duration;
 use itertools::Itertools;
-use kdf_walletconnect::WalletConnectCtx;
+use kdf_walletconnect::error::WalletConnectError;
+use kdf_walletconnect::{WalletConnectCtx, WcRequestOps};
 use keys::{KeyPair, Public};
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
@@ -865,6 +867,7 @@ impl TendermintCoin {
                 )
             },
             TendermintActivationPolicy::PublicKey(_) => match self.wallet_type {
+                // TODO implement ledger tx signing for WC.
                 TendermintWalletConnectionType::WcLedger | TendermintWalletConnectionType::Wc => try_tx_s!(
                     self.seq_safe_send_raw_tx_bytes(tx_payload, fee, timeout_height, memo)
                         .timeout(expiration)
@@ -881,13 +884,9 @@ impl TendermintCoin {
 
     async fn request_wc_tx_signing(&self, tx_json: serde_json::Value) -> Result<Raw, TransactionErr> {
         let ctx = try_tx_s!(MmArc::from_weak(&self.ctx).ok_or(ERRL!("ctx must be initialized already")));
-        let wallet_connect = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
+        let wc = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
 
-        let response = try_tx_s!(
-            wallet_connect
-                .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
-                .await
-        );
+        let response = try_tx_s!(self.wc_request_sign_tx(&wc, self.chain_id.as_ref(), tx_json).await);
         let signature = try_tx_s!(general_purpose::STANDARD
             .decode(response.signature.signature)
             .map_err(|e| ERRL!("{}", e)));
@@ -1293,8 +1292,8 @@ impl TendermintCoin {
             let SerializedUnsignedTx { tx_json, body_bytes: _ } =
                 self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)?;
 
-            let response = wallet_connect
-                .cosmos_send_sign_tx_request(tx_json, self.chain_id.as_ref())
+            let response = self
+                .wc_request_sign_tx(&wallet_connect, self.chain_id.as_ref(), tx_json)
                 .await?;
             let signature = general_purpose::STANDARD.decode(response.signature.signature)?;
             let body_bytes = response.signed.body_bytes;
@@ -3446,6 +3445,21 @@ fn parse_expected_sequence_number(e: &str) -> MmResult<u64, TendermintCoinRpcErr
         "Could not parse the expected sequence number from this error message: '{}'",
         e
     )))
+}
+
+#[async_trait::async_trait]
+impl WcRequestOps for TendermintCoin {
+    type Error = MmError<WalletConnectError>;
+    type SignTxData = CosmosTxSignedData;
+
+    async fn wc_request_sign_tx(
+        &self,
+        ctx: &WalletConnectCtx,
+        chain_id: &str,
+        tx_json: serde_json::Value,
+    ) -> Result<Self::SignTxData, Self::Error> {
+        cosmos_request_wc_signed_tx(ctx, tx_json, chain_id).await
+    }
 }
 
 #[cfg(test)]

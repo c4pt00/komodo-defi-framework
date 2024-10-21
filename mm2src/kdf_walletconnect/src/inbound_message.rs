@@ -1,4 +1,4 @@
-use crate::{error::WalletConnectCtxError,
+use crate::{error::WalletConnectError,
             pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
             session::rpc::{delete::reply_session_delete_request,
                            event::reply_session_event_request,
@@ -28,7 +28,7 @@ pub(crate) async fn process_inbound_request(
     ctx: &WalletConnectCtx,
     request: Request,
     topic: &Topic,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let message_id = request.id;
     match request.params {
         Params::SessionPropose(proposal) => reply_session_proposal_request(ctx, proposal, topic, &message_id).await?,
@@ -40,7 +40,7 @@ pub(crate) async fn process_inbound_request(
         Params::SessionEvent(param) => reply_session_event_request(ctx, topic, &message_id, param).await?,
         Params::SessionRequest(_param) => {
             // TODO: Implement when integrating KDF as a Dapp.
-            return MmError::err(WalletConnectCtxError::NotImplemented);
+            return MmError::err(WalletConnectError::NotImplemented);
         },
 
         Params::PairingPing(_param) => reply_pairing_ping_response(ctx, topic, &message_id).await?,
@@ -48,7 +48,7 @@ pub(crate) async fn process_inbound_request(
         Params::PairingExtend(param) => reply_pairing_extend_response(ctx, topic, &message_id, param).await?,
         _ => {
             info!("Unknown request params received.");
-            return MmError::err(WalletConnectCtxError::InvalidRequest);
+            return MmError::err(WalletConnectError::InvalidRequest);
         },
     };
 
@@ -59,7 +59,7 @@ pub(crate) async fn process_inbound_response(
     ctx: &WalletConnectCtx,
     response: Response,
     topic: &Topic,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let message_id = response.id();
 
     match response {
@@ -81,7 +81,7 @@ pub(crate) async fn process_inbound_response(
                     | ResponseParamsSuccess::PairingDelete(success)
                     | ResponseParamsSuccess::PairingPing(success) => {
                         if !success {
-                            return MmError::err(WalletConnectCtxError::UnSuccessfulResponse(format!(
+                            return MmError::err(WalletConnectError::UnSuccessfulResponse(format!(
                                 "Unsuccessful response={params:?}"
                             )));
                         };

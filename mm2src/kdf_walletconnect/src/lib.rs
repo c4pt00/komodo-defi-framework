@@ -7,12 +7,13 @@ mod metadata;
 pub mod session;
 mod storage;
 
-use chain::{build_required_namespaces, cosmos_get_accounts_impl, cosmos_sign_direct_impl, CosmosAccount,
-            CosmosTxSignedData, SUPPORTED_CHAINS};
+use crate::session::rpc::propose::send_proposal_request;
+
+use chain::{build_required_namespaces, SUPPORTED_CHAINS};
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
-use error::WalletConnectCtxError;
+use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
 use futures::StreamExt;
@@ -30,23 +31,21 @@ use relay_rpc::rpc::params::{IrnMetadata, Metadata, Relay, RelayProtocolMetadata
                              ResponseParamsSuccess};
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
 use serde_json::Value;
-use session::{key::SymKeyPair, SessionManagement};
+use session::{key::SymKeyPair, SessionManager};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
-use crate::session::rpc::propose::send_proposal_request;
-
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
-const DEFAULT_CHAIN_ID: &str = "cosmoshub-4"; // tendermint e.g ATOM
+const DEFAULT_CHAIN_ID: &str = "cosmoshub-4";
 
 type SessionEventMessage = (MessageId, Value);
 
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
-    pub session: SessionManagement,
+    pub session: SessionManager,
     pub active_chain_id: Arc<Mutex<String>>,
 
     pub(crate) key_pair: SymKeyPair,
@@ -59,17 +58,11 @@ pub struct WalletConnectCtx {
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
     session_request_sender: Arc<Mutex<UnboundedSender<SessionEventMessage>>>,
-    session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
-}
-
-impl Drop for WalletConnectCtx {
-    fn drop(&mut self) {
-        println!("drop");
-    }
+    pub session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
 }
 
 impl WalletConnectCtx {
-    pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectCtxError> {
+    pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
         let (msg_sender, msg_receiver) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (session_request_sender, session_request_receiver) = unbounded();
@@ -89,7 +82,7 @@ impl WalletConnectCtx {
         Ok(Self {
             client,
             pairing,
-            session: SessionManagement::new(),
+            session: SessionManager::new(),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
             required_namespaces: required,
@@ -104,14 +97,14 @@ impl WalletConnectCtx {
         })
     }
 
-    pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectCtxError> {
+    pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectError> {
         from_ctx(&ctx.wallet_connect, move || {
             Self::try_init(ctx).map_err(|err| err.to_string())
         })
-        .map_to_mm(WalletConnectCtxError::InternalError)
+        .map_to_mm(WalletConnectError::InternalError)
     }
 
-    pub async fn connect_client(&self) -> MmResult<(), WalletConnectCtxError> {
+    pub async fn connect_client(&self) -> MmResult<(), WalletConnectError> {
         let auth = {
             let key = SigningKey::generate(&mut rand::thread_rng());
             AuthToken::new(AUTH_TOKEN_SUB)
@@ -131,7 +124,7 @@ impl WalletConnectCtx {
     pub async fn new_connection(
         &self,
         required_namespaces: Option<ProposeNamespaces>,
-    ) -> MmResult<String, WalletConnectCtxError> {
+    ) -> MmResult<String, WalletConnectError> {
         let (topic, url) = self.pairing.create(self.metadata.clone(), None).await?;
 
         info!("Subscribing to topic: {topic:?}");
@@ -171,55 +164,25 @@ impl WalletConnectCtx {
     pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
 
     /// Retrieves the available account for a given chain ID.
-    pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectCtxError> {
+    pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectError> {
         let active_chain_id = self.get_active_chain_id().await;
         if active_chain_id != chain_id {
-            return MmError::err(WalletConnectCtxError::ChainIdMismatch);
+            return MmError::err(WalletConnectError::ChainIdMismatch);
         }
 
         let namespaces = &self
             .session
             .get_session_active()
             .await
-            .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
-                chain_id.to_string(),
-            )))?
+            .ok_or(MmError::new(WalletConnectError::NoAccountFound(chain_id.to_string())))?
             .namespaces;
         namespaces
             .iter()
             .find_map(|(_key, namespace)| find_account_in_namespace(namespace, chain_id))
-            .ok_or(MmError::new(WalletConnectCtxError::NoAccountFound(
-                chain_id.to_string(),
-            )))
+            .ok_or(MmError::new(WalletConnectError::NoAccountFound(chain_id.to_string())))
     }
 
-    pub async fn cosmos_get_account(
-        &self,
-        account_index: usize,
-        chain_id: &str,
-    ) -> MmResult<CosmosAccount, WalletConnectCtxError> {
-        let accounts = cosmos_get_accounts_impl(self, chain_id).await?;
-
-        if accounts.is_empty() {
-            return MmError::err(WalletConnectCtxError::EmptyAccount(chain_id.to_string()));
-        };
-
-        if accounts.len() < account_index + 1 {
-            return MmError::err(WalletConnectCtxError::NoAccountFoundForIndex(account_index));
-        };
-
-        Ok(accounts[account_index].clone())
-    }
-
-    pub async fn cosmos_send_sign_tx_request(
-        &self,
-        sign_doc: Value,
-        chain_id: &str,
-    ) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
-        cosmos_sign_direct_impl(self, sign_doc, chain_id).await
-    }
-
-    async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectCtxError> {
+    async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectError> {
         {
             if let Some(key) = self.session.sym_key(topic) {
                 return Ok(key);
@@ -234,11 +197,11 @@ impl WalletConnectCtx {
             }
         }
 
-        MmError::err(WalletConnectCtxError::PairingError(format!("Topic not found:{topic}")))
+        MmError::err(WalletConnectError::PairingError(format!("Topic not found:{topic}")))
     }
 
-    /// Private function to publish a request.
-    async fn publish_request(&self, topic: &Topic, param: RequestParams) -> MmResult<(), WalletConnectCtxError> {
+    /// function to publish a request.
+    pub async fn publish_request(&self, topic: &Topic, param: RequestParams) -> MmResult<(), WalletConnectError> {
         let irn_metadata = param.irn_metadata();
         let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
@@ -251,12 +214,12 @@ impl WalletConnectCtx {
     }
 
     /// Private function to publish a success request response.
-    async fn publish_response_ok(
+    pub async fn publish_response_ok(
         &self,
         topic: &Topic,
         result: ResponseParamsSuccess,
         message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    ) -> MmResult<(), WalletConnectError> {
         let irn_metadata = result.irn_metadata();
         let value = serde_json::to_value(result)?;
         let response = Response::Success(SuccessfulResponse::new(*message_id, value));
@@ -272,7 +235,7 @@ impl WalletConnectCtx {
         topic: &Topic,
         error_data: ResponseParamsError,
         message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    ) -> MmResult<(), WalletConnectError> {
         let error = error_data.error();
         let irn_metadata = error_data.irn_metadata();
         let response = Response::Error(ErrorResponse::new(*message_id, error));
@@ -288,7 +251,7 @@ impl WalletConnectCtx {
         topic: &Topic,
         irn_metadata: IrnMetadata,
         payload: Payload,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    ) -> MmResult<(), WalletConnectError> {
         let sym_key = self.sym_key(topic).await?;
         let payload = serde_json::to_string(&payload)?;
 
@@ -311,7 +274,7 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectCtxError> {
+    async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectError> {
         let message = {
             let key = self.sym_key(&msg.topic).await?;
             decode_and_decrypt_type0(msg.message.as_bytes(), &key).unwrap()
@@ -330,13 +293,13 @@ impl WalletConnectCtx {
         Ok(())
     }
 
-    async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectCtxError> {
+    async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectError> {
         let now = chrono::Utc::now().timestamp() as u64;
         let mut sessions = self
             .storage
             .get_all_sessions()
             .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         sessions.sort_by(|a, b| a.expiry.cmp(&b.expiry));
 
@@ -367,7 +330,7 @@ impl WalletConnectCtx {
 
 /// This function spwans related WalletConnect related tasks and needed initialization before
 /// WalletConnect can be usable in KDF.
-pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectCtxError> {
+pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectError> {
     info!("Initializing WalletConnect");
 
     // Initialized WalletConnectCtx
@@ -388,17 +351,16 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
 
     // spawn message handler event loop
     ctx.spawner().spawn(async move {
-        let selfi = wallet_connect.clone();
+        let this = wallet_connect.clone();
         let mut recv = wallet_connect.inbound_message_handler.lock().await;
         while let Some(msg) = recv.next().await {
-            if let Err(e) = selfi.handle_published_message(msg).await {
+            if let Err(e) = this.handle_published_message(msg).await {
                 info!("Error processing message: {:?}", e);
             }
         }
     });
 
     info!("WalletConnect initialization completed successfully");
-
     Ok(())
 }
 
@@ -413,4 +375,17 @@ fn find_account_in_namespace(namespace: &Namespace, chain_id: &str) -> Option<St
             None
         }
     })
+}
+
+#[async_trait::async_trait]
+pub trait WcRequestOps {
+    type Error;
+    type SignTxData;
+
+    async fn wc_request_sign_tx(
+        &self,
+        ctx: &WalletConnectCtx,
+        chain_id: &str,
+        tx_json: Value,
+    ) -> Result<Self::SignTxData, Self::Error>;
 }

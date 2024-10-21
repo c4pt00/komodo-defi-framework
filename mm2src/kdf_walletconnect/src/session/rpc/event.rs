@@ -1,4 +1,4 @@
-use crate::{error::{WalletConnectCtxError, INVALID_EVENT, UNSUPPORTED_CHAINS},
+use crate::{error::{WalletConnectError, INVALID_EVENT, UNSUPPORTED_CHAINS},
             WalletConnectCtx};
 
 use mm2_err_handle::prelude::MmResult;
@@ -17,14 +17,14 @@ pub(crate) async fn reply_session_event_request(
     topic: &Topic,
     message_id: &MessageId,
     event: SessionEventRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     SessionEvent::from_event(event)?
         .handle_session_event(ctx, topic, message_id)
         .await
 }
 
 impl SessionEvent {
-    pub fn from_event(event: SessionEventRequest) -> MmResult<Self, WalletConnectCtxError> {
+    pub fn from_event(event: SessionEventRequest) -> MmResult<Self, WalletConnectError> {
         match event.event.name.as_str() {
             "chainChanged" => Ok(SessionEvent::ChainChanged(event.chain_id)),
             "accountsChanged" => {
@@ -40,7 +40,7 @@ impl SessionEvent {
         ctx: &WalletConnectCtx,
         topic: &Topic,
         message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    ) -> MmResult<(), WalletConnectError> {
         match &self {
             SessionEvent::ChainChanged(chain_id) => {
                 Self::handle_chain_changed_event(ctx, chain_id, topic, message_id).await
@@ -67,7 +67,7 @@ impl SessionEvent {
         chain_id: &str,
         topic: &Topic,
         message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    ) -> MmResult<(), WalletConnectError> {
         if ctx.is_chain_supported(chain_id) {
             if let Some((key, chain)) = parse_chain_and_chain_id(chain_id) {
                 if let Some(session) = ctx.session.get_session_active().await {
@@ -104,7 +104,7 @@ impl SessionEvent {
         _data: &[String],
         topic: &Topic,
         message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectCtxError> {
+    ) -> MmResult<(), WalletConnectError> {
         // TODO: Handle account change logic.
         //TODO: Notify about account changed.
 

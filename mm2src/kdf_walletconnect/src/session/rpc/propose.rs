@@ -1,6 +1,6 @@
 use super::settle::send_session_settle_request;
 use crate::storage::WalletConnectStorageOps;
-use crate::{error::WalletConnectCtxError,
+use crate::{error::WalletConnectError,
             metadata::generate_metadata,
             session::{Session, SessionKey, SessionType, THIRTY_DAYS},
             WalletConnectCtx};
@@ -18,7 +18,7 @@ pub(crate) async fn send_proposal_request(
     ctx: &WalletConnectCtx,
     topic: Topic,
     required_namespaces: Option<ProposeNamespaces>,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let proposer = Proposer {
         metadata: ctx.metadata.clone(),
         public_key: hex::encode(ctx.key_pair.public_key.as_bytes()),
@@ -41,7 +41,7 @@ pub async fn reply_session_proposal_request(
     proposal: SessionProposeRequest,
     topic: &Topic,
     message_id: &MessageId,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let sender_public_key = hex::decode(&proposal.proposer.public_key)?
         .as_slice()
         .try_into()
@@ -53,7 +53,7 @@ pub async fn reply_session_proposal_request(
         .client
         .subscribe(session_topic.clone())
         .await
-        .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
+        .map_to_mm(|err| WalletConnectError::SubscriptionError(err.to_string()))?;
 
     let session = Session::new(
         ctx,
@@ -67,14 +67,14 @@ pub async fn reply_session_proposal_request(
     session
         .propose_namespaces
         .supported(&proposal.required_namespaces)
-        .map_to_mm(|err| WalletConnectCtxError::InternalError(err.to_string()))?;
+        .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?;
 
     {
         // save session to storage
         ctx.storage
             .save_session(&session)
             .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // Add session to session lists
         ctx.session.add_session(session.clone()).await;
@@ -103,7 +103,7 @@ pub(crate) async fn process_session_propose_response(
     ctx: &WalletConnectCtx,
     pairing_topic: &Topic,
     response: SessionProposeResponse,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let other_public_key = hex::decode(&response.responder_public_key)?
         .as_slice()
         .try_into()
@@ -117,7 +117,7 @@ pub(crate) async fn process_session_propose_response(
         .client
         .subscribe(session_topic.clone())
         .await
-        .map_to_mm(|err| WalletConnectCtxError::SubscriptionError(err.to_string()))?;
+        .map_to_mm(|err| WalletConnectError::SubscriptionError(err.to_string()))?;
 
     let mut session = Session::new(
         ctx,
@@ -137,7 +137,7 @@ pub(crate) async fn process_session_propose_response(
         ctx.storage
             .save_session(&session)
             .await
-            .mm_err(|err| WalletConnectCtxError::StorageError(err.to_string()))?;
+            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // Add session to session lists
         ctx.session.add_session(session.clone()).await;

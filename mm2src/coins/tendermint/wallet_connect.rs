@@ -1,69 +1,15 @@
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
-
-use base64::{engine::general_purpose, Engine};
+use base64::engine::general_purpose;
+use base64::Engine;
 use chrono::Utc;
 use futures::StreamExt;
-use mm2_err_handle::prelude::{MmError, MmResult};
-use relay_rpc::rpc::params::{session_request::{Request as SessionRequest, SessionRequestRequest},
-                             RequestParams, ResponseParamsSuccess};
+use kdf_walletconnect::error::WalletConnectError;
+use kdf_walletconnect::{chain::WcRequestMethods, WalletConnectCtx};
+use mm2_err_handle::prelude::*;
+use relay_rpc::rpc::params::session_request::Request as SessionRequest;
+use relay_rpc::rpc::params::session_request::SessionRequestRequest;
+use relay_rpc::rpc::params::{RequestParams, ResponseParamsSuccess};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-use super::WcRequestMethods;
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum CosmosAccountAlgo {
-    #[serde(rename = "secp256k1")]
-    Secp256k1,
-    #[serde(rename = "tendermint/PubKeySecp256k1")]
-    TendermintSecp256k1,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CosmosAccount {
-    pub address: String,
-    #[serde(deserialize_with = "deserialize_vec_field")]
-    pub pubkey: Vec<u8>,
-    pub algo: CosmosAccountAlgo,
-}
-
-pub async fn cosmos_get_accounts_impl(
-    ctx: &WalletConnectCtx,
-    chain_id: &str,
-) -> MmResult<Vec<CosmosAccount>, WalletConnectCtxError> {
-    let account = ctx.get_account_for_chain_id(chain_id).await?;
-
-    let topic = match ctx.session.get_session_active().await {
-        Some(session) => session.topic.clone(),
-        None => return MmError::err(WalletConnectCtxError::NotInitialized),
-    };
-
-    let request = SessionRequest {
-        method: WcRequestMethods::CosmosGetAccounts.as_ref().to_owned(),
-        expiry: Some(Utc::now().timestamp() as u64 + 300),
-        params: serde_json::to_value(&account).unwrap(),
-    };
-    let request = SessionRequestRequest {
-        request,
-        chain_id: format!("cosmos:{chain_id}"),
-    };
-
-    {
-        let session_request = RequestParams::SessionRequest(request);
-        ctx.publish_request(&topic, session_request).await?;
-    };
-
-    let mut session_handler = ctx.session_request_handler.lock().await;
-    if let Some((message_id, data)) = session_handler.next().await {
-        let result = serde_json::from_value::<Vec<CosmosAccount>>(data)?;
-        let response = ResponseParamsSuccess::SessionEvent(true);
-        ctx.publish_response_ok(&topic, response, &message_id).await?;
-
-        return Ok(result);
-    };
-
-    MmError::err(WalletConnectCtxError::NoAccountFound(chain_id.to_owned()))
-}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct CosmosTxSignedData {
@@ -95,23 +41,24 @@ pub struct CosmosSignData {
     pub body_bytes: Vec<u8>,
 }
 
-pub async fn cosmos_sign_direct_impl(
+pub async fn cosmos_request_wc_signed_tx(
     ctx: &WalletConnectCtx,
     sign_doc: Value,
     chain_id: &str,
-) -> MmResult<CosmosTxSignedData, WalletConnectCtxError> {
-    let topic = match ctx.session.get_session_active().await {
-        Some(session) => session.topic.clone(),
-        None => return MmError::err(WalletConnectCtxError::NotInitialized),
-    };
+) -> MmResult<CosmosTxSignedData, WalletConnectError> {
+    let topic = ctx
+        .session
+        .get_session_active()
+        .await
+        .map(|session| session.topic.clone())
+        .ok_or(WalletConnectError::NotInitialized)?;
 
-    let request = SessionRequest {
-        method: WcRequestMethods::CosmosSignDirect.as_ref().to_owned(),
-        expiry: Some(Utc::now().timestamp() as u64 + 300),
-        params: sign_doc,
-    };
     let request = SessionRequestRequest {
-        request,
+        request: SessionRequest {
+            method: WcRequestMethods::CosmosSignDirect.as_ref().to_owned(),
+            expiry: Some(Utc::now().timestamp() as u64 + 300),
+            params: sign_doc,
+        },
         chain_id: format!("cosmos:{chain_id}"),
     };
     {
@@ -128,9 +75,72 @@ pub async fn cosmos_sign_direct_impl(
         return Ok(result);
     }
 
-    MmError::err(WalletConnectCtxError::InternalError(
-        "No response from wallet".to_string(),
-    ))
+    MmError::err(WalletConnectError::InternalError("No response from wallet".to_string()))
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum CosmosAccountAlgo {
+    #[serde(rename = "secp256k1")]
+    Secp256k1,
+    #[serde(rename = "tendermint/PubKeySecp256k1")]
+    TendermintSecp256k1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CosmosAccount {
+    pub address: String,
+    #[serde(deserialize_with = "deserialize_vec_field")]
+    pub pubkey: Vec<u8>,
+    pub algo: CosmosAccountAlgo,
+}
+
+pub async fn cosmos_get_accounts_impl(
+    ctx: &WalletConnectCtx,
+    chain_id: &str,
+    account_index: Option<usize>,
+) -> MmResult<CosmosAccount, WalletConnectError> {
+    let account = ctx.get_account_for_chain_id(chain_id).await?;
+
+    let topic = ctx
+        .session
+        .get_session_active()
+        .await
+        .map(|session| session.topic.clone())
+        .ok_or(WalletConnectError::NotInitialized)?;
+
+    let request = SessionRequestRequest {
+        request: SessionRequest {
+            method: WcRequestMethods::CosmosGetAccounts.as_ref().to_owned(),
+            expiry: Some(Utc::now().timestamp() as u64 + 300),
+            params: serde_json::to_value(&account).unwrap(),
+        },
+        chain_id: format!("cosmos:{chain_id}"),
+    };
+
+    {
+        let session_request = RequestParams::SessionRequest(request);
+        ctx.publish_request(&topic, session_request).await?;
+    };
+
+    let mut session_handler = ctx.session_request_handler.lock().await;
+    if let Some((message_id, data)) = session_handler.next().await {
+        let accounts = serde_json::from_value::<Vec<CosmosAccount>>(data)?;
+        let response = ResponseParamsSuccess::SessionEvent(true);
+        ctx.publish_response_ok(&topic, response, &message_id).await?;
+
+        if accounts.is_empty() {
+            return MmError::err(WalletConnectError::EmptyAccount(chain_id.to_string()));
+        };
+
+        let account_index = account_index.unwrap_or(0);
+        if accounts.len() < account_index + 1 {
+            return MmError::err(WalletConnectError::NoAccountFoundForIndex(account_index));
+        };
+
+        return Ok(accounts[account_index].clone());
+    };
+
+    MmError::err(WalletConnectError::NoAccountFound(chain_id.to_owned()))
 }
 
 fn deserialize_vec_field<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
@@ -187,8 +197,7 @@ fn decode_data(encoded: &str) -> Result<Vec<u8>, &'static str> {
 mod test_cosmos_walletconnect {
     use serde_json::json;
 
-    use crate::chain::tendermint::{decode_data, CosmosSignData, CosmosTxPublicKey, CosmosTxSignature,
-                                   CosmosTxSignedData};
+    use super::{decode_data, CosmosSignData, CosmosTxPublicKey, CosmosTxSignature, CosmosTxSignedData};
 
     #[test]
     fn test_decode_base64() {

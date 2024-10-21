@@ -1,5 +1,5 @@
 use crate::session::{WcRequestResponseResult, THIRTY_DAYS};
-use crate::{error::WalletConnectCtxError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
 use mm2_err_handle::prelude::MmResult;
@@ -14,7 +14,7 @@ pub(crate) async fn reply_pairing_ping_response(
     ctx: &WalletConnectCtx,
     topic: &Topic,
     message_id: &MessageId,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     let param = ResponseParamsSuccess::PairingPing(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
 
@@ -26,7 +26,7 @@ pub(crate) async fn reply_pairing_extend_response(
     topic: &Topic,
     message_id: &MessageId,
     extend: PairingExtendRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     {
         let mut pairings = ctx.pairing.pairings.lock().await;
         if let Some(pairing) = pairings.get_mut(topic.as_ref()) {
@@ -46,7 +46,7 @@ pub(crate) async fn reply_pairing_delete_response(
     topic: &Topic,
     message_id: &MessageId,
     _delete: PairingDeleteRequest,
-) -> MmResult<(), WalletConnectCtxError> {
+) -> MmResult<(), WalletConnectError> {
     {
         ctx.pairing.disconnect(topic.as_ref(), &ctx.client).await?;
     }

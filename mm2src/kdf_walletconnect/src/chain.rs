@@ -1,9 +1,5 @@
-pub(crate) mod tendermint;
 use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
 use std::collections::BTreeMap;
-
-pub use tendermint::CosmosAccountAlgo;
-pub(crate) use tendermint::*;
 
 pub(crate) const SUPPORTED_EVENTS: &[&str] = &[];
 pub(crate) const SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
