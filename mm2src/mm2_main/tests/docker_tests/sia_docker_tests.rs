@@ -154,9 +154,8 @@ fn test_sia_build_tx() {
         &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
     )
     .unwrap();
-    let spend_policy = SpendPolicy::PublicKey(keypair.public());
 
-    let address = spend_policy.address();
+    let address = Address::from_public_key(&keypair.public());
 
     mine_blocks(&api_client, 201, &address).unwrap();
 
