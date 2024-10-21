@@ -18,6 +18,7 @@ use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
 use common::DEX_FEE_PUBKEY_ED25510;
 use common::log::info;
+use derive_more::{From, Into};
 use futures::compat::Future01CompatExt;
 use futures::{FutureExt, TryFutureExt};
 use futures01::Future;
@@ -966,7 +967,7 @@ impl WatcherOps for SiaCoin {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, From, Into)]
 #[serde(transparent)] 
 pub struct SiaTransaction(pub V2Transaction);
 
