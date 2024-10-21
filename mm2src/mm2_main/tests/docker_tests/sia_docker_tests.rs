@@ -67,6 +67,13 @@ fn default_activation_request() -> SiaCoinActivationRequest {
     );
     serde_json::from_value::<SiaCoinActivationRequest>(activation_request_json).unwrap()
 }
+// FIXME WIP
+#[test]
+fn test_sia_swap_ops_send_taker_fee_wip() {
+    let ctx = block_on(init_ctx("horribly insecure passphrase", 9995));
+    let coin = block_on(init_siacoin(ctx, "TSIA", &default_activation_request()));
+    assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
+}
 
 #[test]
 fn test_sia_init_siacoin() {
