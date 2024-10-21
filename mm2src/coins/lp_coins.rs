@@ -620,6 +620,7 @@ impl Deref for TransactionEnum {
             TransactionEnum::CosmosTransaction(ref t) => t,
             #[cfg(not(target_arch = "wasm32"))]
             TransactionEnum::LightningPayment(ref p) => p,
+            #[cfg(feature = "enable-sia")]
             TransactionEnum::SiaTransaction(ref t) => t,
         }
     }
