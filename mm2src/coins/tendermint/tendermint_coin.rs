@@ -882,7 +882,7 @@ impl TendermintCoin {
         }
     }
 
-    async fn request_wc_tx_signing(&self, tx_json: serde_json::Value) -> Result<Raw, TransactionErr> {
+    async fn wc_signed_tx(&self, tx_json: serde_json::Value) -> Result<Raw, TransactionErr> {
         let ctx = try_tx_s!(MmArc::from_weak(&self.ctx).ok_or(ERRL!("ctx must be initialized already")));
         let wc = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
 
@@ -910,10 +910,13 @@ impl TendermintCoin {
         match self.wallet_type {
             TendermintWalletConnectionType::Wc | TendermintWalletConnectionType::WcLedger => {
                 // Handle WalletConnect signing
-                let SerializedUnsignedTx { tx_json, body_bytes: _ } =
-                    try_tx_s!(self.any_to_serialized_sign_doc(account_info, tx_payload, fee, timeout_height, memo));
+                let SerializedUnsignedTx { tx_json, .. } = if self.is_ledger_connection() {
+                    try_tx_s!(self.any_to_legacy_amino_json(account_info, tx_payload, fee, timeout_height, memo))
+                } else {
+                    try_tx_s!(self.any_to_serialized_sign_doc(account_info, tx_payload, fee, timeout_height, memo))
+                };
 
-                self.request_wc_tx_signing(tx_json).await
+                self.wc_signed_tx(tx_json).await
             },
             _ => {
                 // Handle local signing
@@ -1467,8 +1470,6 @@ impl TendermintCoin {
 
         let msg_send = MsgSend::from_any(&tx_payload)?;
         let timeout_height = u32::try_from(timeout_height)?;
-        let original_tx_type_url = tx_payload.type_url.clone();
-        let body_bytes = tx::Body::new(vec![tx_payload], &memo, timeout_height).into_bytes()?;
 
         let amount: Vec<Json> = msg_send
             .amount
@@ -1505,20 +1506,47 @@ impl TendermintCoin {
             })
             .collect();
 
-        let tx_json = serde_json::json!({
-            "legacy_amino_json": {
-                "account_number": account_info.account_number.to_string(),
-                "chain_id": self.chain_id.to_string(),
-                "fee": {
-                    "amount": fee_amount,
-                    "gas": fee.gas_limit.to_string()
-                },
-                "memo": memo,
-                "msgs": [msg],
-                "sequence": account_info.sequence.to_string(),
+        let (tx_json, body_bytes) = match self.wallet_type {
+            TendermintWalletConnectionType::WcLedger => {
+                let signer_address = self.my_address().unwrap();
+                let body_bytes = tx::Body::new(vec![tx_payload], &memo, timeout_height).into_bytes()?;
+                let json = serde_json::json!({
+                    "signerAddress": signer_address,
+                    "signDoc": {
+                        "account_number": account_info.account_number.to_string(),
+                        "chain_id": self.chain_id.to_string(),
+                        "fee": {
+                            "amount": fee_amount,
+                            "gas": fee.gas_limit.to_string()
+                        },
+                        "memo": memo,
+                        "msgs": [msg],
+                        "sequence": account_info.sequence.to_string(),
+                    },
+                });
+                (json, body_bytes)
             },
-            "original_tx_type_url": original_tx_type_url,
-        });
+            TendermintWalletConnectionType::KeplrLedger => {
+                let original_tx_type_url = tx_payload.type_url.clone();
+                let body_bytes = tx::Body::new(vec![tx_payload], &memo, timeout_height).into_bytes()?;
+                let json = serde_json::json!({
+                    "legacy_amino_json": {
+                        "account_number": account_info.account_number.to_string(),
+                        "chain_id": self.chain_id.to_string(),
+                        "fee": {
+                            "amount": fee_amount,
+                            "gas": fee.gas_limit.to_string()
+                        },
+                        "memo": memo,
+                        "msgs": [msg],
+                        "sequence": account_info.sequence.to_string(),
+                    },
+                    "original_tx_type_url": original_tx_type_url,
+                });
+                (json, body_bytes)
+            },
+            _ => unreachable!(),
+        };
 
         Ok(SerializedUnsignedTx { tx_json, body_bytes })
     }
@@ -3458,7 +3486,7 @@ impl WcRequestOps for TendermintCoin {
         chain_id: &str,
         tx_json: serde_json::Value,
     ) -> Result<Self::SignTxData, Self::Error> {
-        cosmos_request_wc_signed_tx(ctx, tx_json, chain_id).await
+        cosmos_request_wc_signed_tx(ctx, tx_json, chain_id, self.is_ledger_connection()).await
     }
 }
 

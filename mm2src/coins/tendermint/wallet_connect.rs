@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use base64::engine::general_purpose;
 use base64::Engine;
 use chrono::Utc;
@@ -45,6 +47,7 @@ pub async fn cosmos_request_wc_signed_tx(
     ctx: &WalletConnectCtx,
     sign_doc: Value,
     chain_id: &str,
+    is_ledger_conn: bool,
 ) -> MmResult<CosmosTxSignedData, WalletConnectError> {
     let topic = ctx
         .session
@@ -53,9 +56,14 @@ pub async fn cosmos_request_wc_signed_tx(
         .map(|session| session.topic.clone())
         .ok_or(WalletConnectError::NotInitialized)?;
 
+    let method = if is_ledger_conn {
+        WcRequestMethods::CosmosSignAmino
+    } else {
+        WcRequestMethods::CosmosSignDirect
+    };
     let request = SessionRequestRequest {
         request: SessionRequest {
-            method: WcRequestMethods::CosmosSignDirect.as_ref().to_owned(),
+            method: method.as_ref().to_owned(),
             expiry: Some(Utc::now().timestamp() as u64 + 300),
             params: sign_doc,
         },
@@ -86,12 +94,26 @@ pub enum CosmosAccountAlgo {
     TendermintSecp256k1,
 }
 
+impl FromStr for CosmosAccountAlgo {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "secp256k1" => Ok(Self::Secp256k1),
+            "tendermint/PubKeySecp256k1" => Ok(Self::TendermintSecp256k1),
+            _ => Err(format!("Unknown pubkey type: {s}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CosmosAccount {
     pub address: String,
     #[serde(deserialize_with = "deserialize_vec_field")]
     pub pubkey: Vec<u8>,
     pub algo: CosmosAccountAlgo,
+    #[serde(default)]
+    pub is_ledger: Option<bool>,
 }
 
 pub async fn cosmos_get_accounts_impl(
@@ -101,13 +123,37 @@ pub async fn cosmos_get_accounts_impl(
 ) -> MmResult<CosmosAccount, WalletConnectError> {
     let account = ctx.get_account_for_chain_id(chain_id).await?;
 
-    let topic = ctx
+    let session = ctx
         .session
         .get_session_active()
         .await
-        .map(|session| session.topic.clone())
         .ok_or(WalletConnectError::NotInitialized)?;
+    // Check if existing session has session_properties and return wallet account;
+    if let Some(props) = &session.session_properties {
+        if let Some(keys) = &props.keys {
+            if let Some(key) = keys.iter().next() {
+                let pubkey = decode_data(&key.pub_key).map_to_mm(|err| {
+                    WalletConnectError::PayloadError(format!("error decoding pubkey payload: {err:?}"))
+                })?;
+                let address = decode_data(&key.address).map_to_mm(|err| {
+                    WalletConnectError::PayloadError(format!("error decoding address payload: {err:?}"))
+                })?;
+                let address = hex::encode(address);
+                let algo = CosmosAccountAlgo::from_str(&key.algo).map_to_mm(|err| {
+                    WalletConnectError::PayloadError(format!("error decoding algo payload: {err:?}"))
+                })?;
 
+                return Ok(CosmosAccount {
+                    address,
+                    pubkey,
+                    algo,
+                    is_ledger: Some(key.is_nano_ledger),
+                });
+            }
+        }
+    }
+
+    let topic = session.topic.clone();
     let request = SessionRequestRequest {
         request: SessionRequest {
             method: WcRequestMethods::CosmosGetAccounts.as_ref().to_owned(),

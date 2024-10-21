@@ -1,9 +1,12 @@
 use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
 use std::collections::BTreeMap;
 
+pub(crate) const DEFAULT_CHAIN_ID: &str = "cosmoshub-4";
+
 pub(crate) const SUPPORTED_EVENTS: &[&str] = &[];
 pub(crate) const SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
 pub(crate) const SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
+pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 
 #[derive(Debug, Clone)]
 pub enum WcRequestMethods {

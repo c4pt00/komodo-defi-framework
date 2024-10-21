@@ -9,7 +9,7 @@ mod storage;
 
 use crate::session::rpc::propose::send_proposal_request;
 
-use chain::{build_required_namespaces, SUPPORTED_CHAINS};
+use chain::{build_required_namespaces, DEFAULT_CHAIN_ID, SUPPORTED_CHAINS, SUPPORTED_PROTOCOL};
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
@@ -36,9 +36,6 @@ use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
-
-pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
-const DEFAULT_CHAIN_ID: &str = "cosmoshub-4";
 
 type SessionEventMessage = (MessageId, Value);
 

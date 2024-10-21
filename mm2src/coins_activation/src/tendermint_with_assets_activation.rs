@@ -244,13 +244,6 @@ async fn get_walletconnect_pubkey(
     ticker: &str,
     wallet_type: &mut TendermintWalletConnectionType,
 ) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
-    if ctx.is_watcher() || ctx.use_watchers() {
-        return MmError::err(TendermintInitError {
-            ticker: ticker.to_string(),
-            kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
-        });
-    };
-
     let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
 
     let account = cosmos_get_accounts_impl(&wc, chain_id, Some(param.account_index))
@@ -320,6 +313,13 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                     TendermintActivationPolicy::with_public_key(pubkey)
                 },
                 TendermintPubkeyActivationParams::WalletConnect(params) => {
+                    if ctx.is_watcher() || ctx.use_watchers() {
+                        return MmError::err(TendermintInitError {
+                            ticker: ticker.to_string(),
+                            kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
+                        });
+                    };
+
                     get_walletconnect_pubkey(
                         &ctx,
                         &params,
