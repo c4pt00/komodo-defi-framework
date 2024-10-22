@@ -466,5 +466,6 @@ fn eth_priv_key_build_policy(
             Ok(EthPrivKeyBuildPolicy::Metamask(metamask_ctx))
         },
         EthPrivKeyActivationPolicy::Trezor => Ok(EthPrivKeyBuildPolicy::Trezor),
+        EthPrivKeyActivationPolicy::WalletConnect => todo!(),
     }
 }

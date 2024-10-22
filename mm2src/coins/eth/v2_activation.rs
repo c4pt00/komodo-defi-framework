@@ -157,6 +157,7 @@ pub enum EthPrivKeyActivationPolicy {
     Trezor,
     #[cfg(target_arch = "wasm32")]
     Metamask,
+    WalletConnect,
 }
 
 impl EthPrivKeyActivationPolicy {

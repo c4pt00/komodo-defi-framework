@@ -586,6 +586,12 @@ pub enum EthPrivKeyBuildPolicy {
     #[cfg(target_arch = "wasm32")]
     Metamask(MetamaskArc),
     Trezor,
+    PubKeyMode {
+        eth_account: Address,
+        eth_account_str: String,
+        /// Please note that this is a normal version of public key (uncompressed).
+        eth_account_pubkey: H520,
+    },
 }
 
 impl EthPrivKeyBuildPolicy {
