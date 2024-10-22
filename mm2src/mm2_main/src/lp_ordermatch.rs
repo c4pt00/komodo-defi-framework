@@ -3043,8 +3043,9 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             },
         };
 
+        let alice_swap_v = maker_match.request.swap_version;
         // if taker order doesn't have swap version or taker uses legacy swap protocol, start legacy swap
-        if maker_match.request.swap_version.is_none() || maker_match.request.swap_version == Some(1) {
+        if alice_swap_v.is_none() || alice_swap_v == Some(1) {
             let params = LegacySwapParams {
                 maker_coin,
                 taker_coin,
@@ -3059,7 +3060,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             return;
         }
 
-        if ctx.use_trading_proto_v2() {
+        if ctx.use_trading_proto_v2() && alice_swap_v == Some(2) {
             let secret_hash_algo = detect_secret_hash_algo(&maker_coin, &taker_coin);
             match (maker_coin, taker_coin) {
                 (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
@@ -3242,8 +3243,9 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             uuid
         );
 
+        let bob_swap_v = taker_match.reserved.swap_version;
         // if maker order doesn't have swap version or maker uses legacy swap protocol, start legacy swap
-        if taker_match.reserved.swap_version.is_none() || taker_match.reserved.swap_version == Some(1) {
+        if bob_swap_v.is_none() || bob_swap_v == Some(1) {
             let params = LegacySwapParams {
                 maker_coin,
                 taker_coin,
@@ -3258,7 +3260,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             return;
         }
 
-        if ctx.use_trading_proto_v2() {
+        if ctx.use_trading_proto_v2() && bob_swap_v == Some(2) {
             let taker_secret = match generate_secret() {
                 Ok(s) => s.into(),
                 Err(e) => {
