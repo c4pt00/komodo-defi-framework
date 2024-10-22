@@ -2,9 +2,16 @@ use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
 use std::collections::BTreeMap;
 
 pub(crate) const DEFAULT_CHAIN_ID: &str = "cosmoshub-4";
+pub const ETH_CHAIN_ID: &str = "eip155";
 
 pub(crate) const SUPPORTED_EVENTS: &[&str] = &[];
-pub(crate) const SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
+pub(crate) const SUPPORTED_METHODS: &[&str] = &[
+    "cosmos_getAccounts",
+    "cosmos_signDirect",
+    "cosmos_signAmino",
+    "eth_signTransaction",
+    "personal_sign",
+];
 pub(crate) const SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 
@@ -13,6 +20,8 @@ pub enum WcRequestMethods {
     CosmosSignDirect,
     CosmosSignAmino,
     CosmosGetAccounts,
+    EthSignTransaction,
+    PersonalSign,
 }
 
 impl AsRef<str> for WcRequestMethods {
@@ -21,6 +30,8 @@ impl AsRef<str> for WcRequestMethods {
             Self::CosmosSignDirect => "cosmos_signDirect",
             Self::CosmosSignAmino => "cosmos_signAmino",
             Self::CosmosGetAccounts => "cosmos_getAccounts",
+            Self::EthSignTransaction => "eth_signTransaction",
+            Self::PersonalSign => "personal_sign",
         }
     }
 }

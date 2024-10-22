@@ -76,6 +76,8 @@ use futures::future::{join, join_all, select_ok, try_join_all, Either, FutureExt
 use futures01::Future;
 use http::Uri;
 use instant::Instant;
+use kdf_walletconnect::error::WalletConnectError;
+use kdf_walletconnect::{WalletConnectCtx, WcRequestOps};
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
 use mm2_number::bigdecimal_custom::CheckedDivision;
@@ -138,6 +140,7 @@ mod eth_rpc;
 #[cfg(target_arch = "wasm32")] mod eth_wasm_tests;
 #[cfg(any(test, target_arch = "wasm32"))] mod for_tests;
 pub(crate) mod nft_swap_v2;
+mod wallet_connect;
 mod web3_transport;
 use web3_transport::{http_transport::HttpTransportNode, Web3Transport};
 
@@ -586,12 +589,7 @@ pub enum EthPrivKeyBuildPolicy {
     #[cfg(target_arch = "wasm32")]
     Metamask(MetamaskArc),
     Trezor,
-    PubKeyMode {
-        eth_account: Address,
-        eth_account_str: String,
-        /// Please note that this is a normal version of public key (uncompressed).
-        eth_account_pubkey: H520,
-    },
+    WalletConnect,
 }
 
 impl EthPrivKeyBuildPolicy {
@@ -1370,9 +1368,10 @@ impl SwapOps for EthCoin {
                 activated_key: ref key_pair,
                 ..
             } => key_pair_from_secret(key_pair.secret().as_bytes()).expect("valid key"),
-            EthPrivKeyPolicy::Trezor => todo!(),
+            EthPrivKeyPolicy::Trezor | EthPrivKeyPolicy::WalletConnect(_) => todo!(),
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(_) => todo!(),
+            EthPrivKeyPolicy::WalletConnect(_) => todo!(),
         }
     }
 
@@ -1390,6 +1389,7 @@ impl SwapOps for EthCoin {
             EthPrivKeyPolicy::Trezor => todo!(),
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(ref metamask_policy) => metamask_policy.public_key.as_bytes().to_vec(),
+            EthPrivKeyPolicy::WalletConnect(pubkey) => pubkey.to_bytes().to_vec(),
         }
     }
 
@@ -2161,6 +2161,7 @@ impl MarketCoinOps for EthCoin {
             EthPrivKeyPolicy::Metamask(ref metamask_policy) => {
                 Ok(format!("{:02x}", metamask_policy.public_key_uncompressed))
             },
+            EthPrivKeyPolicy::WalletConnect(_) => todo!(),
         }
     }
 
@@ -2480,6 +2481,7 @@ impl MarketCoinOps for EthCoin {
             EthPrivKeyPolicy::Trezor => ERR!("'display_priv_key' is not supported for Hardware Wallets"),
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(_) => ERR!("'display_priv_key' is not supported for MetaMask"),
+            EthPrivKeyPolicy::WalletConnect(_) => todo!(),
         }
     }
 
@@ -2689,6 +2691,9 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
         )),
         EthPrivKeyPolicy::Trezor => MmError::err(RawTransactionError::InvalidParam(
             "sign raw eth tx not implemented for Trezor".into(),
+        )),
+        EthPrivKeyPolicy::WalletConnect(_) => MmError::err(RawTransactionError::InvalidParam(
+            "sign raw eth tx not implemented for WalletConnect".into(),
         )),
     }
 }
@@ -3639,6 +3644,7 @@ impl EthCoin {
                 EthPrivKeyPolicy::Metamask(_) => {
                     sign_and_send_transaction_with_metamask(coin, value, action, data, gas).await
                 },
+                EthPrivKeyPolicy::WalletConnect(_) => todo!(),
             }
         };
         Box::new(fut.boxed().compat())
@@ -7180,6 +7186,7 @@ impl CommonSwapOpsV2 for EthCoin {
                     .expect("slice with incorrect length");
                 Public::from_slice(&pubkey_bytes)
             },
+            EthPrivKeyPolicy::WalletConnect(pubkey) => pubkey,
         }
     }
 
@@ -7222,5 +7229,19 @@ impl EthCoin {
             abortable_system: self.abortable_system.create_subsystem().unwrap(),
         };
         EthCoin(Arc::new(coin))
+    }
+}
+
+#[async_trait::async_trait]
+impl WcRequestOps for EthCoin {
+    type Error = WalletConnectError;
+    type SignTxData = String;
+    async fn wc_request_sign_tx(
+        &self,
+        _ctx: &WalletConnectCtx,
+        _chain_id: &str,
+        _tx_json: serde_json::Value,
+    ) -> Result<Self::SignTxData, Self::Error> {
+        todo!()
     }
 }
