@@ -1,4 +1,4 @@
-use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, Address, Currency, SiaCoin, SiaFeeDetails,
+use crate::siacoin::{hastings_to_siacoin, siacoin_to_hastings, Address, Currency, SiaCoin, SiaFeeDetails,
                      SiaFeePolicy, SiaKeypair as Keypair, SiaTransactionTypes, SiacoinElement, SiacoinOutput,
                      SpendPolicy, V2TransactionBuilder};
 use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
@@ -62,8 +62,8 @@ impl<'a> SiaWithdrawBuilder<'a> {
         if selected_amount < total_amount {
             return Err(MmError::new(WithdrawError::NotSufficientBalance {
                 coin: self.coin.ticker().to_string(),
-                available: siacoin_from_hastings(selected_amount.into()),
-                required: siacoin_from_hastings(total_amount.into()),
+                available: hastings_to_siacoin(selected_amount.into()),
+                required: hastings_to_siacoin(total_amount.into()),
             }));
         }
 
@@ -73,12 +73,14 @@ impl<'a> SiaWithdrawBuilder<'a> {
     pub async fn build(self) -> WithdrawResult {
         // Todo: fee estimation based on transaction size
         const TX_FEE_HASTINGS: u128 = 10_000_000_000_000_000_000;
+        let tx_fee = Currency(TX_FEE_HASTINGS);
 
         let to = Address::from_str(&self.req.to).map_err(|e| WithdrawError::InvalidAddress(e.to_string()))?;
 
         // Calculate the total amount to send (including fee)
-        let tx_amount_hastings = siacoin_to_hastings(self.req.amount.clone())?;
-        let total_amount = tx_amount_hastings + TX_FEE_HASTINGS;
+        let tx_amount_hastings = siacoin_to_hastings(self.req.amount.clone())
+        .map_err(|e| WithdrawError::InternalError(e.to_string()))?;
+        let total_amount = tx_amount_hastings + tx_fee;
 
         // Get unspent outputs
         let unspent_outputs = self
@@ -88,10 +90,10 @@ impl<'a> SiaWithdrawBuilder<'a> {
             .map_err(|e| WithdrawError::Transport(e.to_string()))?;
 
         // Select outputs to use as inputs
-        let selected_outputs = self.select_outputs(unspent_outputs, total_amount)?;
+        let selected_outputs = self.select_outputs(unspent_outputs, total_amount.into())?;
 
         // Calculate change amount
-        let input_sum: u128 = selected_outputs.iter().map(|o| *o.siacoin_output.value).sum();
+        let input_sum : Currency = selected_outputs.iter().map(|o| o.siacoin_output.value).sum();
         let change_amount = input_sum - total_amount;
 
         // Construct transaction
@@ -109,7 +111,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
         });
 
         // Add change output if necessary
-        if change_amount > 0 {
+        if change_amount > Currency::ZERO {
             tx_builder.add_siacoin_output(SiacoinOutput {
                 value: change_amount.into(),
                 address: self.from_address.clone(),
@@ -124,8 +126,8 @@ impl<'a> SiaWithdrawBuilder<'a> {
             .sign_simple(vec![self.key_pair])
             .build();
 
-        let spent_by_me = siacoin_from_hastings(input_sum.into());
-        let received_by_me = siacoin_from_hastings(change_amount.into());
+        let spent_by_me = hastings_to_siacoin(input_sum.into());
+        let received_by_me = hastings_to_siacoin(change_amount.into());
 
         Ok(TransactionDetails {
             tx: TransactionData::Sia {
@@ -142,7 +144,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
                 SiaFeeDetails {
                     coin: self.coin.ticker().to_string(),
                     policy: SiaFeePolicy::Fixed,
-                    total_amount: siacoin_from_hastings(TX_FEE_HASTINGS.into()),
+                    total_amount: hastings_to_siacoin(tx_fee),
                 }
                 .into(),
             ),
