@@ -97,30 +97,29 @@ impl<'a> SiaWithdrawBuilder<'a> {
 
         // Add inputs
         for output in selected_outputs {
-            tx_builder = tx_builder.add_siacoin_input(output, SpendPolicy::PublicKey(self.key_pair.public()));
+            tx_builder.add_siacoin_input(output, SpendPolicy::PublicKey(self.key_pair.public()));
         }
 
         // Add output for recipient
-        tx_builder = tx_builder.add_siacoin_output(SiacoinOutput {
+        tx_builder.add_siacoin_output(SiacoinOutput {
             value: tx_amount_hastings.into(),
             address: to.clone(),
         });
 
         // Add change output if necessary
         if change_amount > 0 {
-            tx_builder = tx_builder.add_siacoin_output(SiacoinOutput {
+            tx_builder.add_siacoin_output(SiacoinOutput {
                 value: change_amount.into(),
                 address: self.from_address.clone(),
             });
         }
 
         // Add miner fee
-        tx_builder = tx_builder.miner_fee(Currency::from(TX_FEE_HASTINGS));
+        tx_builder.miner_fee(Currency::from(TX_FEE_HASTINGS));
 
         // Sign the transaction
         let signed_tx_builder = tx_builder
-            .sign_simple(vec![self.key_pair])
-            .map_to_mm(WithdrawError::SigningError)?;
+            .sign_simple(vec![self.key_pair]);
 
         // Build the final transaction
         let signed_tx = signed_tx_builder.build();
