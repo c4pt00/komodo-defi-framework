@@ -87,6 +87,8 @@ pub struct SiaCoinGeneric<T: SiaApiClient + ApiClientHelpers> {
 
 pub type SiaCoin = SiaCoinGeneric<SiaClientType>;
 
+impl WatcherOps for SiaCoin {}
+
 /// The JSON configuration loaded from `coins` file
 #[derive(Clone, Debug, Deserialize)]
 pub struct SiaCoinConf {
