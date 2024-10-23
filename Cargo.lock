@@ -918,6 +918,7 @@ dependencies = [
  "sia-rust",
  "spv_validation",
  "tendermint-rpc",
+ "thiserror",
  "time 0.3.20",
  "tokio",
  "tokio-rustls 0.24.1",
@@ -6272,7 +6273,6 @@ dependencies = [
 [[package]]
 name = "sia-rust"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/sia-rust.git?rev=5c67383#5c6738384e27698cdf4f085ccaae13b233d980ba"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
