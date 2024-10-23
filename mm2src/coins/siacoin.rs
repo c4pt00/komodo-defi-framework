@@ -808,6 +808,7 @@ impl SiaCoin {
         uuid: &[u8],
         _expire_at: u64,
     ) -> Result<TransactionEnum, SendTakerFeeError> {
+        // Check the Uuid provided is valid v4 as we will encode it into the transaction
         let uuid_type_check = Uuid::from_slice(uuid)
             .map_err(SendTakerFeeError::ParseUuid)?;
 
@@ -816,6 +817,7 @@ impl SiaCoin {
             version => return Err(SendTakerFeeError::UuidVersion(version)),
         }
 
+        // Convert the DexFee to a Currency amount
         let trade_fee_amount = if let DexFee::Standard(mm_num) = dex_fee {
             Currency(
                 BigDecimal::from(mm_num)
@@ -830,26 +832,25 @@ impl SiaCoin {
             .map_err(SiaCoinError::KdfError)
             .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
-        let my_public_key = self
-            .new_get_public_key()
-            .await
-            .map_err(SendTakerFeeError::SiaCoinInternal)?;
-
+        // Calculate the miner fee amount
         let tx_fee_amount = Currency::ZERO; // FIXME Alright: calculate tx fee amount after we know TX size
 
+        // Create a new transaction builder
         let mut tx_builder = V2TransactionBuilder::new();
 
+        // Add the trade fee output
         tx_builder.add_siacoin_output((FEE_ADDR.clone(), trade_fee_amount).into());
 
+        // Fund the transaction
         self.client
-            .fund_tx_single_source(&mut tx_builder, &my_public_key, tx_fee_amount)
+            .fund_tx_single_source(&mut tx_builder, &my_keypair.public(), tx_fee_amount)
             .await
             .map_err(SiaCoinError::ClientHelpersError)
             .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
-        tx_builder.sign_simple(vec![my_keypair]);
+        // Sign inputs and finalize the transaction
+        let tx = tx_builder.sign_simple(vec![my_keypair]).build();
 
-        let tx = tx_builder.build();
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 }
