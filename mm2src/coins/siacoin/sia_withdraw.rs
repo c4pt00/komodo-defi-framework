@@ -4,7 +4,6 @@ use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, T
             WithdrawRequest, WithdrawResult};
 use common::now_sec;
 use mm2_err_handle::mm_error::MmError;
-use mm2_err_handle::prelude::*;
 use std::str::FromStr;
 
 pub struct SiaWithdrawBuilder<'a> {
