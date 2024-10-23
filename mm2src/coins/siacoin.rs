@@ -1,4 +1,4 @@
-use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, NumConversError,
+use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin,
             RawTransactionFut, RawTransactionRequest, SwapOps, TradeFee, TransactionData, TransactionDetails,
             TransactionEnum, TransactionErr, TransactionFut, TransactionType};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
@@ -191,22 +191,29 @@ fn hastings_to_siacoin(hastings: Currency) -> BigDecimal {
     BigDecimal::new(BigInt::from(hastings), 24)
 }
 
+#[derive(Debug, Error)]
+pub enum CoinToHastingsError {
+    #[error("Sia Failed to convert BigDecimal:{0} to BigInt")]
+    BigDecimalToBigInt(BigDecimal),
+    #[error("Sia Failed to convert BigDecimal:{0} to u128")]
+    BigIntToU128(BigDecimal),
+}
+
 /// Convert "coin" representation to hastings amount
 /// BigDecimal(1) == 1 SC == 10^24 hastings
 // it's not ideal that we require these standalone helpers, but a newtype of Currency is even messier
 // TODO Alright - MmCoin trait should have an associated type "Currency" with a trait bound like
 // "IsCurrency" implementing methods for conversion to and from BigDecimal/MmNumber
-fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<u128, MmError<NumConversError>> {
+fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<Currency, CoinToHastingsError> {
+    // Shift the decimal place to the right by 24 places (10^24)
     let decimals = BigInt::from(10u128.pow(24));
-    let hastings = siacoin * BigDecimal::from(decimals);
-    let hastings = hastings.to_bigint().ok_or(NumConversError(format!(
-        "Failed to convert BigDecimal:{} to BigInt!",
-        hastings
-    )))?;
-    Ok(hastings.to_u128().ok_or(NumConversError(format!(
-        "Failed to convert BigInt:{} to u128!",
-        hastings
-    )))?)
+    let hastings = siacoin.clone() * BigDecimal::from(decimals);
+    hastings
+        .to_bigint()
+        .ok_or(CoinToHastingsError::BigDecimalToBigInt(siacoin.clone()))?
+        .to_u128()
+        .ok_or(CoinToHastingsError::BigIntToU128(siacoin))
+        .map(|int| Currency(int))
 }
 
 #[derive(Debug, Error)]
@@ -1439,6 +1446,7 @@ mod tests {
     #[test]
     fn test_siacoin_to_hastings_one() {
         let coin = serde_json::from_str::<BigDecimal>("0.000000000000000000000001").unwrap();
+        println!("coin {:?}", coin);
         let hastings = siacoin_to_hastings(coin).unwrap();
         assert_eq!(hastings, Currency(1).into());
     }
