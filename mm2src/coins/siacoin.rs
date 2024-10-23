@@ -1,6 +1,6 @@
 use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, NumConversError,
             RawTransactionFut, RawTransactionRequest, SwapOps, TradeFee, TransactionData, TransactionDetails,
-            TransactionEnum, TransactionFut, TransactionType};
+            TransactionEnum, TransactionFut, TransactionType, TransactionErr};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin, MmCoinEnum,
@@ -25,7 +25,6 @@ use futures01::Future;
 use hex;
 use keys::KeyPair;
 use mm2_core::mm_ctx::MmArc;
-use mm2_err_handle::prelude::*;
 use mm2_number::num_bigint::ToBigInt;
 use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
@@ -35,14 +34,18 @@ pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError 
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                      TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
-                      KeypairError, V1Transaction, V2Transaction, Hash256, SiacoinElement, PublicKey, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
+                      PublicKeyError, PrivateKeyError, V1Transaction, V2Transaction, Hash256, SiacoinElement, PublicKey, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
+use thiserror::Error;
 use uuid::Uuid;
 
+// TODO this is not well documented, and we should work toward removing this entire module.
+// It serves no purpose if we follow thiserror patterns and uniformly use the Error trait.
+use mm2_err_handle::prelude::*;
 
 lazy_static! {
     pub static ref FEE_PUBLIC_KEY_BYTES: Vec<u8> = hex::decode(DEX_FEE_PUBKEY_ED25510).expect("DEX_FEE_PUBKEY_ED25510 is a valid hex string");
@@ -113,9 +116,9 @@ pub async fn sia_coin_from_conf_and_request(
 ) -> Result<SiaCoin, MmError<SiaCoinError>> {
     let priv_key = match priv_key_policy {
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
-        _ => return Err(SiaCoinError::UnsupportedPrivKeyPolicy.into()),
+        _ => return Err(KdfError::UnsupportedPrivKeyPolicy.into()),
     };
-    let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidSecretKey)?;
+    let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidPrivateKey)?;
     let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinError::InvalidConf)?;
     SiaCoinBuilder::new(ctx, ticker, conf, key_pair, request).build().await
 }
@@ -146,9 +149,9 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 
     async fn build(self) -> MmResult<SiaCoin, SiaCoinError> {
-        let abortable_queue: AbortableQueue = self.ctx.abortable_system.create_subsystem().map_to_mm(|_| {
-            SiaCoinError::InternalError(format!("Failed to create abortable system for {}", self.ticker))
-        })?;
+        let abortable_queue: AbortableQueue = self.ctx.abortable_system.create_subsystem().map_err(
+            KdfError::AbortableSystem
+        )?;
         let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.request.tx_history {
             HistorySyncState::NotStarted
@@ -199,30 +202,51 @@ fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<u128, MmError<NumConversEr
     )))?)
 }
 
-#[derive(Debug, Display)]
-#[display(fmt = "Sia select_outputs insufficent amount, available: {:?} required: {:?}", available, required)]
-pub struct SelectOutputsError {
-    pub available: Currency,
-    pub required: Currency,
-}
-
-#[derive(Debug, Display)]
+#[derive(Debug, Error)]
 pub enum SiaCoinError {
-    #[display(fmt = "Invalid Sia conf, JSON deserialization failed {}", _0)]
-    InvalidConf(serde_json::Error),
+    #[error("Sia Invalid conf, JSON deserialization failed {}", _0)]
+    InvalidConf(#[from] serde_json::Error),
+    #[error("Sia Client Error: {}", _0)]
+    ClientError(#[from] SiaApiClientError),
+    #[error("Sia Invalid Secret Key: {}", _0)]
+    InvalidPrivateKey(#[from] PrivateKeyError),
+    #[error("Sia Invalid Secret Key: {}", _0)]
+    InvalidPublicKey(#[from] PublicKeyError),
+    #[error("Sia Internal KDf error: {}", _0)]
+    KdfError(#[from] KdfError),
+}
+
+impl NotMmError for SiaCoinError {}
+
+#[derive(Debug, Error)]
+pub enum KdfError {
+    #[error("Sia Failed to create abortable system {}", _0)]
+    AbortableSystem(AbortedError),
+    #[error("Sia select_outputs insufficent amount, available: {:?} required: {:?}", available, required)]
+    SelectOutputsInsufficientAmount { available: Currency, required: Currency },
+    #[error("Sia TransactionErr {:?}", _0)]
+    MmTransactionErr(TransactionErr),
+    #[error("Sia {}", _0)]
+    UnexpectedDerivationMethod(MmError<UnexpectedDerivationMethod>),
+    #[error("Sia Invalid Private Key Policy, must use iguana seed")]
     UnsupportedPrivKeyPolicy,
-    ClientError(SiaApiClientError),
-    InvalidSecretKey(KeypairError),
-    InternalError(String),
-    SelectOutputsError(SelectOutputsError),
+    #[error("Sia MyAddressError: `{0}`")]
+    MyAddressError(MyAddressError),
 }
 
-impl From<serde_json::Error> for SiaCoinError {
-    fn from(e: serde_json::Error) -> Self { SiaCoinError::InvalidConf(e) }
+impl NotMmError for KdfError {}
+
+// This is required because AbortedError doesn't impl Error
+impl From<AbortedError> for KdfError {
+    fn from(e: AbortedError) -> Self { KdfError::AbortableSystem(e) }
 }
 
-impl From<SelectOutputsError> for SiaCoinError {
-    fn from(e: SelectOutputsError) -> Self { SiaCoinError::SelectOutputsError(e) }
+impl From<TransactionErr> for KdfError {
+    fn from(e: TransactionErr) -> Self { KdfError::MmTransactionErr(e) }
+}
+
+impl From<MyAddressError> for KdfError {
+    fn from(e: MyAddressError) -> Self { KdfError::MyAddressError(e) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
