@@ -14,6 +14,8 @@ pub struct SiaWithdrawBuilder<'a> {
     key_pair: &'a Keypair,
 }
 
+// TODO Alright this was written prior to Currency arithmetic traits being added and various
+// V2TransactionBuilder helpers being added; refactor to use those
 impl<'a> SiaWithdrawBuilder<'a> {
     #[allow(clippy::result_large_err)]
     pub fn new(coin: &'a SiaCoin, req: WithdrawRequest) -> Result<Self, MmError<WithdrawError>> {
@@ -60,8 +62,8 @@ impl<'a> SiaWithdrawBuilder<'a> {
         if selected_amount < total_amount {
             return Err(MmError::new(WithdrawError::NotSufficientBalance {
                 coin: self.coin.ticker().to_string(),
-                available: siacoin_from_hastings(selected_amount),
-                required: siacoin_from_hastings(total_amount),
+                available: siacoin_from_hastings(selected_amount.into()),
+                required: siacoin_from_hastings(total_amount.into()),
             }));
         }
 
@@ -122,8 +124,8 @@ impl<'a> SiaWithdrawBuilder<'a> {
             .sign_simple(vec![self.key_pair])
             .build();
 
-        let spent_by_me = siacoin_from_hastings(input_sum);
-        let received_by_me = siacoin_from_hastings(change_amount);
+        let spent_by_me = siacoin_from_hastings(input_sum.into());
+        let received_by_me = siacoin_from_hastings(change_amount.into());
 
         Ok(TransactionDetails {
             tx: TransactionData::Sia {
@@ -140,7 +142,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
                 SiaFeeDetails {
                     coin: self.coin.ticker().to_string(),
                     policy: SiaFeePolicy::Fixed,
-                    total_amount: siacoin_from_hastings(TX_FEE_HASTINGS),
+                    total_amount: siacoin_from_hastings(TX_FEE_HASTINGS.into()),
                 }
                 .into(),
             ),

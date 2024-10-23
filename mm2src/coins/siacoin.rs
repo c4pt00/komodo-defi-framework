@@ -182,14 +182,20 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 }
 
-/// Convert hastings amount to siacoin amount
-fn siacoin_from_hastings(hastings: u128) -> BigDecimal {
-    let hastings = BigInt::from(hastings);
-    let decimals = BigInt::from(10u128.pow(24));
-    BigDecimal::from(hastings) / BigDecimal::from(decimals)
+
+/// Convert hastings representation to "coin" amount
+/// BigDecimal(1) == 1 SC == 10^24 hastings
+/// 1 H == 0.000000000000000000000001 SC
+fn siacoin_from_hastings(hastings: Currency) -> BigDecimal {
+    let hastings : u128 = hastings.into();
+    BigDecimal::new(BigInt::from(hastings), 24)
 }
 
-/// Convert siacoin amount to hastings amount
+/// Convert "coin" representation to hastings amount
+/// BigDecimal(1) == 1 SC == 10^24 hastings
+// it's not ideal that we require these standalone helpers, but a newtype of Currency is even messier
+// TODO Alright - MmCoin trait should have an associated type "Currency" with a trait bound like
+// "IsCurrency" implementing methods for conversion to and from BigDecimal/MmNumber
 fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<u128, MmError<NumConversError>> {
     let decimals = BigInt::from(10u128.pow(24));
     let hastings = siacoin * BigDecimal::from(decimals);
@@ -667,8 +673,8 @@ impl MarketCoinOps for SiaCoin {
                 .await
                 .map_to_mm(|e| BalanceError::Transport(e.to_string()))?;
             Ok(CoinBalance {
-                spendable: siacoin_from_hastings(*balance.siacoins),
-                unspendable: siacoin_from_hastings(*balance.immature_siacoins),
+                spendable: siacoin_from_hastings(balance.siacoins),
+                unspendable: siacoin_from_hastings(balance.immature_siacoins),
             })
         };
         Box::new(fut.boxed().compat())
@@ -762,10 +768,10 @@ impl MarketCoinOps for SiaCoin {
     fn display_priv_key(&self) -> Result<String, String> { unimplemented!() }
 
     // Todo: revise this when working on swaps
-    fn min_tx_amount(&self) -> BigDecimal { siacoin_from_hastings(1) }
+    fn min_tx_amount(&self) -> BigDecimal { siacoin_from_hastings(1u64.into()) }
 
     // TODO Alright: research a sensible value for this. It represents the minimum amount of coins that can be traded
-    fn min_trading_vol(&self) -> MmNumber { siacoin_from_hastings(1).into() }
+    fn min_trading_vol(&self) -> MmNumber { siacoin_from_hastings(1u64.into()).into() }
 
     fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
 }
@@ -1092,6 +1098,7 @@ impl SiaCoin {
         Ok(address_events)
     }
 
+    // TODO this was written prior to Currency arithmetic traits being added; refactor to use those
     fn tx_details_from_event(&self, event: &Event) -> Result<TransactionDetails, MmError<String>> {
         match &event.data {
             EventDataWrapper::V2Transaction(tx) => {
@@ -1135,7 +1142,7 @@ impl SiaCoin {
                     .map(|output| *output.value)
                     .sum();
 
-                let my_balance_change = siacoin_from_hastings(received_by_me) - siacoin_from_hastings(spent_by_me);
+                let my_balance_change = siacoin_from_hastings(received_by_me.into()) - siacoin_from_hastings(spent_by_me.into());
 
                 Ok(TransactionDetails {
                     tx: TransactionData::Sia {
@@ -1144,9 +1151,9 @@ impl SiaCoin {
                     },
                     from,
                     to,
-                    total_amount: siacoin_from_hastings(total_input),
-                    spent_by_me: siacoin_from_hastings(spent_by_me),
-                    received_by_me: siacoin_from_hastings(received_by_me),
+                    total_amount: siacoin_from_hastings(total_input.into()),
+                    spent_by_me: siacoin_from_hastings(spent_by_me.into()),
+                    received_by_me: siacoin_from_hastings(received_by_me.into()),
                     my_balance_change,
                     block_height: event.index.height,
                     timestamp: event.timestamp.timestamp() as u64,
@@ -1154,7 +1161,7 @@ impl SiaCoin {
                         SiaFeeDetails {
                             coin: self.ticker().to_string(),
                             policy: SiaFeePolicy::Unknown,
-                            total_amount: siacoin_from_hastings(fee),
+                            total_amount: siacoin_from_hastings(fee.into()),
                         }
                         .into(),
                     ),
@@ -1208,7 +1215,7 @@ impl SiaCoin {
                     .map(|output| *output.value)
                     .sum();
 
-                let my_balance_change = siacoin_from_hastings(received_by_me) - siacoin_from_hastings(spent_by_me);
+                let my_balance_change = siacoin_from_hastings(received_by_me.into()) - siacoin_from_hastings(spent_by_me.into());
 
                 Ok(TransactionDetails {
                     tx: TransactionData::Sia {
@@ -1217,9 +1224,9 @@ impl SiaCoin {
                     },
                     from,
                     to,
-                    total_amount: siacoin_from_hastings(total_input),
-                    spent_by_me: siacoin_from_hastings(spent_by_me),
-                    received_by_me: siacoin_from_hastings(received_by_me),
+                    total_amount: siacoin_from_hastings(total_input.into()),
+                    spent_by_me: siacoin_from_hastings(spent_by_me.into()),
+                    received_by_me: siacoin_from_hastings(received_by_me.into()),
                     my_balance_change,
                     block_height: event.index.height,
                     timestamp: event.timestamp.timestamp() as u64,
@@ -1227,7 +1234,7 @@ impl SiaCoin {
                         SiaFeeDetails {
                             coin: self.ticker().to_string(),
                             policy: SiaFeePolicy::Unknown,
-                            total_amount: siacoin_from_hastings(fee),
+                            total_amount: siacoin_from_hastings(fee.into()),
                         }
                         .into(),
                     ),
@@ -1256,7 +1263,7 @@ impl SiaCoin {
                         0
                     };
 
-                let my_balance_change = siacoin_from_hastings(received_by_me);
+                let my_balance_change = siacoin_from_hastings(received_by_me.into());
 
                 Ok(TransactionDetails {
                     tx: TransactionData::Sia {
@@ -1265,9 +1272,9 @@ impl SiaCoin {
                     },
                     from,
                     to,
-                    total_amount: siacoin_from_hastings(total_output),
+                    total_amount: siacoin_from_hastings(total_output.into()),
                     spent_by_me: BigDecimal::from(0),
-                    received_by_me: siacoin_from_hastings(received_by_me),
+                    received_by_me: siacoin_from_hastings(received_by_me.into()),
                     my_balance_change,
                     block_height: event.index.height,
                     timestamp: event.timestamp.timestamp() as u64,
@@ -1402,6 +1409,41 @@ mod tests {
         let pubkey = PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).unwrap();
         assert_eq!(pubkey_bytes, *FEE_PUBLIC_KEY_BYTES);
         assert_eq!(pubkey, *FEE_PUBLIC_KEY);
+    }
+
+    #[test]
+    fn test_siacoin_from_hastings_coin() {
+        let hastings : u128 = Currency::COIN.into();
+        let coin = siacoin_from_hastings(hastings);
+        assert_eq!(coin, BigDecimal::from(1));
+    }
+
+    #[test]
+    fn test_siacoin_from_hastings_zero() {
+        let hastings : u128 = Currency::ZERO.into();
+        let coin = siacoin_from_hastings(hastings);
+        assert_eq!(coin, BigDecimal::from(0));
+    }
+
+    #[test]
+    fn test_siacoin_to_hastings_coin() {
+        let coin = BigDecimal::from(1);
+        let hastings = siacoin_to_hastings(coin).unwrap();
+        assert_eq!(hastings, Currency::COIN.into());
+    }
+    
+    #[test]
+    fn test_siacoin_to_hastings_zero() {
+        let coin = BigDecimal::from(0);
+        let hastings = siacoin_to_hastings(coin).unwrap();
+        assert_eq!(hastings, Currency::ZERO.into());
+    }
+    
+    #[test]
+    fn test_siacoin_to_hastings_one() {
+        let coin = serde_json::from_str::<BigDecimal>("0.000000000000000000000001").unwrap();
+        let hastings = siacoin_to_hastings(coin).unwrap();
+        assert_eq!(hastings, Currency(1).into());
     }
 }
 
