@@ -558,9 +558,9 @@ pub enum UnexpectedDerivationMethod {
     ExpectedHDWallet,
     #[display(fmt = "Trezor derivation method is not supported yet!")]
     Trezor,
-    #[display(fmt = "Unsupported error: {}", _0)]
+    #[display(fmt = "UnexpectedDerivationMethod Unsupported error: {}", _0)]
     UnsupportedError(String),
-    #[display(fmt = "Internal error: {}", _0)]
+    #[display(fmt = "UnexpectedDerivationMethod Internal error: {}", _0)]
     InternalError(String),
 }
 
