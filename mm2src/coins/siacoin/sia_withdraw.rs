@@ -1,5 +1,6 @@
-use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaFeePolicy,
-                     SiaTransactionTypes, Address, Currency, SiaKeypair as Keypair, SiacoinElement, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
+use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, Address, Currency, SiaCoin, SiaFeeDetails,
+                     SiaFeePolicy, SiaKeypair as Keypair, SiaTransactionTypes, SiacoinElement, SiacoinOutput,
+                     SpendPolicy, V2TransactionBuilder};
 use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
             WithdrawRequest, WithdrawResult};
 use common::now_sec;
@@ -120,7 +121,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
         // Sign the transaction
         let signed_tx = tx_builder
             .sign_simple(vec![self.key_pair])
-            .clone()  // FIXME OMAR take a look can we move the need to clone?
+            .clone() // FIXME OMAR take a look can we move the need to clone?
             .build();
 
         let spent_by_me = siacoin_from_hastings(input_sum);

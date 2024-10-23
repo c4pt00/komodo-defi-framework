@@ -1,16 +1,16 @@
+use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
+use coins::PrivKeyBuildPolicy;
 use common::block_on;
+use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
+use mm2_main::lp_wallet::initialize_wallet_passphrase;
 use sia_rust::transport::client::native::{Conf, NativeClient};
 use sia_rust::transport::client::{ApiClient, ApiClientError, ApiClientHelpers};
-use sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, GetAddressUtxosRequest,
-                                     TxpoolBroadcastRequest, DebugMineRequest};
+use sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, DebugMineRequest,
+                                     GetAddressUtxosRequest, TxpoolBroadcastRequest};
 use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
-use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
-use coins::PrivKeyBuildPolicy;
-use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinConf, SiaCoinActivationRequest};
-use mm2_main::lp_wallet::initialize_wallet_passphrase;
 
 /*
 These tests are intended to ran manually for now.
@@ -34,9 +34,7 @@ async fn init_ctx(passphrase: &str, netid: u16) -> MmArc {
         "passphrase": passphrase,
     });
 
-    let ctx = MmCtxBuilder::new()
-        .with_conf(kdf_conf)
-        .into_mm_arc();
+    let ctx = MmCtxBuilder::new().with_conf(kdf_conf).into_mm_arc();
 
     initialize_wallet_passphrase(&ctx).await.unwrap();
     ctx
@@ -52,7 +50,9 @@ async fn init_siacoin(ctx: MmArc, ticker: &str, request: &SiaCoinActivationReque
 
     let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).unwrap();
 
-    sia_coin_from_conf_and_request(&ctx, ticker, coin_conf_str, request, priv_key_policy).await.unwrap()
+    sia_coin_from_conf_and_request(&ctx, ticker, coin_conf_str, request, priv_key_policy)
+        .await
+        .unwrap()
 }
 
 fn default_activation_request() -> SiaCoinActivationRequest {
@@ -117,7 +117,8 @@ fn test_sia_endpoint_debug_mine() {
     block_on(api_client.dispatcher(DebugMineRequest {
         address: address.clone(),
         blocks: 100,
-    })).unwrap();
+    }))
+    .unwrap();
 
     let height = block_on(api_client.current_height()).unwrap();
     assert_eq!(height, 100);

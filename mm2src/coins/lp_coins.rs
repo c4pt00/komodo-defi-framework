@@ -256,7 +256,7 @@ pub mod tx_history_storage;
 
 #[cfg(feature = "enable-sia")] pub mod siacoin;
 #[cfg(feature = "enable-sia")]
-use siacoin::{SiaCoin, SiaFeeDetails, SiaTransactionTypes, SiaTransaction};
+use siacoin::{SiaCoin, SiaFeeDetails, SiaTransaction, SiaTransactionTypes};
 
 pub mod utxo;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
@@ -647,9 +647,7 @@ pub enum TransactionErr {
 }
 
 impl<T: std::fmt::Display> From<T> for TransactionErr {
-    fn from(e: T) -> Self {
-        TransactionErr::Plain(e.to_string())
-    }
+    fn from(e: T) -> Self { TransactionErr::Plain(e.to_string()) }
 }
 
 impl TransactionErr {
