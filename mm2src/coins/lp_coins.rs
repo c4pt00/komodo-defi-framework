@@ -647,6 +647,14 @@ pub enum TransactionErr {
     ProtocolNotSupported(String),
 }
 
+impl From<String> for TransactionErr {
+    fn from(e: String) -> Self { TransactionErr::Plain(e) }
+}
+
+impl From<&str> for TransactionErr {
+    fn from(e: &str) -> Self { TransactionErr::Plain(e.to_string()) }
+}
+
 impl TransactionErr {
     /// Returns transaction if the error includes it.
     #[inline]
