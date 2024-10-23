@@ -863,11 +863,6 @@ impl SiaCoin {
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
-
-    async fn new_send_maker_payment(&self, maker_payment_args: SendPaymentArgs<'_>) -> Result<TransactionEnum, SendMakerFeeError> {
-        todo!()
-    }
-
 }
 
 #[async_trait]
