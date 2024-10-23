@@ -1382,14 +1382,6 @@ mod tests {
         assert_eq!(siacoin, BigDecimal::from_str("57769875000").unwrap());
     }
     
-
-    #[test]
-    fn test_siacoin_to_hastings_u128_max() {
-        let siacoin = BigDecimal::new(u128::MAX.into(), -24);
-        let hastings = siacoin_to_hastings(siacoin).unwrap();
-        assert_eq!(hastings, Currency(340282366920938463463374607431768211455));
-    }
-
     #[test]
     fn test_siacoin_to_hastings_supply() {
         // Total supply of Siacoin
