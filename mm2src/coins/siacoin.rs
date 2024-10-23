@@ -770,6 +770,20 @@ impl MarketCoinOps for SiaCoin {
     fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
 }
 
+#[derive(Debug, Error)]
+pub enum SendTakerFeeError {
+    #[error("sia send_taker_fee: failed to parse uuid from bytes {}", _0)]
+    ParseUuid(#[from] uuid::Error),
+    #[error("sia send_taker_fee: Unexpected Uuid version {}", _0)]
+    UuidVersion(usize),
+    #[error("sia send_taker_fee: failed to convert trade_fee_amount to u128")]
+    MmNumberToU128,
+    #[error("sia send_taker_fee: unexpected DexFee variant")]
+    DexFeeVariant,
+    #[error("sia send_taker_fee: siacoin internal error {}", _0)]
+    SiaCoinInternal(#[from] SiaCoinError)
+}
+
 // contains futures-0.3.x implementations of the SwapOps trait and various helpers
 impl SiaCoin {
     async fn new_get_public_key(&self) -> Result<PublicKey, SiaCoinError> {
@@ -793,29 +807,33 @@ impl SiaCoin {
         dex_fee: DexFee,
         uuid: &[u8],
         _expire_at: u64,
-    ) -> Result<TransactionEnum, TransactionErr> {
+    ) -> Result<TransactionEnum, SendTakerFeeError> {
         let uuid_type_check = Uuid::from_slice(uuid)
-            .map_err(|e| format!("siacoin send_taker_fee: failed to parse uuid from bytes: {}", e))?;
+            .map_err(SendTakerFeeError::ParseUuid)?;
+
         match uuid_type_check.get_version_num() {
             4 => (),
-            _ => return Err("siacoin send_taker_fee: Unexpected Uuid version")?,
+            version => return Err(SendTakerFeeError::UuidVersion(version)),
         }
 
         let trade_fee_amount = if let DexFee::Standard(mm_num) = dex_fee {
             Currency(
                 BigDecimal::from(mm_num)
                     .to_u128()
-                    .ok_or("siacoin send_taker_fee: failed to convert trade_fee_amount to u128")?,
+                    .ok_or(SendTakerFeeError::MmNumberToU128)?,
             )
         } else {
-            return Err("siacoin send_taker_fee: unexpected DexFee variant".into());
+            return Err(SendTakerFeeError::DexFeeVariant);
         };
 
-        let my_keypair = self.my_keypair()?;
+        let my_keypair = self.my_keypair()
+            .map_err(SiaCoinError::KdfError)
+            .map_err(SendTakerFeeError::SiaCoinInternal)?;
+
         let my_public_key = self
             .new_get_public_key()
             .await
-            .map_err(|e| format!("siacoin send_taker_fee: new_get_public_key failed: {}", e))?;
+            .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
         let tx_fee_amount = Currency::ZERO; // FIXME Alright: calculate tx fee amount after we know TX size
 
@@ -826,7 +844,8 @@ impl SiaCoin {
         self.client
             .fund_tx_single_source(&mut tx_builder, &my_public_key, tx_fee_amount)
             .await
-            .map_err(|e| format!("siacoin send_taker_fee: funding failed: {}", e))?;
+            .map_err(SiaCoinError::ClientHelpersError)
+            .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
         tx_builder.sign_simple(vec![my_keypair]);
 
@@ -846,7 +865,7 @@ impl SwapOps for SiaCoin {
         let dex_fee = dex_fee.clone();
         let uuid = uuid.to_vec();
 
-        let fut_0_3 = async move { self_rc.new_send_taker_fee(&fee_addr, dex_fee, &uuid, expire_at).await };
+        let fut_0_3 = async move { self_rc.new_send_taker_fee(&fee_addr, dex_fee, &uuid, expire_at).await.map_err(|e| e.to_string().into()) };
         // Convert the 0.3 future into a 0.1-compatible future
         Box::new(fut_0_3.boxed().compat())
     }
