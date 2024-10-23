@@ -151,7 +151,7 @@ impl WalletConnectCtx {
             .unwrap_or(false)
     }
 
-    pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|chain| chain == &chain_id) }
+    pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|&chain| chain == chain_id) }
 
     pub async fn set_active_chain(&self, chain_id: &str) {
         let mut active_chain = self.active_chain_id.lock().await;
@@ -162,16 +162,13 @@ impl WalletConnectCtx {
 
     /// Retrieves the available account for a given chain ID.
     pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectError> {
-        let active_chain_id = self.get_active_chain_id().await;
-        if active_chain_id != chain_id {
-            return MmError::err(WalletConnectError::ChainIdMismatch);
-        }
-
         let namespaces = &self
             .session
             .get_session_active()
             .await
-            .ok_or(MmError::new(WalletConnectError::NoAccountFound(chain_id.to_string())))?
+            .ok_or(MmError::new(WalletConnectError::SessionError(
+                "No active WalletConnect session found".to_string(),
+            )))?
             .namespaces;
         namespaces
             .iter()
@@ -364,6 +361,7 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
 fn find_account_in_namespace(namespace: &Namespace, chain_id: &str) -> Option<String> {
     let accounts = namespace.accounts.as_ref()?;
 
+    println!("ACCOUNTS: {accounts:?}");
     accounts.iter().find_map(|account_name| {
         let parts: Vec<&str> = account_name.split(':').collect();
         if parts.len() >= 3 && parts[1] == chain_id {

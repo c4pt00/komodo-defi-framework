@@ -8,6 +8,11 @@ use serde::Serialize;
 use super::{EmptyRpcRequst, EmptyRpcResponse, WalletConnectRpcError};
 
 #[derive(Debug, PartialEq, Serialize)]
+pub struct SessionResponse {
+    pub result: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
 pub struct GetSessionsResponse {
     pub sessions: Vec<SessionRpcInfo>,
 }
@@ -51,6 +56,23 @@ pub async fn get_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<GetSess
     Ok(GetSessionResponse { session })
 }
 
+/// `Get session connection` RPC command implementation.
+pub async fn set_active_session(
+    ctx: MmArc,
+    req: GetSessionRequest,
+) -> MmResult<SessionResponse, WalletConnectRpcError> {
+    let ctx =
+        WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
+    ctx.session
+        .set_active_session(&req.topic.into())
+        .await
+        .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
+
+    Ok(SessionResponse {
+        result: "active session updated!".to_owned(),
+    })
+}
+
 /// `Delete session connection` RPC command implementation.
 pub async fn disconnect_session(
     ctx: MmArc,
@@ -65,18 +87,15 @@ pub async fn disconnect_session(
     Ok(EmptyRpcResponse {})
 }
 
-#[derive(Debug, PartialEq, Serialize)]
-pub struct SessionPingResponse {
-    pub successful: bool,
-}
-
 /// `ping session` RPC command implementation.
-pub async fn ping_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<SessionPingResponse, WalletConnectRpcError> {
+pub async fn ping_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<SessionResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     send_session_ping_request(&ctx, &req.topic.into())
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 
-    Ok(SessionPingResponse { successful: true })
+    Ok(SessionResponse {
+        result: "Ping successful".to_owned(),
+    })
 }

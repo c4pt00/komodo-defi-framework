@@ -1,19 +1,19 @@
 use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) const DEFAULT_CHAIN_ID: &str = "cosmoshub-4";
-pub const ETH_CHAIN_ID: &str = "eip155";
-
-pub(crate) const SUPPORTED_EVENTS: &[&str] = &[];
-pub(crate) const SUPPORTED_METHODS: &[&str] = &[
-    "cosmos_getAccounts",
-    "cosmos_signDirect",
-    "cosmos_signAmino",
-    "eth_signTransaction",
-    "personal_sign",
-];
-pub(crate) const SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
+pub(crate) const SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4", "eip155:1"];
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
+
+pub const COSMOS_CHAIN_ID: &str = "cosmos";
+pub(crate) const COSMOS_SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
+pub(crate) const COSMOS_SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
+
+pub const ETH_CHAIN_ID: &str = "eip155";
+pub(crate) const ETH_SUPPORTED_METHODS: &[&str] = &["eth_signTransaction", "personal_sign"];
+pub(crate) const ETH_SUPPORTED_CHAINS: &[&str] = &["eip155:1"];
+pub(crate) const ETH_SUPPORTED_EVENTS: &[&str] = &["accountsChanged", "chainChanged"];
+
+pub(crate) const DEFAULT_CHAIN_ID: &str = "1";
 
 #[derive(Debug, Clone)]
 pub enum WcRequestMethods {
@@ -38,10 +38,16 @@ impl AsRef<str> for WcRequestMethods {
 
 pub(crate) fn build_required_namespaces() -> ProposeNamespaces {
     let mut required = BTreeMap::new();
-    required.insert("cosmos".to_string(), ProposeNamespace {
-        chains: SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-        methods: SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-        events: SUPPORTED_EVENTS.iter().map(|m| m.to_string()).collect(),
+    required.insert(COSMOS_CHAIN_ID.to_string(), ProposeNamespace {
+        events: BTreeSet::new(),
+        chains: COSMOS_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
+        methods: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+    });
+
+    required.insert(ETH_CHAIN_ID.to_string(), ProposeNamespace {
+        events: ETH_SUPPORTED_EVENTS.iter().map(|m| m.to_string()).collect(),
+        chains: ETH_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
+        methods: ETH_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
     });
 
     ProposeNamespaces(required)

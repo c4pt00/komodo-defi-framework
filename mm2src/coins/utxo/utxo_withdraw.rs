@@ -342,7 +342,7 @@ where
                     "`PrivKeyPolicy::Metamask` is not supported for UTXO coins!".to_string(),
                 ))
             },
-            PrivKeyPolicy::WalletConnect(_) => {
+            PrivKeyPolicy::WalletConnect { .. } => {
                 return MmError::err(WithdrawError::UnsupportedError(
                     "`PrivKeyPolicy::WalletConnect` is not supported for UTXO coins!".to_string(),
                 ))

@@ -9,7 +9,7 @@ use dashmap::mapref::one::{Ref, RefMut};
 use dashmap::DashMap;
 use futures::lock::Mutex;
 use key::SessionKey;
-use mm2_err_handle::prelude::MmResult;
+use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
@@ -238,6 +238,23 @@ impl SessionManager {
         }
 
         removed_session
+    }
+
+    /// Retrieves a cloned session associated with a given topic.
+    pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
+        let mut active_topic = self.0.active_topic.lock().await;
+        if let Some(this) = active_topic.as_mut() {
+            if topic == this {
+                return Ok(());
+            };
+        }
+
+        if let Some(session) = self.get_session(topic) {
+            *active_topic = Some(session.topic.clone());
+            return Ok(());
+        }
+
+        MmError::err(WalletConnectError::SessionError("Session not found".to_owned()))
     }
 
     /// Retrieves a cloned session associated with a given topic.

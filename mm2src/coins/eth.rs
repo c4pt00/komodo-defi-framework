@@ -140,7 +140,7 @@ mod eth_rpc;
 #[cfg(target_arch = "wasm32")] mod eth_wasm_tests;
 #[cfg(any(test, target_arch = "wasm32"))] mod for_tests;
 pub(crate) mod nft_swap_v2;
-mod wallet_connect;
+pub mod wallet_connect;
 mod web3_transport;
 use web3_transport::{http_transport::HttpTransportNode, Web3Transport};
 
@@ -589,7 +589,10 @@ pub enum EthPrivKeyBuildPolicy {
     #[cfg(target_arch = "wasm32")]
     Metamask(MetamaskArc),
     Trezor,
-    WalletConnect,
+    WalletConnect {
+        address: Address,
+        pubkey: Public,
+    },
 }
 
 impl EthPrivKeyBuildPolicy {
@@ -1368,10 +1371,9 @@ impl SwapOps for EthCoin {
                 activated_key: ref key_pair,
                 ..
             } => key_pair_from_secret(key_pair.secret().as_bytes()).expect("valid key"),
-            EthPrivKeyPolicy::Trezor | EthPrivKeyPolicy::WalletConnect(_) => todo!(),
+            EthPrivKeyPolicy::Trezor | EthPrivKeyPolicy::WalletConnect { .. } => todo!(),
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(_) => todo!(),
-            EthPrivKeyPolicy::WalletConnect(_) => todo!(),
         }
     }
 
@@ -1389,7 +1391,7 @@ impl SwapOps for EthCoin {
             EthPrivKeyPolicy::Trezor => todo!(),
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(ref metamask_policy) => metamask_policy.public_key.as_bytes().to_vec(),
-            EthPrivKeyPolicy::WalletConnect(pubkey) => pubkey.to_bytes().to_vec(),
+            EthPrivKeyPolicy::WalletConnect { pubkey, .. } => pubkey.to_bytes().to_vec(),
         }
     }
 
@@ -2161,7 +2163,11 @@ impl MarketCoinOps for EthCoin {
             EthPrivKeyPolicy::Metamask(ref metamask_policy) => {
                 Ok(format!("{:02x}", metamask_policy.public_key_uncompressed))
             },
-            EthPrivKeyPolicy::WalletConnect(_) => todo!(),
+            EthPrivKeyPolicy::WalletConnect { address: _, pubkey } => {
+                let key = hex::encode(pubkey);
+                println!("Pubkey: {key}");
+                Ok(format!("04{key}"))
+            },
         }
     }
 
@@ -2481,7 +2487,7 @@ impl MarketCoinOps for EthCoin {
             EthPrivKeyPolicy::Trezor => ERR!("'display_priv_key' is not supported for Hardware Wallets"),
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(_) => ERR!("'display_priv_key' is not supported for MetaMask"),
-            EthPrivKeyPolicy::WalletConnect(_) => todo!(),
+            EthPrivKeyPolicy::WalletConnect { .. } => ERR!("'display_priv_key' is not supported for MetaMask"),
         }
     }
 
@@ -2692,7 +2698,7 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
         EthPrivKeyPolicy::Trezor => MmError::err(RawTransactionError::InvalidParam(
             "sign raw eth tx not implemented for Trezor".into(),
         )),
-        EthPrivKeyPolicy::WalletConnect(_) => MmError::err(RawTransactionError::InvalidParam(
+        EthPrivKeyPolicy::WalletConnect { .. } => MmError::err(RawTransactionError::InvalidParam(
             "sign raw eth tx not implemented for WalletConnect".into(),
         )),
     }
@@ -3644,7 +3650,7 @@ impl EthCoin {
                 EthPrivKeyPolicy::Metamask(_) => {
                     sign_and_send_transaction_with_metamask(coin, value, action, data, gas).await
                 },
-                EthPrivKeyPolicy::WalletConnect(_) => todo!(),
+                EthPrivKeyPolicy::WalletConnect { .. } => todo!(),
             }
         };
         Box::new(fut.boxed().compat())
@@ -7186,7 +7192,7 @@ impl CommonSwapOpsV2 for EthCoin {
                     .expect("slice with incorrect length");
                 Public::from_slice(&pubkey_bytes)
             },
-            EthPrivKeyPolicy::WalletConnect(pubkey) => pubkey,
+            EthPrivKeyPolicy::WalletConnect { pubkey, .. } => pubkey,
         }
     }
 

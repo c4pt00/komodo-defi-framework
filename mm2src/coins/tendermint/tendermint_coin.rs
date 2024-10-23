@@ -281,7 +281,7 @@ impl TendermintActivationPolicy {
 
                 #[cfg(target_arch = "wasm32")]
                 PrivKeyPolicy::Metamask(_) => unreachable!(),
-                PrivKeyPolicy::WalletConnect(_) => unreachable!(),
+                PrivKeyPolicy::WalletConnect { .. } => unreachable!(),
             },
             Self::PublicKey(account_public_key) => Ok(*account_public_key),
         }
