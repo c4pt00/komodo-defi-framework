@@ -29,7 +29,7 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers};
+pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers, ApiClientHelpersError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                      TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
@@ -207,6 +207,8 @@ pub enum SiaCoinError {
     InvalidConf(#[from] serde_json::Error),
     #[error("Sia Client Error: {}", _0)]
     ClientError(#[from] SiaApiClientError),
+    #[error("Sia Client Helpers Error: {}", _0)]
+    ClientHelpersError(#[from] ApiClientHelpersError),
     #[error("Sia Invalid Secret Key: {}", _0)]
     InvalidPrivateKey(#[from] PrivateKeyError),
     #[error("Sia Invalid Secret Key: {}", _0)]
