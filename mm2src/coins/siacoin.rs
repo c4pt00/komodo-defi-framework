@@ -890,15 +890,8 @@ impl SwapOps for SiaCoin {
         Box::new(fut_0_3.boxed().compat())
     }
 
-    fn send_maker_payment(&self, maker_payment_args: SendPaymentArgs) -> TransactionFut { 
-        let self_rc = self.clone();
-        let args = maker_payment_args.clone();
-
-        let fut_0_3 = async move {
-            self_rc.new_send_maker_payment(args).await.map_err(|e| e.to_string().into())
-        };
-        // Convert the 0.3 future into a 0.1-compatible future
-        Box::new(fut_0_3.boxed().compat())
+    async fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
+        unimplemented!()
     }
 
     fn send_taker_payment(&self, _taker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
