@@ -1,22 +1,22 @@
 use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, NumConversError,
             RawTransactionFut, RawTransactionRequest, SwapOps, TradeFee, TransactionData, TransactionDetails,
-            TransactionEnum, TransactionFut, TransactionType, TransactionErr};
+            TransactionEnum, TransactionErr, TransactionFut, TransactionType};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
-use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
+use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin,
             NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput, SendPaymentArgs, SignatureResult, SpendPaymentArgs,
-            TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue, TransactionResult,
-            TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
-            ValidateInstructionsErr, ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut,
-            ValidatePaymentInput, ValidatePaymentResult, VerificationResult,
-            WaitForHTLCTxSpendArgs, WatcherOps,
-            WithdrawFut, WithdrawRequest, Transaction, now_sec};
+            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
+            SendPaymentArgs, SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut,
+            TradePreimageResult, TradePreimageValue, Transaction, TransactionResult, TxMarshalingErr,
+            UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs, ValidateInstructionsErr,
+            ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentInput,
+            ValidatePaymentResult, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WithdrawFut,
+            WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
-use common::DEX_FEE_PUBKEY_ED25510;
 use common::log::info;
+use common::DEX_FEE_PUBKEY_ED25510;
 use derive_more::{From, Into};
 use futures::compat::Future01CompatExt;
 use futures::{FutureExt, TryFutureExt};
@@ -29,11 +29,13 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError, ApiClientHelpers, ApiClientHelpersError};
+pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
+                                      ApiClientHelpers, ApiClientHelpersError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
-                                     TxpoolBroadcastRequest};
-pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
-                      PublicKeyError, PrivateKeyError, V1Transaction, V2Transaction, Hash256, SiacoinElement, PublicKey, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
+                                         TxpoolBroadcastRequest};
+pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
+                          Keypair as SiaKeypair, PrivateKeyError, PublicKey, PublicKeyError, SiacoinElement,
+                          SiacoinOutput, SpendPolicy, V1Transaction, V2Transaction, V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -47,10 +49,10 @@ use uuid::Uuid;
 use mm2_err_handle::prelude::*;
 
 lazy_static! {
-    pub static ref FEE_PUBLIC_KEY_BYTES: Vec<u8> = hex::decode(DEX_FEE_PUBKEY_ED25510).expect("DEX_FEE_PUBKEY_ED25510 is a valid hex string");
-
-    pub static ref FEE_PUBLIC_KEY: PublicKey = PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).expect("DEX_FEE_PUBKEY_ED25510 is a valid PublicKey");
-
+    pub static ref FEE_PUBLIC_KEY_BYTES: Vec<u8> =
+        hex::decode(DEX_FEE_PUBKEY_ED25510).expect("DEX_FEE_PUBKEY_ED25510 is a valid hex string");
+    pub static ref FEE_PUBLIC_KEY: PublicKey =
+        PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).expect("DEX_FEE_PUBKEY_ED25510 is a valid PublicKey");
     pub static ref FEE_ADDR: Address = Address::from_public_key(&FEE_PUBLIC_KEY);
 }
 
@@ -150,9 +152,11 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 
     async fn build(self) -> MmResult<SiaCoin, SiaCoinError> {
-        let abortable_queue: AbortableQueue = self.ctx.abortable_system.create_subsystem().map_err(
-            KdfError::AbortableSystem
-        )?;
+        let abortable_queue: AbortableQueue = self
+            .ctx
+            .abortable_system
+            .create_subsystem()
+            .map_err(KdfError::AbortableSystem)?;
         let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.request.tx_history {
             HistorySyncState::NotStarted
@@ -225,7 +229,11 @@ impl NotMmError for SiaCoinError {}
 pub enum KdfError {
     #[error("Sia Failed to create abortable system {}", _0)]
     AbortableSystem(AbortedError),
-    #[error("Sia select_outputs insufficent amount, available: {:?} required: {:?}", available, required)]
+    #[error(
+        "Sia select_outputs insufficent amount, available: {:?} required: {:?}",
+        available,
+        required
+    )]
     SelectOutputsInsufficientAmount { available: Currency, required: Currency },
     #[error("Sia TransactionErr {:?}", _0)]
     MmTransactionErr(TransactionErr),
@@ -699,12 +707,15 @@ impl MarketCoinOps for SiaCoin {
     }
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
-        let tx: SiaTransaction = try_fus!(serde_json::from_slice(&input.payment_tx)
-                .map_err(|e| format!("siacoin wait_for_confirmations payment_tx deser failed: {}", e).to_string()));
+        let tx: SiaTransaction = try_fus!(serde_json::from_slice(&input.payment_tx).map_err(|e| format!(
+            "siacoin wait_for_confirmations payment_tx deser failed: {}",
+            e
+        )
+        .to_string()));
         let txid = tx.txid();
         let client = self.client.clone();
         let tx_request = GetEventRequest { txid: txid.clone() };
-        
+
         let fut = async move {
             loop {
                 if now_sec() > input.wait_until {
@@ -763,18 +774,87 @@ impl MarketCoinOps for SiaCoin {
     fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
 }
 
+// contains futures-0.3.x implementations of the SwapOps trait and various helpers
+impl SiaCoin {
+    async fn new_get_public_key(&self) -> Result<PublicKey, SiaCoinError> {
+        let public_key_str = self
+            .get_public_key()
+            .map_err(KdfError::UnexpectedDerivationMethod)
+            .await?;
+        PublicKey::from_str(&public_key_str).map_err(SiaCoinError::InvalidPublicKey)
+    }
+
+    fn my_keypair(&self) -> Result<&SiaKeypair, KdfError> {
+        match &*self.priv_key_policy {
+            PrivKeyPolicy::Iguana(keypair) => Ok(keypair),
+            _ => Err(KdfError::UnsupportedPrivKeyPolicy),
+        }
+    }
+
+    async fn new_send_taker_fee(
+        &self,
+        _fee_addr: &[u8],
+        dex_fee: DexFee,
+        uuid: &[u8],
+        _expire_at: u64,
+    ) -> Result<TransactionEnum, TransactionErr> {
+        let uuid_type_check = Uuid::from_slice(uuid)
+            .map_err(|e| format!("siacoin send_taker_fee: failed to parse uuid from bytes: {}", e))?;
+        match uuid_type_check.get_version_num() {
+            4 => (),
+            _ => return Err("siacoin send_taker_fee: Unexpected Uuid version")?,
+        }
+
+        let trade_fee_amount = if let DexFee::Standard(mm_num) = dex_fee {
+            Currency(
+                BigDecimal::from(mm_num)
+                    .to_u128()
+                    .ok_or("siacoin send_taker_fee: failed to convert trade_fee_amount to u128")?,
+            )
+        } else {
+            return Err("siacoin send_taker_fee: unexpected DexFee variant".into());
+        };
+
+        let my_keypair = self.my_keypair()?;
+        let my_public_key = self
+            .new_get_public_key()
+            .await
+            .map_err(|e| format!("siacoin send_taker_fee: new_get_public_key failed: {}", e))?;
+        let my_address = my_public_key.address();
+
+        let tx_fee_amount = Currency::ZERO; // FIXME Alright: calculate tx fee amount after we know TX size
+        let total_amount = trade_fee_amount + tx_fee_amount;
+
+        let mut tx_builder = V2TransactionBuilder::new();
+
+        tx_builder.add_siacoin_output((FEE_ADDR.clone(), trade_fee_amount).into());
+
+        self.client
+            .fund_tx_single_source(&mut tx_builder, &my_public_key, tx_fee_amount)
+            .await
+            .map_err(|e| format!("siacoin send_taker_fee: funding failed: {}", e))?;
+
+        tx_builder.sign_simple(vec![my_keypair]);
+
+        let tx = tx_builder.build();
+        Ok(TransactionEnum::SiaTransaction(tx.into()))
+    }
+}
+
 #[async_trait]
 impl SwapOps for SiaCoin {
-    fn send_taker_fee(&self, _fee_addr: &[u8], _dex_fee: DexFee, uuid: &[u8], _expire_at: u64) -> TransactionFut {
-        // let uuid_result = Uuid::from_slice(uuid).map_err(
-        //     |e| {
-        //         let err_msg = format!("siacoin send_taker_fee: failed to parse uuid from bytes: {}", e);
-        //         TransactionErr::Plain(ERRL!("{}", err_msg))
-        //     }
-        // );
-        // let uuid = try_tx_fus!(uuid_result);
-        todo!()
+    fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, uuid: &[u8], expire_at: u64) -> TransactionFut {
+        // We can't change the signature of this function because the trait is implemented across
+        // all coin protocols. We can't move any references into the 0.3.x future due to lifetimes
+        // so we must clone the any data moved into the async block.
+        let self_rc = self.clone();
+        let fee_addr = fee_addr.to_vec();
+        let dex_fee = dex_fee.clone();
+        let uuid = uuid.to_vec();
 
+        let fut_0_3 = async move { self_rc.new_send_taker_fee(&fee_addr, dex_fee, &uuid, expire_at).await };
+        // Convert the 0.3 future into a 0.1-compatible future
+        Box::new(fut_0_3.boxed().compat())
     }
 
     fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
@@ -920,7 +1000,7 @@ impl MakerSwapTakerCoin for SiaCoin {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, From, Into)]
-#[serde(transparent)] 
+#[serde(transparent)]
 pub struct SiaTransaction(pub V2Transaction);
 
 impl SiaTransaction {
@@ -949,10 +1029,7 @@ pub enum SiaTransactionTypes {
 }
 
 impl SiaCoin {
-    async fn get_unspent_outputs(
-        &self,
-        address: Address,
-    ) -> Result<Vec<SiacoinElement>, MmError<SiaApiClientError>> {
+    async fn get_unspent_outputs(&self, address: Address) -> Result<Vec<SiacoinElement>, MmError<SiaApiClientError>> {
         let request = GetAddressUtxosRequest {
             address,
             limit: None,
@@ -1292,7 +1369,7 @@ mod tests {
     #[test]
     fn test_sia_fee_pubkey_init() {
         let pubkey_bytes: Vec<u8> = hex::decode(DEX_FEE_PUBKEY_ED25510).unwrap();
-        let pubkey =  PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).unwrap();
+        let pubkey = PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).unwrap();
         assert_eq!(pubkey_bytes, *FEE_PUBLIC_KEY_BYTES);
         assert_eq!(pubkey, *FEE_PUBLIC_KEY);
     }
