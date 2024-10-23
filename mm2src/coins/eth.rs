@@ -536,14 +536,6 @@ impl From<Web3RpcError> for BalanceError {
     }
 }
 
-impl From<TxBuilderError> for TransactionErr {
-    fn from(e: TxBuilderError) -> Self { TransactionErr::Plain(e.to_string()) }
-}
-
-impl From<ethcore_transaction::Error> for TransactionErr {
-    fn from(e: ethcore_transaction::Error) -> Self { TransactionErr::Plain(e.to_string()) }
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 struct SavedTraces {
     /// ETH traces for my_address

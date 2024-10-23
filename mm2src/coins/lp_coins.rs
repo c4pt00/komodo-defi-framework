@@ -636,23 +636,20 @@ pub enum TxMarshalingErr {
     Internal(String),
 }
 
-#[derive(Clone, Debug, EnumFromStringify)]
+#[derive(Clone, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum TransactionErr {
     /// Keeps transactions while throwing errors.
     TxRecoverable(TransactionEnum, String),
     /// Simply for plain error messages.
-    #[from_stringify("keys::Error")]
     Plain(String),
     ProtocolNotSupported(String),
 }
 
-impl From<String> for TransactionErr {
-    fn from(e: String) -> Self { TransactionErr::Plain(e) }
-}
-
-impl From<&str> for TransactionErr {
-    fn from(e: &str) -> Self { TransactionErr::Plain(e.to_string()) }
+impl<T: std::fmt::Display> From<T> for TransactionErr {
+    fn from(e: T) -> Self {
+        TransactionErr::Plain(e.to_string())
+    }
 }
 
 impl TransactionErr {
