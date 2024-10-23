@@ -118,7 +118,7 @@ pub async fn sia_coin_from_conf_and_request(
 ) -> Result<SiaCoin, MmError<SiaCoinError>> {
     let priv_key = match priv_key_policy {
         PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
-        _ => return Err(KdfError::UnsupportedPrivKeyPolicy.into()),
+        _ => return Err(FrameworkError::UnsupportedPrivKeyPolicy.into()),
     };
     let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidPrivateKey)?;
     let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinError::InvalidConf)?;
@@ -152,7 +152,7 @@ impl<'a> SiaCoinBuilder<'a> {
             .ctx
             .abortable_system
             .create_subsystem()
-            .map_err(KdfError::AbortableSystem)?;
+            .map_err(FrameworkError::AbortableSystem)?;
         let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.request.tx_history {
             HistorySyncState::NotStarted
@@ -216,13 +216,13 @@ pub enum SiaCoinError {
     #[error("Sia Invalid Secret Key: {}", _0)]
     InvalidPublicKey(#[from] PublicKeyError),
     #[error("Sia Internal KDf error: {}", _0)]
-    KdfError(#[from] KdfError),
+    KdfError(#[from] FrameworkError),
 }
 
 impl NotMmError for SiaCoinError {}
 
 #[derive(Debug, Error)]
-pub enum KdfError {
+pub enum FrameworkError {
     #[error("Sia Failed to create abortable system {}", _0)]
     AbortableSystem(AbortedError),
     #[error(
@@ -233,7 +233,7 @@ pub enum KdfError {
     SelectOutputsInsufficientAmount { available: Currency, required: Currency },
     #[error("Sia TransactionErr {:?}", _0)]
     MmTransactionErr(TransactionErr),
-    #[error("Sia {}", _0)]
+    #[error("Sia UnexpectedDerivationMethod {}", _0)]
     UnexpectedDerivationMethod(MmError<UnexpectedDerivationMethod>),
     #[error("Sia Invalid Private Key Policy, must use iguana seed")]
     UnsupportedPrivKeyPolicy,
@@ -241,19 +241,19 @@ pub enum KdfError {
     MyAddressError(MyAddressError),
 }
 
-impl NotMmError for KdfError {}
+impl NotMmError for FrameworkError {}
 
 // This is required because AbortedError doesn't impl Error
-impl From<AbortedError> for KdfError {
-    fn from(e: AbortedError) -> Self { KdfError::AbortableSystem(e) }
+impl From<AbortedError> for FrameworkError {
+    fn from(e: AbortedError) -> Self { FrameworkError::AbortableSystem(e) }
 }
 
-impl From<TransactionErr> for KdfError {
-    fn from(e: TransactionErr) -> Self { KdfError::MmTransactionErr(e) }
+impl From<TransactionErr> for FrameworkError {
+    fn from(e: TransactionErr) -> Self { FrameworkError::MmTransactionErr(e) }
 }
 
-impl From<MyAddressError> for KdfError {
-    fn from(e: MyAddressError) -> Self { KdfError::MyAddressError(e) }
+impl From<MyAddressError> for FrameworkError {
+    fn from(e: MyAddressError) -> Self { FrameworkError::MyAddressError(e) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -784,23 +784,33 @@ pub enum SendTakerFeeError {
     SiaCoinInternal(#[from] SiaCoinError)
 }
 
+#[derive(Debug, Error)]
+pub enum SendMakerFeeError{
+    #[error("sia send_maker_payment failed to foo {}", _0)]
+    Foo(bool)
+}
+
+
 // contains futures-0.3.x implementations of the SwapOps trait and various helpers
 impl SiaCoin {
     async fn new_get_public_key(&self) -> Result<PublicKey, SiaCoinError> {
         let public_key_str = self
             .get_public_key()
-            .map_err(KdfError::UnexpectedDerivationMethod)
+            .map_err(FrameworkError::UnexpectedDerivationMethod)
             .await?;
         PublicKey::from_str(&public_key_str).map_err(SiaCoinError::InvalidPublicKey)
     }
 
-    fn my_keypair(&self) -> Result<&SiaKeypair, KdfError> {
+    fn my_keypair(&self) -> Result<&SiaKeypair, FrameworkError> {
         match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(keypair) => Ok(keypair),
-            _ => Err(KdfError::UnsupportedPrivKeyPolicy),
+            _ => Err(FrameworkError::UnsupportedPrivKeyPolicy),
         }
     }
 
+    /// Create a new transaction to send the taker fee to the fee address
+    // this was abtracted away from the SwapOps trait method because the function signature involves
+    // futures 0.1.x and we are in the process of porting to futures 0.3.x
     async fn new_send_taker_fee(
         &self,
         _fee_addr: &[u8],
@@ -853,6 +863,11 @@ impl SiaCoin {
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
+
+    async fn new_send_maker_payment(&self, maker_payment_args: SendPaymentArgs<'_>) -> Result<TransactionEnum, SendMakerFeeError> {
+        todo!()
+    }
+
 }
 
 #[async_trait]
@@ -866,12 +881,25 @@ impl SwapOps for SiaCoin {
         let dex_fee = dex_fee.clone();
         let uuid = uuid.to_vec();
 
-        let fut_0_3 = async move { self_rc.new_send_taker_fee(&fee_addr, dex_fee, &uuid, expire_at).await.map_err(|e| e.to_string().into()) };
+        let fut_0_3 = async move {
+            // TransactionErr is a very suboptimal structure for error handling.
+            // Will be removed when the port to futures 0.3 is complete.
+            self_rc.new_send_taker_fee(&fee_addr, dex_fee, &uuid, expire_at).await.map_err(|e| e.to_string().into())
+        };
         // Convert the 0.3 future into a 0.1-compatible future
         Box::new(fut_0_3.boxed().compat())
     }
 
-    fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
+    fn send_maker_payment(&self, maker_payment_args: SendPaymentArgs) -> TransactionFut { 
+        let self_rc = self.clone();
+        let args = maker_payment_args.clone();
+
+        let fut_0_3 = async move {
+            self_rc.new_send_maker_payment(args).await.map_err(|e| e.to_string().into())
+        };
+        // Convert the 0.3 future into a 0.1-compatible future
+        Box::new(fut_0_3.boxed().compat())
+    }
 
     fn send_taker_payment(&self, _taker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
 
