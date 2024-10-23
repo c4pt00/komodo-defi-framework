@@ -820,10 +820,8 @@ impl SiaCoin {
             .new_get_public_key()
             .await
             .map_err(|e| format!("siacoin send_taker_fee: new_get_public_key failed: {}", e))?;
-        let my_address = my_public_key.address();
 
         let tx_fee_amount = Currency::ZERO; // FIXME Alright: calculate tx fee amount after we know TX size
-        let total_amount = trade_fee_amount + tx_fee_amount;
 
         let mut tx_builder = V2TransactionBuilder::new();
 
