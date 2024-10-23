@@ -1222,11 +1222,16 @@ pub trait MakerSwapTakerCoin {
 
 // FIXME Alright - implement defaults for all methods or remove trait bound from MmCoin
 // This is only relevant to UTXO and ETH protocols and should not be forced to implement it otherwise
+// I am told unimplemented!() is safe here, but it's safer to return errors
 #[async_trait]
 pub trait WatcherOps {
-    fn send_maker_payment_spend_preimage(&self, input: SendMakerPaymentSpendPreimageInput) -> TransactionFut;
+    fn send_maker_payment_spend_preimage(&self, input: SendMakerPaymentSpendPreimageInput) -> TransactionFut {
+        unimplemented!();
+    }
 
-    fn send_taker_payment_refund_preimage(&self, watcher_refunds_payment_args: RefundPaymentArgs) -> TransactionFut;
+    fn send_taker_payment_refund_preimage(&self, watcher_refunds_payment_args: RefundPaymentArgs) -> TransactionFut {
+        unimplemented!();
+    }
 
     fn create_taker_payment_refund_preimage(
         &self,
@@ -1236,7 +1241,9 @@ pub trait WatcherOps {
         secret_hash: &[u8],
         swap_contract_address: &Option<BytesJson>,
         swap_unique_data: &[u8],
-    ) -> TransactionFut;
+    ) -> TransactionFut {
+        unimplemented!();
+    }
 
     fn create_maker_payment_spend_preimage(
         &self,
@@ -1245,18 +1252,28 @@ pub trait WatcherOps {
         maker_pub: &[u8],
         secret_hash: &[u8],
         swap_unique_data: &[u8],
-    ) -> TransactionFut;
+    ) -> TransactionFut {
+        unimplemented!();
+    }
 
-    fn watcher_validate_taker_fee(&self, input: WatcherValidateTakerFeeInput) -> ValidatePaymentFut<()>;
+    fn watcher_validate_taker_fee(&self, input: WatcherValidateTakerFeeInput) -> ValidatePaymentFut<()> {
+        unimplemented!();
+    }
 
-    fn watcher_validate_taker_payment(&self, input: WatcherValidatePaymentInput) -> ValidatePaymentFut<()>;
+    fn watcher_validate_taker_payment(&self, input: WatcherValidatePaymentInput) -> ValidatePaymentFut<()> {
+        unimplemented!();
+    }
 
-    fn taker_validates_payment_spend_or_refund(&self, _input: ValidateWatcherSpendInput) -> ValidatePaymentFut<()>;
+    fn taker_validates_payment_spend_or_refund(&self, _input: ValidateWatcherSpendInput) -> ValidatePaymentFut<()> {
+        unimplemented!();
+    }
 
     async fn watcher_search_for_swap_tx_spend(
         &self,
         input: WatcherSearchForSwapTxSpendInput<'_>,
-    ) -> Result<Option<FoundSwapTxSpend>, String>;
+    ) -> Result<Option<FoundSwapTxSpend>, String> {
+        unimplemented!();
+    }
 
     async fn get_taker_watcher_reward(
         &self,
@@ -1265,14 +1282,18 @@ pub trait WatcherOps {
         other_coin_amount: Option<BigDecimal>,
         reward_amount: Option<BigDecimal>,
         wait_until: u64,
-    ) -> Result<WatcherReward, MmError<WatcherRewardError>>;
+    ) -> Result<WatcherReward, MmError<WatcherRewardError>> {
+        unimplemented!();
+    }
 
     async fn get_maker_watcher_reward(
         &self,
         other_coin: &MmCoinEnum,
         reward_amount: Option<BigDecimal>,
         wait_until: u64,
-    ) -> Result<Option<WatcherReward>, MmError<WatcherRewardError>>;
+    ) -> Result<Option<WatcherReward>, MmError<WatcherRewardError>> {
+        unimplemented!();
+    }
 }
 
 /// Helper struct wrapping arguments for [TakerCoinSwapOpsV2::send_taker_funding]
