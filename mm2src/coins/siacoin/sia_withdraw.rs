@@ -117,11 +117,9 @@ impl<'a> SiaWithdrawBuilder<'a> {
         // Add miner fee
         tx_builder.miner_fee(Currency::from(TX_FEE_HASTINGS));
 
-        // FIXME OMAR take a look
         // Sign the transaction
         let signed_tx = tx_builder
             .sign_simple(vec![self.key_pair])
-            .clone() // FIXME OMAR take a look can we move the need to clone?
             .build();
 
         let spent_by_me = siacoin_from_hastings(input_sum);
