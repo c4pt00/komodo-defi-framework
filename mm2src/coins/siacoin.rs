@@ -806,14 +806,6 @@ pub enum SendMakerFeeError{
 
 // contains futures-0.3.x implementations of the SwapOps trait and various helpers
 impl SiaCoin {
-    async fn new_get_public_key(&self) -> Result<PublicKey, SiaCoinError> {
-        let public_key_str = self
-            .get_public_key()
-            .map_err(FrameworkError::UnexpectedDerivationMethod)
-            .await?;
-        PublicKey::from_str(&public_key_str).map_err(SiaCoinError::InvalidPublicKey)
-    }
-
     fn my_keypair(&self) -> Result<&SiaKeypair, FrameworkError> {
         match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(keypair) => Ok(keypair),
