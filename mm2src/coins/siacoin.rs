@@ -112,7 +112,6 @@ pub struct SiaCoinActivationRequest {
 
 pub async fn sia_coin_from_conf_and_request(
     ctx: &MmArc,
-    ticker: &str,
     json_conf: Json,
     request: &SiaCoinActivationRequest,
     priv_key_policy: PrivKeyBuildPolicy,
@@ -123,12 +122,11 @@ pub async fn sia_coin_from_conf_and_request(
     };
     let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidPrivateKey)?;
     let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinError::InvalidConf)?;
-    SiaCoinBuilder::new(ctx, ticker, conf, key_pair, request).build().await
+    SiaCoinBuilder::new(ctx, conf, key_pair, request).build().await
 }
 
 pub struct SiaCoinBuilder<'a> {
     ctx: &'a MmArc,
-    ticker: &'a str,
     conf: SiaCoinConf,
     key_pair: SiaKeypair,
     request: &'a SiaCoinActivationRequest,
@@ -137,14 +135,12 @@ pub struct SiaCoinBuilder<'a> {
 impl<'a> SiaCoinBuilder<'a> {
     pub fn new(
         ctx: &'a MmArc,
-        ticker: &'a str,
         conf: SiaCoinConf,
         key_pair: SiaKeypair,
         request: &'a SiaCoinActivationRequest,
     ) -> Self {
         SiaCoinBuilder {
             ctx,
-            ticker,
             conf,
             key_pair,
             request,
