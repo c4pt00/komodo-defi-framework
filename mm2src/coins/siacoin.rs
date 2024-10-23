@@ -33,7 +33,7 @@ pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError 
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                      TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Keypair as SiaKeypair,
-                      PublicKeyError, PrivateKeyError, V1Transaction, V2Transaction, Hash256, SiacoinElement, PublicKey, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
+                      PublicKeyError, PrivateKeyError, V1Transaction, V2Transaction, Hash256, SiacoinElement, PublicKey, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
