@@ -1,5 +1,5 @@
 use crate::siacoin::{siacoin_from_hastings, siacoin_to_hastings, SiaCoin, SiaFeeDetails, SiaFeePolicy,
-                     SiaTransactionTypes, Address, Currency, Keypair, SiacoinElement, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
+                     SiaTransactionTypes, Address, Currency, SiaKeypair as Keypair, SiacoinElement, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use crate::{MarketCoinOps, PrivKeyPolicy, TransactionData, TransactionDetails, TransactionType, WithdrawError,
             WithdrawRequest, WithdrawResult};
 use common::now_sec;
