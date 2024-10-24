@@ -9,9 +9,8 @@ use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, Che
             SendPaymentArgs, SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut,
             TradePreimageResult, TradePreimageValue, Transaction, TransactionResult, TxMarshalingErr,
             UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs, ValidateInstructionsErr,
-            ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentInput,
-            ValidatePaymentResult, VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WithdrawFut,
-            WithdrawRequest};
+            ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentInput, ValidatePaymentResult,
+            VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WithdrawFut, WithdrawRequest};
 use async_trait::async_trait;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
