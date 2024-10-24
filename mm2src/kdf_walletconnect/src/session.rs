@@ -258,7 +258,7 @@ impl SessionManager {
         MmError::err(WalletConnectError::SessionError("Session not found".to_owned()))
     }
 
-    pub(crate) async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
+    pub async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
         self.0
             .active_topic
             .lock()

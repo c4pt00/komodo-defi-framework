@@ -1,6 +1,5 @@
 use super::settle::send_session_settle_request;
 use crate::chain::build_default_required_namespaces;
-use crate::inbound_message::WcResponse;
 use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError,
             metadata::generate_metadata,
@@ -28,16 +27,14 @@ pub(crate) async fn send_proposal_request(ctx: &WalletConnectCtx, topic: Topic) 
     });
     ctx.publish_request(&topic, session_proposal).await?;
 
-    if let Some((_message_id, WcResponse::ResponseParamsSuccess(ResponseParamsSuccess::SessionPropose(response)))) =
-        ctx.session_request_handler.lock().await.next().await
-    {
-        return process_session_propose_response(ctx, &topic, response).await;
-    }
+    if let Some(resp) = ctx.message_rx.lock().await.next().await {
+        let resp = resp.mm_err(WalletConnectError::InternalError)?;
+        if let ResponseParamsSuccess::SessionPropose(data) = resp.data {
+            return process_session_propose_response(ctx, &resp.topic, data).await;
+        };
+    };
 
-    // If the update is rejected, return an error
-    MmError::err(WalletConnectError::SessionError(
-        "Error while processing request".to_owned(),
-    ))
+    MmError::err(WalletConnectError::NoWalletFeedback)
 }
 
 /// Process session proposal request

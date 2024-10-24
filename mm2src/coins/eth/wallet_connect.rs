@@ -7,7 +7,6 @@ use ethereum_types::{Address, Public, H160};
 use ethkey::{public_to_address, Message, Signature};
 use kdf_walletconnect::{chain::{WcChain, WcRequestMethods},
                         error::WalletConnectError,
-                        inbound_message::WcResponse,
                         WalletConnectCtx};
 use mm2_err_handle::prelude::*;
 use relay_rpc::rpc::params::session_request::SessionRequestRequest;
@@ -51,18 +50,20 @@ pub async fn eth_request_wc_personal_sign(
         ctx.publish_request(&topic, session_request).await?;
     }
 
-    if let Some((message_id, WcResponse::Other(response))) = ctx.session_request_handler.lock().await.next().await {
-        let result = serde_json::from_value::<String>(response)?;
-        let response = ResponseParamsSuccess::SessionEvent(true);
-        ctx.publish_response_ok(&topic, response, &message_id).await?;
+    if let Some(resp) = ctx.message_rx.lock().await.next().await {
+        let result = resp.mm_err(WalletConnectError::InternalError)?;
+        if let ResponseParamsSuccess::Arbitrary(data) = result.data {
+            let signature = serde_json::from_value::<String>(data)?;
+            let response = ResponseParamsSuccess::SessionEvent(true);
+            ctx.publish_response_ok(&result.topic, response, &result.message_id)
+                .await?;
 
-        let res = extract_pubkey_from_signature(&result, message, &account_str)
-            .mm_err(|err| WalletConnectError::PayloadError(err.to_string()))?;
+            return extract_pubkey_from_signature(&signature, message, &account_str)
+                .mm_err(|err| WalletConnectError::PayloadError(err.to_string()));
+        };
+    };
 
-        return Ok(res);
-    }
-
-    MmError::err(WalletConnectError::InternalError("No response from wallet".to_string()))
+    MmError::err(WalletConnectError::NoWalletFeedback)
 }
 
 fn extract_pubkey_from_signature(

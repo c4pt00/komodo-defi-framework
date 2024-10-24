@@ -84,6 +84,8 @@ pub enum WalletConnectError {
     StorageError(String),
     #[error("ChainId mismatch")]
     ChainIdMismatch,
+    #[error("No feedback from wallet")]
+    NoWalletFeedback,
 }
 
 impl From<Error<PublishError>> for WalletConnectError {

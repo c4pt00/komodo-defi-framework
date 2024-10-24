@@ -9,16 +9,14 @@ use crate::{error::WalletConnectError,
 use common::log::info;
 use futures::sink::SinkExt;
 use mm2_err_handle::prelude::{MmError, MmResult};
-use relay_rpc::domain::Topic;
+use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum WcResponse {
-    ResponseParamsSuccess(ResponseParamsSuccess),
-    Other(Value),
+pub(crate) type SessionMessageType = MmResult<SessionMessage, String>;
+pub struct SessionMessage {
+    pub message_id: MessageId,
+    pub topic: Topic,
+    pub data: ResponseParamsSuccess,
 }
 
 pub(crate) async fn process_inbound_request(
@@ -52,29 +50,19 @@ pub(crate) async fn process_inbound_request(
     Ok(())
 }
 
-pub(crate) async fn process_inbound_response(
-    ctx: &WalletConnectCtx,
-    response: Response,
-    _topic: &Topic,
-) -> MmResult<(), WalletConnectError> {
+pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: Response, topic: &Topic) {
     let message_id = response.id();
-
-    match response {
-        Response::Success(value) => {
-            let success_response = serde_json::from_value::<WcResponse>(value.result)?;
-            ctx.session_request_sender
-                .lock()
-                .await
-                .send((message_id, success_response))
-                .await
-                .ok();
-
-            Ok(())
+    let result = match response {
+        Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
+            Ok(data) => Ok(SessionMessage {
+                message_id,
+                topic: topic.clone(),
+                data,
+            }),
+            Err(e) => MmError::err(e.to_string()),
         },
-        Response::Error(err) => {
-            // TODO: handle error properly
-            println!("Error: {err:?}");
-            Ok(())
-        },
-    }
+        Response::Error(err) => MmError::err(format!("{err:?}")),
+    };
+
+    ctx.message_tx.lock().await.send(result).await.ok();
 }

@@ -17,7 +17,7 @@ use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
 use futures::StreamExt;
-use inbound_message::{process_inbound_request, process_inbound_response, WcResponse};
+use inbound_message::{process_inbound_request, process_inbound_response, SessionMessageType};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
@@ -37,8 +37,6 @@ use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
-type SessionEventMessage = (MessageId, WcResponse);
-
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
@@ -54,15 +52,15 @@ pub struct WalletConnectCtx {
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
 
-    session_request_sender: Arc<Mutex<UnboundedSender<SessionEventMessage>>>,
-    pub session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
+    message_tx: Arc<Mutex<UnboundedSender<SessionMessageType>>>,
+    pub message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
 }
 
 impl WalletConnectCtx {
     pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
         let (msg_sender, msg_receiver) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
-        let (session_request_sender, session_request_receiver) = unbounded();
+        let (message_tx, session_request_receiver) = unbounded();
 
         let pairing = PairingClient::new();
         let client = Client::new(Handler::new("Komodefi", msg_sender, conn_live_sender));
@@ -88,8 +86,8 @@ impl WalletConnectCtx {
             inbound_message_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
 
-            session_request_handler: Arc::new(Mutex::new(session_request_receiver)),
-            session_request_sender: Arc::new(Mutex::new(session_request_sender)),
+            message_rx: Arc::new(Mutex::new(session_request_receiver)),
+            message_tx: Arc::new(Mutex::new(message_tx)),
         })
     }
 
@@ -276,7 +274,7 @@ impl WalletConnectCtx {
 
         match payload {
             Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
-            Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await?,
+            Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await,
         }
 
         info!("Inbound message was handled successfully");
@@ -357,7 +355,6 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
 fn find_account_in_namespace(namespace: &Namespace, chain_id: &str) -> Option<String> {
     let accounts = namespace.accounts.as_ref()?;
 
-    println!("ACCOUNTS: {accounts:?}");
     accounts.iter().find_map(|account_name| {
         let parts: Vec<&str> = account_name.split(':').collect();
         if parts.len() >= 3 && parts[1] == chain_id {
