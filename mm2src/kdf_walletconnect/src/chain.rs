@@ -4,16 +4,28 @@ use std::collections::{BTreeMap, BTreeSet};
 pub(crate) const SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4", "eip155:1"];
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 
-pub const COSMOS_CHAIN_ID: &str = "cosmos";
 pub(crate) const COSMOS_SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
 pub(crate) const COSMOS_SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
 
-pub const ETH_CHAIN_ID: &str = "eip155";
 pub(crate) const ETH_SUPPORTED_METHODS: &[&str] = &["eth_signTransaction", "personal_sign"];
 pub(crate) const ETH_SUPPORTED_CHAINS: &[&str] = &["eip155:1"];
 pub(crate) const ETH_SUPPORTED_EVENTS: &[&str] = &["accountsChanged", "chainChanged"];
 
 pub(crate) const DEFAULT_CHAIN_ID: &str = "1";
+
+pub enum WcChain {
+    Eip155,
+    Cosmos,
+}
+
+impl AsRef<str> for WcChain {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Eip155 => "eip155",
+            Self::Cosmos => "cosmos",
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum WcRequestMethods {
@@ -36,19 +48,19 @@ impl AsRef<str> for WcRequestMethods {
     }
 }
 
-pub(crate) fn build_required_namespaces() -> ProposeNamespaces {
-    let mut required = BTreeMap::new();
-    required.insert(COSMOS_CHAIN_ID.to_string(), ProposeNamespace {
-        events: BTreeSet::new(),
-        chains: COSMOS_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-        methods: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-    });
-
-    required.insert(ETH_CHAIN_ID.to_string(), ProposeNamespace {
-        events: ETH_SUPPORTED_EVENTS.iter().map(|m| m.to_string()).collect(),
-        chains: ETH_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-        methods: ETH_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-    });
+pub(crate) fn build_default_required_namespaces() -> ProposeNamespaces {
+    let required = BTreeMap::from([
+        (WcChain::Eip155.as_ref().to_string(), ProposeNamespace {
+            events: ETH_SUPPORTED_EVENTS.iter().map(|m| m.to_string()).collect(),
+            chains: ETH_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
+            methods: ETH_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+        }),
+        (WcChain::Cosmos.as_ref().to_string(), ProposeNamespace {
+            events: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+            chains: COSMOS_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
+            methods: BTreeSet::default(),
+        }),
+    ]);
 
     ProposeNamespaces(required)
 }

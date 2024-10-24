@@ -1,6 +1,7 @@
 pub(crate) mod key;
 pub mod rpc;
 
+use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
@@ -9,7 +10,7 @@ use dashmap::mapref::one::{Ref, RefMut};
 use dashmap::DashMap;
 use futures::lock::Mutex;
 use key::SessionKey;
-use mm2_err_handle::prelude::{MmError, MmResult};
+use mm2_err_handle::prelude::{MapMmError, MmError, MmResult};
 use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
@@ -160,7 +161,7 @@ impl Session {
             controller,
             namespaces: BTreeMap::new(),
             proposer,
-            propose_namespaces: ctx.required_namespaces.clone(),
+            propose_namespaces: ProposeNamespaces::default(),
             relay: ctx.relay.clone(),
             expiry: Utc::now().timestamp() as u64 + FIVE_MINUTES,
             pairing_topic,
@@ -257,6 +258,17 @@ impl SessionManager {
         MmError::err(WalletConnectError::SessionError("Session not found".to_owned()))
     }
 
+    pub(crate) async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
+        self.0
+            .active_topic
+            .lock()
+            .await
+            .clone()
+            .ok_or(MmError::new(WalletConnectError::SessionError(
+                "No active session".to_owned(),
+            )))
+    }
+
     /// Retrieves a cloned session associated with a given topic.
     pub fn get_session(&self, topic: &Topic) -> Option<Ref<'_, Topic, Session>> { self.0.sessions.get(topic) }
 
@@ -337,9 +349,13 @@ impl SessionManager {
     }
 }
 
-pub async fn disconnect_session_rpc_rpc(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
+pub async fn disconnect_session_rpc(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
     ctx.client.unsubscribe(topic.clone()).await?;
     ctx.session.delete_session(topic).await;
+    ctx.storage
+        .delete_session(topic)
+        .await
+        .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
     Ok(())
 }

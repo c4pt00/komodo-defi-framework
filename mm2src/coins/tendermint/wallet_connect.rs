@@ -5,6 +5,7 @@ use base64::Engine;
 use chrono::Utc;
 use futures::StreamExt;
 use kdf_walletconnect::error::WalletConnectError;
+use kdf_walletconnect::inbound_message::WcResponse;
 use kdf_walletconnect::{chain::WcRequestMethods, WalletConnectCtx};
 use mm2_err_handle::prelude::*;
 use relay_rpc::rpc::params::session_request::Request as SessionRequest;
@@ -74,9 +75,8 @@ pub async fn cosmos_request_wc_signed_tx(
         ctx.publish_request(&topic, session_request).await?;
     }
 
-    let mut session_handler = ctx.session_request_handler.lock().await;
-    if let Some((message_id, data)) = session_handler.next().await {
-        let result = serde_json::from_value::<CosmosTxSignedData>(data)?;
+    if let Some((message_id, WcResponse::Other(response))) = ctx.session_request_handler.lock().await.next().await {
+        let result = serde_json::from_value::<CosmosTxSignedData>(response)?;
         let response = ResponseParamsSuccess::SessionEvent(true);
         ctx.publish_response_ok(&topic, response, &message_id).await?;
 
@@ -168,9 +168,8 @@ pub async fn cosmos_get_accounts_impl(
         ctx.publish_request(&topic, session_request).await?;
     };
 
-    let mut session_handler = ctx.session_request_handler.lock().await;
-    if let Some((message_id, data)) = session_handler.next().await {
-        let accounts = serde_json::from_value::<Vec<CosmosAccount>>(data)?;
+    if let Some((message_id, WcResponse::Other(response))) = ctx.session_request_handler.lock().await.next().await {
+        let accounts = serde_json::from_value::<Vec<CosmosAccount>>(response)?;
         let response = ResponseParamsSuccess::SessionEvent(true);
         ctx.publish_response_ok(&topic, response, &message_id).await?;
 
@@ -184,7 +183,7 @@ pub async fn cosmos_get_accounts_impl(
         };
 
         return Ok(accounts[account_index].clone());
-    };
+    }
 
     MmError::err(WalletConnectError::NoAccountFound(chain_id.to_owned()))
 }

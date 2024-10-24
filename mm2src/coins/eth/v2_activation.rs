@@ -20,7 +20,9 @@ use std::sync::atomic::Ordering;
 use url::Url;
 use web3_transport::websocket_transport::WebsocketTransport;
 
-#[derive(Clone, Debug, Deserialize, Display, EnumFromTrait, PartialEq, Serialize, SerializeErrorType)]
+#[derive(
+    Clone, Debug, Deserialize, Display, EnumFromTrait, EnumFromStringify, PartialEq, Serialize, SerializeErrorType,
+)]
 #[serde(tag = "error_type", content = "error_data")]
 pub enum EthActivationV2Error {
     InvalidPayload(String),
@@ -62,6 +64,8 @@ pub enum EthActivationV2Error {
     HwError(HwRpcError),
     #[display(fmt = "Hardware wallet must be called within rpc task framework")]
     InvalidHardwareWalletCall,
+    #[from_stringify("WalletConnectError")]
+    WalletConnectError(String),
 }
 
 impl From<MyAddressError> for EthActivationV2Error {
@@ -162,7 +166,6 @@ pub enum EthPrivKeyActivationPolicy {
 
 impl EthPrivKeyActivationPolicy {
     pub fn is_hw_policy(&self) -> bool { matches!(self, EthPrivKeyActivationPolicy::Trezor) }
-    pub fn is_wc_policy(&self) -> bool { matches!(self, EthPrivKeyActivationPolicy::WalletConnect) }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -305,6 +308,8 @@ pub enum EthTokenActivationParams {
 #[derive(Clone, Deserialize)]
 pub struct Erc20TokenActivationRequest {
     pub required_confirmations: Option<u64>,
+    // #[serde(default)]
+    // pub use_walletconnect: Option<bool>,
 }
 
 /// Holds ERC-20 token-specific activation parameters when using the task manager for activation.

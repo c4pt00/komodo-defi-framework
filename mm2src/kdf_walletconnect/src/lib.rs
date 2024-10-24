@@ -1,7 +1,7 @@
 pub mod chain;
 mod connection_handler;
 #[allow(unused)] pub mod error;
-mod inbound_message;
+pub mod inbound_message;
 mod metadata;
 #[allow(unused)] mod pairing;
 pub mod session;
@@ -9,7 +9,7 @@ mod storage;
 
 use crate::session::rpc::propose::send_proposal_request;
 
-use chain::{build_required_namespaces, DEFAULT_CHAIN_ID, SUPPORTED_CHAINS, SUPPORTED_PROTOCOL};
+use chain::{DEFAULT_CHAIN_ID, SUPPORTED_CHAINS, SUPPORTED_PROTOCOL};
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
@@ -17,7 +17,7 @@ use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
 use futures::StreamExt;
-use inbound_message::{process_inbound_request, process_inbound_response};
+use inbound_message::{process_inbound_request, process_inbound_response, WcResponse};
 use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
@@ -26,7 +26,7 @@ use relay_client::websocket::{Client, PublishedMessage};
 use relay_client::{ConnectionOptions, MessageIdGenerator};
 use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
 use relay_rpc::domain::{MessageId, Topic};
-use relay_rpc::rpc::params::session::{Namespace, ProposeNamespaces};
+use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::{IrnMetadata, Metadata, Relay, RelayProtocolMetadata, RequestParams, ResponseParamsError,
                              ResponseParamsSuccess};
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
@@ -37,7 +37,7 @@ use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
-type SessionEventMessage = (MessageId, Value);
+type SessionEventMessage = (MessageId, WcResponse);
 
 pub struct WalletConnectCtx {
     pub client: Client,
@@ -50,10 +50,10 @@ pub struct WalletConnectCtx {
 
     relay: Relay,
     metadata: Metadata,
-    required_namespaces: ProposeNamespaces,
     subscriptions: Arc<Mutex<Vec<Topic>>>,
     inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
+
     session_request_sender: Arc<Mutex<UnboundedSender<SessionEventMessage>>>,
     pub session_request_handler: Arc<Mutex<UnboundedReceiver<SessionEventMessage>>>,
 }
@@ -66,8 +66,6 @@ impl WalletConnectCtx {
 
         let pairing = PairingClient::new();
         let client = Client::new(Handler::new("Komodefi", msg_sender, conn_live_sender));
-
-        let required = build_required_namespaces();
 
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
@@ -82,15 +80,16 @@ impl WalletConnectCtx {
             session: SessionManager::new(),
             active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
             relay,
-            required_namespaces: required,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             storage,
+            subscriptions: Default::default(),
+
             inbound_message_handler: Arc::new(Mutex::new(msg_receiver)),
             connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
+
             session_request_handler: Arc::new(Mutex::new(session_request_receiver)),
             session_request_sender: Arc::new(Mutex::new(session_request_sender)),
-            subscriptions: Default::default(),
         })
     }
 
@@ -118,10 +117,7 @@ impl WalletConnectCtx {
     }
 
     /// Create a WalletConnect pairing connection url.
-    pub async fn new_connection(
-        &self,
-        required_namespaces: Option<ProposeNamespaces>,
-    ) -> MmResult<String, WalletConnectError> {
+    pub async fn new_connection(&self) -> MmResult<String, WalletConnectError> {
         let (topic, url) = self.pairing.create(self.metadata.clone(), None).await?;
 
         info!("Subscribing to topic: {topic:?}");
@@ -130,7 +126,7 @@ impl WalletConnectCtx {
 
         info!("Subscribed to topic: {topic:?}");
 
-        send_proposal_request(self, topic.clone(), required_namespaces).await?;
+        send_proposal_request(self, topic.clone()).await?;
 
         {
             let mut subs = self.subscriptions.lock().await;

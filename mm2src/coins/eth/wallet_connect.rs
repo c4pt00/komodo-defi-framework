@@ -5,8 +5,9 @@ use chrono::Utc;
 use derive_more::Display;
 use ethereum_types::{Address, Public, H160};
 use ethkey::{public_to_address, Message, Signature};
-use kdf_walletconnect::{chain::{WcRequestMethods, ETH_CHAIN_ID},
+use kdf_walletconnect::{chain::{WcChain, WcRequestMethods},
                         error::WalletConnectError,
+                        inbound_message::WcResponse,
                         WalletConnectCtx};
 use mm2_err_handle::prelude::*;
 use relay_rpc::rpc::params::session_request::SessionRequestRequest;
@@ -43,16 +44,15 @@ pub async fn eth_request_wc_personal_sign(
             expiry: Some(Utc::now().timestamp() as u64 + 300),
             params,
         },
-        chain_id: format!("{ETH_CHAIN_ID}:{chain_id}"),
+        chain_id: format!("{}:{chain_id}", WcChain::Eip155.as_ref()),
     };
     {
         let session_request = RequestParams::SessionRequest(request);
         ctx.publish_request(&topic, session_request).await?;
     }
 
-    let mut session_handler = ctx.session_request_handler.lock().await;
-    if let Some((message_id, data)) = session_handler.next().await {
-        let result = serde_json::from_value::<String>(data)?;
+    if let Some((message_id, WcResponse::Other(response))) = ctx.session_request_handler.lock().await.next().await {
+        let result = serde_json::from_value::<String>(response)?;
         let response = ResponseParamsSuccess::SessionEvent(true);
         ctx.publish_response_ok(&topic, response, &message_id).await?;
 

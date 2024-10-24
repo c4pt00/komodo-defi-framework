@@ -18,7 +18,7 @@ pub async fn new_connection(
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     let url = ctx
-        .new_connection(None)
+        .new_connection()
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 

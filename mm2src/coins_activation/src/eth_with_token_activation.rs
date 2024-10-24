@@ -64,7 +64,9 @@ impl From<EthActivationV2Error> for EnablePlatformCoinWithTokensError {
             EthActivationV2Error::FailedSpawningBalanceEvents(e) => {
                 EnablePlatformCoinWithTokensError::FailedSpawningBalanceEvents(e)
             },
-            EthActivationV2Error::HDWalletStorageError(e) => EnablePlatformCoinWithTokensError::Internal(e),
+            EthActivationV2Error::HDWalletStorageError(e) | EthActivationV2Error::WalletConnectError(e) => {
+                EnablePlatformCoinWithTokensError::Internal(e)
+            },
             #[cfg(target_arch = "wasm32")]
             EthActivationV2Error::MetamaskError(metamask) => {
                 EnablePlatformCoinWithTokensError::Transport(metamask.to_string())
@@ -477,9 +479,15 @@ async fn eth_priv_key_build_policy(
         EthPrivKeyActivationPolicy::WalletConnect => {
             let chain_id = conf["chain_id"].as_u64().ok_or(EthActivationV2Error::ChainIdNotSet)?;
             let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
+
+            if !wc.is_chain_supported(&format!("eip155:{chain_id}")) {
+                return MmError::err(EthActivationV2Error::WalletConnectError(format!(
+                    "Unsupported chain_id: {chain_id}"
+                )));
+            };
             let (pubkey, address) = eth_request_wc_personal_sign(&wc, chain_id)
                 .await
-                .mm_err(|err| EthActivationV2Error::InternalError(err.to_string()))?;
+                .mm_err(|err| EthActivationV2Error::WalletConnectError(err.to_string()))?;
 
             Ok(EthPrivKeyBuildPolicy::WalletConnect { address, pubkey })
         },

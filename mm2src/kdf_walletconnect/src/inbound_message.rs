@@ -1,11 +1,8 @@
 use crate::{error::WalletConnectError,
             pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
-            session::rpc::{delete::reply_session_delete_request,
-                           event::reply_session_event_request,
-                           extend::reply_session_extend_request,
-                           ping::reply_session_ping_request,
-                           propose::{process_session_propose_response, reply_session_proposal_request},
-                           settle::reply_session_settle_request,
+            session::rpc::{delete::reply_session_delete_request, event::reply_session_event_request,
+                           extend::reply_session_extend_request, ping::reply_session_ping_request,
+                           propose::reply_session_proposal_request, settle::reply_session_settle_request,
                            update::reply_session_update_request},
             WalletConnectCtx};
 
@@ -19,7 +16,7 @@ use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum SuccessResponses {
+pub enum WcResponse {
     ResponseParamsSuccess(ResponseParamsSuccess),
     Other(Value),
 }
@@ -58,48 +55,21 @@ pub(crate) async fn process_inbound_request(
 pub(crate) async fn process_inbound_response(
     ctx: &WalletConnectCtx,
     response: Response,
-    topic: &Topic,
+    _topic: &Topic,
 ) -> MmResult<(), WalletConnectError> {
     let message_id = response.id();
 
     match response {
         Response::Success(value) => {
-            let success_response = serde_json::from_value::<SuccessResponses>(value.result)?;
-            match success_response {
-                SuccessResponses::ResponseParamsSuccess(params) => match params {
-                    ResponseParamsSuccess::SessionPropose(param) => {
-                        process_session_propose_response(ctx, topic, param).await
-                    },
-                    ResponseParamsSuccess::SessionSettle(success)
-                    | ResponseParamsSuccess::SessionUpdate(success)
-                    | ResponseParamsSuccess::SessionExtend(success)
-                    | ResponseParamsSuccess::SessionRequest(success)
-                    | ResponseParamsSuccess::SessionEvent(success)
-                    | ResponseParamsSuccess::SessionDelete(success)
-                    | ResponseParamsSuccess::SessionPing(success)
-                    | ResponseParamsSuccess::PairingExtend(success)
-                    | ResponseParamsSuccess::PairingDelete(success)
-                    | ResponseParamsSuccess::PairingPing(success) => {
-                        if !success {
-                            return MmError::err(WalletConnectError::UnSuccessfulResponse(format!(
-                                "Unsuccessful response={params:?}"
-                            )));
-                        };
+            let success_response = serde_json::from_value::<WcResponse>(value.result)?;
+            ctx.session_request_sender
+                .lock()
+                .await
+                .send((message_id, success_response))
+                .await
+                .ok();
 
-                        Ok(())
-                    },
-                },
-                SuccessResponses::Other(value) => {
-                    println!("Received: {value:?}");
-                    ctx.session_request_sender
-                        .lock()
-                        .await
-                        .send((message_id, value))
-                        .await
-                        .ok();
-                    Ok(())
-                },
-            }
+            Ok(())
         },
         Response::Error(err) => {
             // TODO: handle error properly

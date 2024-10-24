@@ -1,5 +1,5 @@
 use kdf_walletconnect::session::SessionRpcInfo;
-use kdf_walletconnect::session::{disconnect_session_rpc_rpc, rpc::send_session_ping_request};
+use kdf_walletconnect::session::{disconnect_session_rpc, rpc::send_session_ping_request};
 use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
@@ -80,7 +80,7 @@ pub async fn disconnect_session(
 ) -> MmResult<EmptyRpcResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    disconnect_session_rpc_rpc(&ctx, &req.topic.into())
+    disconnect_session_rpc(&ctx, &req.topic.into())
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 

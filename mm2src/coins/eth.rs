@@ -2163,11 +2163,7 @@ impl MarketCoinOps for EthCoin {
             EthPrivKeyPolicy::Metamask(ref metamask_policy) => {
                 Ok(format!("{:02x}", metamask_policy.public_key_uncompressed))
             },
-            EthPrivKeyPolicy::WalletConnect { address: _, pubkey } => {
-                let key = hex::encode(pubkey);
-                println!("Pubkey: {key}");
-                Ok(format!("04{key}"))
-            },
+            EthPrivKeyPolicy::WalletConnect { address: _, pubkey } => Ok(format!("04{}", hex::encode(pubkey))),
         }
     }
 
@@ -2698,9 +2694,7 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
         EthPrivKeyPolicy::Trezor => MmError::err(RawTransactionError::InvalidParam(
             "sign raw eth tx not implemented for Trezor".into(),
         )),
-        EthPrivKeyPolicy::WalletConnect { .. } => MmError::err(RawTransactionError::InvalidParam(
-            "sign raw eth tx not implemented for WalletConnect".into(),
-        )),
+        EthPrivKeyPolicy::WalletConnect { .. } => todo!(),
     }
 }
 

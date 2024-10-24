@@ -237,7 +237,7 @@ impl From<TendermintInitError> for EnablePlatformCoinWithTokensError {
     }
 }
 
-async fn get_walletconnect_pubkey(
+async fn activate_with_walletconnect(
     ctx: &MmArc,
     param: &WalletConnectParams,
     chain_id: &str,
@@ -245,7 +245,6 @@ async fn get_walletconnect_pubkey(
     wallet_type: &mut TendermintWalletConnectionType,
 ) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
     let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
-
     let account = cosmos_get_accounts_impl(&wc, chain_id, Some(param.account_index))
         .await
         .mm_err(|err| TendermintInitError {
@@ -320,7 +319,7 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                         });
                     };
 
-                    get_walletconnect_pubkey(
+                    activate_with_walletconnect(
                         &ctx,
                         &params,
                         protocol_conf.chain_id.as_ref(),
