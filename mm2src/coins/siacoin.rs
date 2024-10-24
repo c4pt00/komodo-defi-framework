@@ -783,7 +783,7 @@ pub enum SendTakerFeeError {
     #[error("sia send_taker_fee: Unexpected Uuid version {}", _0)]
     UuidVersion(usize),
     #[error("sia send_taker_fee: failed to convert trade_fee_amount to u128")]
-    MmNumberToU128,
+    SiacoinToHastings(#[from] CoinToHastingsError),
     #[error("sia send_taker_fee: unexpected DexFee variant")]
     DexFeeVariant,
     #[error("sia send_taker_fee: siacoin internal error {}", _0)]
@@ -825,11 +825,7 @@ impl SiaCoin {
 
         // Convert the DexFee to a Currency amount
         let trade_fee_amount = if let DexFee::Standard(mm_num) = dex_fee {
-            Currency(
-                BigDecimal::from(mm_num)
-                    .to_u128()
-                    .ok_or(SendTakerFeeError::MmNumberToU128)?,
-            )
+            siacoin_to_hastings(BigDecimal::from(mm_num)).map_err(SendTakerFeeError::SiacoinToHastings)?
         } else {
             return Err(SendTakerFeeError::DexFeeVariant);
         };
