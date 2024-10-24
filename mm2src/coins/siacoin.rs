@@ -851,6 +851,8 @@ impl SiaCoin {
             .map_err(SiaCoinError::ClientHelpersError)
             .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
+        // FIXME Alright determine whether to embed uuid via `tx_builder.arbitary_data`
+
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
 
