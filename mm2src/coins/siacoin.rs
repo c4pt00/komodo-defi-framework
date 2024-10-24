@@ -814,8 +814,8 @@ impl SiaCoin {
     }
 
     /// Create a new transaction to send the taker fee to the fee address
-    // this was abtracted away from the SwapOps trait method because the function signature involves
-    // futures 0.1.x and we are in the process of porting to futures 0.3.x
+    // this was abtracted away from the SwapOps trait method to provide cleaner error handling
+    // TODO Alright : refactor error types of SwapOps methods to use associated types
     async fn new_send_taker_fee(
         &self,
         _fee_addr: &[u8],
@@ -872,29 +872,17 @@ impl SiaCoin {
 
 #[async_trait]
 impl SwapOps for SiaCoin {
-    fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, uuid: &[u8], expire_at: u64) -> TransactionFut {
-        // We can't change the signature of this function because the trait is implemented across
-        // all coin protocols. We can't move any references into the 0.3.x future due to lifetimes
-        // so we must clone the any data moved into the async block.
-        let self_rc = self.clone();
-        let fee_addr = fee_addr.to_vec();
-        let dex_fee = dex_fee.clone();
-        let uuid = uuid.to_vec();
-
-        let fut_0_3 = async move {
-            // TransactionErr is a very suboptimal structure for error handling.
-            // Will be removed when the port to futures 0.3 is complete.
-            self_rc.new_send_taker_fee(&fee_addr, dex_fee, &uuid, expire_at).await.map_err(|e| e.to_string().into())
-        };
-        // Convert the 0.3 future into a 0.1-compatible future
-        Box::new(fut_0_3.boxed().compat())
+    async fn send_taker_fee(&self, _fee_addr: &[u8], _dex_fee: DexFee, _uuid: &[u8], _expire_at: u64) -> TransactionResult {
+        unimplemented!()
     }
 
     async fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
         unimplemented!()
     }
 
-    fn send_taker_payment(&self, _taker_payment_args: SendPaymentArgs) -> TransactionFut { unimplemented!() }
+    async fn send_taker_payment(&self, _taker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
+        unimplemented!()
+    }
 
     async fn send_maker_spends_taker_payment(
         &self,
@@ -924,7 +912,9 @@ impl SwapOps for SiaCoin {
         unimplemented!()
     }
 
-    fn validate_fee(&self, _validate_fee_args: ValidateFeeArgs) -> ValidatePaymentFut<()> { unimplemented!() }
+    async fn validate_fee(&self, _validate_fee_args: ValidateFeeArgs<'_>) -> ValidatePaymentResult<()> {
+        unimplemented!()
+    }
 
     async fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
         unimplemented!()
@@ -934,10 +924,10 @@ impl SwapOps for SiaCoin {
         unimplemented!()
     }
 
-    fn check_if_my_payment_sent(
+    async fn check_if_my_payment_sent(
         &self,
-        _if_my_payment_sent_args: CheckIfMyPaymentSentArgs,
-    ) -> Box<dyn Future<Item = Option<TransactionEnum>, Error = String> + Send> {
+        _if_my_payment_sent_args: CheckIfMyPaymentSentArgs<'_>,
+    ) -> Result<Option<TransactionEnum>, String> {
         unimplemented!()
     }
 
@@ -983,9 +973,7 @@ impl SwapOps for SiaCoin {
 
     fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> Vec<u8> { unimplemented!() }
 
-    fn can_refund_htlc(&self, _locktime: u64) -> Box<dyn Future<Item = CanRefundHtlc, Error = String> + Send + '_> {
-        unimplemented!()
-    }
+    async fn can_refund_htlc(&self, _locktime: u64) -> Result<CanRefundHtlc, String> { unimplemented!() }
 
     fn validate_other_pubkey(&self, _raw_pubkey: &[u8]) -> MmResult<(), ValidateOtherPubKeyErr> { unimplemented!() }
 
