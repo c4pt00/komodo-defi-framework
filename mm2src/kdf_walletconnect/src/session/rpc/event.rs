@@ -92,6 +92,7 @@ impl SessionEvent {
             message: "Chain_Id was changed to an unsupported chain".to_string(),
             data: None,
         };
+
         ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
             .await?;
 

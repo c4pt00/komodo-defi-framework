@@ -1,6 +1,3 @@
-use std::str::FromStr;
-
-use async_std::stream::StreamExt;
 use chrono::Utc;
 use derive_more::Display;
 use ethereum_types::{Address, Public, H160};
@@ -10,15 +7,20 @@ use kdf_walletconnect::{chain::{WcChain, WcRequestMethods},
                         WalletConnectCtx};
 use mm2_err_handle::prelude::*;
 use relay_rpc::rpc::params::session_request::SessionRequestRequest;
-use relay_rpc::rpc::params::{session_request::Request as SessionRequest, RequestParams, ResponseParamsSuccess};
+use relay_rpc::rpc::params::{session_request::Request as SessionRequest, RequestParams};
 use secp256k1::{recovery::{RecoverableSignature, RecoveryId},
                 Secp256k1};
+use std::str::FromStr;
 use web3::signing::hash_message;
 
 #[derive(Display, Debug)]
 pub enum EthWalletConnectError {
     InvalidSignature(String),
     AccoountMisMatch(String),
+}
+
+impl From<EthWalletConnectError> for WalletConnectError {
+    fn from(value: EthWalletConnectError) -> Self { Self::SessionError(value.to_string()) }
 }
 
 pub async fn eth_request_wc_personal_sign(
@@ -50,20 +52,8 @@ pub async fn eth_request_wc_personal_sign(
         ctx.publish_request(&topic, session_request).await?;
     }
 
-    if let Some(resp) = ctx.message_rx.lock().await.next().await {
-        let result = resp.mm_err(WalletConnectError::InternalError)?;
-        if let ResponseParamsSuccess::Arbitrary(data) = result.data {
-            let signature = serde_json::from_value::<String>(data)?;
-            let response = ResponseParamsSuccess::SessionEvent(true);
-            ctx.publish_response_ok(&result.topic, response, &result.message_id)
-                .await?;
-
-            return extract_pubkey_from_signature(&signature, message, &account_str)
-                .mm_err(|err| WalletConnectError::PayloadError(err.to_string()));
-        };
-    };
-
-    MmError::err(WalletConnectError::NoWalletFeedback)
+    ctx.on_wc_session_response(|data: String| Ok(extract_pubkey_from_signature(&data, message, &account_str)?))
+        .await
 }
 
 fn extract_pubkey_from_signature(

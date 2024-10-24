@@ -7,7 +7,6 @@ use crate::{error::WalletConnectError,
             WalletConnectCtx};
 
 use chrono::Utc;
-use futures::StreamExt;
 use mm2_err_handle::map_to_mm::MapToMmResult;
 use mm2_err_handle::prelude::*;
 use relay_rpc::{domain::{MessageId, Topic},
@@ -27,14 +26,7 @@ pub(crate) async fn send_proposal_request(ctx: &WalletConnectCtx, topic: Topic) 
     });
     ctx.publish_request(&topic, session_proposal).await?;
 
-    if let Some(resp) = ctx.message_rx.lock().await.next().await {
-        let resp = resp.mm_err(WalletConnectError::InternalError)?;
-        if let ResponseParamsSuccess::SessionPropose(data) = resp.data {
-            return process_session_propose_response(ctx, &resp.topic, data).await;
-        };
-    };
-
-    MmError::err(WalletConnectError::NoWalletFeedback)
+    Ok(())
 }
 
 /// Process session proposal request
@@ -102,10 +94,10 @@ pub async fn reply_session_proposal_request(
 }
 
 /// Process session propose reponse.
-async fn process_session_propose_response(
+pub(crate) async fn process_session_propose_response(
     ctx: &WalletConnectCtx,
     pairing_topic: &Topic,
-    response: SessionProposeResponse,
+    response: &SessionProposeResponse,
 ) -> MmResult<(), WalletConnectError> {
     let other_public_key = hex::decode(&response.responder_public_key)?
         .as_slice()
@@ -131,9 +123,9 @@ async fn process_session_propose_response(
         generate_metadata(),
         SessionType::Proposer,
     );
-    session.relay = response.relay;
+    session.relay = response.relay.clone();
     session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
-    session.controller.public_key = response.responder_public_key;
+    session.controller.public_key = response.responder_public_key.clone();
 
     {
         // save session to storage

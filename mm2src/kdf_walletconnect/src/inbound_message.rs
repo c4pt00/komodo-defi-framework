@@ -1,8 +1,11 @@
 use crate::{error::WalletConnectError,
             pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
-            session::rpc::{delete::reply_session_delete_request, event::reply_session_event_request,
-                           extend::reply_session_extend_request, ping::reply_session_ping_request,
-                           propose::reply_session_proposal_request, settle::reply_session_settle_request,
+            session::rpc::{delete::reply_session_delete_request,
+                           event::reply_session_event_request,
+                           extend::reply_session_extend_request,
+                           ping::reply_session_ping_request,
+                           propose::{process_session_propose_response, reply_session_proposal_request},
+                           settle::reply_session_settle_request,
                            update::reply_session_update_request},
             WalletConnectCtx};
 
@@ -13,6 +16,7 @@ use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
 
 pub(crate) type SessionMessageType = MmResult<SessionMessage, String>;
+#[derive(Debug)]
 pub struct SessionMessage {
     pub message_id: MessageId,
     pub topic: Topic,
@@ -54,11 +58,18 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: R
     let message_id = response.id();
     let result = match response {
         Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
-            Ok(data) => Ok(SessionMessage {
-                message_id,
-                topic: topic.clone(),
-                data,
-            }),
+            Ok(data) => {
+                // Probably the best place to handle session propose response.
+                if let ResponseParamsSuccess::SessionPropose(propose) = &data {
+                    process_session_propose_response(ctx, topic, propose).await.ok();
+                }
+
+                Ok(SessionMessage {
+                    message_id,
+                    topic: topic.clone(),
+                    data,
+                })
+            },
             Err(e) => MmError::err(e.to_string()),
         },
         Response::Error(err) => MmError::err(format!("{err:?}")),

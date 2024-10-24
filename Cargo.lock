@@ -450,7 +450,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33415e24172c1b7d6066f6d999545375ab8e1d95421d6784bdfff9496f292387"
 dependencies = [
  "bitcoin_hashes 0.13.0",
- "rand_core 0.6.4",
+ "rand_core 0.5.1",
  "zeroize",
 ]
 
@@ -1342,7 +1342,6 @@ dependencies = [
  "num-traits",
  "parking_lot",
  "primitives",
- "rand 0.8.5",
  "rpc",
  "rpc_task",
  "rustc-hex",
@@ -4745,7 +4744,7 @@ dependencies = [
 [[package]]
 name = "pairing_api"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#994db68a1001a47523847b070f01a3ae5fb974f6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5172,7 +5171,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes 1.4.0",
- "heck 0.5.0",
+ "heck 0.4.0",
  "itertools",
  "log",
  "multimap",
@@ -5645,7 +5644,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "relay_client"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#994db68a1001a47523847b070f01a3ae5fb974f6"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -5673,7 +5672,7 @@ dependencies = [
 [[package]]
 name = "relay_rpc"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#994db68a1001a47523847b070f01a3ae5fb974f6"
 dependencies = [
  "anyhow",
  "bs58 0.4.0",
@@ -8036,7 +8035,7 @@ dependencies = [
 [[package]]
 name = "wc_common"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#3ea808b981a7db0cb4c805bd156be0d48546a4fc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#994db68a1001a47523847b070f01a3ae5fb974f6"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",

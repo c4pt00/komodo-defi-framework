@@ -27,6 +27,10 @@ impl AsRef<str> for WcChain {
     }
 }
 
+impl WcChain {
+    pub fn to_chain_id(&self, chain_id: &str) -> String { format!("{}:{chain_id}", self.as_ref()) }
+}
+
 #[derive(Debug, Clone)]
 pub enum WcRequestMethods {
     CosmosSignDirect,
@@ -56,9 +60,9 @@ pub(crate) fn build_default_required_namespaces() -> ProposeNamespaces {
             methods: ETH_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
         }),
         (WcChain::Cosmos.as_ref().to_string(), ProposeNamespace {
-            events: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
+            methods: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
             chains: COSMOS_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-            methods: BTreeSet::default(),
+            events: BTreeSet::default(),
         }),
     ]);
 

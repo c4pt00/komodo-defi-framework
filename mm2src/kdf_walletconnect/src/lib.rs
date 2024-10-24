@@ -30,11 +30,13 @@ use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::{IrnMetadata, Metadata, Relay, RelayProtocolMetadata, RequestParams, ResponseParamsError,
                              ResponseParamsSuccess};
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use session::{key::SymKeyPair, SessionManager};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
+use tokio::time::timeout;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 pub struct WalletConnectCtx {
@@ -134,42 +136,7 @@ impl WalletConnectCtx {
         Ok(url)
     }
 
-    pub async fn is_ledger_connection(&self) -> bool {
-        self.session
-            .get_session_active()
-            .await
-            .and_then(|session| session.session_properties.clone())
-            .and_then(|props| props.keys.as_ref().cloned())
-            .and_then(|keys| keys.first().cloned())
-            .map(|key| key.is_nano_ledger)
-            .unwrap_or(false)
-    }
-
-    pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|&chain| chain == chain_id) }
-
-    pub async fn set_active_chain(&self, chain_id: &str) {
-        let mut active_chain = self.active_chain_id.lock().await;
-        *active_chain = chain_id.to_owned();
-    }
-
-    pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
-
-    /// Retrieves the available account for a given chain ID.
-    pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectError> {
-        let namespaces = &self
-            .session
-            .get_session_active()
-            .await
-            .ok_or(MmError::new(WalletConnectError::SessionError(
-                "No active WalletConnect session found".to_string(),
-            )))?
-            .namespaces;
-        namespaces
-            .iter()
-            .find_map(|(_key, namespace)| find_account_in_namespace(namespace, chain_id))
-            .ok_or(MmError::new(WalletConnectError::NoAccountFound(chain_id.to_string())))
-    }
-
+    /// Retrieves the symmetric key associated with a given `topic`.
     async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectError> {
         {
             if let Some(key) = self.session.sym_key(topic) {
@@ -185,83 +152,10 @@ impl WalletConnectCtx {
             }
         }
 
-        MmError::err(WalletConnectError::PairingError(format!("Topic not found:{topic}")))
+        MmError::err(WalletConnectError::InternalError(format!("Topic not found:{topic}")))
     }
 
-    /// function to publish a request.
-    pub async fn publish_request(&self, topic: &Topic, param: RequestParams) -> MmResult<(), WalletConnectError> {
-        let irn_metadata = param.irn_metadata();
-        let message_id = MessageIdGenerator::new().next();
-        let request = Request::new(message_id, param.into());
-        self.publish_payload(topic, irn_metadata, Payload::Request(request))
-            .await?;
-
-        info!("Outbound request sent!\n");
-
-        Ok(())
-    }
-
-    /// Private function to publish a success request response.
-    pub async fn publish_response_ok(
-        &self,
-        topic: &Topic,
-        result: ResponseParamsSuccess,
-        message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectError> {
-        let irn_metadata = result.irn_metadata();
-        let value = serde_json::to_value(result)?;
-        let response = Response::Success(SuccessfulResponse::new(*message_id, value));
-        self.publish_payload(topic, irn_metadata, Payload::Response(response))
-            .await?;
-
-        Ok(())
-    }
-
-    /// Private function to publish an error request response.
-    async fn publish_response_err(
-        &self,
-        topic: &Topic,
-        error_data: ResponseParamsError,
-        message_id: &MessageId,
-    ) -> MmResult<(), WalletConnectError> {
-        let error = error_data.error();
-        let irn_metadata = error_data.irn_metadata();
-        let response = Response::Error(ErrorResponse::new(*message_id, error));
-        self.publish_payload(topic, irn_metadata, Payload::Response(response))
-            .await?;
-
-        Ok(())
-    }
-
-    /// Private function to publish a payload.
-    async fn publish_payload(
-        &self,
-        topic: &Topic,
-        irn_metadata: IrnMetadata,
-        payload: Payload,
-    ) -> MmResult<(), WalletConnectError> {
-        let sym_key = self.sym_key(topic).await?;
-        let payload = serde_json::to_string(&payload)?;
-
-        info!("\n Sending Outbound request: {payload}!");
-
-        let message = encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?;
-        {
-            self.client
-                .publish(
-                    topic.clone(),
-                    message,
-                    None,
-                    irn_metadata.tag,
-                    Duration::from_secs(irn_metadata.ttl),
-                    irn_metadata.prompt,
-                )
-                .await?;
-        };
-
-        Ok(())
-    }
-
+    /// Handles an inbound published message by decrypting, decoding, and processing it.
     async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectError> {
         let message = {
             let key = self.sym_key(&msg.topic).await?;
@@ -281,6 +175,7 @@ impl WalletConnectCtx {
         Ok(())
     }
 
+    /// Loads sessions from storage, activates valid ones, and deletes expired ones.
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectError> {
         let now = chrono::Utc::now().timestamp() as u64;
         let mut sessions = self
@@ -314,6 +209,157 @@ impl WalletConnectCtx {
 
         Ok(())
     }
+
+    /// function to publish a request.
+    pub async fn publish_request(&self, topic: &Topic, param: RequestParams) -> MmResult<(), WalletConnectError> {
+        let irn_metadata = param.irn_metadata();
+        let message_id = MessageIdGenerator::new().next();
+        let request = Request::new(message_id, param.into());
+        self.publish_payload(topic, irn_metadata, Payload::Request(request))
+            .await?;
+
+        info!("Outbound request sent!\n");
+
+        Ok(())
+    }
+
+    /// Private function to publish a success request response.
+    pub(crate) async fn publish_response_ok(
+        &self,
+        topic: &Topic,
+        result: ResponseParamsSuccess,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectError> {
+        let irn_metadata = result.irn_metadata();
+        let value = serde_json::to_value(result)?;
+        let response = Response::Success(SuccessfulResponse::new(*message_id, value));
+        self.publish_payload(topic, irn_metadata, Payload::Response(response))
+            .await?;
+
+        Ok(())
+    }
+
+    /// Private function to publish an error request response.
+    pub(crate) async fn publish_response_err(
+        &self,
+        topic: &Topic,
+        error_data: ResponseParamsError,
+        message_id: &MessageId,
+    ) -> MmResult<(), WalletConnectError> {
+        let error = error_data.error();
+        let irn_metadata = error_data.irn_metadata();
+        let response = Response::Error(ErrorResponse::new(*message_id, error));
+        self.publish_payload(topic, irn_metadata, Payload::Response(response))
+            .await?;
+
+        Ok(())
+    }
+
+    /// Private function to publish a payload.
+    pub(crate) async fn publish_payload(
+        &self,
+        topic: &Topic,
+        irn_metadata: IrnMetadata,
+        payload: Payload,
+    ) -> MmResult<(), WalletConnectError> {
+        let sym_key = self.sym_key(topic).await?;
+        let payload = serde_json::to_string(&payload)?;
+
+        info!("\n Sending Outbound request: {payload}!");
+
+        let message = encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?;
+        {
+            self.client
+                .publish(
+                    topic.clone(),
+                    message,
+                    None,
+                    irn_metadata.tag,
+                    Duration::from_secs(irn_metadata.ttl),
+                    irn_metadata.prompt,
+                )
+                .await?;
+        };
+
+        Ok(())
+    }
+
+    /// Checks if the current session is connected to a Ledger device.
+    /// NOTE: for COSMOS chains only.
+    pub async fn is_ledger_connection(&self) -> bool {
+        self.session
+            .get_session_active()
+            .await
+            .and_then(|session| session.session_properties.clone())
+            .and_then(|props| props.keys.as_ref().cloned())
+            .and_then(|keys| keys.first().cloned())
+            .map(|key| key.is_nano_ledger)
+            .unwrap_or(false)
+    }
+
+    /// Checks if a given chain ID is supported.
+    pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|&c| c == chain_id) }
+
+    /// Sets the active chain ID for the current session.
+    pub async fn set_active_chain(&self, chain_id: &str) {
+        let mut active_chain = self.active_chain_id.lock().await;
+        *active_chain = chain_id.to_owned();
+    }
+
+    /// Retrieves the current active chain ID.
+    pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
+
+    /// Retrieves the available account for a given chain ID.
+    pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectError> {
+        let namespaces = &self
+            .session
+            .get_session_active()
+            .await
+            .ok_or(MmError::new(WalletConnectError::SessionError(
+                "No active WalletConnect session found".to_string(),
+            )))?
+            .namespaces;
+        namespaces
+            .iter()
+            .find_map(|(_key, namespace)| find_account_in_namespace(namespace, chain_id))
+            .ok_or(MmError::new(WalletConnectError::NoAccountFound(chain_id.to_string())))
+    }
+
+    /// Waits for and handles a WalletConnect session response with arbitrary data.
+    pub async fn on_wc_session_response<T, R, F>(&self, func: F) -> MmResult<R, WalletConnectError>
+    where
+        T: DeserializeOwned,
+        F: Fn(T) -> MmResult<R, WalletConnectError>,
+    {
+        let wait_duration = Duration::from_secs(30);
+
+        while let Ok(Some(resp)) = timeout(wait_duration, self.message_rx.lock().await.next()).await {
+            let result = resp.mm_err(WalletConnectError::InternalError)?;
+            if let ResponseParamsSuccess::Arbitrary(data) = result.data {
+                let data = serde_json::from_value::<T>(data)?;
+                let response = ResponseParamsSuccess::SessionEvent(true);
+                self.publish_response_ok(&result.topic, response, &result.message_id)
+                    .await?;
+
+                return func(data);
+            }
+        }
+
+        MmError::err(WalletConnectError::NoWalletFeedback)
+    }
+}
+
+#[async_trait::async_trait]
+pub trait WcRequestOps {
+    type Error;
+    type SignTxData;
+
+    async fn wc_request_sign_tx(
+        &self,
+        ctx: &WalletConnectCtx,
+        chain_id: &str,
+        tx_json: Value,
+    ) -> Result<Self::SignTxData, Self::Error>;
 }
 
 /// This function spwans related WalletConnect related tasks and needed initialization before
@@ -363,17 +409,4 @@ fn find_account_in_namespace(namespace: &Namespace, chain_id: &str) -> Option<St
             None
         }
     })
-}
-
-#[async_trait::async_trait]
-pub trait WcRequestOps {
-    type Error;
-    type SignTxData;
-
-    async fn wc_request_sign_tx(
-        &self,
-        ctx: &WalletConnectCtx,
-        chain_id: &str,
-        tx_json: Value,
-    ) -> Result<Self::SignTxData, Self::Error>;
 }
