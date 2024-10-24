@@ -78,8 +78,8 @@ impl<'a> SiaWithdrawBuilder<'a> {
         let to = Address::from_str(&self.req.to).map_err(|e| WithdrawError::InvalidAddress(e.to_string()))?;
 
         // Calculate the total amount to send (including fee)
-        let tx_amount_hastings = siacoin_to_hastings(self.req.amount.clone())
-        .map_err(|e| WithdrawError::InternalError(e.to_string()))?;
+        let tx_amount_hastings =
+            siacoin_to_hastings(self.req.amount.clone()).map_err(|e| WithdrawError::InternalError(e.to_string()))?;
         let total_amount = tx_amount_hastings + tx_fee;
 
         // Get unspent outputs
@@ -93,7 +93,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
         let selected_outputs = self.select_outputs(unspent_outputs, total_amount.into())?;
 
         // Calculate change amount
-        let input_sum : Currency = selected_outputs.iter().map(|o| o.siacoin_output.value).sum();
+        let input_sum: Currency = selected_outputs.iter().map(|o| o.siacoin_output.value).sum();
         let change_amount = input_sum - total_amount;
 
         // Construct transaction
@@ -122,9 +122,7 @@ impl<'a> SiaWithdrawBuilder<'a> {
         tx_builder.miner_fee(Currency::from(TX_FEE_HASTINGS));
 
         // Sign the transaction
-        let signed_tx = tx_builder
-            .sign_simple(vec![self.key_pair])
-            .build();
+        let signed_tx = tx_builder.sign_simple(vec![self.key_pair]).build();
 
         let spent_by_me = hastings_to_siacoin(input_sum.into());
         let received_by_me = hastings_to_siacoin(change_amount.into());

@@ -70,9 +70,9 @@ fn default_activation_request() -> SiaCoinActivationRequest {
 // FIXME WIP
 #[test]
 fn test_sia_swap_ops_send_taker_fee_wip() {
-    use uuid::Uuid;
     use coins::DexFee;
     use mm2_number::MmNumber;
+    use uuid::Uuid;
 
     let ctx = block_on(init_ctx("horribly insecure passphrase", 9995));
     let coin = block_on(init_siacoin(ctx, "TSIA", &default_activation_request()));
@@ -81,7 +81,6 @@ fn test_sia_swap_ops_send_taker_fee_wip() {
     let uuid = Uuid::new_v4();
     let dex_fee = DexFee::Standard(MmNumber::from(0.0001));
 
-    
     assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
 }
 

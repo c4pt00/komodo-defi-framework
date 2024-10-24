@@ -1,6 +1,6 @@
-use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin,
-            RawTransactionFut, RawTransactionRequest, SwapOps, TradeFee, TransactionData, TransactionDetails,
-            TransactionEnum, TransactionErr, TransactionFut, TransactionType};
+use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
+            RawTransactionRequest, SwapOps, TradeFee, TransactionData, TransactionDetails, TransactionEnum,
+            TransactionErr, TransactionFut, TransactionType};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin,
@@ -133,12 +133,7 @@ pub struct SiaCoinBuilder<'a> {
 }
 
 impl<'a> SiaCoinBuilder<'a> {
-    pub fn new(
-        ctx: &'a MmArc,
-        conf: SiaCoinConf,
-        key_pair: SiaKeypair,
-        request: &'a SiaCoinActivationRequest,
-    ) -> Self {
+    pub fn new(ctx: &'a MmArc, conf: SiaCoinConf, key_pair: SiaKeypair, request: &'a SiaCoinActivationRequest) -> Self {
         SiaCoinBuilder {
             ctx,
             conf,
@@ -182,12 +177,11 @@ impl<'a> SiaCoinBuilder<'a> {
     }
 }
 
-
 /// Convert hastings representation to "coin" amount
 /// BigDecimal(1) == 1 SC == 10^24 hastings
 /// 1 H == 0.000000000000000000000001 SC
 fn hastings_to_siacoin(hastings: Currency) -> BigDecimal {
-    let hastings : u128 = hastings.into();
+    let hastings: u128 = hastings.into();
     BigDecimal::new(BigInt::from(hastings), 24)
 }
 
@@ -794,15 +788,14 @@ pub enum SendTakerFeeError {
     #[error("sia send_taker_fee: unexpected DexFee variant")]
     DexFeeVariant,
     #[error("sia send_taker_fee: siacoin internal error {}", _0)]
-    SiaCoinInternal(#[from] SiaCoinError)
+    SiaCoinInternal(#[from] SiaCoinError),
 }
 
 #[derive(Debug, Error)]
-pub enum SendMakerFeeError{
+pub enum SendMakerFeeError {
     #[error("sia send_maker_payment failed to foo {}", _0)]
-    Foo(bool)
+    Foo(bool),
 }
-
 
 // contains futures-0.3.x implementations of the SwapOps trait and various helpers
 impl SiaCoin {
@@ -824,8 +817,7 @@ impl SiaCoin {
         _expire_at: u64,
     ) -> Result<TransactionEnum, SendTakerFeeError> {
         // Check the Uuid provided is valid v4 as we will encode it into the transaction
-        let uuid_type_check = Uuid::from_slice(uuid)
-            .map_err(SendTakerFeeError::ParseUuid)?;
+        let uuid_type_check = Uuid::from_slice(uuid).map_err(SendTakerFeeError::ParseUuid)?;
 
         match uuid_type_check.get_version_num() {
             4 => (),
@@ -843,7 +835,8 @@ impl SiaCoin {
             return Err(SendTakerFeeError::DexFeeVariant);
         };
 
-        let my_keypair = self.my_keypair()
+        let my_keypair = self
+            .my_keypair()
             .map_err(SiaCoinError::KdfError)
             .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
@@ -876,9 +869,11 @@ impl SwapOps for SiaCoin {
     TransactionErr is a very suboptimal structure for error handling, so we route to
     new_send_taker_fee to allow for cleaner code patterns. The error is then converted to a
     TransactionErr::Plain(String) for compatibility with the SwapOps trait
-    This may lose verbosity such as the full error chain/trace. */ 
+    This may lose verbosity such as the full error chain/trace. */
     async fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, uuid: &[u8], expire_at: u64) -> TransactionResult {
-        self.new_send_taker_fee(fee_addr, dex_fee, uuid, expire_at).await.map_err(|e| e.to_string().into())
+        self.new_send_taker_fee(fee_addr, dex_fee, uuid, expire_at)
+            .await
+            .map_err(|e| e.to_string().into())
     }
 
     async fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
@@ -1366,7 +1361,7 @@ mod tests {
         let siacoin = hastings_to_siacoin(hastings.into());
         assert_eq!(siacoin, BigDecimal::from_str("57769875000").unwrap());
     }
-    
+
     #[test]
     fn test_siacoin_to_hastings_supply() {
         // Total supply of Siacoin
@@ -1412,14 +1407,14 @@ mod tests {
         let hastings = siacoin_to_hastings(coin).unwrap();
         assert_eq!(hastings, Currency::COIN.into());
     }
-    
+
     #[test]
     fn test_siacoin_to_hastings_zero() {
         let coin = BigDecimal::from(0);
         let hastings = siacoin_to_hastings(coin).unwrap();
         assert_eq!(hastings, Currency::ZERO.into());
     }
-    
+
     #[test]
     fn test_siacoin_to_hastings_one() {
         let coin = serde_json::from_str::<BigDecimal>("0.000000000000000000000001").unwrap();
