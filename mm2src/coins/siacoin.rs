@@ -872,8 +872,13 @@ impl SiaCoin {
 
 #[async_trait]
 impl SwapOps for SiaCoin {
-    async fn send_taker_fee(&self, _fee_addr: &[u8], _dex_fee: DexFee, _uuid: &[u8], _expire_at: u64) -> TransactionResult {
-        unimplemented!()
+    /* TODO Alright - refactor SwapOps to use associated types for error handling
+    TransactionErr is a very suboptimal structure for error handling, so we route to
+    new_send_taker_fee to allow for cleaner code patterns. The error is then converted to a
+    TransactionErr::Plain(String) for compatibility with the SwapOps trait
+    This may lose verbosity such as the full error chain/trace. */ 
+    async fn send_taker_fee(&self, fee_addr: &[u8], dex_fee: DexFee, uuid: &[u8], expire_at: u64) -> TransactionResult {
+        self.new_send_taker_fee(fee_addr, dex_fee, uuid, expire_at).await.map_err(|e| e.to_string().into())
     }
 
     async fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
