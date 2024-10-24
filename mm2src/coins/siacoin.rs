@@ -791,9 +791,9 @@ pub enum SendTakerFeeError {
 }
 
 #[derive(Debug, Error)]
-pub enum SendMakerFeeError {
-    #[error("sia send_maker_payment failed to foo {}", _0)]
-    Foo(bool),
+pub enum SendMakerPaymentError {
+    #[error("sia send_maker_payment: siacoin internal error {}", _0)]
+    SiaCoinInternal(#[from] SiaCoinError),
 }
 
 // contains futures-0.3.x implementations of the SwapOps trait and various helpers
@@ -858,6 +858,13 @@ impl SiaCoin {
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
+
+    async fn new_send_maker_payment(
+        &self,
+        _maker_payment_args: SendPaymentArgs<'_>,
+    ) -> Result<TransactionEnum, SendMakerPaymentError> {
+        todo!()
+    }
 }
 
 #[async_trait]
@@ -873,8 +880,10 @@ impl SwapOps for SiaCoin {
             .map_err(|e| e.to_string().into())
     }
 
-    async fn send_maker_payment(&self, _maker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
-        unimplemented!()
+    async fn send_maker_payment(&self, maker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
+        self.new_send_maker_payment(maker_payment_args)
+            .await
+            .map_err(|e| e.to_string().into())
     }
 
     async fn send_taker_payment(&self, _taker_payment_args: SendPaymentArgs<'_>) -> TransactionResult {
