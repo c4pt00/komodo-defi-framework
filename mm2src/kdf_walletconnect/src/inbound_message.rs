@@ -59,7 +59,8 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: R
     let result = match response {
         Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
             Ok(data) => {
-                // Probably the best place to handle session propose response.
+                // Probably the best place to handle session propose response
+                // as we might not get a feedback for a long time or even at all
                 if let ResponseParamsSuccess::SessionPropose(propose) = &data {
                     process_session_propose_response(ctx, topic, propose).await.ok();
                 }

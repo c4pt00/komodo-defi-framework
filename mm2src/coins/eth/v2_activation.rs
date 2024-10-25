@@ -806,7 +806,7 @@ async fn build_web3_instances(
     eth_nodes.as_mut_slice().shuffle(&mut rng);
     drop_mutability!(eth_nodes);
 
-    let event_handlers = rpc_event_handlers_for_eth_transport(ctx, coin_ticker.clone());
+    let event_handlers = rpc_event_handlers_for_eth_transport(ctx, coin_ticker);
 
     let mut web3_instances = Vec::with_capacity(eth_nodes.len());
     for eth_node in eth_nodes {

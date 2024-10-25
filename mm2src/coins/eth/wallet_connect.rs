@@ -23,6 +23,35 @@ impl From<EthWalletConnectError> for WalletConnectError {
     fn from(value: EthWalletConnectError) -> Self { Self::SessionError(value.to_string()) }
 }
 
+pub async fn wc_sign_eth_transaction(
+    ctx: &WalletConnectCtx,
+    chain_id: u64,
+    tx_json: serde_json::Value,
+) -> MmResult<String, WalletConnectError> {
+    let chain_id = chain_id.to_string();
+    let topic = ctx
+        .session
+        .get_session_active()
+        .await
+        .map(|session| session.topic.clone())
+        .ok_or(WalletConnectError::NotInitialized)?;
+    let request = SessionRequestRequest {
+        chain_id: WcChain::Eip155.to_chain_id(&chain_id),
+        request: SessionRequest {
+            method: WcRequestMethods::EthSignTransaction.as_ref().to_string(),
+            expiry: Some(Utc::now().timestamp() as u64 + 300),
+            params: tx_json.clone(),
+        },
+    };
+
+    {
+        let req_params = RequestParams::SessionRequest(request);
+        ctx.publish_request(&topic, req_params).await?;
+    };
+
+    ctx.on_wc_session_response(Ok).await
+}
+
 pub async fn eth_request_wc_personal_sign(
     ctx: &WalletConnectCtx,
     chain_id: u64,
@@ -35,7 +64,7 @@ pub async fn eth_request_wc_personal_sign(
         .ok_or(WalletConnectError::NotInitialized)?;
 
     let account_str = ctx.get_account_for_chain_id(&chain_id.to_string()).await?;
-    let message = "Hello World";
+    let message = "Authenticate with Komodefi";
     let message_hex = format!("0x{}", hex::encode(message));
     let params = json!(&[&message_hex, &account_str]);
 
@@ -58,10 +87,10 @@ pub async fn eth_request_wc_personal_sign(
 
 fn extract_pubkey_from_signature(
     signature_str: &str,
-    message: &str,
+    message: impl ToString,
     account: &str,
 ) -> MmResult<(Public, Address), EthWalletConnectError> {
-    let message_hash = hash_message(message);
+    let message_hash = hash_message(message.to_string());
     let account = H160::from_str(&account[2..]).expect("valid eth account");
     let signature = Signature::from_str(&signature_str[2..])
         .map_to_mm(|err| EthWalletConnectError::InvalidSignature(err.to_string()))?;
@@ -76,6 +105,7 @@ fn extract_pubkey_from_signature(
         let error = format!("Recovered address '{recovered_address:?}' should be the same as '{account:?}'");
         return MmError::err(EthWalletConnectError::AccoountMisMatch(error));
     }
+
     Ok((pubkey, recovered_address))
 }
 

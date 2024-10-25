@@ -1,5 +1,6 @@
 use super::{checksum_address, u256_to_big_decimal, wei_from_big_decimal, EthCoinType, EthDerivationMethod,
             EthPrivKeyPolicy, Public, WithdrawError, WithdrawRequest, WithdrawResult, ERC20_CONTRACT, H160, H256};
+use crate::eth::wallet_connect::wc_sign_eth_transaction;
 use crate::eth::{calc_total_fee, get_eth_gas_details_from_withdraw_fee, tx_builder_with_pay_for_gas_option,
                  tx_type_from_pay_for_gas_option, Action, Address, EthTxFeeDetails, KeyPair, PayForGasOption,
                  SignedEthTx, TransactionWrapper, UnSignedEthTxBuilder};
@@ -16,10 +17,12 @@ use crypto::trezor::trezor_rpc_task::{TrezorRequestStatuses, TrezorRpcTaskProces
 use crypto::{CryptoCtx, HwRpcError};
 use ethabi::Token;
 use futures::compat::Future01CompatExt;
+use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::map_mm_error::MapMmError;
 use mm2_err_handle::mm_error::MmResult;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, OrMmError};
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 #[cfg(target_arch = "wasm32")]
@@ -139,7 +142,10 @@ where
                 let bytes = rlp::encode(&signed);
                 Ok((signed.tx_hash(), BytesJson::from(bytes.to_vec())))
             },
-            EthPrivKeyPolicy::WalletConnect { .. } => todo!(),
+            EthPrivKeyPolicy::WalletConnect { .. } => {
+                // let data = unsigned_tx
+                todo!()
+            },
             #[cfg(target_arch = "wasm32")]
             EthPrivKeyPolicy::Metamask(_) => MmError::err(WithdrawError::InternalError("invalid policy".to_owned())),
         }
@@ -147,7 +153,7 @@ where
 
     /// Sends the transaction and returns the transaction hash and the signed transaction.
     /// This method should only be used when withdrawing using an external wallet like MetaMask.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(not(target_arch = "wasm32"))]
     async fn send_withdraw_tx(
         &self,
         req: &WithdrawRequest,
@@ -296,7 +302,43 @@ where
                 };
                 self.send_withdraw_tx(&req, tx_to_send).await?
             },
-            EthPrivKeyPolicy::WalletConnect { address: _, pubkey: _ } => todo!(),
+            EthPrivKeyPolicy::WalletConnect { address: _, pubkey: _ } => {
+                let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
+                let wc = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+                let chain_id = coin.chain_id.to_string();
+
+                let gas_price = pay_for_gas_option.get_gas_price();
+                let (nonce, _) = coin
+                    .clone()
+                    .get_addr_nonce(my_address)
+                    .compat()
+                    .timeout_secs(30.)
+                    .await?
+                    .map_to_mm(WithdrawError::Transport)?;
+                let mut mapped_data = HashMap::new();
+                mapped_data.insert("nonce", hex::encode(nonce.to_string()));
+                mapped_data.insert("to", hex::encode(to_addr.as_bytes()));
+                mapped_data.insert("from", hex::encode(my_address.as_bytes()));
+                mapped_data.insert("gas", hex::encode(gas.to_string()));
+
+                if let Some(gas_price) = gas_price {
+                    mapped_data.insert("gasPrice", hex::encode(gas_price.to_string()));
+                };
+
+                mapped_data.insert("value", hex::encode(eth_value.to_string()));
+                mapped_data.insert("data", hex::encode(data));
+
+                let signed= wc_sign_eth_transaction(
+                    &wc,
+                    &chain_id.to_string(),
+                    serde_json::to_value(mapped_data).expect("invalid tx_json data"),
+                )
+                .await
+                .mm_err(|err| WithdrawError::SigningError(err.to_string()))?;
+
+                let tx_hex = BytesJson::from(rlp::encode(&signed).to_vec())
+                todo!()
+            },
         };
 
         self.on_finishing()?;
