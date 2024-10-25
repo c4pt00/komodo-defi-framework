@@ -835,23 +835,24 @@ impl SiaCoin {
             .map_err(SiaCoinError::KdfError)
             .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
-        // Calculate the miner fee amount
-        let tx_fee_amount = Currency::ZERO; // FIXME Alright: calculate tx fee amount after we know TX size
-
         // Create a new transaction builder
         let mut tx_builder = V2TransactionBuilder::new();
+
+        // FIXME Alright: Calculate the miner fee amount
+        tx_builder.miner_fee(2000000u128.into());
 
         // Add the trade fee output
         tx_builder.add_siacoin_output((FEE_ADDR.clone(), trade_fee_amount).into());
 
         // Fund the transaction
         self.client
-            .fund_tx_single_source(&mut tx_builder, &my_keypair.public(), tx_fee_amount)
+            .fund_tx_single_source(&mut tx_builder, &my_keypair.public())
             .await
             .map_err(SiaCoinError::ClientHelpersError)
             .map_err(SendTakerFeeError::SiaCoinInternal)?;
 
-        // FIXME Alright determine whether to embed uuid via `tx_builder.arbitary_data`
+        // Embed swap uuid to provide better validation from maker
+        tx_builder.arbitrary_data(uuid.to_vec());
 
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
