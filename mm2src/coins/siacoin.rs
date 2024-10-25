@@ -1037,6 +1037,30 @@ impl SiaTransaction {
     pub fn txid(&self) -> Hash256 { self.0.txid() }
 }
 
+#[derive(Debug, Error)]
+pub enum SiaTransactionError {
+    #[error("SiaTransactionError: failed to convert to Vec<u8>")]
+    ToVec(serde_json::Error),
+    #[error("SiaTransactionError: failed to convert from Vec<u8>")]
+    FromVec(serde_json::Error),
+}
+
+impl TryFrom<SiaTransaction> for Vec<u8> {
+    type Error = SiaTransactionError;
+
+    fn try_from(tx: SiaTransaction) -> Result<Self, Self::Error> {
+        serde_json::ser::to_vec(&tx).map_err(|e| SiaTransactionError::ToVec(e))
+    }
+}
+
+impl TryFrom<Vec<u8>> for SiaTransaction {
+    type Error = SiaTransactionError;
+
+    fn try_from(tx: Vec<u8>) -> Result<Self, Self::Error> {
+        serde_json::de::from_slice(&tx).map_err(|e| SiaTransactionError::FromVec(e))
+    }
+}
+
 impl Transaction for SiaTransaction {
     // serde should always be succesful but write an empty vec just in case.
     // FIXME Alright this trait should be refactored to return a Result for this method
