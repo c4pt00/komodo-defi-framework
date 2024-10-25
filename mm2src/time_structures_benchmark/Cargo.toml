@@ -1,0 +1,15 @@
+[package]
+name = "time_structures_benchmark"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+timed-map = { git = "https://github.com/ozmann-industries/timed-map", branch = "generic-map", features = ["std", "rustc-hash"] }
+common = { path = "../common" }
+
+[dev-dependencies]
+criterion = { version = "0.4.0", features = ["html_reports"] }
+
+[[bench]]
+name = "timed_structures"
+harness = false

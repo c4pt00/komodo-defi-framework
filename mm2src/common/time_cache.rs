@@ -20,21 +20,20 @@
 
 //! This implements a time-based LRU cache for checking gossipsub message duplicates.
 
-use fnv::FnvHashMap;
 use instant::Instant;
 use std::collections::hash_map::{self,
                                  Entry::{Occupied, Vacant},
                                  Iter, Keys};
 use std::collections::VecDeque;
 use std::time::Duration;
-
+use rustc_hash::FxHashMap;
 use crate::expirable_entry::ExpirableEntry;
 
 #[derive(Debug)]
 pub struct TimeCache<Key, Value> {
     /// Mapping a key to its value together with its latest expire time (can be updated through
     /// reinserts).
-    map: FnvHashMap<Key, ExpirableEntry<Value>>,
+    map: FxHashMap<Key, ExpirableEntry<Value>>,
     /// An ordered list of keys by expires time.
     list: VecDeque<ExpirableEntry<Key>>,
     /// The time elements remain in the cache.
@@ -143,7 +142,7 @@ where
 {
     pub fn new(ttl: Duration) -> Self {
         TimeCache {
-            map: FnvHashMap::default(),
+            map: FxHashMap::default(),
             list: VecDeque::new(),
             ttl,
         }
