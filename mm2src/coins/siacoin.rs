@@ -970,6 +970,12 @@ impl SiaCoin {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum MakerSpendsTakerPaymentError {
+    #[error("sia maker_spends_taker_payment: failed to foo")]
+    Foo,
+}
+
 #[async_trait]
 impl SwapOps for SiaCoin {
     /* TODO Alright - refactor SwapOps to use associated types for error handling
