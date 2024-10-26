@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-timed-map = { git = "https://github.com/ozmann-industries/timed-map", branch = "generic-map", features = ["std", "rustc-hash"] }
+timed-map = { git = "https://github.com/ozmann-industries/timed-map", rev = "ffb68a3ebce420ca70a8d2ee4d9aa715b088d456", features = ["std", "rustc-hash"] }
 common = { path = "../common" }
 
 [dev-dependencies]

@@ -1,7 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use std::time::Duration;
-use timed_map::{StdClock, TimedMap, MapKind};
 use common::time_cache::TimeCache;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::time::Duration;
+use timed_map::{MapKind, StdClock, TimedMap};
 
 fn benchmark_timed_structures(c: &mut Criterion) {
     let mut group = c.benchmark_group("Timed Data Structures");
@@ -13,7 +13,8 @@ fn benchmark_timed_structures(c: &mut Criterion) {
     for size in &sizes {
         group.bench_with_input(BenchmarkId::new("TimedMap_FxHash/insert", size), size, |b, size| {
             b.iter(|| {
-                let mut map: TimedMap<StdClock, _, _> = TimedMap::new_with_map_kind(MapKind::FxHashMap);
+                let mut map: TimedMap<StdClock, _, _> =
+                    TimedMap::new_with_map_kind(MapKind::FxHashMap).expiration_tick_cap(500);
                 for i in 0..*size {
                     map.insert_expirable(i, i, expire_duration);
                 }
@@ -33,14 +34,15 @@ fn benchmark_timed_structures(c: &mut Criterion) {
     // Benchmark retrieval
     for size in &sizes {
         group.bench_with_input(BenchmarkId::new("TimedMap_FxHash/get", size), size, |b, size| {
-            let mut map: TimedMap<StdClock, _, _> = TimedMap::new_with_map_kind(MapKind::FxHashMap);
+            let mut map: TimedMap<StdClock, _, _> =
+                TimedMap::new_with_map_kind(MapKind::FxHashMap).expiration_tick_cap(500);
             for i in 0..*size {
                 map.insert_expirable(i, i, expire_duration);
             }
 
             b.iter(|| {
                 for i in 0..*size {
-                    black_box(map.get(&i));
+                    black_box(map.get_unchecked(&i));
                 }
             });
         });
@@ -64,7 +66,8 @@ fn benchmark_timed_structures(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("TimedMap_FxHash/remove", size), size, |b, size| {
             b.iter_batched(
                 || {
-                    let mut map: TimedMap<StdClock, _, _> = TimedMap::new_with_map_kind(MapKind::FxHashMap);
+                    let mut map: TimedMap<StdClock, _, _> =
+                        TimedMap::new_with_map_kind(MapKind::FxHashMap).expiration_tick_cap(500);
                     for i in 0..*size {
                         map.insert_expirable(i, i, expire_duration);
                     }
@@ -72,7 +75,7 @@ fn benchmark_timed_structures(c: &mut Criterion) {
                 },
                 |mut map| {
                     for i in 0..*size {
-                        black_box(map.remove(&i));
+                        black_box(map.remove_unchecked(&i));
                     }
                 },
                 criterion::BatchSize::SmallInput,
@@ -102,15 +105,16 @@ fn benchmark_timed_structures(c: &mut Criterion) {
     for size in &sizes {
         group.bench_with_input(BenchmarkId::new("TimedMap_FxHash/mixed_ops", size), size, |b, size| {
             b.iter(|| {
-                let mut map: TimedMap<StdClock, _, _> = TimedMap::new_with_map_kind(MapKind::FxHashMap);
+                let mut map: TimedMap<StdClock, _, _> =
+                    TimedMap::new_with_map_kind(MapKind::FxHashMap).expiration_tick_cap(500);
                 for i in 0..*size {
                     map.insert_expirable(i, i, expire_duration);
                 }
                 for i in 0..*size {
-                    black_box(map.get(&i));
+                    black_box(map.get_unchecked(&i));
                 }
                 for i in 0..(*size / 2) {
-                    black_box(map.remove(&i));
+                    black_box(map.remove_unchecked(&i));
                 }
                 for i in 0..(*size / 2) {
                     map.insert_expirable(i, i * 2, expire_duration);

@@ -7126,7 +7126,7 @@ version = "0.1.0"
 dependencies = [
  "common",
  "criterion",
- "timed-map 0.1.0 (git+https://github.com/ozmann-industries/timed-map?branch=generic-map)",
+ "timed-map 0.1.0 (git+https://github.com/ozmann-industries/timed-map?rev=ffb68a3ebce420ca70a8d2ee4d9aa715b088d456)",
 ]
 
 [[package]]
@@ -7138,7 +7138,7 @@ checksum = "589dc3ef6288d2afc0d355d82cc34b1894bfc85844c4d69b6607d4862181ded1"
 [[package]]
 name = "timed-map"
 version = "0.1.0"
-source = "git+https://github.com/ozmann-industries/timed-map?branch=generic-map#29b14640df96035afbf9aa1794492320f0d1aa72"
+source = "git+https://github.com/ozmann-industries/timed-map?rev=ffb68a3ebce420ca70a8d2ee4d9aa715b088d456#ffb68a3ebce420ca70a8d2ee4d9aa715b088d456"
 dependencies = [
  "rustc-hash 2.0.0",
 ]
