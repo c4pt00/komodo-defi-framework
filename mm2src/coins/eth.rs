@@ -2687,14 +2687,16 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
             })
             .map_to_mm(|err| RawTransactionError::TransactionError(err.get_plain_text_format()))
         },
-        #[cfg(target_arch = "wasm32")]
-        EthPrivKeyPolicy::Metamask(_) => MmError::err(RawTransactionError::InvalidParam(
-            "sign raw eth tx not implemented for Metamask".into(),
+        EthPrivKeyPolicy::WalletConnect { .. } => MmError::err(RawTransactionError::InvalidParam(
+            "sign raw eth tx not implemented for WalletConnect".into(),
         )),
         EthPrivKeyPolicy::Trezor => MmError::err(RawTransactionError::InvalidParam(
             "sign raw eth tx not implemented for Trezor".into(),
         )),
-        EthPrivKeyPolicy::WalletConnect { .. } => todo!(),
+        #[cfg(target_arch = "wasm32")]
+        EthPrivKeyPolicy::Metamask(_) => MmError::err(RawTransactionError::InvalidParam(
+            "sign raw eth tx not implemented for Metamask".into(),
+        )),
     }
 }
 
