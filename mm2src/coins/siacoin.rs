@@ -892,7 +892,7 @@ impl SiaCoin {
         let taker_public_key =
             PublicKey::from_bytes(args.other_pubkey).map_err(SendMakerPaymentError::InvalidTakerPublicKey)?;
 
-        let secret_hash = Hash256::try_from(args.secret_hash).map_err(SendMakerPaymentError::SecretHashLength)?;
+        let secret_hash = Hash256::try_from(args.secret_hash).map_err(SendMakerPaymentError::ParseSecretHash)?;
 
         // Generate HTLC SpendPolicy
         let htlc_spend_policy =
