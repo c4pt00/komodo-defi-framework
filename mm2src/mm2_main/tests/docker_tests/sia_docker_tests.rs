@@ -1,5 +1,5 @@
 use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
-use coins::PrivKeyBuildPolicy;
+use coins::{MarketCoinOps, PrivKeyBuildPolicy};
 use common::block_on;
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
 use mm2_main::lp_wallet::initialize_wallet_passphrase;
@@ -50,7 +50,7 @@ async fn init_siacoin(ctx: MmArc, ticker: &str, request: &SiaCoinActivationReque
 
     let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).unwrap();
 
-    sia_coin_from_conf_and_request(&ctx, ticker, coin_conf_str, request, priv_key_policy)
+    sia_coin_from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
         .await
         .unwrap()
 }
@@ -76,10 +76,11 @@ fn test_sia_swap_ops_send_taker_fee_wip() {
 
     let ctx = block_on(init_ctx("horribly insecure passphrase", 9995));
     let coin = block_on(init_siacoin(ctx, "TSIA", &default_activation_request()));
-    mine_blocks(&coin.client, 201, &coin.address).unwrap();
+    let address = Address::from_str(&coin.my_address().unwrap()).unwrap();
+    mine_blocks(&coin.client, 201, &address).unwrap();
 
     let uuid = Uuid::new_v4();
-    let dex_fee = DexFee::Standard(MmNumber::from(0.0001));
+    let dex_fee = DexFee::Standard(MmNumber::from("0.0001"));
 
     assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
 }
@@ -154,7 +155,7 @@ fn test_sia_endpoint_address_balance() {
     let request = AddressBalanceRequest { address };
     let response = block_on(api_client.dispatcher(request)).unwrap();
 
-    let expected = Currency::from(1);
+    let expected = Currency(1u128);
     assert_eq!(response.siacoins, expected);
     assert_eq!(*expected, 1000000000000000000000000000000000000);
 }
@@ -176,26 +177,21 @@ fn test_sia_build_tx() {
 
     mine_blocks(&api_client, 201, &address).unwrap();
 
-    let utxos = block_on(api_client.dispatcher(GetAddressUtxosRequest {
-        address: address.clone(),
-        limit: None,
-        offset: None,
-    }))
-    .unwrap();
-    let spend_this = utxos[0].clone();
-    let vin = spend_this.clone();
-    println!("utxo[0]: {:?}", spend_this);
-    let vout = SiacoinOutput {
-        value: spend_this.siacoin_output.value,
-        address,
-    };
-    let tx = V2TransactionBuilder::new()
-        .add_siacoin_input(vin, spend_policy)
-        .add_siacoin_output(vout)
-        .sign_simple(vec![&keypair])
-        .unwrap()
-        .build();
+    // Create a new transaction builder
+    let mut tx_builder = V2TransactionBuilder::new();
 
+    // FIXME Alright: Calculate the miner fee amount
+    tx_builder.miner_fee(2000000u128.into());
+
+    // send 1 SC to self
+    tx_builder.add_siacoin_output((address.clone(), Currency::COIN).into());
+
+    // Fund the transaction
+    block_on(api_client.fund_tx_single_source(&mut tx_builder, &keypair.public())).unwrap();
+
+    // Sign inputs and finalize the transaction
+    let tx = tx_builder.sign_simple(vec![&keypair]).build();
+    let txid = tx.txid();
     let req = TxpoolBroadcastRequest {
         transactions: vec![],
         v2transactions: vec![tx],
