@@ -191,7 +191,6 @@ fn test_sia_build_tx() {
 
     // Sign inputs and finalize the transaction
     let tx = tx_builder.sign_simple(vec![&keypair]).build();
-    let txid = tx.txid();
     let req = TxpoolBroadcastRequest {
         transactions: vec![],
         v2transactions: vec![tx],
