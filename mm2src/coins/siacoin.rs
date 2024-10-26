@@ -804,8 +804,8 @@ pub enum SendMakerPaymentError {
     SiacoinToHastings(#[from] CoinToHastingsError),
     #[error("sia send_maker_payment: failed to fund transaction {}", _0)]
     FundTx(#[from] ApiClientHelpersError),
-    #[error("sia send_maker_payment: invalid secret_hash length {}", _0)]
-    SecretHashLength(#[from] ParseHashError),
+    #[error("sia send_maker_payment: failed to parse secret_hash {}", _0)]
+    ParseSecretHash(#[from] ParseHashError),
 }
 
 #[derive(Debug, Error)]
