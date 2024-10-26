@@ -33,8 +33,8 @@ pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError 
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                          TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
-                          Keypair as SiaKeypair, ParseHashError, PrivateKeyError, PublicKey, PublicKeyError,
-                          SiacoinElement, SiacoinOutput, SpendPolicy, V1Transaction, V2Transaction,
+                          Keypair as SiaKeypair, ParseHashError, Preimage, PreimageError, PrivateKeyError, PublicKey,
+                          PublicKeyError, SiacoinElement, SiacoinOutput, SpendPolicy, V1Transaction, V2Transaction,
                           V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
@@ -966,14 +966,39 @@ impl SiaCoin {
         &self,
         args: SpendPaymentArgs<'_>,
     ) -> Result<TransactionEnum, MakerSpendsTakerPaymentError> {
+        let my_keypair = self.my_keypair().map_err(MakerSpendsTakerPaymentError::MyPubkey)?;
+
+        let maker_public_key = my_keypair.public();
+        let taker_public_key =
+            PublicKey::from_bytes(args.other_pubkey).map_err(MakerSpendsTakerPaymentError::InvalidMakerPublicKey)?;
+
+        let taker_payment_tx =
+            SiaTransaction::try_from(args.other_payment_tx.to_vec()).map_err(MakerSpendsTakerPaymentError::ParseTx)?;
+
+        let secret = Preimage::try_from(args.secret).map_err(MakerSpendsTakerPaymentError::ParseSecret)?;
+        let secret_hash = Hash256::try_from(args.secret_hash).map_err(MakerSpendsTakerPaymentError::ParseSecretHash)?;
+        // TODO Alright could do `sha256(secret) == secret_hash`` sanity check here
+
+        // Generate HTLC SpendPolicy
+        let htlc_spend_policy =
+            SpendPolicy::atomic_swap(taker_public_key, maker_public_key, args.time_lock, secret_hash);
+
         todo!()
     }
 }
 
 #[derive(Debug, Error)]
 pub enum MakerSpendsTakerPaymentError {
-    #[error("sia maker_spends_taker_payment: failed to foo")]
-    Foo,
+    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {}", _0)]
+    InvalidMakerPublicKey(#[from] PublicKeyError),
+    #[error("sia send_maker_spends_taker_payment: failed to fetch my_pubkey {}", _0)]
+    MyPubkey(#[from] FrameworkError),
+    #[error("sia send_maker_spends_taker_payment: failed to parse taker_payment_tx {}", _0)]
+    ParseTx(#[from] SiaTransactionError),
+    #[error("sia send_maker_spends_taker_payment: failed to parse secret {}", _0)]
+    ParseSecret(#[from] PreimageError),
+    #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {}", _0)]
+    ParseSecretHash(#[from] ParseHashError),
 }
 
 #[async_trait]
