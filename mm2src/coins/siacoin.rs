@@ -29,7 +29,7 @@ use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
-                                      ApiClientHelpers, ApiClientHelpersError, UtxoFromTxidError};
+                                      ApiClientHelpers, HelperError as SiaClientHelperError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                          TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
@@ -218,7 +218,7 @@ pub enum SiaCoinError {
     #[error("Sia Client Error: {}", _0)]
     ClientError(#[from] SiaApiClientError),
     #[error("Sia Client Helpers Error: {}", _0)]
-    ClientHelpersError(#[from] ApiClientHelpersError),
+    ClientHelpersError(#[from] SiaClientHelperError),
     #[error("Sia Invalid Secret Key: {}", _0)]
     InvalidPrivateKey(#[from] PrivateKeyError),
     #[error("Sia Invalid Secret Key: {}", _0)]
@@ -791,7 +791,7 @@ pub enum SendTakerFeeError {
     #[error("sia send_taker_fee: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
     #[error("sia send_taker_fee: failed to fund transaction {0}")]
-    FundTx(#[from] ApiClientHelpersError),
+    FundTx(#[from] SiaClientHelperError),
 }
 
 #[derive(Debug, Error)]
@@ -803,7 +803,7 @@ pub enum SendMakerPaymentError {
     #[error("sia send_maker_payment: failed to convert trade amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
     #[error("sia send_maker_payment: failed to fund transaction {0}")]
-    FundTx(#[from] ApiClientHelpersError),
+    FundTx(#[from] SiaClientHelperError),
     #[error("sia send_maker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
 }
@@ -817,7 +817,7 @@ pub enum SendTakerPaymentError {
     #[error("sia send_taker_payment: failed to convert trade amount to Currency")]
     SiacoinToHastings(#[from] CoinToHastingsError),
     #[error("sia send_taker_payment: failed to fund transaction {}", _0)]
-    FundTx(#[from] ApiClientHelpersError),
+    FundTx(#[from] SiaClientHelperError),
     #[error("sia send_taker_payment: invalid secret_hash length {}", _0)]
     SecretHashLength(#[from] ParseHashError),
 }
@@ -1081,7 +1081,7 @@ pub enum TakerSpendsMakerPaymentError {
     #[error("sia send_taker_spends_maker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
     #[error("sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
-    UtxoFromTxid(#[from] UtxoFromTxidError),
+    UtxoFromTxid(#[from] SiaClientHelperError),
     #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
     SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
 }
@@ -1099,7 +1099,7 @@ pub enum MakerSpendsTakerPaymentError {
     #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
     #[error("sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
-    UtxoFromTxid(#[from] UtxoFromTxidError),
+    UtxoFromTxid(#[from] SiaClientHelperError),
     #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
     SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
 }
