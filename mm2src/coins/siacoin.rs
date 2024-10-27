@@ -1065,47 +1065,42 @@ impl SiaCoin {
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
-}
 
+}
+// TODO Alright - nearly identical to MakerSpendsTakerPaymentError, refactor
 #[derive(Debug, Error)]
 pub enum TakerSpendsMakerPaymentError {
-    #[error("sia send_taker_spends_maker_payment: failed to fetch my_pubkey {}", _0)]
+    #[error("sia send_taker_spends_maker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_spends_maker_payment: invalid maker pubkey {}", _0)]
+    #[error("sia send_taker_spends_maker_payment: invalid maker pubkey {0}")]
     InvalidMakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse taker_payment_tx {}", _0)]
+    #[error("sia send_taker_spends_maker_payment: failed to parse taker_payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse secret {}", _0)]
+    #[error("sia send_taker_spends_maker_payment: failed to parse secret {0}")]
     ParseSecret(#[from] PreimageError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse secret_hash {}", _0)]
+    #[error("sia send_taker_spends_maker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
-    #[error(
-        "sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {}",
-        _0
-    )]
+    #[error("sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
     UtxoFromTxid(#[from] UtxoFromTxidError),
-    #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {}", _0)]
+    #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
     SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
 }
 
 #[derive(Debug, Error)]
 pub enum MakerSpendsTakerPaymentError {
-    #[error("sia send_maker_spends_taker_payment: failed to fetch my_pubkey {}", _0)]
+    #[error("sia send_maker_spends_taker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {}", _0)]
+    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse taker_payment_tx {}", _0)]
+    #[error("sia send_maker_spends_taker_payment: failed to parse taker_payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse secret {}", _0)]
+    #[error("sia send_maker_spends_taker_payment: failed to parse secret {0}")]
     ParseSecret(#[from] PreimageError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {}", _0)]
+    #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
-    #[error(
-        "sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {}",
-        _0
-    )]
+    #[error("sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
     UtxoFromTxid(#[from] UtxoFromTxidError),
-    #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {}", _0)]
+    #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
     SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
 }
 
