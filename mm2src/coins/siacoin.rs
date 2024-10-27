@@ -29,13 +29,13 @@ use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
-                                      ApiClientHelpers, ApiClientHelpersError};
+                                      ApiClientHelpers, ApiClientHelpersError, UtxoFromTxidError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                          TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
                           Keypair as SiaKeypair, ParseHashError, Preimage, PreimageError, PrivateKeyError, PublicKey,
-                          PublicKeyError, SiacoinElement, SiacoinOutput, SpendPolicy, V1Transaction, V2Transaction,
-                          V2TransactionBuilder};
+                          PublicKeyError, SatisfyAtomicSwapSuccessError, SiacoinElement, SiacoinOutput, SpendPolicy,
+                          V1Transaction, V2Transaction, V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -901,7 +901,7 @@ impl SiaCoin {
 
         // Generate HTLC SpendPolicy
         let htlc_spend_policy =
-            SpendPolicy::atomic_swap(taker_public_key, maker_public_key, args.time_lock, secret_hash);
+            SpendPolicy::atomic_swap(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
 
         // Convert the trade amount to a Currency amount
         let trade_amount = siacoin_to_hastings(args.amount).map_err(SendMakerPaymentError::SiacoinToHastings)?;
@@ -941,7 +941,7 @@ impl SiaCoin {
 
         // Generate HTLC SpendPolicy
         let htlc_spend_policy =
-            SpendPolicy::atomic_swap(taker_public_key, maker_public_key, args.time_lock, secret_hash);
+            SpendPolicy::atomic_swap(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
 
         // Convert the trade amount to a Currency amount
         let trade_amount = siacoin_to_hastings(args.amount).map_err(SendTakerPaymentError::SiacoinToHastings)?;
@@ -973,35 +973,137 @@ impl SiaCoin {
 
         let maker_public_key = my_keypair.public();
         let taker_public_key =
-            PublicKey::from_bytes(args.other_pubkey).map_err(MakerSpendsTakerPaymentError::InvalidMakerPublicKey)?;
+            PublicKey::from_bytes(args.other_pubkey).map_err(MakerSpendsTakerPaymentError::InvalidTakerPublicKey)?;
 
         let taker_payment_tx =
             SiaTransaction::try_from(args.other_payment_tx.to_vec()).map_err(MakerSpendsTakerPaymentError::ParseTx)?;
+        let taker_payment_txid = taker_payment_tx.txid();
 
         let secret = Preimage::try_from(args.secret).map_err(MakerSpendsTakerPaymentError::ParseSecret)?;
         let secret_hash = Hash256::try_from(args.secret_hash).map_err(MakerSpendsTakerPaymentError::ParseSecretHash)?;
         // TODO Alright could do `sha256(secret) == secret_hash`` sanity check here
 
-        // Generate HTLC SpendPolicy
-        let htlc_spend_policy =
-            SpendPolicy::atomic_swap(taker_public_key, maker_public_key, args.time_lock, secret_hash);
+        // Generate HTLC SpendPolicy as it will appear in the SiacoinInputV2 that spends taker payment
+        let input_spend_policy =
+            SpendPolicy::atomic_swap_success(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
 
-        todo!()
+        // Fetch the HTLC UTXO from the taker payment transaction
+        let htlc_utxo = self
+            .client
+            .utxo_from_txid(&taker_payment_txid, 0)
+            .await
+            .map_err(MakerSpendsTakerPaymentError::UtxoFromTxid)?;
+
+        // FIXME Alright this transaction will have a fixed size, calculate the miner fee amount
+        // after we have the actual transaction size
+        let miner_fee = Currency::DEFAULT_FEE;
+        let htlc_utxo_amount = htlc_utxo.siacoin_output.value;
+
+        // Create a new transaction builder
+        let tx = V2TransactionBuilder::new()
+            // Set the miner fee amount
+            .miner_fee(miner_fee.clone())
+            // Add output of maker spending to self
+            .add_siacoin_output((maker_public_key.address(), htlc_utxo_amount - miner_fee).into())
+            // Add input spending the HTLC output
+            .add_siacoin_input(htlc_utxo, input_spend_policy)
+            // Satisfy the HTLC by providing a signature and the secret
+            .satisfy_atomic_swap_success(&my_keypair, secret, 0u32)
+            .map_err(MakerSpendsTakerPaymentError::SatisfyHtlc)?
+            .build();
+
+        Ok(TransactionEnum::SiaTransaction(tx.into()))
+    }
+
+    async fn new_send_taker_spends_maker_payment(
+        &self,
+        args: SpendPaymentArgs<'_>,
+    ) -> Result<TransactionEnum, TakerSpendsMakerPaymentError> {
+        let my_keypair = self.my_keypair().map_err(TakerSpendsMakerPaymentError::MyPubkey)?;
+
+        let taker_public_key = my_keypair.public();
+        let maker_public_key =
+            PublicKey::from_bytes(args.other_pubkey).map_err(TakerSpendsMakerPaymentError::InvalidMakerPublicKey)?;
+
+        let maker_payment_tx =
+            SiaTransaction::try_from(args.other_payment_tx.to_vec()).map_err(TakerSpendsMakerPaymentError::ParseTx)?;
+        let maker_payment_txid = maker_payment_tx.txid();
+
+        let secret = Preimage::try_from(args.secret).map_err(TakerSpendsMakerPaymentError::ParseSecret)?;
+        let secret_hash = Hash256::try_from(args.secret_hash).map_err(TakerSpendsMakerPaymentError::ParseSecretHash)?;
+        // TODO Alright could do `sha256(secret) == secret_hash`` sanity check here
+
+        // Generate HTLC SpendPolicy as it will appear in the SiacoinInputV2 that spends taker payment
+        let input_spend_policy =
+            SpendPolicy::atomic_swap_success(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
+
+        // Fetch the HTLC UTXO from the taker payment transaction
+        let htlc_utxo = self
+            .client
+            .utxo_from_txid(&maker_payment_txid, 0)
+            .await
+            .map_err(TakerSpendsMakerPaymentError::UtxoFromTxid)?;
+
+        let miner_fee = Currency::DEFAULT_FEE;
+        let htlc_utxo_amount = htlc_utxo.siacoin_output.value;
+
+        // Create a new transaction builder
+        let tx = V2TransactionBuilder::new()
+            // Set the miner fee amount
+            .miner_fee(miner_fee.clone())
+            // Add output of taker spending to self
+            .add_siacoin_output((taker_public_key.address(), htlc_utxo_amount - miner_fee).into())
+            // Add input spending the HTLC output
+            .add_siacoin_input(htlc_utxo, input_spend_policy)
+            // Satisfy the HTLC by providing a signature and the secret
+            .satisfy_atomic_swap_success(&my_keypair, secret, 0u32)
+            .map_err(TakerSpendsMakerPaymentError::SatisfyHtlc)?
+            .build();
+
+        Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 }
 
 #[derive(Debug, Error)]
-pub enum MakerSpendsTakerPaymentError {
-    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {}", _0)]
+pub enum TakerSpendsMakerPaymentError {
+    #[error("sia send_taker_spends_maker_payment: failed to fetch my_pubkey {}", _0)]
+    MyPubkey(#[from] FrameworkError),
+    #[error("sia send_taker_spends_maker_payment: invalid maker pubkey {}", _0)]
     InvalidMakerPublicKey(#[from] PublicKeyError),
+    #[error("sia send_taker_spends_maker_payment: failed to parse taker_payment_tx {}", _0)]
+    ParseTx(#[from] SiaTransactionError),
+    #[error("sia send_taker_spends_maker_payment: failed to parse secret {}", _0)]
+    ParseSecret(#[from] PreimageError),
+    #[error("sia send_taker_spends_maker_payment: failed to parse secret_hash {}", _0)]
+    ParseSecretHash(#[from] ParseHashError),
+    #[error(
+        "sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {}",
+        _0
+    )]
+    UtxoFromTxid(#[from] UtxoFromTxidError),
+    #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {}", _0)]
+    SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
+}
+
+#[derive(Debug, Error)]
+pub enum MakerSpendsTakerPaymentError {
     #[error("sia send_maker_spends_taker_payment: failed to fetch my_pubkey {}", _0)]
     MyPubkey(#[from] FrameworkError),
+    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {}", _0)]
+    InvalidTakerPublicKey(#[from] PublicKeyError),
     #[error("sia send_maker_spends_taker_payment: failed to parse taker_payment_tx {}", _0)]
     ParseTx(#[from] SiaTransactionError),
     #[error("sia send_maker_spends_taker_payment: failed to parse secret {}", _0)]
     ParseSecret(#[from] PreimageError),
     #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {}", _0)]
     ParseSecretHash(#[from] ParseHashError),
+    #[error(
+        "sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {}",
+        _0
+    )]
+    UtxoFromTxid(#[from] UtxoFromTxidError),
+    #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {}", _0)]
+    SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
 }
 
 #[async_trait]
@@ -1040,9 +1142,11 @@ impl SwapOps for SiaCoin {
 
     async fn send_taker_spends_maker_payment(
         &self,
-        _taker_spends_payment_args: SpendPaymentArgs<'_>,
+        taker_spends_payment_args: SpendPaymentArgs<'_>,
     ) -> TransactionResult {
-        unimplemented!()
+        self.new_send_taker_spends_maker_payment(taker_spends_payment_args)
+            .await
+            .map_err(|e| e.to_string().into())
     }
 
     async fn send_taker_refunds_payment(
