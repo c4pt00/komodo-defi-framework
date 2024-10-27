@@ -9,7 +9,7 @@ mod storage;
 
 use crate::session::rpc::propose::send_proposal_request;
 
-use chain::{DEFAULT_CHAIN_ID, SUPPORTED_CHAINS, SUPPORTED_PROTOCOL};
+use chain::{WcChain, DEFAULT_CHAIN_ID, SUPPORTED_PROTOCOL};
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
@@ -51,11 +51,10 @@ pub struct WalletConnectCtx {
     relay: Relay,
     metadata: Metadata,
     subscriptions: Arc<Mutex<Vec<Topic>>>,
-    inbound_message_handler: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
-    connection_live_handler: Arc<Mutex<UnboundedReceiver<()>>>,
-
-    message_tx: Arc<Mutex<UnboundedSender<SessionMessageType>>>,
-    pub message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
+    inbound_message_rx: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
+    connection_live_rx: Arc<Mutex<UnboundedReceiver<()>>>,
+    message_tx: UnboundedSender<SessionMessageType>,
+    message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
 }
 
 impl WalletConnectCtx {
@@ -78,18 +77,17 @@ impl WalletConnectCtx {
             client,
             pairing,
             session: SessionManager::new(),
-            active_chain_id: Arc::new(Mutex::new(DEFAULT_CHAIN_ID.to_string())),
+            active_chain_id: Arc::new(DEFAULT_CHAIN_ID.to_owned().into()),
             relay,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             storage,
             subscriptions: Default::default(),
 
-            inbound_message_handler: Arc::new(Mutex::new(msg_receiver)),
-            connection_live_handler: Arc::new(Mutex::new(conn_live_receiver)),
-
-            message_rx: Arc::new(Mutex::new(session_request_receiver)),
-            message_tx: Arc::new(Mutex::new(message_tx)),
+            inbound_message_rx: Arc::new(msg_receiver.into()),
+            connection_live_rx: Arc::new(conn_live_receiver.into()),
+            message_rx: Arc::new(session_request_receiver.into()),
+            message_tx,
         })
     }
 
@@ -218,7 +216,7 @@ impl WalletConnectCtx {
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
-        info!("Outbound request sent!\n");
+        info!("Outbound request sent!");
 
         Ok(())
     }
@@ -298,7 +296,16 @@ impl WalletConnectCtx {
     }
 
     /// Checks if a given chain ID is supported.
-    pub fn is_chain_supported(&self, chain_id: &str) -> bool { SUPPORTED_CHAINS.iter().any(|&c| c == chain_id) }
+    pub async fn is_chain_supported(&self, chain: WcChain, chain_id: &str) -> bool {
+        if let Some(session) = self.session.get_session_active().await {
+            if let Some(ns) = session.namespaces.get(chain.as_ref()) {
+                if let Some(chains) = &ns.chains {
+                    return chains.contains(&chain.to_chain_id(chain_id));
+                }
+            }
+        }
+        false
+    }
 
     /// Sets the active chain ID for the current session.
     pub async fn set_active_chain(&self, chain_id: &str) {
@@ -386,7 +393,7 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
     // spawn message handler event loop
     ctx.spawner().spawn(async move {
         let this = wallet_connect.clone();
-        let mut recv = wallet_connect.inbound_message_handler.lock().await;
+        let mut recv = wallet_connect.inbound_message_rx.lock().await;
         while let Some(msg) = recv.next().await {
             if let Err(e) = this.handle_published_message(msg).await {
                 info!("Error processing message: {:?}", e);

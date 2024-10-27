@@ -19,7 +19,6 @@ use coins::my_tx_history_v2::TxHistoryStorage;
 use coins::nft::nft_structs::NftInfo;
 use coins::{CoinBalance, CoinBalanceMap, CoinProtocol, CoinWithDerivationMethod, DerivationMethod, MarketCoinOps,
             MmCoin, MmCoinEnum};
-use kdf_walletconnect::chain::WcChain;
 use kdf_walletconnect::WalletConnectCtx;
 
 use crate::platform_coin_with_tokens::InitPlatformCoinWithTokensTask;
@@ -480,13 +479,6 @@ async fn eth_priv_key_build_policy(
         EthPrivKeyActivationPolicy::WalletConnect => {
             let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
             let chain_id = conf["chain_id"].as_u64().ok_or(EthActivationV2Error::ChainIdNotSet)?;
-
-            if !wc.is_chain_supported(&WcChain::Eip155.to_chain_id(&chain_id.to_string())) {
-                return MmError::err(EthActivationV2Error::WalletConnectError(format!(
-                    "Unsupported chain_id: {chain_id}"
-                )));
-            };
-
             let (pubkey, address) = eth_request_wc_personal_sign(&wc, chain_id)
                 .await
                 .mm_err(|err| EthActivationV2Error::WalletConnectError(err.to_string()))?;

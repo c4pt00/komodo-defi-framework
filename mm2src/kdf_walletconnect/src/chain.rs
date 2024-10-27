@@ -1,7 +1,6 @@
 use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) const SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4", "eip155:1"];
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 
 pub(crate) const COSMOS_SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];

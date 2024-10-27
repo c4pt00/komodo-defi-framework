@@ -2534,6 +2534,7 @@ async fn sign_transaction_with_keypair<'a>(
 ) -> Result<(SignedEthTx, Vec<Web3Instance>), TransactionErr> {
     info!(target: "sign", "get_addr_nonce…");
     let (nonce, web3_instances_with_latest_nonce) = try_tx_s!(coin.clone().get_addr_nonce(from_address).compat().await);
+    if let EthPrivKeyPolicy::WalletConnect { .. } = coin.priv_key_policy() {}
     let tx_type = tx_type_from_pay_for_gas_option!(pay_for_gas_option);
     if !coin.is_tx_type_supported(&tx_type) {
         return Err(TransactionErr::Plain("Eth transaction type not supported".into()));

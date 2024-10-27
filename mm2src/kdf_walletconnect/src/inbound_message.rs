@@ -76,5 +76,6 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: R
         Response::Error(err) => MmError::err(format!("{err:?}")),
     };
 
-    ctx.message_tx.lock().await.send(result).await.ok();
+    let mut sender = ctx.message_tx.clone();
+    sender.send(result).await.ok();
 }

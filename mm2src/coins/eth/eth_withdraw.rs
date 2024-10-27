@@ -1,6 +1,6 @@
 use super::{checksum_address, u256_to_big_decimal, wei_from_big_decimal, EthCoinType, EthDerivationMethod,
             EthPrivKeyPolicy, Public, WithdrawError, WithdrawRequest, WithdrawResult, ERC20_CONTRACT, H160, H256};
-use crate::eth::wallet_connect::{wc_prepare_eth_tx_data, wc_sign_eth_transaction};
+use crate::eth::wallet_connect::{wc_sign_eth_transaction, WcEthTxParams};
 use crate::eth::{calc_total_fee, get_eth_gas_details_from_withdraw_fee, tx_builder_with_pay_for_gas_option,
                  tx_type_from_pay_for_gas_option, Action, Address, EthTxFeeDetails, KeyPair, PayForGasOption,
                  SignedEthTx, TransactionWrapper, UnSignedEthTxBuilder};
@@ -304,22 +304,26 @@ where
                 let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
                 let wc = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
                 let chain_id = coin.chain_id;
-
-                let tx_json = {
-                    let gas_price = pay_for_gas_option.get_gas_price();
-                    let (nonce, _) = coin
-                        .clone()
-                        .get_addr_nonce(my_address)
-                        .compat()
-                        .timeout_secs(30.)
-                        .await?
-                        .map_to_mm(WithdrawError::Transport)?;
-
-                    wc_prepare_eth_tx_data(gas, nonce, &data, my_address, to_addr, eth_value, gas_price)
-                        .mm_err(WithdrawError::InternalError)?
+                let gas_price = pay_for_gas_option.get_gas_price();
+                let (nonce, _) = coin
+                    .clone()
+                    .get_addr_nonce(my_address)
+                    .compat()
+                    .timeout_secs(30.)
+                    .await?
+                    .map_to_mm(WithdrawError::Transport)?;
+                let params = WcEthTxParams {
+                    chain_id,
+                    gas,
+                    nonce,
+                    data: &data,
+                    my_address,
+                    to_addr,
+                    value: eth_value,
+                    gas_price,
                 };
 
-                wc_sign_eth_transaction(&wc, chain_id, tx_json)
+                wc_sign_eth_transaction(&wc, params)
                     .await
                     .mm_err(|err| WithdrawError::SigningError(err.to_string()))?
             },

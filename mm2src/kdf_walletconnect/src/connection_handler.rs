@@ -87,7 +87,7 @@ pub(crate) async fn initial_connection(this: &WalletConnectCtx) {
 }
 
 pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
-    let mut recv = this.connection_live_handler.lock().await;
+    let mut recv = this.connection_live_rx.lock().await;
 
     while let Some(_msg) = recv.next().await {
         info!("Connection disconnected. Attempting to reconnect...");

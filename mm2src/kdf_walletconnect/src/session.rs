@@ -8,7 +8,6 @@ use chrono::Utc;
 use common::log::debug;
 use dashmap::mapref::one::{Ref, RefMut};
 use dashmap::DashMap;
-use futures::lock::Mutex;
 use key::SessionKey;
 use mm2_err_handle::prelude::{MapMmError, MmError, MmResult};
 use relay_rpc::domain::Topic;
@@ -22,6 +21,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub(crate) const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
@@ -178,7 +178,7 @@ impl Session {
 #[derive(Default, Debug)]
 struct SessionManagerImpl {
     /// The currently active session topic.
-    active_topic: Mutex<Option<Topic>>,
+    active_topic: RwLock<Option<Topic>>,
     /// A thread-safe map of sessions indexed by topic.
     sessions: DashMap<Topic, Session>,
 }
@@ -211,7 +211,7 @@ impl SessionManager {
     /// If a session with the same topic already exists, it will be overwritten.
     pub(crate) async fn add_session(&self, session: Session) {
         // set active session topic.
-        *self.0.active_topic.lock().await = Some(session.topic.clone());
+        *self.0.active_topic.write().await = Some(session.topic.clone());
 
         // insert session
         self.0.sessions.insert(session.topic.clone(), session);
@@ -221,7 +221,7 @@ impl SessionManager {
     /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
         debug!("Deleting session with topic: {topic}");
-        let mut active_topic = self.0.active_topic.lock().await;
+        let mut active_topic = self.0.active_topic.write().await;
 
         // Remove the session and get the removed session (if any)
         let removed_session = self.0.sessions.remove(topic).map(|(_, session)| session);
@@ -243,7 +243,7 @@ impl SessionManager {
 
     /// Retrieves a cloned session associated with a given topic.
     pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
-        let mut active_topic = self.0.active_topic.lock().await;
+        let mut active_topic = self.0.active_topic.write().await;
         if let Some(this) = active_topic.as_mut() {
             if topic == this {
                 return Ok(());
@@ -261,7 +261,7 @@ impl SessionManager {
     pub async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
         self.0
             .active_topic
-            .lock()
+            .read()
             .await
             .clone()
             .ok_or(MmError::new(WalletConnectError::SessionError(
@@ -279,7 +279,7 @@ impl SessionManager {
 
     /// Returns an `Option<Session>` containing the active session if it exists; otherwise, returns `None`.
     pub async fn get_session_active(&self) -> Option<Ref<'_, Topic, Session>> {
-        let active_topic = self.0.active_topic.lock().await;
+        let active_topic = self.0.active_topic.read().await;
         if let Some(ref topic) = *active_topic {
             self.get_session(topic)
         } else {
