@@ -35,7 +35,7 @@ pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxos
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
                           Keypair as SiaKeypair, ParseHashError, Preimage, PreimageError, PrivateKeyError, PublicKey,
                           PublicKeyError, SatisfyAtomicSwapSuccessError, SiacoinElement, SiacoinOutput, SpendPolicy,
-                          V1Transaction, V2Transaction, V2TransactionBuilder};
+                          TransactionId, V1Transaction, V2Transaction, V2TransactionBuilder};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -1066,7 +1066,113 @@ impl SiaCoin {
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
+    async fn new_validate_fee(&self, args: ValidateFeeArgs<'_>) -> Result<(), ValidateFeeError> {
+        let args = SiaValidateFeeArgs::try_from(args).map_err(ValidateFeeError::ParseArgs)?;
+
+        let fee_tx = args.fee_tx.0.clone();
+        let fee_txid = fee_tx.txid();
+
+        let event = self
+            .client
+            .get_event(&fee_txid)
+            .await
+            .map_err(ValidateFeeError::FetchEvent)?;
+
+        // Begin validation logic
+
+        // check that tx confirmed at or after min_block_number
+        let confirmed_at_height = event.index.height;
+        if confirmed_at_height < args.min_block_number {
+            return Err(ValidateFeeError::MininumHeight {
+                event: event.clone(),
+                min_block_number: args.min_block_number,
+            });
+        }
+
+        // check that all inputs originate from taker address
+        // This mimicks the behavior of KDF's utxo_standard protocol for consistency.
+        // TODO Alright - Logically there seems no reason to enforce this? Why would maker care
+        // where the fee comes from?
+        if !fee_tx
+            .siacoin_inputs
+            .into_iter()
+            .all(|input| input.satisfied_policy.policy.address() == args.taker_public_key.address())
+        {
+            return Err(ValidateFeeError::InputsOrigin(fee_txid.clone()));
+        }
+
+        // check that fee_tx has exactly 1 output
+        match fee_tx.siacoin_outputs.len() {
+            1 => (),
+            outputs_length => {
+                return Err(ValidateFeeError::VoutLength {
+                    txid: fee_txid.clone(),
+                    outputs_length,
+                })
+            },
+        }
+
+        // check that output 0 pays the fee address
+        if fee_tx.siacoin_outputs[0].address != *FEE_ADDR {
+            return Err(ValidateFeeError::InvalidFeeAddress {
+                txid: fee_txid.clone(),
+                address: fee_tx.siacoin_outputs[0].address.clone(),
+            });
+        }
+
+        // check that output 0 is the correct amount, trade_fee_amount
+        if fee_tx.siacoin_outputs[0].value != args.dex_fee_amount {
+            return Err(ValidateFeeError::InvalidFeeAmount {
+                txid: fee_txid.clone(),
+                expected: args.dex_fee_amount,
+                actual: fee_tx.siacoin_outputs[0].value,
+            });
+        }
+
+        // check that arbitrary_data is the same as the uuid
+        let fee_tx_uuid = Uuid::from_slice(&fee_tx.arbitrary_data).map_err(ValidateFeeError::ParseUuid)?;
+        if fee_tx_uuid != args.uuid {
+            return Err(ValidateFeeError::InvalidUuid {
+                txid: fee_txid.clone(),
+                expected: args.uuid,
+                actual: fee_tx_uuid,
+            });
+        }
+
+        Ok(())
+    }
 }
+
+#[derive(Debug, Error)]
+pub enum ValidateFeeError {
+    #[error("sia validate_fee: failed to parse ValidateFeeArgs {0}")]
+    ParseArgs(#[from] SiaValidateFeeArgsError),
+    #[error("sia validate_fee: failed to fetch fee_tx event {0}")]
+    FetchEvent(#[from] SiaClientHelperError),
+    #[error("sia validate_fee: tx confirmed before min_block_number:{min_block_number} event:{event:?}")]
+    MininumHeight { event: Event, min_block_number: u64 },
+    #[error("sia validate_fee: all inputs do not originate from taker address txid:{0}")]
+    InputsOrigin(TransactionId),
+    #[error("sia validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1")]
+    VoutLength { txid: TransactionId, outputs_length: usize },
+    #[error("sia validate_fee: fee_tx:{txid} pays wrong address:{address}")]
+    InvalidFeeAddress { txid: TransactionId, address: Address },
+    #[error("sia validate_fee: fee_tx:{txid} pays wrong amount. expected:{expected} actual:{actual}")]
+    InvalidFeeAmount {
+        txid: TransactionId,
+        expected: Currency,
+        actual: Currency,
+    },
+    #[error("sia validate_fee: failed to parse uuid from arbitrary_bytes {0}")]
+    ParseUuid(#[from] uuid::Error),
+    #[error("sia validate_fee: fee_tx:{txid} wrong uuid. expected:{expected} actual:{actual}")]
+    InvalidUuid {
+        txid: TransactionId,
+        expected: Uuid,
+        actual: Uuid,
+    },
+}
+
 // TODO Alright - nearly identical to MakerSpendsTakerPaymentError, refactor
 #[derive(Debug, Error)]
 pub enum TakerSpendsMakerPaymentError {
@@ -1102,6 +1208,74 @@ pub enum MakerSpendsTakerPaymentError {
     UtxoFromTxid(#[from] SiaClientHelperError),
     #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
     SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
+}
+
+/// Sia equivalent of ValidateFeeArgs
+/// fee_addr from ValidateFeeArgs is not relevant to Sia because it is a secp256k1 public key
+/// Sia requires a ed25519 public key, so FEE_ADDR is used instead
+#[derive(Clone, Debug)]
+struct SiaValidateFeeArgs {
+    fee_tx: SiaTransaction,
+    taker_public_key: PublicKey,
+    dex_fee_amount: Currency,
+    min_block_number: u64,
+    uuid: Uuid,
+}
+
+#[derive(Debug, Error)]
+pub enum SiaValidateFeeArgsError {
+    #[error("SiaValidateFeeArgs: failed to parse uuid from bytes {0}")]
+    ParseUuid(#[from] uuid::Error),
+    #[error("SiaValidateFeeArgs: Unexpected Uuid version {0}")]
+    UuidVersion(usize),
+    #[error("SiaValidateFeeArgs: failed to fetch my_pubkey {0}")]
+    MyPubkey(#[from] FrameworkError),
+    #[error("SiaValidateFeeArgs: invalid taker pubkey {0}")]
+    InvalidTakerPublicKey(#[from] PublicKeyError),
+    #[error("SiaValidateFeeArgs: failed to convert trade_fee_amount to Currency {0}")]
+    SiacoinToHastings(#[from] CoinToHastingsError),
+    #[error("SiaValidateFeeArgs: unexpected DexFee variant {0:?}")]
+    DexFeeVariant(DexFee),
+    #[error("SiaValidateFeeArgs: unexpected TransactionEnum variant {0:?}")]
+    TxEnumVariant(TransactionEnum),
+}
+
+impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
+    type Error = SiaValidateFeeArgsError;
+
+    fn try_from(args: ValidateFeeArgs<'_>) -> Result<Self, Self::Error> {
+        // Extract the fee tx from TransactionEnum
+        let fee_tx = match args.fee_tx {
+            TransactionEnum::SiaTransaction(tx) => tx.clone(),
+            wrong_variant => return Err(SiaValidateFeeArgsError::TxEnumVariant(wrong_variant.clone())),
+        };
+
+        let expected_sender_public_key =
+            PublicKey::from_bytes(args.expected_sender).map_err(SiaValidateFeeArgsError::InvalidTakerPublicKey)?;
+
+        // Convert the DexFee to a Currency amount
+        let dex_fee_amount = match args.dex_fee {
+            DexFee::Standard(mm_num) => siacoin_to_hastings(BigDecimal::from(mm_num.clone()))
+                .map_err(SiaValidateFeeArgsError::SiacoinToHastings)?,
+            wrong_variant => return Err(SiaValidateFeeArgsError::DexFeeVariant(wrong_variant.clone())),
+        };
+
+        // Check the Uuid provided is valid v4
+        let uuid = Uuid::from_slice(args.uuid).map_err(SiaValidateFeeArgsError::ParseUuid)?;
+
+        match uuid.get_version_num() {
+            4 => (),
+            version => return Err(SiaValidateFeeArgsError::UuidVersion(version)),
+        }
+
+        Ok(SiaValidateFeeArgs {
+            fee_tx,
+            taker_public_key: expected_sender_public_key,
+            dex_fee_amount,
+            min_block_number: args.min_block_number,
+            uuid,
+        })
+    }
 }
 
 #[async_trait]
@@ -1161,8 +1335,10 @@ impl SwapOps for SiaCoin {
         unimplemented!()
     }
 
-    async fn validate_fee(&self, _validate_fee_args: ValidateFeeArgs<'_>) -> ValidatePaymentResult<()> {
-        unimplemented!()
+    async fn validate_fee(&self, validate_fee_args: ValidateFeeArgs<'_>) -> ValidatePaymentResult<()> {
+        self.new_validate_fee(validate_fee_args)
+            .await
+            .map_err(|e| MmError::new(ValidatePaymentError::InternalError(e.to_string())))
     }
 
     async fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
