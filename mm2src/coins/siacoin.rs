@@ -780,31 +780,31 @@ impl MarketCoinOps for SiaCoin {
 
 #[derive(Debug, Error)]
 pub enum SendTakerFeeError {
-    #[error("sia send_taker_fee: failed to parse uuid from bytes {}", _0)]
+    #[error("sia send_taker_fee: failed to parse uuid from bytes {0}")]
     ParseUuid(#[from] uuid::Error),
-    #[error("sia send_taker_fee: Unexpected Uuid version {}", _0)]
+    #[error("sia send_taker_fee: Unexpected Uuid version {0}")]
     UuidVersion(usize),
-    #[error("sia send_taker_fee: failed to convert trade_fee_amount to Currency")]
+    #[error("sia send_taker_fee: failed to convert trade_fee_amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
     #[error("sia send_taker_fee: unexpected DexFee variant: {0}")]
     DexFeeVariant(String),
-    #[error("sia send_taker_fee: failed to fetch my_pubkey {}", _0)]
+    #[error("sia send_taker_fee: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_fee: failed to fund transaction {}", _0)]
+    #[error("sia send_taker_fee: failed to fund transaction {0}")]
     FundTx(#[from] ApiClientHelpersError),
 }
 
 #[derive(Debug, Error)]
 pub enum SendMakerPaymentError {
-    #[error("sia send_maker_payment: invalid taker pubkey {}", _0)]
+    #[error("sia send_maker_payment: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_maker_payment: failed to fetch my_pubkey {}", _0)]
+    #[error("sia send_maker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_maker_payment: failed to convert trade amount to Currency")]
+    #[error("sia send_maker_payment: failed to convert trade amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_maker_payment: failed to fund transaction {}", _0)]
+    #[error("sia send_maker_payment: failed to fund transaction {0}")]
     FundTx(#[from] ApiClientHelpersError),
-    #[error("sia send_maker_payment: failed to parse secret_hash {}", _0)]
+    #[error("sia send_maker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
 }
 
