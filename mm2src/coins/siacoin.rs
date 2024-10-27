@@ -822,7 +822,7 @@ pub enum SendTakerPaymentError {
     SecretHashLength(#[from] ParseHashError),
 }
 
-// contains futures-0.3.x implementations of the SwapOps trait and various helpers
+// contains various helpers to account for subpar error handling trait method signatures
 impl SiaCoin {
     fn my_keypair(&self) -> Result<&SiaKeypair, FrameworkError> {
         match &*self.priv_key_policy {
@@ -830,10 +830,15 @@ impl SiaCoin {
             _ => Err(FrameworkError::UnsupportedPrivKeyPolicy),
         }
     }
+}
 
+// contains imeplementations of the SwapOps trait methods with proper error handling
+// Some of these methods are extremely verbose and can obviously be refactored to be more consise.
+// However, the SwapOps trait is expected to be refactored to use associated types for types such as
+// Address, PublicKey, Currency and Error types.
+// TODO Alright : refactor error types of SwapOps methods to use associated types
+impl SiaCoin {
     /// Create a new transaction to send the taker fee to the fee address
-    // this was abtracted away from the SwapOps trait method to provide cleaner error handling
-    // TODO Alright : refactor error types of SwapOps methods to use associated types
     async fn new_send_taker_fee(
         &self,
         _fee_addr: &[u8],
@@ -862,7 +867,7 @@ impl SiaCoin {
         let mut tx_builder = V2TransactionBuilder::new();
 
         // FIXME Alright: Calculate the miner fee amount
-        tx_builder.miner_fee(2000000u128.into());
+        tx_builder.miner_fee(Currency::DEFAULT_FEE);
 
         // Add the trade fee output
         tx_builder.add_siacoin_output((FEE_ADDR.clone(), trade_fee_amount).into());
@@ -905,7 +910,7 @@ impl SiaCoin {
         let mut tx_builder = V2TransactionBuilder::new();
 
         // FIXME Alright: Calculate the miner fee amount
-        tx_builder.miner_fee(2000000u128.into());
+        tx_builder.miner_fee(Currency::DEFAULT_FEE);
 
         // Add the HTLC output
         tx_builder.add_siacoin_output((htlc_spend_policy.address(), trade_amount).into());
@@ -944,11 +949,9 @@ impl SiaCoin {
         // Create a new transaction builder
         let mut tx_builder = V2TransactionBuilder::new();
 
-        // FIXME Alright: Calculate the miner fee amount
-        tx_builder.miner_fee(2000000u128.into());
-
-        // Add the HTLC output
-        tx_builder.add_siacoin_output((htlc_spend_policy.address(), trade_amount).into());
+        tx_builder
+            .miner_fee(Currency::DEFAULT_FEE) // Set the miner fee amount
+            .add_siacoin_output((htlc_spend_policy.address(), trade_amount).into()); // Add the HTLC output
 
         // Fund the transaction
         self.client
