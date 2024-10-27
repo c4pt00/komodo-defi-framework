@@ -786,8 +786,8 @@ pub enum SendTakerFeeError {
     UuidVersion(usize),
     #[error("sia send_taker_fee: failed to convert trade_fee_amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_taker_fee: unexpected DexFee variant: {0}")]
-    DexFeeVariant(String),
+    #[error("sia send_taker_fee: unexpected DexFee variant: {0:?}")]
+    DexFeeVariant(DexFee),
     #[error("sia send_taker_fee: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
     #[error("sia send_taker_fee: failed to fund transaction {0}")]
@@ -859,7 +859,7 @@ impl SiaCoin {
             DexFee::Standard(mm_num) => {
                 siacoin_to_hastings(BigDecimal::from(mm_num)).map_err(SendTakerFeeError::SiacoinToHastings)?
             },
-            wrong_variant => return Err(SendTakerFeeError::DexFeeVariant(format!("{:?}", wrong_variant))),
+            wrong_variant => return Err(SendTakerFeeError::DexFeeVariant(wrong_variant)),
         };
 
         let my_keypair = self.my_keypair().map_err(SendTakerFeeError::MyPubkey)?;
