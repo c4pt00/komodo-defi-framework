@@ -1,13 +1,14 @@
+use coins::siacoin::sia_rust::transport::client::native::{Conf, NativeClient};
+use coins::siacoin::sia_rust::transport::client::{ApiClient, ApiClientError, ApiClientHelpers};
+use coins::siacoin::sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, DebugMineRequest,
+                                                     GetAddressUtxosRequest, TxpoolBroadcastRequest};
+use coins::siacoin::sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SiacoinOutputId, SpendPolicy,
+                                      V2TransactionBuilder};
 use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
 use coins::{MarketCoinOps, PrivKeyBuildPolicy};
 use common::block_on;
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
 use mm2_main::lp_wallet::initialize_wallet_passphrase;
-use sia_rust::transport::client::native::{Conf, NativeClient};
-use sia_rust::transport::client::{ApiClient, ApiClientError, ApiClientHelpers};
-use sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, DebugMineRequest,
-                                     GetAddressUtxosRequest, TxpoolBroadcastRequest};
-use sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SpendPolicy, V2TransactionBuilder};
 use std::process::Command;
 use std::str::FromStr;
 use url::Url;
@@ -79,8 +80,8 @@ fn test_sia_swap_ops_send_taker_fee_wip() {
     let address = Address::from_str(&coin.my_address().unwrap()).unwrap();
     mine_blocks(&coin.client, 201, &address).unwrap();
 
-    let uuid = Uuid::new_v4();
-    let dex_fee = DexFee::Standard(MmNumber::from("0.0001"));
+    let _uuid = Uuid::new_v4();
+    let _dex_fee = DexFee::Standard(MmNumber::from("0.0001"));
 
     assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
 }
@@ -184,7 +185,7 @@ fn test_sia_build_tx() {
     tx_builder.miner_fee(2000000u128.into());
 
     // send 1 SC to self
-    tx_builder.add_siacoin_output((address.clone(), Currency::COIN).into());
+    tx_builder.add_siacoin_output((address, Currency::COIN).into());
 
     // Fund the transaction
     block_on(api_client.fund_tx_single_source(&mut tx_builder, &keypair.public())).unwrap();
@@ -196,4 +197,49 @@ fn test_sia_build_tx() {
         v2transactions: vec![tx],
     };
     let _response = block_on(api_client.dispatcher(req)).unwrap();
+}
+
+#[test]
+fn test_sia_fetch_utxos() {
+    let conf = Conf {
+        server_url: Url::parse("http://localhost:9980/").unwrap(),
+        password: Some("password".to_string()),
+        timeout: Some(10),
+    };
+    let api_client = block_on(NativeClient::new(conf)).unwrap();
+    let keypair = Keypair::from_private_bytes(
+        &hex::decode("0100000000000000000000000000000000000000000000000000000000000000").unwrap(),
+    )
+    .unwrap();
+
+    let address = Address::from_public_key(&keypair.public());
+
+    mine_blocks(&api_client, 201, &address).unwrap();
+
+    // Create a new transaction builder
+    let mut tx_builder = V2TransactionBuilder::new();
+
+    // FIXME Alright: Calculate the miner fee amount
+    tx_builder.miner_fee(2000000u128.into());
+
+    // send 1 SC to self
+    tx_builder.add_siacoin_output((address.clone(), Currency::COIN).into());
+
+    // Fund the transaction
+    block_on(api_client.fund_tx_single_source(&mut tx_builder, &keypair.public())).unwrap();
+
+    // Sign inputs and finalize the transaction
+    let tx = tx_builder.sign_simple(vec![&keypair]).build();
+    let txid = tx.txid();
+    let req = TxpoolBroadcastRequest {
+        transactions: vec![],
+        v2transactions: vec![tx],
+    };
+    let _response = block_on(api_client.dispatcher(req)).unwrap();
+    //mine_blocks(&api_client, 2, &address).unwrap();
+
+    println!("txid: {}", txid);
+    println!("address: {}", address);
+    println!("SiacoinOutputId: {}", SiacoinOutputId::new(txid, 0));
+    panic!();
 }

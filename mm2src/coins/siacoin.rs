@@ -28,6 +28,8 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
+// expose all of sia-rust so mm2_main can use it via coins::siacoin::sia_rust
+pub use sia_rust;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
                                       ApiClientHelpers, HelperError as SiaClientHelperError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
