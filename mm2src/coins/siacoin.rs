@@ -966,6 +966,8 @@ impl SiaCoin {
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
+    // TODO Alright - this is logically the same as new_send_taker_spends_maker_payment except
+    // maker_public_key, taker_public being swapped. Refactor to reduce code duplication
     async fn new_send_maker_spends_taker_payment(
         &self,
         args: SpendPaymentArgs<'_>,
