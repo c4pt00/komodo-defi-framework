@@ -106,14 +106,14 @@ impl<'a> SiaWithdrawBuilder<'a> {
 
         // Add output for recipient
         tx_builder.add_siacoin_output(SiacoinOutput {
-            value: tx_amount_hastings.into(),
+            value: tx_amount_hastings,
             address: to.clone(),
         });
 
         // Add change output if necessary
         if change_amount > Currency::ZERO {
             tx_builder.add_siacoin_output(SiacoinOutput {
-                value: change_amount.into(),
+                value: change_amount,
                 address: self.from_address.clone(),
             });
         }
@@ -124,8 +124,8 @@ impl<'a> SiaWithdrawBuilder<'a> {
         // Sign the transaction
         let signed_tx = tx_builder.sign_simple(vec![self.key_pair]).build();
 
-        let spent_by_me = hastings_to_siacoin(input_sum.into());
-        let received_by_me = hastings_to_siacoin(change_amount.into());
+        let spent_by_me = hastings_to_siacoin(input_sum);
+        let received_by_me = hastings_to_siacoin(change_amount);
 
         Ok(TransactionDetails {
             tx: TransactionData::Sia {

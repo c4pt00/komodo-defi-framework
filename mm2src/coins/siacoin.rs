@@ -210,7 +210,7 @@ fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<Currency, CoinToHastingsEr
         .ok_or(CoinToHastingsError::BigDecimalToBigInt(siacoin.clone()))?
         .to_u128()
         .ok_or(CoinToHastingsError::BigIntToU128(siacoin))
-        .map(|int| Currency(int))
+        .map(Currency)
 }
 
 #[derive(Debug, Error)]
@@ -713,11 +713,8 @@ impl MarketCoinOps for SiaCoin {
     }
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
-        let tx: SiaTransaction = try_fus!(serde_json::from_slice(&input.payment_tx).map_err(|e| format!(
-            "siacoin wait_for_confirmations payment_tx deser failed: {}",
-            e
-        )
-        .to_string()));
+        let tx: SiaTransaction = try_fus!(serde_json::from_slice(&input.payment_tx)
+            .map_err(|e| format!("siacoin wait_for_confirmations payment_tx deser failed: {}", e)));
         let txid = tx.txid();
         let client = self.client.clone();
         let tx_request = GetEventRequest { txid: txid.clone() };
@@ -1007,13 +1004,13 @@ impl SiaCoin {
         // Create a new transaction builder
         let tx = V2TransactionBuilder::new()
             // Set the miner fee amount
-            .miner_fee(miner_fee.clone())
+            .miner_fee(miner_fee)
             // Add output of maker spending to self
             .add_siacoin_output((maker_public_key.address(), htlc_utxo_amount - miner_fee).into())
             // Add input spending the HTLC output
             .add_siacoin_input(htlc_utxo, input_spend_policy)
             // Satisfy the HTLC by providing a signature and the secret
-            .satisfy_atomic_swap_success(&my_keypair, secret, 0u32)
+            .satisfy_atomic_swap_success(my_keypair, secret, 0u32)
             .map_err(MakerSpendsTakerPaymentError::SatisfyHtlc)?
             .build();
 
@@ -1055,13 +1052,13 @@ impl SiaCoin {
         // Create a new transaction builder
         let tx = V2TransactionBuilder::new()
             // Set the miner fee amount
-            .miner_fee(miner_fee.clone())
+            .miner_fee(miner_fee)
             // Add output of taker spending to self
             .add_siacoin_output((taker_public_key.address(), htlc_utxo_amount - miner_fee).into())
             // Add input spending the HTLC output
             .add_siacoin_input(htlc_utxo, input_spend_policy)
             // Satisfy the HTLC by providing a signature and the secret
-            .satisfy_atomic_swap_success(&my_keypair, secret, 0u32)
+            .satisfy_atomic_swap_success(my_keypair, secret, 0u32)
             .map_err(TakerSpendsMakerPaymentError::SatisfyHtlc)?
             .build();
 
@@ -1086,7 +1083,7 @@ impl SiaCoin {
         let confirmed_at_height = event.index.height;
         if confirmed_at_height < args.min_block_number {
             return Err(ValidateFeeError::MininumHeight {
-                event: event.clone(),
+                event,
                 min_block_number: args.min_block_number,
             });
         }
@@ -1469,7 +1466,7 @@ impl TryFrom<SiaTransaction> for Vec<u8> {
     type Error = SiaTransactionError;
 
     fn try_from(tx: SiaTransaction) -> Result<Self, Self::Error> {
-        serde_json::ser::to_vec(&tx).map_err(|e| SiaTransactionError::ToVec(e))
+        serde_json::ser::to_vec(&tx).map_err(SiaTransactionError::ToVec)
     }
 }
 
@@ -1477,7 +1474,7 @@ impl TryFrom<Vec<u8>> for SiaTransaction {
     type Error = SiaTransactionError;
 
     fn try_from(tx: Vec<u8>) -> Result<Self, Self::Error> {
-        serde_json::de::from_slice(&tx).map_err(|e| SiaTransactionError::FromVec(e))
+        serde_json::de::from_slice(&tx).map_err(SiaTransactionError::FromVec)
     }
 }
 
@@ -1856,14 +1853,14 @@ mod tests {
     fn test_siacoin_to_hastings_coin() {
         let coin = BigDecimal::from(1);
         let hastings = siacoin_to_hastings(coin).unwrap();
-        assert_eq!(hastings, Currency::COIN.into());
+        assert_eq!(hastings, Currency::COIN);
     }
 
     #[test]
     fn test_siacoin_to_hastings_zero() {
         let coin = BigDecimal::from(0);
         let hastings = siacoin_to_hastings(coin).unwrap();
-        assert_eq!(hastings, Currency::ZERO.into());
+        assert_eq!(hastings, Currency::ZERO);
     }
 
     #[test]
@@ -1871,7 +1868,7 @@ mod tests {
         let coin = serde_json::from_str::<BigDecimal>("0.000000000000000000000001").unwrap();
         println!("coin {:?}", coin);
         let hastings = siacoin_to_hastings(coin).unwrap();
-        assert_eq!(hastings, Currency(1).into());
+        assert_eq!(hastings, Currency(1));
     }
 }
 
