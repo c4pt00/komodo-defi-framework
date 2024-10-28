@@ -1,3 +1,5 @@
+use self::wallet_connect::{EthWalletConnectError, WcEthTxParams};
+
 /******************************************************************************
  * Copyright © 2023 Pampex LTD and TillyHK LTD                                *
  *                                                                            *
@@ -26,6 +28,7 @@ use super::*;
 use crate::coin_balance::{EnableCoinBalanceError, EnabledCoinBalanceParams, HDAccountBalance, HDAddressBalance,
                           HDWalletBalance, HDWalletBalanceOps};
 use crate::eth::eth_rpc::ETH_RPC_REQUEST_TIMEOUT;
+use crate::eth::wallet_connect::wc_sign_eth_transaction;
 use crate::eth::web3_transport::websocket_transport::{WebsocketTransport, WebsocketTransportNode};
 use crate::hd_wallet::{HDAccountOps, HDCoinAddress, HDCoinWithdrawOps, HDConfirmAddress, HDPathAccountToAddressId,
                        HDWalletCoinOps, HDXPubExtractor};
@@ -76,8 +79,9 @@ use futures::future::{join, join_all, select_ok, try_join_all, Either, FutureExt
 use futures01::Future;
 use http::Uri;
 use instant::Instant;
+use kdf_walletconnect::chain::WcChainId;
 use kdf_walletconnect::error::WalletConnectError;
-use kdf_walletconnect::{WalletConnectCtx, WcRequestOps};
+use kdf_walletconnect::{WalletConnectCtx, WalletConnectOps};
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_event_stream::behaviour::{EventBehaviour, EventInitStatus};
 use mm2_number::bigdecimal_custom::CheckedDivision;
@@ -7236,15 +7240,18 @@ impl EthCoin {
 }
 
 #[async_trait::async_trait]
-impl WcRequestOps for EthCoin {
-    type Error = WalletConnectError;
-    type SignTxData = String;
-    async fn wc_request_sign_tx(
+impl WalletConnectOps for EthCoin {
+    type Error = MmError<EthWalletConnectError>;
+    type SignTxData = (H256, BytesJson);
+    type Params<'a> = WcEthTxParams<'a>;
+
+    fn wc_chain_id(&self) -> WcChainId { WcChainId::new_eip155(self.chain_id.to_string()) }
+
+    async fn wc_request_sign_tx<'a>(
         &self,
-        _ctx: &WalletConnectCtx,
-        _chain_id: &str,
-        _tx_json: serde_json::Value,
+        ctx: &WalletConnectCtx,
+        params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
-        todo!()
+        wc_sign_eth_transaction(ctx, &self.wc_chain_id(), params).await
     }
 }

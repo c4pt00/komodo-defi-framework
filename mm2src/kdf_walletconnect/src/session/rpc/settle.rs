@@ -45,7 +45,7 @@ pub(crate) async fn reply_session_settle_request(
         if let Some(mut session) = session {
             session.namespaces = settle.namespaces.0.clone();
             session.controller = settle.controller.clone();
-            session.relay = settle.relay.clone();
+            session.relay = settle.relay;
             session.expiry = settle.expiry;
 
             if let Some(value) = settle.session_properties {

@@ -1,5 +1,5 @@
 use super::settle::send_session_settle_request;
-use crate::chain::build_default_required_namespaces;
+use crate::chain::{build_default_required_namespaces, build_optional_namespaces};
 use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError,
             metadata::generate_metadata,
@@ -23,6 +23,7 @@ pub(crate) async fn send_proposal_request(ctx: &WalletConnectCtx, topic: Topic) 
         relays: vec![ctx.relay.clone()],
         proposer,
         required_namespaces: build_default_required_namespaces(),
+        optional_namespaces: Some(build_optional_namespaces()),
     });
     ctx.publish_request(&topic, session_proposal).await?;
 

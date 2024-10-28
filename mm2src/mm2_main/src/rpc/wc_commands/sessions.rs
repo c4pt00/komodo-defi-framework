@@ -24,12 +24,7 @@ pub async fn get_all_sessions(
 ) -> MmResult<GetSessionsResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    let sessions = ctx
-        .session
-        .get_sessions()
-        .into_iter()
-        .map(SessionRpcInfo::from)
-        .collect::<Vec<_>>();
+    let sessions = ctx.session.get_sessions().map(SessionRpcInfo::from).collect::<Vec<_>>();
 
     Ok(GetSessionsResponse { sessions })
 }

@@ -64,8 +64,9 @@ use futures01::Future;
 use hex::FromHexError;
 use instant::Duration;
 use itertools::Itertools;
+use kdf_walletconnect::chain::WcChainId;
 use kdf_walletconnect::error::WalletConnectError;
-use kdf_walletconnect::{WalletConnectCtx, WcRequestOps};
+use kdf_walletconnect::{WalletConnectCtx, WalletConnectOps};
 use keys::{KeyPair, Public};
 use mm2_core::mm_ctx::{MmArc, MmWeak};
 use mm2_err_handle::prelude::*;
@@ -887,7 +888,7 @@ impl TendermintCoin {
         let ctx = try_tx_s!(MmArc::from_weak(&self.ctx).ok_or(ERRL!("ctx must be initialized already")));
         let wc = try_tx_s!(WalletConnectCtx::from_ctx(&ctx).map_err(|e| ERRL!("{}", e)));
 
-        let response = try_tx_s!(self.wc_request_sign_tx(&wc, self.chain_id.as_ref(), tx_json).await);
+        let response = try_tx_s!(self.wc_request_sign_tx(&wc, tx_json).await);
         let signature = try_tx_s!(general_purpose::STANDARD
             .decode(response.signature.signature)
             .map_err(|e| ERRL!("{}", e)));
@@ -1296,9 +1297,7 @@ impl TendermintCoin {
             let SerializedUnsignedTx { tx_json, body_bytes: _ } =
                 self.any_to_serialized_sign_doc(account_info, message, fee, timeout_height, memo)?;
 
-            let response = self
-                .wc_request_sign_tx(&wallet_connect, self.chain_id.as_ref(), tx_json)
-                .await?;
+            let response = self.wc_request_sign_tx(&wallet_connect, tx_json).await?;
             let signature = general_purpose::STANDARD.decode(response.signature.signature)?;
             let body_bytes = response.signed.body_bytes;
             let auth_info_bytes = response.signed.auth_info_bytes;
@@ -3477,17 +3476,19 @@ fn parse_expected_sequence_number(e: &str) -> MmResult<u64, TendermintCoinRpcErr
 }
 
 #[async_trait::async_trait]
-impl WcRequestOps for TendermintCoin {
+impl WalletConnectOps for TendermintCoin {
     type Error = MmError<WalletConnectError>;
+    type Params<'a> = serde_json::Value;
     type SignTxData = CosmosTxSignedData;
 
-    async fn wc_request_sign_tx(
+    fn wc_chain_id(&self) -> WcChainId { WcChainId::new_cosmos(self.chain_id.to_string()) }
+
+    async fn wc_request_sign_tx<'a>(
         &self,
         ctx: &WalletConnectCtx,
-        chain_id: &str,
-        tx_json: serde_json::Value,
+        params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
-        cosmos_request_wc_signed_tx(ctx, tx_json, chain_id, self.is_ledger_connection()).await
+        cosmos_request_wc_signed_tx(ctx, params, &self.wc_chain_id(), self.is_ledger_connection()).await
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::{error::WalletConnectError,
             pairing::{reply_pairing_delete_response, reply_pairing_extend_response, reply_pairing_ping_response},
             session::rpc::{delete::reply_session_delete_request,
-                           event::reply_session_event_request,
+                           event::handle_session_event,
                            extend::reply_session_extend_request,
                            ping::reply_session_ping_request,
                            propose::{process_session_propose_response, reply_session_proposal_request},
@@ -36,7 +36,7 @@ pub(crate) async fn process_inbound_request(
         Params::SessionPing(()) => reply_session_ping_request(ctx, topic, &message_id).await?,
         Params::SessionSettle(param) => reply_session_settle_request(ctx, topic, &message_id, param).await?,
         Params::SessionUpdate(param) => reply_session_update_request(ctx, topic, &message_id, param).await?,
-        Params::SessionEvent(param) => reply_session_event_request(ctx, topic, &message_id, param).await?,
+        Params::SessionEvent(param) => handle_session_event(ctx, topic, &message_id, param).await?,
         Params::SessionRequest(_param) => {
             // TODO: Implement when integrating KDF as a Dapp.
             return MmError::err(WalletConnectError::NotImplemented);

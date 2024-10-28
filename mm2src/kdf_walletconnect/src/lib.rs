@@ -9,7 +9,7 @@ mod storage;
 
 use crate::session::rpc::propose::send_proposal_request;
 
-use chain::{WcChain, DEFAULT_CHAIN_ID, SUPPORTED_PROTOCOL};
+use chain::{WcChainId, SUPPORTED_PROTOCOL};
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
@@ -27,12 +27,13 @@ use relay_client::{ConnectionOptions, MessageIdGenerator};
 use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::params::session::Namespace;
+use relay_rpc::rpc::params::session_event::{Event, SessionEventRequest};
 use relay_rpc::rpc::params::{IrnMetadata, Metadata, Relay, RelayProtocolMetadata, RequestParams, ResponseParamsError,
                              ResponseParamsSuccess};
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 use session::{key::SymKeyPair, SessionManager};
+use std::collections::BTreeSet;
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
@@ -43,7 +44,6 @@ pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
     pub session: SessionManager,
-    pub active_chain_id: Arc<Mutex<String>>,
 
     pub(crate) key_pair: SymKeyPair,
     pub(crate) storage: SessionStorageDb,
@@ -77,7 +77,6 @@ impl WalletConnectCtx {
             client,
             pairing,
             session: SessionManager::new(),
-            active_chain_id: Arc::new(DEFAULT_CHAIN_ID.to_owned().into()),
             relay,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
@@ -296,28 +295,61 @@ impl WalletConnectCtx {
     }
 
     /// Checks if a given chain ID is supported.
-    pub async fn is_chain_supported(&self, chain: WcChain, chain_id: &str) -> bool {
+    pub async fn is_chain_supported(&self, chain_id: &WcChainId) -> bool {
         if let Some(session) = self.session.get_session_active().await {
-            if let Some(ns) = session.namespaces.get(chain.as_ref()) {
+            if let Some(ns) = session.namespaces.get(chain_id.chain.as_ref()) {
                 if let Some(chains) = &ns.chains {
-                    return chains.contains(&chain.to_chain_id(chain_id));
+                    return chains.contains(&chain_id.to_string());
                 }
             }
+
+            // https://specs.walletconnect.com/2.0/specs/clients/sign/namespaces
+            // #13-chains-might-be-omitted-if-the-caip-2-is-defined-in-the-index
+            if session.namespaces.contains_key(&chain_id.to_string()) {
+                return true;
+            }
         }
+
         false
     }
 
-    /// Sets the active chain ID for the current session.
-    pub async fn set_active_chain(&self, chain_id: &str) {
-        let mut active_chain = self.active_chain_id.lock().await;
-        *active_chain = chain_id.to_owned();
+    pub async fn validate_or_update_active_chain_id(&self, chain_id: &WcChainId) -> MmResult<(), WalletConnectError> {
+        if !self.is_chain_supported(chain_id).await {
+            return MmError::err(WalletConnectError::InvalidChainId(chain_id.to_string()));
+        };
+
+        {
+            if let Some(active_chain_id) = self.session.get_active_chain_id().await {
+                if chain_id.to_string() == active_chain_id {
+                    return Ok(());
+                }
+            };
+
+            let event = SessionEventRequest {
+                event: Event {
+                    name: "chainChanged".to_string(),
+                    data: serde_json::to_value(&chain_id.id)?,
+                },
+                chain_id: chain_id.to_string(),
+            };
+            let param = RequestParams::SessionEvent(event);
+
+            let active_topic = self.session.get_active_topic_or_err().await?;
+            self.publish_request(&active_topic, param).await?;
+        }
+
+        self.session.set_active_chain_id(chain_id.id.clone()).await;
+
+        Ok(())
     }
 
-    /// Retrieves the current active chain ID.
-    pub async fn get_active_chain_id(&self) -> String { self.active_chain_id.lock().await.clone() }
-
+    /// TODO: accept WcChainId
     /// Retrieves the available account for a given chain ID.
-    pub async fn get_account_for_chain_id(&self, chain_id: &str) -> MmResult<String, WalletConnectError> {
+    pub async fn get_account_for_chain_id(
+        &self,
+        chain_id: &WcChainId,
+        account_index: usize,
+    ) -> MmResult<String, WalletConnectError> {
         let namespaces = &self
             .session
             .get_session_active()
@@ -326,10 +358,18 @@ impl WalletConnectCtx {
                 "No active WalletConnect session found".to_string(),
             )))?
             .namespaces;
-        namespaces
-            .iter()
-            .find_map(|(_key, namespace)| find_account_in_namespace(namespace, chain_id))
-            .ok_or(MmError::new(WalletConnectError::NoAccountFound(chain_id.to_string())))
+
+        if let Some(Namespace {
+            accounts: Some(accounts),
+            ..
+        }) = namespaces.get(chain_id.chain.as_ref())
+        {
+            if let Some(account) = find_accounts_in_namespace(accounts, &chain_id.id).nth(account_index) {
+                return Ok(account);
+            }
+        };
+
+        MmError::err(WalletConnectError::NoAccountFound(chain_id.to_string()))
     }
 
     /// Waits for and handles a WalletConnect session response with arbitrary data.
@@ -357,15 +397,17 @@ impl WalletConnectCtx {
 }
 
 #[async_trait::async_trait]
-pub trait WcRequestOps {
+pub trait WalletConnectOps {
     type Error;
+    type Params<'a>;
     type SignTxData;
 
-    async fn wc_request_sign_tx(
+    fn wc_chain_id(&self) -> WcChainId;
+
+    async fn wc_request_sign_tx<'a>(
         &self,
         ctx: &WalletConnectCtx,
-        chain_id: &str,
-        tx_json: Value,
+        params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error>;
 }
 
@@ -405,10 +447,11 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
     Ok(())
 }
 
-fn find_account_in_namespace(namespace: &Namespace, chain_id: &str) -> Option<String> {
-    let accounts = namespace.accounts.as_ref()?;
-
-    accounts.iter().find_map(|account_name| {
+fn find_accounts_in_namespace<'a>(
+    accounts: &'a BTreeSet<String>,
+    chain_id: &'a str,
+) -> impl Iterator<Item = String> + 'a {
+    accounts.iter().filter_map(move |account_name| {
         let parts: Vec<&str> = account_name.split(':').collect();
         if parts.len() >= 3 && parts[1] == chain_id {
             Some(parts[2].to_string())

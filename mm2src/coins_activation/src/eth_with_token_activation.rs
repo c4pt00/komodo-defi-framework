@@ -476,10 +476,10 @@ async fn eth_priv_key_build_policy(
             Ok(EthPrivKeyBuildPolicy::Metamask(metamask_ctx))
         },
         EthPrivKeyActivationPolicy::Trezor => Ok(EthPrivKeyBuildPolicy::Trezor),
-        EthPrivKeyActivationPolicy::WalletConnect => {
+        EthPrivKeyActivationPolicy::WalletConnect { account_index } => {
             let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
             let chain_id = conf["chain_id"].as_u64().ok_or(EthActivationV2Error::ChainIdNotSet)?;
-            let (pubkey, address) = eth_request_wc_personal_sign(&wc, chain_id)
+            let (pubkey, address) = eth_request_wc_personal_sign(&wc, chain_id, *account_index)
                 .await
                 .mm_err(|err| EthActivationV2Error::WalletConnectError(err.to_string()))?;
 

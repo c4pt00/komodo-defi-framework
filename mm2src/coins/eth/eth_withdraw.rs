@@ -1,6 +1,6 @@
 use super::{checksum_address, u256_to_big_decimal, wei_from_big_decimal, EthCoinType, EthDerivationMethod,
             EthPrivKeyPolicy, Public, WithdrawError, WithdrawRequest, WithdrawResult, ERC20_CONTRACT, H160, H256};
-use crate::eth::wallet_connect::{wc_sign_eth_transaction, WcEthTxParams};
+use crate::eth::wallet_connect::WcEthTxParams;
 use crate::eth::{calc_total_fee, get_eth_gas_details_from_withdraw_fee, tx_builder_with_pay_for_gas_option,
                  tx_type_from_pay_for_gas_option, Action, Address, EthTxFeeDetails, KeyPair, PayForGasOption,
                  SignedEthTx, TransactionWrapper, UnSignedEthTxBuilder};
@@ -17,7 +17,7 @@ use crypto::trezor::trezor_rpc_task::{TrezorRequestStatuses, TrezorRpcTaskProces
 use crypto::{CryptoCtx, HwRpcError};
 use ethabi::Token;
 use futures::compat::Future01CompatExt;
-use kdf_walletconnect::WalletConnectCtx;
+use kdf_walletconnect::{WalletConnectCtx, WalletConnectOps};
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::map_mm_error::MapMmError;
 use mm2_err_handle::mm_error::MmResult;
@@ -303,7 +303,6 @@ where
             EthPrivKeyPolicy::WalletConnect { address: _, pubkey: _ } => {
                 let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
                 let wc = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
-                let chain_id = coin.chain_id;
                 let gas_price = pay_for_gas_option.get_gas_price();
                 let (nonce, _) = coin
                     .clone()
@@ -313,7 +312,6 @@ where
                     .await?
                     .map_to_mm(WithdrawError::Transport)?;
                 let params = WcEthTxParams {
-                    chain_id,
                     gas,
                     nonce,
                     data: &data,
@@ -323,7 +321,8 @@ where
                     gas_price,
                 };
 
-                wc_sign_eth_transaction(&wc, params)
+                self.coin()
+                    .wc_request_sign_tx(&wc, params)
                     .await
                     .mm_err(|err| WithdrawError::SigningError(err.to_string()))?
             },

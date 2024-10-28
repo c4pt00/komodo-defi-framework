@@ -16,6 +16,11 @@ pub(crate) async fn reply_session_update_request(
 ) -> MmResult<(), WalletConnectError> {
     {
         if let Some(mut session) = ctx.session.get_session_mut(topic).await {
+            update
+                .namespaces
+                .caip2_validate()
+                .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?;
+            //TODO: session.namespaces.supported(update.namespaces.0)
             session.namespaces = update.namespaces.0;
             //  Update storage session.
             ctx.storage
@@ -23,7 +28,7 @@ pub(crate) async fn reply_session_update_request(
                 .await
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
-            info!("Updated extended, info: {:?}", session);
+            info!("Updated extended, info: {:?}", session.topic);
         };
     }
 

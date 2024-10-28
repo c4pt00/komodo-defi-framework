@@ -5,7 +5,7 @@ use derive_more::Display;
 use ethcore_transaction::SignedTransaction;
 use ethereum_types::{Address, Public, H160, U256};
 use ethkey::{public_to_address, Message, Signature};
-use kdf_walletconnect::{chain::{WcChain, WcRequestMethods},
+use kdf_walletconnect::{chain::{WcChainId, WcRequestMethods},
                         error::WalletConnectError,
                         WalletConnectCtx};
 use mm2_err_handle::prelude::*;
@@ -18,7 +18,7 @@ use web3::signing::hash_message;
 
 #[derive(Display, Debug)]
 pub enum EthWalletConnectError {
-    UnsupportedChainId(String),
+    UnsupportedChainId(WcChainId),
     InvalidSignature(String),
     AccoountMisMatch(String),
     TxDecodingFailed(String),
@@ -47,15 +47,14 @@ impl From<hex::FromHexError> for EthWalletConnectError {
     fn from(value: hex::FromHexError) -> Self { Self::TxDecodingFailed(value.to_string()) }
 }
 
-pub(crate) struct WcEthTxParams<'a> {
-    pub(crate) chain_id: u64,
-    pub(crate) gas: U256,
-    pub(crate) nonce: U256,
-    pub(crate) data: &'a [u8],
-    pub(crate) my_address: H160,
-    pub(crate) to_addr: H160,
-    pub(crate) value: U256,
-    pub(crate) gas_price: Option<U256>,
+pub struct WcEthTxParams<'a> {
+    pub gas: U256,
+    pub nonce: U256,
+    pub data: &'a [u8],
+    pub my_address: H160,
+    pub to_addr: H160,
+    pub value: U256,
+    pub gas_price: Option<U256>,
 }
 
 impl<'a> WcEthTxParams<'a> {
@@ -84,15 +83,11 @@ impl<'a> WcEthTxParams<'a> {
 
 pub(crate) async fn wc_sign_eth_transaction<'a>(
     ctx: &WalletConnectCtx,
+    chain_id: &WcChainId,
     tx_params: WcEthTxParams<'a>,
 ) -> MmResult<(H256, BytesJson), EthWalletConnectError> {
-    let chain_id = tx_params.chain_id.to_string();
+    ctx.validate_or_update_active_chain_id(chain_id).await?;
 
-    if !ctx.is_chain_supported(WcChain::Eip155, &chain_id).await {
-        return MmError::err(EthWalletConnectError::UnsupportedChainId(chain_id));
-    }
-
-    let tx_json = tx_params.prepare_wc_tx_format()?;
     let topic = ctx
         .session
         .get_session_active()
@@ -101,8 +96,9 @@ pub(crate) async fn wc_sign_eth_transaction<'a>(
         .ok_or(WalletConnectError::NotInitialized)?;
 
     {
+        let tx_json = tx_params.prepare_wc_tx_format()?;
         let request = SessionRequestRequest {
-            chain_id: WcChain::Eip155.to_chain_id(&chain_id),
+            chain_id: chain_id.to_string(),
             request: SessionRequest {
                 method: WcRequestMethods::EthSignTransaction.as_ref().to_string(),
                 expiry: Some(Utc::now().timestamp() as u64 + 300),
@@ -128,12 +124,12 @@ pub(crate) async fn wc_sign_eth_transaction<'a>(
 pub async fn eth_request_wc_personal_sign(
     ctx: &WalletConnectCtx,
     chain_id: u64,
+    account_index: usize,
 ) -> MmResult<(Public, Address), EthWalletConnectError> {
     let chain_id = chain_id.to_string();
-    // validate chain_id
-    if !ctx.is_chain_supported(WcChain::Eip155, &chain_id).await {
-        return MmError::err(EthWalletConnectError::UnsupportedChainId(chain_id));
-    }
+    let chain_id = WcChainId::new_eip155(chain_id);
+
+    ctx.validate_or_update_active_chain_id(&chain_id).await?;
 
     let topic = ctx
         .session
@@ -142,7 +138,7 @@ pub async fn eth_request_wc_personal_sign(
         .map(|session| session.topic.clone())
         .ok_or(WalletConnectError::NotInitialized)?;
 
-    let account_str = ctx.get_account_for_chain_id(&chain_id).await?;
+    let account_str = ctx.get_account_for_chain_id(&chain_id, account_index).await?;
     let message = "Authenticate with Komodefi";
 
     {
@@ -154,7 +150,7 @@ pub async fn eth_request_wc_personal_sign(
                 expiry: Some(Utc::now().timestamp() as u64 + 300),
                 params,
             },
-            chain_id: WcChain::Eip155.to_chain_id(&chain_id),
+            chain_id: chain_id.to_string(),
         };
         let session_request = RequestParams::SessionRequest(request);
         ctx.publish_request(&topic, session_request).await?;

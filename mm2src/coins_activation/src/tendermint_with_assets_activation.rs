@@ -245,7 +245,7 @@ async fn activate_with_walletconnect(
     wallet_type: &mut TendermintWalletConnectionType,
 ) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
     let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
-    let account = cosmos_get_accounts_impl(&wc, chain_id, Some(param.account_index))
+    let account = cosmos_get_accounts_impl(&wc, chain_id, param.account_index)
         .await
         .mm_err(|err| TendermintInitError {
             ticker: ticker.to_string(),
