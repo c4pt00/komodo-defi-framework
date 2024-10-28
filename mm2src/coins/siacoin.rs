@@ -987,7 +987,7 @@ impl SiaCoin {
 
         // Generate HTLC SpendPolicy as it will appear in the SiacoinInputV2 that spends taker payment
         let input_spend_policy =
-            SpendPolicy::atomic_swap_success(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
+            SpendPolicy::atomic_swap_success(&maker_public_key, &taker_public_key, args.time_lock, &secret_hash);
 
         // Fetch the HTLC UTXO from the taker payment transaction
         let htlc_utxo = self
