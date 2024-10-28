@@ -81,7 +81,7 @@ pub trait TokenAsMmCoinInitializer: Send + Sync {
 
     async fn enable_tokens_as_mm_coins(
         &self,
-        ctx: MmArc,
+        ctx: &MmArc,
         request: &Self::ActivationRequest,
     ) -> Result<Vec<MmCoinEnum>, MmError<InitTokensAsMmCoinsError>>;
 }
@@ -131,14 +131,14 @@ where
 
     async fn enable_tokens_as_mm_coins(
         &self,
-        ctx: MmArc,
+        ctx: &MmArc,
         request: &Self::ActivationRequest,
     ) -> Result<Vec<MmCoinEnum>, MmError<InitTokensAsMmCoinsError>> {
         let tokens_requests = T::tokens_requests_from_platform_request(request);
         let token_params = tokens_requests
             .into_iter()
             .map(|req| -> Result<_, MmError<CoinConfWithProtocolError>> {
-                let (_, protocol): (_, T::TokenProtocol) = coin_conf_with_protocol(&ctx, &req.ticker)?;
+                let (_, protocol): (_, T::TokenProtocol) = coin_conf_with_protocol(ctx, &req.ticker)?;
                 Ok(TokenActivationParams {
                     ticker: req.ticker,
                     activation_request: req.request,
@@ -392,7 +392,7 @@ where
 {
     let mut mm_tokens = Vec::new();
     for initializer in platform_coin.token_initializers() {
-        let tokens = initializer.enable_tokens_as_mm_coins(ctx.clone(), &req.request).await?;
+        let tokens = initializer.enable_tokens_as_mm_coins(&ctx, &req.request).await?;
         mm_tokens.extend(tokens);
     }
 
@@ -462,7 +462,7 @@ where
 
     let mut mm_tokens = Vec::new();
     for initializer in platform_coin.token_initializers() {
-        let tokens = initializer.enable_tokens_as_mm_coins(ctx.clone(), &req.request).await?;
+        let tokens = initializer.enable_tokens_as_mm_coins(&ctx, &req.request).await?;
         mm_tokens.extend(tokens);
     }
 

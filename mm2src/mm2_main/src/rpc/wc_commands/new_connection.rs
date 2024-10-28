@@ -1,24 +1,29 @@
 use kdf_walletconnect::WalletConnectCtx;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use super::{EmptyRpcRequst, WalletConnectRpcError};
+use super::WalletConnectRpcError;
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct CreateConnectionResponse {
     pub url: String,
 }
 
+#[derive(Deserialize)]
+pub struct NewConnectionRequest {
+    namespaces: Option<serde_json::Value>,
+}
+
 /// `new_connection` RPC command implementation.
 pub async fn new_connection(
     ctx: MmArc,
-    _req: EmptyRpcRequst,
+    req: NewConnectionRequest,
 ) -> MmResult<CreateConnectionResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     let url = ctx
-        .new_connection()
+        .new_connection(req.namespaces)
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 

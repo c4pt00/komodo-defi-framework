@@ -9,12 +9,17 @@ use crate::{error::WalletConnectError,
 use chrono::Utc;
 use mm2_err_handle::map_to_mm::MapToMmResult;
 use mm2_err_handle::prelude::*;
+use relay_rpc::rpc::params::session::ProposeNamespaces;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
                               RequestParams, ResponseParamsSuccess}};
 
 /// Creates a new session proposal form topic and metadata.
-pub(crate) async fn send_proposal_request(ctx: &WalletConnectCtx, topic: Topic) -> MmResult<(), WalletConnectError> {
+pub(crate) async fn send_proposal_request(
+    ctx: &WalletConnectCtx,
+    topic: &Topic,
+    namespaces: Option<ProposeNamespaces>,
+) -> MmResult<(), WalletConnectError> {
     let proposer = Proposer {
         metadata: ctx.metadata.clone(),
         public_key: hex::encode(ctx.key_pair.public_key.as_bytes()),
@@ -22,10 +27,10 @@ pub(crate) async fn send_proposal_request(ctx: &WalletConnectCtx, topic: Topic) 
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
         relays: vec![ctx.relay.clone()],
         proposer,
-        required_namespaces: build_default_required_namespaces(),
+        required_namespaces: namespaces.unwrap_or_else(build_default_required_namespaces),
         optional_namespaces: Some(build_optional_namespaces()),
     });
-    ctx.publish_request(&topic, session_proposal).await?;
+    ctx.publish_request(topic, session_proposal).await?;
 
     Ok(())
 }

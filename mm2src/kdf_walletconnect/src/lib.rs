@@ -40,6 +40,21 @@ use storage::WalletConnectStorageOps;
 use tokio::time::timeout;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
+#[async_trait::async_trait]
+pub trait WalletConnectOps {
+    type Error;
+    type Params<'a>;
+    type SignTxData;
+
+    fn wc_chain_id(&self) -> WcChainId;
+
+    async fn wc_request_sign_tx<'a>(
+        &self,
+        ctx: &WalletConnectCtx,
+        params: Self::Params<'a>,
+    ) -> Result<Self::SignTxData, Self::Error>;
+}
+
 pub struct WalletConnectCtx {
     pub client: Client,
     pub pairing: PairingClient,
@@ -114,7 +129,11 @@ impl WalletConnectCtx {
     }
 
     /// Create a WalletConnect pairing connection url.
-    pub async fn new_connection(&self) -> MmResult<String, WalletConnectError> {
+    pub async fn new_connection(&self, namespaces: Option<serde_json::Value>) -> MmResult<String, WalletConnectError> {
+        let namespaces = match namespaces {
+            Some(value) => Some(serde_json::from_value(value)?),
+            None => None,
+        };
         let (topic, url) = self.pairing.create(self.metadata.clone(), None).await?;
 
         info!("Subscribing to topic: {topic:?}");
@@ -123,7 +142,7 @@ impl WalletConnectCtx {
 
         info!("Subscribed to topic: {topic:?}");
 
-        send_proposal_request(self, topic.clone()).await?;
+        send_proposal_request(self, &topic, namespaces).await?;
 
         {
             let mut subs = self.subscriptions.lock().await;
@@ -394,21 +413,6 @@ impl WalletConnectCtx {
 
         MmError::err(WalletConnectError::NoWalletFeedback)
     }
-}
-
-#[async_trait::async_trait]
-pub trait WalletConnectOps {
-    type Error;
-    type Params<'a>;
-    type SignTxData;
-
-    fn wc_chain_id(&self) -> WcChainId;
-
-    async fn wc_request_sign_tx<'a>(
-        &self,
-        ctx: &WalletConnectCtx,
-        params: Self::Params<'a>,
-    ) -> Result<Self::SignTxData, Self::Error>;
 }
 
 /// This function spwans related WalletConnect related tasks and needed initialization before
