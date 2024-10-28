@@ -941,7 +941,7 @@ impl SiaCoin {
 
         // Generate HTLC SpendPolicy
         let htlc_spend_policy =
-            SpendPolicy::atomic_swap(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
+            SpendPolicy::atomic_swap(&maker_public_key, &taker_public_key, args.time_lock, &secret_hash);
 
         // Convert the trade amount to a Currency amount
         let trade_amount = siacoin_to_hastings(args.amount).map_err(SendTakerPaymentError::SiacoinToHastings)?;
