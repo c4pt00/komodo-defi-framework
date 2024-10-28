@@ -1221,11 +1221,21 @@ pub trait MakerSwapTakerCoin {
 #[async_trait]
 pub trait WatcherOps {
     fn send_maker_payment_spend_preimage(&self, _input: SendMakerPaymentSpendPreimageInput) -> TransactionFut {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(Err(TransactionErr::Plain(
+                "send_maker_payment_spend_preimage is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     fn send_taker_payment_refund_preimage(&self, _watcher_refunds_payment_args: RefundPaymentArgs) -> TransactionFut {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(Err(TransactionErr::Plain(
+                "send_taker_payment_refund_preimage is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     fn create_taker_payment_refund_preimage(
@@ -1237,7 +1247,12 @@ pub trait WatcherOps {
         _swap_contract_address: &Option<BytesJson>,
         _swap_unique_data: &[u8],
     ) -> TransactionFut {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(Err(TransactionErr::Plain(
+                "create_taker_payment_refund_preimage is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     fn create_maker_payment_spend_preimage(
@@ -1248,26 +1263,46 @@ pub trait WatcherOps {
         _secret_hash: &[u8],
         _swap_unique_data: &[u8],
     ) -> TransactionFut {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(Err(TransactionErr::Plain(
+                "create_maker_payment_spend_preimage is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     fn watcher_validate_taker_fee(&self, _input: WatcherValidateTakerFeeInput) -> ValidatePaymentFut<()> {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(MmError::err(ValidatePaymentError::InternalError(
+                "watcher_validate_taker_fee is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     fn watcher_validate_taker_payment(&self, _input: WatcherValidatePaymentInput) -> ValidatePaymentFut<()> {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(MmError::err(ValidatePaymentError::InternalError(
+                "watcher_validate_taker_payment is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     fn taker_validates_payment_spend_or_refund(&self, _input: ValidateWatcherSpendInput) -> ValidatePaymentFut<()> {
-        unimplemented!();
+        Box::new(
+            futures::future::ready(MmError::err(ValidatePaymentError::InternalError(
+                "taker_validates_payment_spend_or_refund is not implemented".to_string(),
+            )))
+            .compat(),
+        )
     }
 
     async fn watcher_search_for_swap_tx_spend(
         &self,
         _input: WatcherSearchForSwapTxSpendInput<'_>,
     ) -> Result<Option<FoundSwapTxSpend>, String> {
-        unimplemented!();
+        Err("watcher_search_for_swap_tx_spend is not implemented".to_string())
     }
 
     async fn get_taker_watcher_reward(
@@ -1278,7 +1313,9 @@ pub trait WatcherOps {
         _reward_amount: Option<BigDecimal>,
         _wait_until: u64,
     ) -> Result<WatcherReward, MmError<WatcherRewardError>> {
-        unimplemented!();
+        Err(WatcherRewardError::InternalError(
+            "get_taker_watcher_reward is not implemented".to_string(),
+        ))?
     }
 
     async fn get_maker_watcher_reward(
@@ -1287,7 +1324,9 @@ pub trait WatcherOps {
         _reward_amount: Option<BigDecimal>,
         _wait_until: u64,
     ) -> Result<Option<WatcherReward>, MmError<WatcherRewardError>> {
-        unimplemented!();
+        Err(WatcherRewardError::InternalError(
+            "get_maker_watcher_reward is not implemented".to_string(),
+        ))?
     }
 }
 
