@@ -68,23 +68,6 @@ fn default_activation_request() -> SiaCoinActivationRequest {
     );
     serde_json::from_value::<SiaCoinActivationRequest>(activation_request_json).unwrap()
 }
-// FIXME WIP
-#[test]
-fn test_sia_swap_ops_send_taker_fee_wip() {
-    use coins::DexFee;
-    use mm2_number::MmNumber;
-    use uuid::Uuid;
-
-    let ctx = block_on(init_ctx("horribly insecure passphrase", 9995));
-    let coin = block_on(init_siacoin(ctx, "TSIA", &default_activation_request()));
-    let address = Address::from_str(&coin.my_address().unwrap()).unwrap();
-    mine_blocks(&coin.client, 201, &address).unwrap();
-
-    let _uuid = Uuid::new_v4();
-    let _dex_fee = DexFee::Standard(MmNumber::from("0.0001"));
-
-    assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
-}
 
 #[test]
 fn test_sia_init_siacoin() {
