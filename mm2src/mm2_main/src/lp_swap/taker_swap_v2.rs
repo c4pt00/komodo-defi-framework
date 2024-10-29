@@ -435,7 +435,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     fn taker_payment_locktime(&self) -> u64 { self.started_at + self.lock_duration }
 
     #[inline]
-    fn maker_payment_locktime(&self) -> u64 { self.started_at + 2 * self.lock_duration }
+    fn spend_maker_payment_conf_timeout(&self) -> u64 { self.started_at + 4 * self.lock_duration }
 
     fn unique_data(&self) -> Vec<u8> { self.uuid.as_bytes().to_vec() }
 
@@ -1860,6 +1860,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TakerPaymentRefundReason {
     MakerPaymentNotConfirmedInTime(String),
+    MakerPaymentSpendNotConfirmedInTime(String),
     FailedToGenerateSpendPreimage(String),
     MakerDidNotSpendInTime(String),
 }
@@ -2217,24 +2218,21 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
     async fn on_changed(self: Box<Self>, state_machine: &mut Self::StateMachine) -> StateResult<Self::StateMachine> {
         if state_machine.require_maker_payment_spend_confirm {
-            match state_machine
-                .maker_coin
-                .wait_for_maker_payment_spend(
-                    &self.maker_payment_spend,
-                    self.maker_coin_start_block,
-                    state_machine.maker_payment_locktime(),
-                )
-                .await
-            {
-                Ok(_) => {},
-                Err(e) => {
-                    let next_state = TakerPaymentRefundRequired {
-                        taker_payment: self.taker_payment,
-                        negotiation_data: self.negotiation_data,
-                        reason: TakerPaymentRefundReason::MakerDidNotSpendInTime(format!("{}", e)),
-                    };
-                    return Self::change_state(next_state, state_machine).await;
-                },
+            let input = ConfirmPaymentInput {
+                payment_tx: self.maker_payment_spend.tx_hex(),
+                confirmations: state_machine.conf_settings.maker_coin_confs,
+                requires_nota: state_machine.conf_settings.maker_coin_nota,
+                wait_until: state_machine.spend_maker_payment_conf_timeout(),
+                check_every: 10,
+            };
+
+            if let Err(e) = state_machine.maker_coin.wait_for_confirmations(input).compat().await {
+                let next_state = TakerPaymentRefundRequired {
+                    taker_payment: self.taker_payment,
+                    negotiation_data: self.negotiation_data,
+                    reason: TakerPaymentRefundReason::MakerPaymentSpendNotConfirmedInTime(format!("{}", e)),
+                };
+                return Self::change_state(next_state, state_machine).await;
             }
         }
 
