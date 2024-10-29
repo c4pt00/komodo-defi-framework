@@ -5808,15 +5808,13 @@ pub enum OrderbookAddress {
 #[derive(Debug, Display)]
 enum OrderbookAddrErr {
     AddrFromPubkeyError(String),
-    #[cfg(feature = "enable-sia")]
-    CoinIsNotSupported(String),
-    DeserializationError(json::Error),
+    DeserializationError(String),
     InvalidPlatformCoinProtocol(String),
     PlatformCoinConfIsNull(String),
 }
 
 impl From<json::Error> for OrderbookAddrErr {
-    fn from(err: json::Error) -> Self { OrderbookAddrErr::DeserializationError(err) }
+    fn from(err: json::Error) -> Self { OrderbookAddrErr::DeserializationError(err.to_string()) }
 }
 
 impl From<coins::tendermint::AccountIdFromPubkeyHexErr> for OrderbookAddrErr {
@@ -5890,8 +5888,12 @@ fn orderbook_address(
         // Todo: a routing node will know about a payment it routed but not the sender or the receiver. This will require using a new keypair for every order/swap
         // Todo: similar to how it's done for zcoin.
         CoinProtocol::LIGHTNING { .. } => Ok(OrderbookAddress::Shielded),
-        // TODO implement for SIA "this is needed to show the address in the orderbook"
         #[cfg(feature = "enable-sia")]
-        CoinProtocol::SIA { .. } => MmError::err(OrderbookAddrErr::CoinIsNotSupported(coin.to_owned())),
+        CoinProtocol::SIA => {
+            let pubkey = coins::siacoin::PublicKey::from_str_no_prefix(pubkey)
+                .map_to_mm(|e| OrderbookAddrErr::DeserializationError(e.to_string()))?;
+            let address = coins::siacoin::Address::from_public_key(&pubkey);
+            Ok(OrderbookAddress::Transparent(address.to_string()))
+        },
     }
 }
