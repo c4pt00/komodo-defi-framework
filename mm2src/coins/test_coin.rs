@@ -1,8 +1,8 @@
 #![allow(clippy::all)]
 
-use super::{CoinBalance, CommonSwapOpsV2, FundingTxSpend, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
-            RawTransactionRequest, RefundTakerPaymentArgs, SearchForFundingSpendErr, SwapOps, TradeFee,
-            TransactionEnum, TransactionFut, WaitForPaymentSpendError};
+use super::{CoinBalance, CommonSwapOpsV2, FindPaymentSpendError, FundingTxSpend, HistorySyncState, MarketCoinOps,
+            MmCoin, RawTransactionFut, RawTransactionRequest, RefundTakerPaymentArgs, SearchForFundingSpendErr,
+            SwapOps, TradeFee, TransactionEnum, TransactionFut};
 use crate::coin_errors::ValidatePaymentResult;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, GenPreimageResult, GenTakerFundingSpendArgs,
@@ -557,12 +557,12 @@ impl TakerCoinSwapOpsV2 for TestCoin {
         unimplemented!()
     }
 
-    async fn wait_for_taker_payment_spend(
+    async fn find_taker_payment_spend_tx(
         &self,
         taker_payment: &Self::Tx,
         from_block: u64,
         wait_until: u64,
-    ) -> MmResult<Self::Tx, WaitForPaymentSpendError> {
+    ) -> MmResult<Self::Tx, FindPaymentSpendError> {
         unimplemented!()
     }
 }

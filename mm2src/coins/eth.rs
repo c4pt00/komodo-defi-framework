@@ -7375,14 +7375,14 @@ impl TakerCoinSwapOpsV2 for EthCoin {
         self.sign_and_broadcast_taker_payment_spend_impl(gen_args, secret).await
     }
 
-    /// Wrapper for [EthCoin::wait_for_taker_payment_spend_impl]
-    async fn wait_for_taker_payment_spend(
+    /// Wrapper for [EthCoin::find_taker_payment_spend_tx_impl]
+    async fn find_taker_payment_spend_tx(
         &self,
         taker_payment: &Self::Tx,
         _from_block: u64,
         wait_until: u64,
-    ) -> MmResult<Self::Tx, WaitForPaymentSpendError> {
-        self.wait_for_taker_payment_spend_impl(taker_payment, wait_until).await
+    ) -> MmResult<Self::Tx, FindPaymentSpendError> {
+        self.find_taker_payment_spend_tx_impl(taker_payment, wait_until).await
     }
 }
 
