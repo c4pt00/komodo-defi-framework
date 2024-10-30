@@ -43,8 +43,6 @@ pub async fn handle_sse(request: Request<Body>, ctx_h: u32) -> Response<Body> {
 
             yield Ok::<_, hyper::Error>(Bytes::from(format!("data: {data} \n\n")));
         }
-        // Inform the event stream manager that the client has disconnected.
-        event_stream_manager.remove_client(client_id).ok();
     });
 
     let response = Response::builder()

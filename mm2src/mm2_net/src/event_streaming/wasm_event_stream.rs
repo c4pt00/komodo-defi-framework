@@ -43,6 +43,4 @@ pub async fn handle_worker_stream(ctx: MmArc, worker_path: String) {
             This could be due to the browser being incompatible.\n\
             For more details, please refer to https://developer.mozilla.org/en-US/docs/Web/API/MessagePort/postMessage#browser_compatibility");
     }
-
-    event_stream_manager.remove_client(0).ok();
 }

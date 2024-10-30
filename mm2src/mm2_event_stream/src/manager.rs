@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use crate::streamer::spawn;
@@ -7,6 +8,7 @@ use crate::{Event, EventStreamer};
 use common::executor::abortable_queue::WeakSpawner;
 use common::log;
 
+use common::on_drop_callback::OnDropCallback;
 use futures::channel::mpsc::UnboundedSender;
 use futures::channel::oneshot;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -263,7 +265,7 @@ impl StreamingManager {
     }
 
     /// Creates a new client and returns the event receiver for this client.
-    pub fn new_client(&self, client_id: u64) -> Result<mpsc::Receiver<Arc<Event>>, StreamingManagerError> {
+    pub fn new_client(&self, client_id: u64) -> Result<ClientHandle, StreamingManagerError> {
         let mut this = self.write();
         if this.clients.contains_key(&client_id) {
             return Err(StreamingManagerError::ClientExists);
@@ -273,7 +275,13 @@ impl StreamingManager {
         let (tx, rx) = mpsc::channel(1024);
         let client_info = ClientInfo::new(tx);
         this.clients.insert(client_id, client_info);
-        Ok(rx)
+        let manager = self.clone();
+        Ok(ClientHandle {
+            rx,
+            _on_drop_callback: OnDropCallback::new(move || {
+                manager.remove_client(client_id).ok();
+            }),
+        })
     }
 
     /// Removes a client from the manager.
@@ -321,6 +329,25 @@ impl StreamingManager {
             }
         }
     }
+}
+
+/// A handle that is returned on [`StreamingManager::new_client`] calls that will auto remove
+/// the client when dropped.
+/// So this handle must live as long as the client is connected.
+pub struct ClientHandle {
+    rx: mpsc::Receiver<Arc<Event>>,
+    _on_drop_callback: OnDropCallback,
+}
+
+/// Deref the handle to the receiver inside for ease of use.
+impl Deref for ClientHandle {
+    type Target = mpsc::Receiver<Arc<Event>>;
+    fn deref(&self) -> &Self::Target { &self.rx }
+}
+
+/// Also DerefMut since the receiver inside is mutated when consumed.
+impl DerefMut for ClientHandle {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.rx }
 }
 
 #[cfg(test)]
