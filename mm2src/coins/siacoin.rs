@@ -779,46 +779,52 @@ impl MarketCoinOps for SiaCoin {
 
 #[derive(Debug, Error)]
 pub enum SendTakerFeeError {
-    #[error("sia send_taker_fee: failed to parse uuid from bytes {0}")]
+    #[error("SiaCoin::new_send_taker_fee: failed to parse uuid from bytes {0}")]
     ParseUuid(#[from] uuid::Error),
-    #[error("sia send_taker_fee: Unexpected Uuid version {0}")]
+    #[error("SiaCoin::new_send_taker_fee: Unexpected Uuid version {0}")]
     UuidVersion(usize),
-    #[error("sia send_taker_fee: failed to convert trade_fee_amount to Currency {0}")]
+    #[error("SiaCoin::new_send_taker_fee: failed to convert trade_fee_amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_taker_fee: unexpected DexFee variant: {0:?}")]
+    #[error("SiaCoin::new_send_taker_fee: unexpected DexFee variant: {0:?}")]
     DexFeeVariant(DexFee),
-    #[error("sia send_taker_fee: failed to fetch my_pubkey {0}")]
+    #[error("SiaCoin::new_send_taker_fee: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_fee: failed to fund transaction {0}")]
-    FundTx(#[from] SiaClientHelperError),
+    #[error("SiaCoin::new_send_taker_fee: failed to fund transaction {0}")]
+    FundTx(SiaClientHelperError),
+    #[error("SiaCoin::new_send_taker_fee: failed to broadcast taker_fee transaction {0}")]
+    BroadcastTx(SiaClientHelperError),
 }
 
 #[derive(Debug, Error)]
 pub enum SendMakerPaymentError {
-    #[error("sia send_maker_payment: invalid taker pubkey {0}")]
+    #[error("SiaCoin::new_send_maker_payment: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_maker_payment: failed to fetch my_pubkey {0}")]
+    #[error("SiaCoin::new_send_maker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_maker_payment: failed to convert trade amount to Currency {0}")]
+    #[error("SiaCoin::new_send_maker_payment: failed to convert trade amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_maker_payment: failed to fund transaction {0}")]
-    FundTx(#[from] SiaClientHelperError),
-    #[error("sia send_maker_payment: failed to parse secret_hash {0}")]
+    #[error("SiaCoin::new_send_maker_payment: failed to fund transaction {0}")]
+    FundTx(SiaClientHelperError),
+    #[error("SiaCoin::new_send_maker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
+    #[error("SiaCoin::new_send_maker_payment: failed to broadcast maker_payment transaction {0}")]
+    BroadcastTx(SiaClientHelperError),
 }
 
 #[derive(Debug, Error)]
 pub enum SendTakerPaymentError {
-    #[error("sia send_taker_payment: invalid taker pubkey {}", _0)]
+    #[error("SiaCoin::new_send_taker_payment: invalid taker pubkey {0}")]
     InvalidMakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_taker_payment: failed to fetch my_pubkey {}", _0)]
+    #[error("SiaCoin::new_send_taker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_payment: failed to convert trade amount to Currency")]
+    #[error("SiaCoin::new_send_taker_payment: failed to convert trade amount to Currency {0}")]
     SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_taker_payment: failed to fund transaction {}", _0)]
-    FundTx(#[from] SiaClientHelperError),
-    #[error("sia send_taker_payment: invalid secret_hash length {}", _0)]
+    #[error("SiaCoin::new_send_taker_payment: failed to fund transaction {0}")]
+    FundTx(SiaClientHelperError),
+    #[error("SiaCoin::new_send_taker_payment: invalid secret_hash length {0}")]
     SecretHashLength(#[from] ParseHashError),
+    #[error("SiaCoin::new_send_taker_payment: failed to broadcast taker_payment transaction {0}")]
+    BroadcastTx(SiaClientHelperError),
 }
 
 // contains various helpers to account for subpar error handling trait method signatures
@@ -1154,12 +1160,25 @@ impl SiaCoin {
     }
 }
 
+/// Wrapper around SendRefundHltcError to allow indicating Maker or Taker context within the error
 #[derive(Debug, Error)]
-pub enum TakerRefundsPaymentError {
-    #[error("sia send_taker_refunds_payment: failed to fetch my_keypair {0}")]
+pub enum SendRefundHltcMakerOrTakerError {
+    #[error("SiaCoin::send_refund_hltc: maker: {0}")]
+    Maker(SendRefundHltcError),
+    #[error("SiaCoin::send_refund_hltc: taker: {0}")]
+    Taker(SendRefundHltcError),
+}
+
+#[derive(Debug, Error)]
+pub enum SendRefundHltcError {
+    #[error("SiaCoin::send_refund_hltc: failed to fetch my_keypair: {0}")]
     MyKeypair(#[from] FrameworkError),
-    #[error("sia send_taker_refunds_payment: failed to parse RefundPaymentArgs {0}")]
+    #[error("SiaCoin::send_refund_hltc: failed to parse RefundPaymentArgs: {0}")]
     ParseArgs(#[from] SiaRefundPaymentArgsError),
+    #[error("SiaCoin::send_refund_hltc: failed to fetch SiacoinElement from txid {0}")]
+    UtxoFromTxid(SiaClientHelperError),
+    #[error("SiaCoin::send_refund_hltc: failed to satisfy HTLC SpendPolicy {0}")]
+    SatisfyHtlc(#[from] V2TransactionBuilderError),
 }
 
 #[derive(Debug, Error)]
@@ -1195,38 +1214,42 @@ pub enum ValidateFeeError {
 // TODO Alright - nearly identical to MakerSpendsTakerPaymentError, refactor
 #[derive(Debug, Error)]
 pub enum TakerSpendsMakerPaymentError {
-    #[error("sia send_taker_spends_maker_payment: failed to fetch my_pubkey {0}")]
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_spends_maker_payment: invalid maker pubkey {0}")]
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: invalid maker pubkey {0}")]
     InvalidMakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse taker_payment_tx {0}")]
+    #[error("SiaCoin::new_send_taker_spends_maker_paymentt: failed to parse taker_payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse secret {0}")]
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to parse secret {0}")]
     ParseSecret(#[from] PreimageError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse secret_hash {0}")]
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
-    #[error("sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
-    UtxoFromTxid(#[from] SiaClientHelperError),
-    #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
-    SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
+    UtxoFromTxid(SiaClientHelperError),
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
+    SatisfyHtlc(#[from] V2TransactionBuilderError),
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to broadcast spend_maker_payment transaction {0}")]
+    BroadcastTx(SiaClientHelperError),
 }
 
 #[derive(Debug, Error)]
 pub enum MakerSpendsTakerPaymentError {
-    #[error("sia send_maker_spends_taker_payment: failed to fetch my_pubkey {0}")]
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to fetch my_pubkey {0}")]
     MyPubkey(#[from] FrameworkError),
-    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {0}")]
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse taker_payment_tx {0}")]
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to parse taker_payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse secret {0}")]
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to parse secret {0}")]
     ParseSecret(#[from] PreimageError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {0}")]
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
-    #[error("sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
-    UtxoFromTxid(#[from] SiaClientHelperError),
-    #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
-    SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
+    UtxoFromTxid(SiaClientHelperError),
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
+    SatisfyHtlc(#[from] V2TransactionBuilderError),
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to broadcast spend_taker_payment transaction {0}")]
+    BroadcastTx(SiaClientHelperError),
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
@@ -1239,7 +1262,7 @@ pub struct SiaRefundPaymentArgs {
 }
 
 #[derive(Debug, Error)]
-pub enum RefundArgsParseError {
+pub enum SiaRefundPaymentArgsError {
     #[error("SiaRefundPaymentArgs: failed to parse other_pubkey {0}")]
     ParseOtherPublicKey(#[from] PublicKeyError),
     #[error("SiaRefundPaymentArgs: failed to parse payment_tx {0}")]
@@ -1247,7 +1270,7 @@ pub enum RefundArgsParseError {
     #[error("SiaRefundPaymentArgs: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] ParseHashError),
     // SwapTxTypeVariant uses String Debug trait representation to avoid explicit lifetime annotations
-    #[error("SiaValidateFeeArgs: unexpected SwapTxTypeWithSecretHash variant {0}")]
+    #[error("SiaRefundPaymentArgs: unexpected SwapTxTypeWithSecretHash variant {0}")]
     SwapTxTypeVariant(String),
 }
 
