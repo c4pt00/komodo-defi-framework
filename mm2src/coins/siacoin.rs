@@ -1,6 +1,7 @@
-use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionFut,
-            RawTransactionRequest, SwapOps, SwapTxTypeWithSecretHash, TradeFee, TransactionData, TransactionDetails,
-            TransactionEnum, TransactionErr, TransactionFut, TransactionType};
+use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionError,
+            RawTransactionFut, RawTransactionRequest, SignatureError, SwapOps, SwapTxTypeWithSecretHash, TradeFee,
+            TransactionData, TransactionDetails, TransactionEnum, TransactionErr, TransactionFut, TransactionType,
+            VerificationError};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin,
@@ -29,6 +30,8 @@ use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
 // expose all of sia-rust so mm2_main can use it via coins::siacoin::sia_rust
+use ed25519_dalek::SecretKey;
+use hex::ToHex;
 pub use sia_rust;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
                                       ApiClientHelpers, HelperError as SiaClientHelperError};
@@ -287,9 +290,36 @@ pub struct SiaFeeDetails {
 impl MmCoin for SiaCoin {
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
 
-    fn get_raw_transaction(&self, _req: RawTransactionRequest) -> RawTransactionFut { unimplemented!() }
+    fn get_raw_transaction(&self, req: RawTransactionRequest) -> RawTransactionFut {
+        let tx_hash = match Hash256::from_str_no_prefix(&req.tx_hash) {
+            Ok(hash) => hash,
+            Err(e) => {
+                return Box::new(futures01::future::err(MmError::new(
+                    RawTransactionError::InvalidHashError(e.to_string()),
+                )))
+            },
+        };
+        self.get_tx_hex_by_hash(tx_hash.0.to_vec())
+    }
 
-    fn get_tx_hex_by_hash(&self, _tx_hash: Vec<u8>) -> RawTransactionFut { unimplemented!() }
+    fn get_tx_hex_by_hash(&self, tx_hash: Vec<u8>) -> RawTransactionFut {
+        let fut = async move {
+            let tx_req = GetEventRequest {
+                txid: Hash256::try_from(&tx_hash[..])
+                    .map_to_mm(|e| RawTransactionError::InvalidHashError(e.to_string()))?,
+            };
+            let _event = self
+                .client
+                .dispatcher(tx_req)
+                .await
+                .map_to_mm(|e| RawTransactionError::Transport(e.to_string()))?;
+            //Ok(RawTransactionRes { tx_hex: event }) // fixme: now what?
+            Err(RawTransactionError::InternalError(
+                "we have no hex serialization for siacoin?!".to_string(),
+            ))?
+        };
+        Box::new(fut.boxed().compat())
+    }
 
     fn withdraw(&self, req: WithdrawRequest) -> WithdrawFut {
         let coin = self.clone();
@@ -302,7 +332,9 @@ impl MmCoin for SiaCoin {
 
     fn decimals(&self) -> u8 { 24 }
 
-    fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> { unimplemented!() }
+    fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> {
+        Err("convert_to_address is not supported".to_string())
+    }
 
     fn validate_address(&self, address: &str) -> ValidateAddressResult {
         match Address::from_str(address) {
@@ -577,13 +609,13 @@ impl MmCoin for SiaCoin {
             .store(confirmations, AtomicOrdering::Relaxed);
     }
 
-    fn set_requires_notarization(&self, _requires_nota: bool) { unimplemented!() }
+    fn set_requires_notarization(&self, _requires_nota: bool) {}
 
-    fn swap_contract_address(&self) -> Option<BytesJson> { unimplemented!() }
+    fn swap_contract_address(&self) -> Option<BytesJson> { None }
 
-    fn fallback_swap_contract(&self) -> Option<BytesJson> { unimplemented!() }
+    fn fallback_swap_contract(&self) -> Option<BytesJson> { None }
 
-    fn mature_confirmations(&self) -> Option<u32> { unimplemented!() }
+    fn mature_confirmations(&self) -> Option<u32> { None }
 
     fn coin_protocol_info(&self, _amount_to_receive: Option<MmNumber>) -> Vec<u8> { Vec::new() }
 
@@ -597,7 +629,7 @@ impl MmCoin for SiaCoin {
         true
     }
 
-    fn on_disabled(&self) -> Result<(), AbortedError> { Ok(()) }
+    fn on_disabled(&self) -> Result<(), AbortedError> { self.abortable_system.abort_all() }
 
     fn on_token_deactivated(&self, _ticker: &str) {}
 }
@@ -652,12 +684,19 @@ impl MarketCoinOps for SiaCoin {
         Ok(public_key.to_string())
     }
 
-    fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { unimplemented!() }
+    fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> {
+        // TODO: Implement message signing for SiaCoin.
+        None
+    }
 
-    fn sign_message(&self, _message: &str) -> SignatureResult<String> { unimplemented!() }
+    fn sign_message(&self, _message: &str) -> SignatureResult<String> {
+        // TODO: Implement message signing for SiaCoin.
+        MmError::err(SignatureError::InternalError("Not implemented".to_string()))
+    }
 
     fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> {
-        unimplemented!()
+        // TODO: Implement message verification (and signing) for SiaCoin.
+        MmError::err(VerificationError::InternalError("Not implemented".to_string()))
     }
 
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
@@ -708,8 +747,10 @@ impl MarketCoinOps for SiaCoin {
         Box::new(fut.boxed().compat())
     }
 
-    fn send_raw_tx_bytes(&self, _tx: &[u8]) -> Box<dyn Future<Item = String, Error = String> + Send> {
-        unimplemented!()
+    fn send_raw_tx_bytes(&self, tx: &[u8]) -> Box<dyn Future<Item = String, Error = String> + Send> {
+        let tx: V2Transaction = try_fus!(serde_json::from_slice(tx).map_err(|e| e.to_string()));
+        let str_tx = try_fus!(serde_json::to_string(&tx).map_err(|e| e.to_string()));
+        self.send_raw_tx(&str_tx)
     }
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
@@ -750,10 +791,10 @@ impl MarketCoinOps for SiaCoin {
 
     fn wait_for_htlc_tx_spend(&self, _args: WaitForHTLCTxSpendArgs<'_>) -> TransactionFut { unimplemented!() }
 
-    fn tx_enum_from_bytes(&self, _bytes: &[u8]) -> Result<TransactionEnum, MmError<TxMarshalingErr>> {
-        MmError::err(TxMarshalingErr::NotSupported(
-            "tx_enum_from_bytes is not supported for Sia coin yet.".to_string(),
-        ))
+    fn tx_enum_from_bytes(&self, bytes: &[u8]) -> Result<TransactionEnum, MmError<TxMarshalingErr>> {
+        let tx: V2Transaction =
+            serde_json::from_slice(bytes).map_to_mm(|e| TxMarshalingErr::InvalidInput(e.to_string()))?;
+        Ok(TransactionEnum::SiaTransaction(SiaTransaction(tx)))
     }
 
     fn current_block(&self) -> Box<dyn Future<Item = u64, Error = String> + Send> {
@@ -766,7 +807,13 @@ impl MarketCoinOps for SiaCoin {
         Box::new(height_fut)
     }
 
-    fn display_priv_key(&self) -> Result<String, String> { unimplemented!() }
+    fn display_priv_key(&self) -> Result<String, String> {
+        let keypair = self.priv_key_policy.activated_key_or_err().map_err(|e| e.to_string())?;
+        // TODO: Let's not just return a raw bytes object here in `.private()`. We better return a proper object.
+        let private_bytes = keypair.private();
+        let private_key = SecretKey::from_bytes(&private_bytes).map_err(|e| e.to_string())?;
+        Ok(private_key.encode_hex())
+    }
 
     // Todo: revise this when working on swaps
     fn min_tx_amount(&self) -> BigDecimal { hastings_to_siacoin(1u64.into()) }
