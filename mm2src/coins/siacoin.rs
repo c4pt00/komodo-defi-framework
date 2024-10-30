@@ -39,8 +39,8 @@ pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxos
                                          TxpoolBroadcastRequest};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
                           Keypair as SiaKeypair, ParseHashError, Preimage, PreimageError, PrivateKeyError, PublicKey,
-                          PublicKeyError, SatisfyAtomicSwapSuccessError, SiacoinElement, SiacoinOutput, SpendPolicy,
-                          TransactionId, V1Transaction, V2Transaction, V2TransactionBuilder};
+                          PublicKeyError, SiacoinElement, SiacoinOutput, SpendPolicy, TransactionId, V1Transaction,
+                          V2Transaction, V2TransactionBuilder, V2TransactionBuilderError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -1195,7 +1195,7 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(TakerRefundsPaymentError::MyKeypair)?;
         let taker_public_key = my_keypair.public();
 
-        let args =
+        let _args =
             SiaRefundPaymentArgs::taker_refund(args, taker_public_key).map_err(TakerRefundsPaymentError::ParseArgs)?;
         todo!()
     }
@@ -1255,7 +1255,7 @@ pub enum TakerSpendsMakerPaymentError {
     #[error("sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
     UtxoFromTxid(#[from] SiaClientHelperError),
     #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
-    SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
+    SatisfyHtlc(#[from] V2TransactionBuilderError),
 }
 
 #[derive(Debug, Error)]
@@ -1273,10 +1273,11 @@ pub enum MakerSpendsTakerPaymentError {
     #[error("sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
     UtxoFromTxid(#[from] SiaClientHelperError),
     #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
-    SatisfyHtlc(#[from] SatisfyAtomicSwapSuccessError),
+    SatisfyHtlc(#[from] V2TransactionBuilderError),
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
+#[allow(dead_code)]
 pub struct SiaRefundPaymentArgs {
     payment_tx: SiaTransaction,
     time_lock: u64,
@@ -1308,6 +1309,7 @@ pub enum SiaRefundPaymentArgsError {
 
 impl SiaRefundPaymentArgs {
     // treat other_pubkey as taker_public_key
+    #[allow(dead_code)]
     fn maker_refund(
         args: RefundPaymentArgs<'_>,
         maker_public_key: PublicKey,
