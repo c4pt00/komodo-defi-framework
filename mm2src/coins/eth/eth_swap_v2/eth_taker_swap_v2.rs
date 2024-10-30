@@ -1,12 +1,13 @@
 use super::{check_decoded_length, validate_amount, validate_from_to_and_status, validate_payment_state,
             EthPaymentType, PaymentMethod, PrepareTxDataError, ZERO_VALUE};
-use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType,
-                 ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs,
-                 SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr, ValidateSwapV2TxError,
-                 ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};
-use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
+use crate::eth::{decode_contract_call, get_function_input_data, signed_tx_from_web3_tx, wei_from_big_decimal, EthCoin,
+                 EthCoinType, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs,
+                 SendTakerFundingArgs, SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr,
+                 ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};
+use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, MarketCoinOps,
             SearchForFundingSpendErr};
 use common::executor::Timer;
+use common::log::{error, info};
 use common::now_sec;
 use ethabi::{Function, Token};
 use ethcore_transaction::Action;
@@ -15,7 +16,7 @@ use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use std::convert::TryInto;
-use web3::types::TransactionId;
+use web3::types::{BlockNumber, FilterBuilder, Log, TransactionId};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
@@ -457,35 +458,109 @@ impl EthCoin {
         Ok(spend_payment_tx)
     }
 
-    /// Checks that taker payment state is `MakerSpent`.
-    /// Accepts maker spent payment transaction and returns it if payment status is correct.
     pub(crate) async fn find_taker_payment_spend_tx_impl(
         &self,
-        taker_payment: &SignedEthTx,
+        taker_payment: &SignedEthTx, // it's approve_tx in Eth case, as in sign_and_send_taker_funding_spend we return approve_tx tx for it
+        from_block: u64,
         wait_until: u64,
+        check_every: f64,
     ) -> MmResult<SignedEthTx, FindPaymentSpendError> {
-        let (decoded, taker_swap_v2_contract) = self
-            .get_decoded_and_swap_contract(taker_payment, "spendTakerPayment")
-            .await?;
+        let taker_swap_v2_contract = self
+            .swap_v2_contracts
+            .as_ref()
+            .map(|contracts| contracts.taker_swap_v2_contract)
+            .ok_or_else(|| {
+                FindPaymentSpendError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
+            })?;
+        let approve_func = TAKER_SWAP_V2.function(TAKER_PAYMENT_APPROVE)?;
+        let decoded = decode_contract_call(approve_func, taker_payment.unsigned().data())?;
+        let id = match decoded.first() {
+            Some(Token::FixedBytes(bytes)) => bytes,
+            invalid_token => {
+                return MmError::err(FindPaymentSpendError::InvalidData(format!(
+                    "Expected Token::FixedBytes, got {:?}",
+                    invalid_token
+                )))
+            },
+        };
+        // loop to find maker's spendTakerPayment transaction
         loop {
-            let taker_status = self
-                .payment_status_v2(
-                    taker_swap_v2_contract,
-                    decoded[0].clone(), // id from spendTakerPayment
-                    &TAKER_SWAP_V2,
-                    EthPaymentType::TakerPayments,
-                    TAKER_PAYMENT_STATE_INDEX,
-                )
-                .await?;
-            if taker_status == U256::from(TakerPaymentStateV2::MakerSpent as u8) {
-                return Ok(taker_payment.clone());
-            }
             let now = now_sec();
             if now > wait_until {
                 return MmError::err(FindPaymentSpendError::Timeout { wait_until, now });
             }
-            Timer::sleep(10.).await;
+
+            let current_block = match self.current_block().compat().await {
+                Ok(b) => b,
+                Err(e) => {
+                    error!("Error getting block number: {}", e);
+                    Timer::sleep(5.).await;
+                    continue;
+                },
+            };
+
+            // get all logged TakerPaymentSpent events from `from_block` till current block
+            let events = match self
+                .events_from_block(taker_swap_v2_contract, "TakerPaymentSpent", from_block, current_block)
+                .await
+            {
+                Ok(events) => events,
+                Err(e) => {
+                    error!(
+                        "Error getting TakerPaymentSpent events from {} block: {}",
+                        from_block, e
+                    );
+                    Timer::sleep(5.).await;
+                    continue;
+                },
+            };
+
+            // this is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret)
+            let found_event = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice());
+
+            if let Some(event) = found_event {
+                if let Some(tx_hash) = event.transaction_hash {
+                    let transaction = match self.transaction(TransactionId::Hash(tx_hash)).await {
+                        Ok(Some(t)) => t,
+                        Ok(None) => {
+                            info!("Tx {} not found yet", tx_hash);
+                            Timer::sleep(check_every).await;
+                            continue;
+                        },
+                        Err(e) => {
+                            error!("Get tx {} error: {}", tx_hash, e);
+                            Timer::sleep(check_every).await;
+                            continue;
+                        },
+                    };
+                    let result = signed_tx_from_web3_tx(transaction).map_err(FindPaymentSpendError::Internal)?;
+                    return Ok(result);
+                }
+            }
+
+            Timer::sleep(5.).await;
         }
+    }
+
+    async fn events_from_block(
+        &self,
+        swap_contract_address: Address,
+        event_name: &str,
+        from_block: u64,
+        to_block: u64,
+    ) -> MmResult<Vec<Log>, FindPaymentSpendError> {
+        let contract_event = TAKER_SWAP_V2.event(event_name)?;
+        let filter = FilterBuilder::default()
+            .topics(Some(vec![contract_event.signature()]), None, None, None)
+            .from_block(BlockNumber::Number(from_block.into()))
+            .to_block(BlockNumber::Number(to_block.into()))
+            .address(vec![swap_contract_address])
+            .build();
+        let events_logs = self
+            .logs(filter)
+            .await
+            .map_err(|e| FindPaymentSpendError::Transport(e.to_string()))?;
+        Ok(events_logs)
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract [ethTakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L44) method
