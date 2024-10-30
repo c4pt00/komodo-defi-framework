@@ -1214,7 +1214,14 @@ impl SiaCoin {
             .satisfy_atomic_swap_refund(my_keypair, 0u32)
             .map_err(SendRefundHltcError::SatisfyHtlc)?
             .build();
-        todo!()
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(|e| SendRefundHltcError::BroadcastTx(e))?;
+
+        Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 }
 
@@ -1237,6 +1244,8 @@ pub enum SendRefundHltcError {
     UtxoFromTxid(SiaClientHelperError),
     #[error("SiaCoin::send_refund_hltc: failed to satisfy HTLC SpendPolicy {0}")]
     SatisfyHtlc(#[from] V2TransactionBuilderError),
+    #[error("SiaCoin::send_refund_hltc: failed to broadcast transaction {0}")]
+    BroadcastTx(SiaClientHelperError),
 }
 
 #[derive(Debug, Error)]
