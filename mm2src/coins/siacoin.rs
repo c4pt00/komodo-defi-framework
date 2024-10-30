@@ -1250,27 +1250,27 @@ pub enum SendRefundHltcError {
 
 #[derive(Debug, Error)]
 pub enum ValidateFeeError {
-    #[error("sia validate_fee: failed to parse ValidateFeeArgs {0}")]
+    #[error("SiaCoin::new_validate_fee: failed to parse ValidateFeeArgs {0}")]
     ParseArgs(#[from] SiaValidateFeeArgsError),
-    #[error("sia validate_fee: failed to fetch fee_tx event {0}")]
+    #[error("SiaCoin::new_validate_fee: failed to fetch fee_tx event {0}")]
     FetchEvent(#[from] SiaClientHelperError),
-    #[error("sia validate_fee: tx confirmed before min_block_number:{min_block_number} event:{event:?}")]
+    #[error("SiaCoin::new_validate_fee: tx confirmed before min_block_number:{min_block_number} event:{event:?}")]
     MininumHeight { event: Event, min_block_number: u64 },
-    #[error("sia validate_fee: all inputs do not originate from taker address txid:{0}")]
+    #[error("SiaCoin::new_validate_fee: all inputs do not originate from taker address txid:{0}")]
     InputsOrigin(TransactionId),
-    #[error("sia validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1")]
+    #[error("SiaCoin::new_validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1")]
     VoutLength { txid: TransactionId, outputs_length: usize },
-    #[error("sia validate_fee: fee_tx:{txid} pays wrong address:{address}")]
+    #[error("SiaCoin::new_validate_fee: fee_tx:{txid} pays wrong address:{address}")]
     InvalidFeeAddress { txid: TransactionId, address: Address },
-    #[error("sia validate_fee: fee_tx:{txid} pays wrong amount. expected:{expected} actual:{actual}")]
+    #[error("SiaCoin::new_validate_fee: fee_tx:{txid} pays wrong amount. expected:{expected} actual:{actual}")]
     InvalidFeeAmount {
         txid: TransactionId,
         expected: Currency,
         actual: Currency,
     },
-    #[error("sia validate_fee: failed to parse uuid from arbitrary_bytes {0}")]
+    #[error("SiaCoin::new_validate_fee: failed to parse uuid from arbitrary_bytes {0}")]
     ParseUuid(#[from] uuid::Error),
-    #[error("sia validate_fee: fee_tx:{txid} wrong uuid. expected:{expected} actual:{actual}")]
+    #[error("SiaCoin::new_validate_fee: fee_tx:{txid} wrong uuid. expected:{expected} actual:{actual}")]
     InvalidUuid {
         txid: TransactionId,
         expected: Uuid,
