@@ -42,6 +42,7 @@ use futures::channel::mpsc::channel;
 use futures::future::{join_all, Either, FutureExt, TryFutureExt};
 use keys::prefixes::*;
 use mm2_core::mm_ctx::MmCtxBuilder;
+use mm2_event_stream::StreamingManager;
 use mm2_number::bigdecimal::{BigDecimal, Signed};
 use mm2_test_helpers::electrums::doc_electrums;
 use mm2_test_helpers::for_tests::{electrum_servers_rpc, mm_ctx_with_custom_db, DOC_ELECTRUM_ADDRS,
@@ -85,7 +86,7 @@ pub fn electrum_client_for_test(servers: &[&str]) -> ElectrumClient {
 
     let servers = servers.into_iter().map(|s| json::from_value(s).unwrap()).collect();
     let abortable_system = AbortableQueue::default();
-    block_on(builder.electrum_client(abortable_system, args, servers, (None, None), None)).unwrap()
+    block_on(builder.electrum_client(abortable_system, args, servers, (None, None))).unwrap()
 }
 
 /// Returned client won't work by default, requires some mocks to be usable
@@ -481,8 +482,8 @@ fn test_wait_for_payment_spend_timeout_electrum() {
         client_settings,
         Default::default(),
         block_headers_storage,
+        StreamingManager::default(),
         abortable_system,
-        None,
     )
     .expect("Expected electrum_client_impl constructed without a problem");
     let client = UtxoRpcClientEnum::Electrum(client);
@@ -1518,13 +1519,13 @@ fn test_network_info_negative_time_offset() {
 #[test]
 fn test_unavailable_electrum_proto_version() {
     ElectrumClientImpl::try_new_arc.mock_safe(
-        |client_settings, block_headers_storage, abortable_system, event_handlers, scripthash_notification_sender| {
+        |client_settings, block_headers_storage, streaming_manager, abortable_system, event_handlers| {
             MockResult::Return(ElectrumClientImpl::with_protocol_version(
                 client_settings,
                 block_headers_storage,
+                streaming_manager,
                 abortable_system,
                 event_handlers,
-                scripthash_notification_sender,
                 OrdRange::new(1.8, 1.9).unwrap(),
             ))
         },
@@ -1599,13 +1600,13 @@ fn test_spam_rick() {
 fn test_one_unavailable_electrum_proto_version() {
     // Patch the electurm client construct to require protocol version 1.4 only.
     ElectrumClientImpl::try_new_arc.mock_safe(
-        |client_settings, block_headers_storage, abortable_system, event_handlers, scripthash_notification_sender| {
+        |client_settings, block_headers_storage, streaming_manager, abortable_system, event_handlers| {
             MockResult::Return(ElectrumClientImpl::with_protocol_version(
                 client_settings,
                 block_headers_storage,
+                streaming_manager,
                 abortable_system,
                 event_handlers,
-                scripthash_notification_sender,
                 OrdRange::new(1.4, 1.4).unwrap(),
             ))
         },

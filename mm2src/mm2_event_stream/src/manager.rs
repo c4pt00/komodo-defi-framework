@@ -31,6 +31,7 @@ pub enum StreamingManagerError {
     ClientAlreadyListening,
 }
 
+#[derive(Debug)]
 struct StreamerInfo {
     /// The communication channel to the streamer.
     data_in: Option<UnboundedSender<Box<dyn Any + Send>>>,
@@ -56,6 +57,7 @@ impl StreamerInfo {
     fn is_down(&self) -> bool { self.shutdown.is_canceled() }
 }
 
+#[derive(Debug)]
 struct ClientInfo {
     /// The streamers the client is listening to.
     listening_to: HashSet<String>,
@@ -90,7 +92,7 @@ impl ClientInfo {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct StreamingManagerInner {
     /// A map from streamer IDs to their communication channels (if present) and shutdown handles.
     streamers: HashMap<String, StreamerInfo>,
@@ -98,7 +100,7 @@ struct StreamingManagerInner {
     clients: HashMap<u64, ClientInfo>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct StreamingManager(Arc<RwLock<StreamingManagerInner>>);
 
 impl StreamingManager {

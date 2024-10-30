@@ -33,7 +33,7 @@ fn light_zcoin_activation_params() -> ZcoinActivationParams {
                     url: s.to_string(),
                     protocol: Default::default(),
                     disable_cert_verification: Default::default(),
-                    timeout_sec: None
+                    timeout_sec: None,
                 })
                 .collect(),
             min_connected: None,

@@ -39,6 +39,8 @@ impl UtxoBalanceEventStreamer {
             coin: UtxoStandardCoin::from(utxo_arc),
         }
     }
+
+    pub fn derive_streamer_id(coin: &str) -> String { format!("BALANCE:{coin}") }
 }
 
 #[async_trait]

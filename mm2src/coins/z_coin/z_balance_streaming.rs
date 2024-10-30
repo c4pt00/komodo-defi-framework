@@ -4,15 +4,9 @@ use crate::MarketCoinOps;
 
 use async_trait::async_trait;
 use common::log::error;
-use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::channel::oneshot;
-use futures::lock::Mutex as AsyncMutex;
 use futures_util::StreamExt;
 use mm2_event_stream::{Broadcaster, Event, EventStreamer, StreamHandlerInput};
-use std::sync::Arc;
-
-pub type ZBalanceEventSender = UnboundedSender<()>;
-pub type ZBalanceEventHandler = Arc<AsyncMutex<UnboundedReceiver<()>>>;
 
 pub struct ZCoinBalanceEventStreamer {
     coin: ZCoin,

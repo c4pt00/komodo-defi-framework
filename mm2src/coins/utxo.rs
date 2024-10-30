@@ -57,7 +57,7 @@ use common::{now_sec, now_sec_u32};
 use crypto::{DerivationPath, HDPathToCoin, Secp256k1ExtendedPublicKey};
 use derive_more::Display;
 #[cfg(not(target_arch = "wasm32"))] use dirs::home_dir;
-use futures::channel::mpsc::{Receiver as AsyncReceiver, Sender as AsyncSender, UnboundedSender};
+use futures::channel::mpsc::{Receiver as AsyncReceiver, Sender as AsyncSender};
 use futures::compat::Future01CompatExt;
 use futures::lock::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use futures01::Future;
@@ -144,8 +144,6 @@ pub enum ScripthashNotification {
     Triggered(String),
     SubscribeToAddresses(HashSet<Address>),
 }
-
-pub type ScripthashNotificationSender = Option<UnboundedSender<ScripthashNotification>>;
 
 #[cfg(windows)]
 #[cfg(not(target_arch = "wasm32"))]

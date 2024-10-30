@@ -5,9 +5,8 @@ use crate::utxo::rpc_clients::{ElectrumClient, ElectrumClientSettings, ElectrumC
 use crate::utxo::tx_cache::{UtxoVerboseCacheOps, UtxoVerboseCacheShared};
 use crate::utxo::utxo_block_header_storage::BlockHeaderStorage;
 use crate::utxo::utxo_builder::utxo_conf_builder::{UtxoConfBuilder, UtxoConfError};
-use crate::utxo::{output_script, ElectrumBuilderArgs, RecentlySpentOutPoints, ScripthashNotificationSender, TxFee,
-                  UtxoCoinConf, UtxoCoinFields, UtxoHDWallet, UtxoRpcMode, UtxoSyncStatus, UtxoSyncStatusLoopHandle,
-                  UTXO_DUST_AMOUNT};
+use crate::utxo::{output_script, ElectrumBuilderArgs, RecentlySpentOutPoints, TxFee, UtxoCoinConf, UtxoCoinFields,
+                  UtxoHDWallet, UtxoRpcMode, UtxoSyncStatus, UtxoSyncStatusLoopHandle, UTXO_DUST_AMOUNT};
 use crate::{BlockchainNetwork, CoinTransportMetrics, DerivationMethod, HistorySyncState, IguanaPrivKey,
             PrivKeyBuildPolicy, PrivKeyPolicy, PrivKeyPolicyNotAllowed, RpcClientType,
             SharableRpcTransportEventHandler, UtxoActivationParams};
@@ -30,7 +29,6 @@ use serde_json::{self as json, Value as Json};
 use spv_validation::conf::SPVConf;
 use spv_validation::helpers_validation::SPVError;
 use spv_validation::storage::{BlockHeaderStorageError, BlockHeaderStorageOps};
-use std::sync::Arc;
 use std::sync::Mutex;
 
 cfg_native! {
@@ -38,6 +36,7 @@ cfg_native! {
     use crate::utxo::rpc_clients::{ConcurrentRequestMap, NativeClient, NativeClientImpl};
     use dirs::home_dir;
     use std::path::{Path, PathBuf};
+    use std::sync::Arc;
 }
 
 /// Number of seconds in a day (24 hours * 60 * 60)
@@ -254,7 +253,7 @@ where
     // all spawned futures related to this `UTXO` coin will be aborted as well.
     let abortable_system: AbortableQueue = builder.ctx().abortable_system.create_subsystem()?;
 
-    let rpc_client = builder.rpc_client(None, abortable_system.create_subsystem()?).await?;
+    let rpc_client = builder.rpc_client(abortable_system.create_subsystem()?).await?;
     let tx_fee = builder.tx_fee(&rpc_client).await?;
     let decimals = builder.decimals(&rpc_client).await?;
     let dust_amount = builder.dust_amount();
@@ -332,7 +331,7 @@ pub trait UtxoFieldsWithHardwareWalletBuilder: UtxoCoinBuilderCommonOps {
         // all spawned futures related to this `UTXO` coin will be aborted as well.
         let abortable_system: AbortableQueue = self.ctx().abortable_system.create_subsystem()?;
 
-        let rpc_client = self.rpc_client(None, abortable_system.create_subsystem()?).await?;
+        let rpc_client = self.rpc_client(abortable_system.create_subsystem()?).await?;
         let tx_fee = self.tx_fee(&rpc_client).await?;
         let decimals = self.decimals(&rpc_client).await?;
         let dust_amount = self.dust_amount();
@@ -495,11 +494,7 @@ pub trait UtxoCoinBuilderCommonOps {
         }
     }
 
-    async fn rpc_client(
-        &self,
-        scripthash_notification_sender: ScripthashNotificationSender,
-        abortable_system: AbortableQueue,
-    ) -> UtxoCoinBuildResult<UtxoRpcClientEnum> {
+    async fn rpc_client(&self, abortable_system: AbortableQueue) -> UtxoCoinBuildResult<UtxoRpcClientEnum> {
         match self.activation_params().mode.clone() {
             UtxoRpcMode::Native => {
                 #[cfg(target_arch = "wasm32")]
@@ -523,7 +518,6 @@ pub trait UtxoCoinBuilderCommonOps {
                         ElectrumBuilderArgs::default(),
                         servers,
                         (min_connected, max_connected),
-                        scripthash_notification_sender,
                     )
                     .await?;
                 Ok(UtxoRpcClientEnum::Electrum(electrum))
@@ -539,7 +533,6 @@ pub trait UtxoCoinBuilderCommonOps {
         args: ElectrumBuilderArgs,
         servers: Vec<ElectrumConnectionSettings>,
         (min_connected, max_connected): (Option<usize>, Option<usize>),
-        scripthash_notification_sender: ScripthashNotificationSender,
     ) -> UtxoCoinBuildResult<ElectrumClient> {
         let coin_ticker = self.ticker().to_owned();
         let ctx = self.ctx();
@@ -576,8 +569,8 @@ pub trait UtxoCoinBuilderCommonOps {
             client_settings,
             event_handlers,
             block_headers_storage,
+            ctx.event_stream_manager.clone(),
             abortable_system,
-            scripthash_notification_sender,
         )
         .map_to_mm(UtxoCoinBuildError::Internal)
     }
