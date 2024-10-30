@@ -823,7 +823,7 @@ pub enum SendTakerPaymentError {
 
 // contains various helpers to account for subpar error handling trait method signatures
 impl SiaCoin {
-    fn my_keypair(&self) -> Result<&SiaKeypair, FrameworkError> {
+    pub fn my_keypair(&self) -> Result<&SiaKeypair, FrameworkError> {
         match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(keypair) => Ok(keypair),
             _ => Err(FrameworkError::UnsupportedPrivKeyPolicy),
