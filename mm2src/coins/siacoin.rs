@@ -752,7 +752,7 @@ impl SiaCoin {
     pub fn my_keypair(&self) -> Result<&SiaKeypair, SiaCoinError> {
         match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(keypair) => Ok(keypair),
-            _ => Err(SiaCoinError::MyKeyPair),
+            _ => Err(SiaCoinError::MyKeypairPrivKeyPolicy),
         }
     }
 }
@@ -1143,6 +1143,49 @@ impl SiaCoin {
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
+
+    async fn new_check_if_my_payment_sent(
+        &self,
+        args: CheckIfMyPaymentSentArgs<'_>,
+    ) -> Result<Option<TransactionEnum>, SiaCheckIfMyPaymentSentError> {
+        let sia_args = SiaCheckIfMyPaymentSentArgs::try_from(args).map_err(SiaCheckIfMyPaymentSentError::ParseArgs)?;
+
+        let my_keypair = self.my_keypair().map_err(SiaCheckIfMyPaymentSentError::MyKeypair)?;
+        let refund_public_key = my_keypair.public();
+
+        // Generate HTLC SpendPolicy
+        let spend_policy = SpendPolicy::atomic_swap(
+            &sia_args.success_public_key,
+            &refund_public_key,
+            sia_args.time_lock,
+            &sia_args.secret_hash,
+        );
+
+        let htlc_address = spend_policy.address();
+
+        let events_result = self.client.get_address_events(htlc_address).await;
+
+        let events = match events_result {
+            Ok(events) => events,
+            Err(_) => return Ok(None),
+        };
+
+        let event = match events.len() {
+            0 => return Ok(None),
+            1 => events[0].clone(),
+            _ => return Err(SiaCheckIfMyPaymentSentError::MultipleEvents(events)),
+        };
+
+        let tx = match event.data {
+            EventDataWrapper::V2Transaction(tx) => tx,
+            wrong_variant => return Err(SiaCheckIfMyPaymentSentError::EventVariant(wrong_variant)),
+        };
+
+        // TODO Alright - check that vout index is correct, check amount is correct
+        // Unclear what the consequence of selecting the wrong transaction might have
+        // The current implementation matches the UtxoStandardCoin logic
+        Ok(Some(SiaTransaction(tx).into()))
+    }
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
@@ -1241,6 +1284,55 @@ impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
     }
 }
 
+/// Sia typed equivalent of coins::ValidatePaymentInput
+/// Does not include swap_contract_address, try_spv_proof_until, unique_swap_data, watcher_reward
+/// as they are not relevant to Sia
+// #[derive(Clone, Debug)]
+// struct SiaValidatePaymentInput {
+//     payment_tx: SiaTransaction,
+//     time_lock_duration: u64,
+//     time_lock: u64,
+//     other_pub: PublicKey,
+//     secret_hash: Hash256,
+//     amount: Currency,
+//     confirmations: u64,
+// }
+
+/// Sia typed equivalent of coins::CheckIfMyPaymentSentArgs
+/// Does not include irrelevant fields swap_contract_address, swap_unique_data or payment_instructions
+struct SiaCheckIfMyPaymentSentArgs {
+    time_lock: u64,
+    /// The PublicKey that appears in the HTLC SpendPolicy success branch
+    /// aka "other_pub" in coins::CheckIfMyPaymentSentArgs
+    success_public_key: PublicKey,
+    secret_hash: Hash256,
+    search_from_block: u64,
+    amount: Currency,
+}
+
+impl TryFrom<CheckIfMyPaymentSentArgs<'_>> for SiaCheckIfMyPaymentSentArgs {
+    type Error = SiaCheckIfMyPaymentSentArgsError;
+
+    fn try_from(args: CheckIfMyPaymentSentArgs<'_>) -> Result<Self, Self::Error> {
+        let time_lock = args.time_lock;
+        let success_public_key =
+            PublicKey::from_bytes(args.other_pub).map_err(SiaCheckIfMyPaymentSentArgsError::ParseOtherPublicKey)?;
+        let secret_hash =
+            Hash256::try_from(args.secret_hash).map_err(SiaCheckIfMyPaymentSentArgsError::ParseSecretHash)?;
+        let search_from_block = args.search_from_block;
+        let amount =
+            siacoin_to_hastings(args.amount.clone()).map_err(SiaCheckIfMyPaymentSentArgsError::SiacoinToHastings)?;
+
+        Ok(SiaCheckIfMyPaymentSentArgs {
+            time_lock,
+            success_public_key,
+            secret_hash,
+            search_from_block,
+            amount,
+        })
+    }
+}
+
 #[async_trait]
 impl SwapOps for SiaCoin {
     /* TODO Alright - refactor SwapOps to use associated types for error handling
@@ -1308,11 +1400,15 @@ impl SwapOps for SiaCoin {
     // FIXME Alright
     async fn validate_taker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> { Ok(()) }
 
+    // return Ok(Some(tx)) if a transaction is found
+    // return Ok(None) if no transaction is found
     async fn check_if_my_payment_sent(
         &self,
-        _if_my_payment_sent_args: CheckIfMyPaymentSentArgs<'_>,
+        if_my_payment_sent_args: CheckIfMyPaymentSentArgs<'_>,
     ) -> Result<Option<TransactionEnum>, String> {
-        unimplemented!()
+        self.new_check_if_my_payment_sent(if_my_payment_sent_args)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     async fn search_for_swap_tx_spend_my(
@@ -1467,16 +1563,6 @@ impl SiaCoin {
         Ok(res)
     }
 
-    async fn get_address_events(&self, address: Address) -> Result<Vec<Event>, MmError<SiaApiClientError>> {
-        let request = AddressesEventsRequest {
-            address,
-            limit: None,
-            offset: None,
-        };
-        let res = self.client.dispatcher(request).await?;
-        Ok(res)
-    }
-
     pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
         let my_address = match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair.public().address(),
@@ -1485,7 +1571,11 @@ impl SiaCoin {
             },
         };
 
-        let address_events = self.get_address_events(my_address).await.map_err(|e| e.to_string())?;
+        let address_events = self
+            .client
+            .get_address_events(my_address)
+            .await
+            .map_err(|e| e.to_string())?;
 
         Ok(address_events)
     }

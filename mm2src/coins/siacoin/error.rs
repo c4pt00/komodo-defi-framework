@@ -1,5 +1,5 @@
-use crate::siacoin::{Address, Currency, Event, ParseHashError, PreimageError, PrivateKeyError, PublicKeyError,
-                     SiaApiClientError, SiaClientHelperError, TransactionId, V2TransactionBuilderError};
+use crate::siacoin::{Address, Currency, Event, EventDataWrapper, ParseHashError, PreimageError, PrivateKeyError,
+                     PublicKeyError, SiaApiClientError, SiaClientHelperError, TransactionId, V2TransactionBuilderError};
 use crate::{DexFee, TransactionEnum};
 use common::executor::AbortedError;
 use mm2_number::BigDecimal;
@@ -24,7 +24,7 @@ pub enum SendTakerFeeError {
     SiacoinToHastings(#[from] SiacoinToHastingsError),
     #[error("SiaCoin::new_send_taker_fee: unexpected DexFee variant: {0:?}")]
     DexFeeVariant(DexFee),
-    #[error("SiaCoin::new_send_taker_fee: failed to fetch my_pubkey {0}")]
+    #[error("SiaCoin::new_send_taker_fee: failed to fetch my_keypair {0}")]
     MyKeypair(#[from] SiaCoinError),
     #[error("SiaCoin::new_send_taker_fee: failed to fund transaction {0}")]
     FundTx(SiaClientHelperError),
@@ -221,5 +221,31 @@ pub enum SiaCoinError {
     #[error("SiaCoin::from_conf_and_request: failed to build SiaCoin: {0}")]
     Builder(#[from] SiaCoinBuilderError),
     #[error("SiaCoin::my_keypair: invalid private key policy, must use iguana seed")]
-    MyKeyPair,
+    MyKeypairPrivKeyPolicy,
+}
+
+#[derive(Debug, Error)]
+pub enum SiaCheckIfMyPaymentSentArgsError {
+    #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to parse other_pub {0}")]
+    ParseOtherPublicKey(#[from] PublicKeyError),
+    #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to parse secret_hash {0}")]
+    ParseSecretHash(#[from] ParseHashError),
+    #[error(
+        "SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to convert amount to Currency {0}"
+    )]
+    SiacoinToHastings(#[from] SiacoinToHastingsError),
+}
+
+#[derive(Debug, Error)]
+pub enum SiaCheckIfMyPaymentSentError {
+    #[error("SiaCoin::new_check_if_my_payment_sent: failed to parse CheckIfMyPaymentSentArgs: {0}")]
+    ParseArgs(#[from] SiaCheckIfMyPaymentSentArgsError),
+    #[error("SiaCoin::new_check_if_my_payment_sent: invalid private key policy, must use iguana seed")]
+    MyKeypair(#[from] SiaCoinError),
+    #[error("SiaCoin::new_check_if_my_payment_sent: failed to fetch address events: {0}")]
+    FetchEvents(#[from] SiaClientHelperError),
+    #[error("SiaCoin::new_check_if_my_payment_sent: expected to find single event found: {0:?}")]
+    MultipleEvents(Vec<Event>),
+    #[error("SiaCoin::new_check_if_my_payment_sent: unexpected event variant: {0:?}")]
+    EventVariant(EventDataWrapper),
 }
