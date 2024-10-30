@@ -890,6 +890,12 @@ impl SiaCoin {
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
 
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(|e| SendTakerFeeError::BroadcastTx(e))?;
+
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
@@ -925,10 +931,16 @@ impl SiaCoin {
         self.client
             .fund_tx_single_source(&mut tx_builder, &my_keypair.public())
             .await
-            .map_err(SendMakerPaymentError::FundTx)?;
+            .map_err(|e| SendMakerPaymentError::FundTx(e))?;
 
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(|e| SendMakerPaymentError::BroadcastTx(e))?;
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
@@ -963,10 +975,16 @@ impl SiaCoin {
         self.client
             .fund_tx_single_source(&mut tx_builder, &my_keypair.public())
             .await
-            .map_err(SendTakerPaymentError::FundTx)?;
+            .map_err(|e| SendTakerPaymentError::FundTx(e))?;
 
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(|e| SendTakerPaymentError::BroadcastTx(e))?;
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
@@ -1000,7 +1018,7 @@ impl SiaCoin {
             .client
             .utxo_from_txid(&taker_payment_txid, 0)
             .await
-            .map_err(MakerSpendsTakerPaymentError::UtxoFromTxid)?;
+            .map_err(|e| MakerSpendsTakerPaymentError::UtxoFromTxid(e))?;
 
         // FIXME Alright this transaction will have a fixed size, calculate the miner fee amount
         // after we have the actual transaction size
@@ -1019,6 +1037,12 @@ impl SiaCoin {
             .satisfy_atomic_swap_success(my_keypair, secret, 0u32)
             .map_err(MakerSpendsTakerPaymentError::SatisfyHtlc)?
             .build();
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(|e| MakerSpendsTakerPaymentError::BroadcastTx(e))?;
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
@@ -1050,7 +1074,7 @@ impl SiaCoin {
             .client
             .utxo_from_txid(&maker_payment_txid, 0)
             .await
-            .map_err(TakerSpendsMakerPaymentError::UtxoFromTxid)?;
+            .map_err(|e| TakerSpendsMakerPaymentError::UtxoFromTxid(e))?;
 
         let miner_fee = Currency::DEFAULT_FEE;
         let htlc_utxo_amount = htlc_utxo.siacoin_output.value;
@@ -1067,6 +1091,12 @@ impl SiaCoin {
             .satisfy_atomic_swap_success(my_keypair, secret, 0u32)
             .map_err(TakerSpendsMakerPaymentError::SatisfyHtlc)?
             .build();
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(|e| TakerSpendsMakerPaymentError::BroadcastTx(e))?;
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
