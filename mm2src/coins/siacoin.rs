@@ -73,6 +73,10 @@ use sia_rust::transport::client::wasm::Client as SiaClientType;
 #[cfg(target_arch = "wasm32")]
 use sia_rust::transport::client::wasm::Conf as SiaClientConf;
 
+pub mod error;
+pub use error::SiaCoinError;
+use error::*;
+
 pub mod sia_hd_wallet;
 mod sia_withdraw;
 
@@ -116,19 +120,24 @@ pub struct SiaCoinActivationRequest {
     pub client_conf: SiaClientConf,
 }
 
-pub async fn sia_coin_from_conf_and_request(
-    ctx: &MmArc,
-    json_conf: Json,
-    request: &SiaCoinActivationRequest,
-    priv_key_policy: PrivKeyBuildPolicy,
-) -> Result<SiaCoin, MmError<SiaCoinError>> {
-    let priv_key = match priv_key_policy {
-        PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
-        _ => return Err(FrameworkError::UnsupportedPrivKeyPolicy.into()),
-    };
-    let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidPrivateKey)?;
-    let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinError::InvalidConf)?;
-    SiaCoinBuilder::new(ctx, conf, key_pair, request).build().await
+impl SiaCoin {
+    pub async fn from_conf_and_request(
+        ctx: &MmArc,
+        json_conf: Json,
+        request: &SiaCoinActivationRequest,
+        priv_key_policy: PrivKeyBuildPolicy,
+    ) -> Result<Self, MmError<SiaCoinError>> {
+        let priv_key = match priv_key_policy {
+            PrivKeyBuildPolicy::IguanaPrivKey(priv_key) => priv_key,
+            _ => return Err(SiaCoinError::UnsupportedPrivKeyPolicy.into()),
+        };
+        let key_pair = SiaKeypair::from_private_bytes(priv_key.as_slice()).map_err(SiaCoinError::InvalidPrivateKey)?;
+        let conf: SiaCoinConf = serde_json::from_value(json_conf).map_err(SiaCoinError::InvalidConf)?;
+        SiaCoinBuilder::new(ctx, conf, key_pair, request)
+            .build()
+            .await
+            .map_err(|e| SiaCoinError::Builder(e).into())
+    }
 }
 
 pub struct SiaCoinBuilder<'a> {
@@ -148,12 +157,13 @@ impl<'a> SiaCoinBuilder<'a> {
         }
     }
 
-    async fn build(self) -> MmResult<SiaCoin, SiaCoinError> {
+    // TODO Alright - update to follow the new error handling pattern
+    async fn build(self) -> Result<SiaCoin, SiaCoinBuilderError> {
         let abortable_queue: AbortableQueue = self
             .ctx
             .abortable_system
             .create_subsystem()
-            .map_err(FrameworkError::AbortableSystem)?;
+            .map_err(SiaCoinBuilderError::AbortableSystem)?;
         let abortable_system = Arc::new(abortable_queue);
         let history_sync_state = if self.request.tx_history {
             HistorySyncState::NotStarted
@@ -173,7 +183,7 @@ impl<'a> SiaCoinBuilder<'a> {
             client: Arc::new(
                 SiaClientType::new(self.request.client_conf.clone())
                     .await
-                    .map_to_mm(SiaCoinError::ClientError)?,
+                    .map_err(SiaCoinBuilderError::Client)?,
             ),
             priv_key_policy: PrivKeyPolicy::Iguana(self.key_pair).into(),
             history_sync_state: Mutex::new(history_sync_state).into(),
@@ -191,53 +201,24 @@ fn hastings_to_siacoin(hastings: Currency) -> BigDecimal {
     BigDecimal::new(BigInt::from(hastings), 24)
 }
 
-#[derive(Debug, Error)]
-pub enum CoinToHastingsError {
-    #[error("Sia Failed to convert BigDecimal:{0} to BigInt")]
-    BigDecimalToBigInt(BigDecimal),
-    #[error("Sia Failed to convert BigDecimal:{0} to u128")]
-    BigIntToU128(BigDecimal),
-}
-
 /// Convert "coin" representation to hastings amount
 /// BigDecimal(1) == 1 SC == 10^24 hastings
-// it's not ideal that we require these standalone helpers, but a newtype of Currency is even messier
-// TODO Alright - MmCoin trait should have an associated type "Currency" with a trait bound like
-// "IsCurrency" implementing methods for conversion to and from BigDecimal/MmNumber
-fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<Currency, CoinToHastingsError> {
+// TODO it's not ideal that we require these standalone helpers, but a newtype of Currency is even messier
+fn siacoin_to_hastings(siacoin: BigDecimal) -> Result<Currency, SiacoinToHastingsError> {
     // Shift the decimal place to the right by 24 places (10^24)
     let decimals = BigInt::from(10u128.pow(24));
     let hastings = siacoin.clone() * BigDecimal::from(decimals);
     hastings
         .to_bigint()
-        .ok_or(CoinToHastingsError::BigDecimalToBigInt(siacoin.clone()))?
+        .ok_or(SiacoinToHastingsError::BigDecimalToBigInt(siacoin.clone()))?
         .to_u128()
-        .ok_or(CoinToHastingsError::BigIntToU128(siacoin))
+        .ok_or(SiacoinToHastingsError::BigIntToU128(siacoin))
         .map(Currency)
 }
 
-#[derive(Debug, Error)]
-pub enum SiaCoinError {
-    #[error("Sia Invalid conf, JSON deserialization failed {}", _0)]
-    InvalidConf(#[from] serde_json::Error),
-    #[error("Sia Client Error: {}", _0)]
-    ClientError(#[from] SiaApiClientError),
-    #[error("Sia Client Helpers Error: {}", _0)]
-    ClientHelpersError(#[from] SiaClientHelperError),
-    #[error("Sia Invalid Secret Key: {}", _0)]
-    InvalidPrivateKey(#[from] PrivateKeyError),
-    #[error("Sia Invalid Secret Key: {}", _0)]
-    InvalidPublicKey(#[from] PublicKeyError),
-    #[error("Sia Internal KDf error: {}", _0)]
-    KdfError(#[from] FrameworkError),
-}
-
-impl NotMmError for SiaCoinError {}
-
+// TODO Alright - refactor and move to siacoin::error
 #[derive(Debug, Error)]
 pub enum FrameworkError {
-    #[error("Sia Failed to create abortable system {}", _0)]
-    AbortableSystem(AbortedError),
     #[error(
         "Sia select_outputs insufficent amount, available: {:?} required: {:?}",
         available,
@@ -246,19 +227,8 @@ pub enum FrameworkError {
     SelectOutputsInsufficientAmount { available: Currency, required: Currency },
     #[error("Sia TransactionErr {:?}", _0)]
     MmTransactionErr(TransactionErr),
-    #[error("Sia UnexpectedDerivationMethod {}", _0)]
-    UnexpectedDerivationMethod(MmError<UnexpectedDerivationMethod>),
-    #[error("Sia Invalid Private Key Policy, must use iguana seed")]
-    UnsupportedPrivKeyPolicy,
     #[error("Sia MyAddressError: `{0}`")]
     MyAddressError(MyAddressError),
-}
-
-impl NotMmError for FrameworkError {}
-
-// This is required because AbortedError doesn't impl Error
-impl From<AbortedError> for FrameworkError {
-    fn from(e: AbortedError) -> Self { FrameworkError::AbortableSystem(e) }
 }
 
 impl From<TransactionErr> for FrameworkError {
@@ -824,56 +794,12 @@ impl MarketCoinOps for SiaCoin {
     fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
 }
 
-#[derive(Debug, Error)]
-pub enum SendTakerFeeError {
-    #[error("sia send_taker_fee: failed to parse uuid from bytes {0}")]
-    ParseUuid(#[from] uuid::Error),
-    #[error("sia send_taker_fee: Unexpected Uuid version {0}")]
-    UuidVersion(usize),
-    #[error("sia send_taker_fee: failed to convert trade_fee_amount to Currency {0}")]
-    SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_taker_fee: unexpected DexFee variant: {0:?}")]
-    DexFeeVariant(DexFee),
-    #[error("sia send_taker_fee: failed to fetch my_pubkey {0}")]
-    MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_fee: failed to fund transaction {0}")]
-    FundTx(#[from] SiaClientHelperError),
-}
-
-#[derive(Debug, Error)]
-pub enum SendMakerPaymentError {
-    #[error("sia send_maker_payment: invalid taker pubkey {0}")]
-    InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_maker_payment: failed to fetch my_pubkey {0}")]
-    MyPubkey(#[from] FrameworkError),
-    #[error("sia send_maker_payment: failed to convert trade amount to Currency {0}")]
-    SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_maker_payment: failed to fund transaction {0}")]
-    FundTx(#[from] SiaClientHelperError),
-    #[error("sia send_maker_payment: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
-}
-
-#[derive(Debug, Error)]
-pub enum SendTakerPaymentError {
-    #[error("sia send_taker_payment: invalid taker pubkey {}", _0)]
-    InvalidMakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_taker_payment: failed to fetch my_pubkey {}", _0)]
-    MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_payment: failed to convert trade amount to Currency")]
-    SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("sia send_taker_payment: failed to fund transaction {}", _0)]
-    FundTx(#[from] SiaClientHelperError),
-    #[error("sia send_taker_payment: invalid secret_hash length {}", _0)]
-    SecretHashLength(#[from] ParseHashError),
-}
-
 // contains various helpers to account for subpar error handling trait method signatures
 impl SiaCoin {
-    fn my_keypair(&self) -> Result<&SiaKeypair, FrameworkError> {
+    pub fn my_keypair(&self) -> Result<&SiaKeypair, SiaCoinError> {
         match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(keypair) => Ok(keypair),
-            _ => Err(FrameworkError::UnsupportedPrivKeyPolicy),
+            _ => Err(SiaCoinError::MyKeypairPrivKeyPolicy),
         }
     }
 }
@@ -908,7 +834,7 @@ impl SiaCoin {
             wrong_variant => return Err(SendTakerFeeError::DexFeeVariant(wrong_variant)),
         };
 
-        let my_keypair = self.my_keypair().map_err(SendTakerFeeError::MyPubkey)?;
+        let my_keypair = self.my_keypair().map_err(SendTakerFeeError::MyKeypair)?;
 
         // Create a new transaction builder
         let mut tx_builder = V2TransactionBuilder::new();
@@ -931,6 +857,12 @@ impl SiaCoin {
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
 
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(SendTakerFeeError::BroadcastTx)?;
+
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
@@ -938,7 +870,7 @@ impl SiaCoin {
         &self,
         args: SendPaymentArgs<'_>,
     ) -> Result<TransactionEnum, SendMakerPaymentError> {
-        let my_keypair = self.my_keypair().map_err(SendMakerPaymentError::MyPubkey)?;
+        let my_keypair = self.my_keypair().map_err(SendMakerPaymentError::MyKeypair)?;
 
         let maker_public_key = my_keypair.public();
         let taker_public_key =
@@ -971,6 +903,12 @@ impl SiaCoin {
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
 
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(SendMakerPaymentError::BroadcastTx)?;
+
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
@@ -978,7 +916,7 @@ impl SiaCoin {
         &self,
         args: SendPaymentArgs<'_>,
     ) -> Result<TransactionEnum, SendTakerPaymentError> {
-        let my_keypair = self.my_keypair().map_err(SendTakerPaymentError::MyPubkey)?;
+        let my_keypair = self.my_keypair().map_err(SendTakerPaymentError::MyKeypair)?;
 
         let taker_public_key = my_keypair.public();
         let maker_public_key =
@@ -988,7 +926,7 @@ impl SiaCoin {
 
         // Generate HTLC SpendPolicy
         let htlc_spend_policy =
-            SpendPolicy::atomic_swap(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
+            SpendPolicy::atomic_swap(&maker_public_key, &taker_public_key, args.time_lock, &secret_hash);
 
         // Convert the trade amount to a Currency amount
         let trade_amount = siacoin_to_hastings(args.amount).map_err(SendTakerPaymentError::SiacoinToHastings)?;
@@ -1009,6 +947,12 @@ impl SiaCoin {
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
 
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(SendTakerPaymentError::BroadcastTx)?;
+
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
@@ -1018,7 +962,7 @@ impl SiaCoin {
         &self,
         args: SpendPaymentArgs<'_>,
     ) -> Result<TransactionEnum, MakerSpendsTakerPaymentError> {
-        let my_keypair = self.my_keypair().map_err(MakerSpendsTakerPaymentError::MyPubkey)?;
+        let my_keypair = self.my_keypair().map_err(MakerSpendsTakerPaymentError::MyKeypair)?;
 
         let maker_public_key = my_keypair.public();
         let taker_public_key =
@@ -1034,7 +978,7 @@ impl SiaCoin {
 
         // Generate HTLC SpendPolicy as it will appear in the SiacoinInputV2 that spends taker payment
         let input_spend_policy =
-            SpendPolicy::atomic_swap_success(&taker_public_key, &maker_public_key, args.time_lock, &secret_hash);
+            SpendPolicy::atomic_swap_success(&maker_public_key, &taker_public_key, args.time_lock, &secret_hash);
 
         // Fetch the HTLC UTXO from the taker payment transaction
         let htlc_utxo = self
@@ -1061,6 +1005,12 @@ impl SiaCoin {
             .map_err(MakerSpendsTakerPaymentError::SatisfyHtlc)?
             .build();
 
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(MakerSpendsTakerPaymentError::BroadcastTx)?;
+
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
 
@@ -1068,7 +1018,7 @@ impl SiaCoin {
         &self,
         args: SpendPaymentArgs<'_>,
     ) -> Result<TransactionEnum, TakerSpendsMakerPaymentError> {
-        let my_keypair = self.my_keypair().map_err(TakerSpendsMakerPaymentError::MyPubkey)?;
+        let my_keypair = self.my_keypair().map_err(TakerSpendsMakerPaymentError::MyKeypair)?;
 
         let taker_public_key = my_keypair.public();
         let maker_public_key =
@@ -1108,6 +1058,12 @@ impl SiaCoin {
             .satisfy_atomic_swap_success(my_keypair, secret, 0u32)
             .map_err(TakerSpendsMakerPaymentError::SatisfyHtlc)?
             .build();
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(TakerSpendsMakerPaymentError::BroadcastTx)?;
 
         Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
@@ -1188,201 +1144,137 @@ impl SiaCoin {
         Ok(())
     }
 
-    async fn new_send_taker_refunds_payment(
-        &self,
-        args: RefundPaymentArgs<'_>,
-    ) -> Result<TransactionEnum, TakerRefundsPaymentError> {
-        let my_keypair = self.my_keypair().map_err(TakerRefundsPaymentError::MyKeypair)?;
-        let taker_public_key = my_keypair.public();
+    async fn send_refund_hltc(&self, args: RefundPaymentArgs<'_>) -> Result<TransactionEnum, SendRefundHltcError> {
+        let my_keypair = self.my_keypair().map_err(SendRefundHltcError::MyKeypair)?;
+        let refund_public_key = my_keypair.public();
 
-        let _args =
-            SiaRefundPaymentArgs::taker_refund(args, taker_public_key).map_err(TakerRefundsPaymentError::ParseArgs)?;
-        todo!()
+        // parse KDF provided data to Sia specific types
+        let sia_args = SiaRefundPaymentArgs::try_from(args).map_err(SendRefundHltcError::ParseArgs)?;
+
+        // Generate HTLC SpendPolicy as it will appear in the SiacoinInputV2
+        let input_spend_policy = SpendPolicy::atomic_swap_refund(
+            &sia_args.success_public_key,
+            &refund_public_key,
+            sia_args.time_lock,
+            &sia_args.secret_hash,
+        );
+
+        // Fetch the HTLC UTXO from the payment_tx transaction
+        let htlc_utxo = self
+            .client
+            .utxo_from_txid(&sia_args.payment_tx.txid(), 0)
+            .await
+            .map_err(SendRefundHltcError::UtxoFromTxid)?;
+
+        let miner_fee = Currency::DEFAULT_FEE;
+        let htlc_utxo_amount = htlc_utxo.siacoin_output.value;
+
+        // Create a new transaction builder
+        let tx = V2TransactionBuilder::new()
+            // Set the miner fee amount
+            .miner_fee(miner_fee)
+            // Add output of taker spending to self
+            .add_siacoin_output((my_keypair.public().address(), htlc_utxo_amount - miner_fee).into())
+            // Add input spending the HTLC output
+            .add_siacoin_input(htlc_utxo, input_spend_policy)
+            // Satisfy the HTLC by providing a signature and the secret
+            .satisfy_atomic_swap_refund(my_keypair, 0u32)
+            .map_err(SendRefundHltcError::SatisfyHtlc)?
+            .build();
+
+        // Broadcast the transaction
+        self.client
+            .broadcast_transaction(&tx)
+            .await
+            .map_err(SendRefundHltcError::BroadcastTx)?;
+
+        Ok(TransactionEnum::SiaTransaction(tx.into()))
     }
-}
 
-#[derive(Debug, Error)]
-pub enum TakerRefundsPaymentError {
-    #[error("sia send_taker_refunds_payment: failed to fetch my_keypair {0}")]
-    MyKeypair(#[from] FrameworkError),
-    #[error("sia send_taker_refunds_payment: failed to parse RefundPaymentArgs {0}")]
-    ParseArgs(#[from] SiaRefundPaymentArgsError),
-}
+    async fn new_check_if_my_payment_sent(
+        &self,
+        args: CheckIfMyPaymentSentArgs<'_>,
+    ) -> Result<Option<TransactionEnum>, SiaCheckIfMyPaymentSentError> {
+        let sia_args = SiaCheckIfMyPaymentSentArgs::try_from(args).map_err(SiaCheckIfMyPaymentSentError::ParseArgs)?;
 
-#[derive(Debug, Error)]
-pub enum ValidateFeeError {
-    #[error("sia validate_fee: failed to parse ValidateFeeArgs {0}")]
-    ParseArgs(#[from] SiaValidateFeeArgsError),
-    #[error("sia validate_fee: failed to fetch fee_tx event {0}")]
-    FetchEvent(#[from] SiaClientHelperError),
-    #[error("sia validate_fee: tx confirmed before min_block_number:{min_block_number} event:{event:?}")]
-    MininumHeight { event: Event, min_block_number: u64 },
-    #[error("sia validate_fee: all inputs do not originate from taker address txid:{0}")]
-    InputsOrigin(TransactionId),
-    #[error("sia validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1")]
-    VoutLength { txid: TransactionId, outputs_length: usize },
-    #[error("sia validate_fee: fee_tx:{txid} pays wrong address:{address}")]
-    InvalidFeeAddress { txid: TransactionId, address: Address },
-    #[error("sia validate_fee: fee_tx:{txid} pays wrong amount. expected:{expected} actual:{actual}")]
-    InvalidFeeAmount {
-        txid: TransactionId,
-        expected: Currency,
-        actual: Currency,
-    },
-    #[error("sia validate_fee: failed to parse uuid from arbitrary_bytes {0}")]
-    ParseUuid(#[from] uuid::Error),
-    #[error("sia validate_fee: fee_tx:{txid} wrong uuid. expected:{expected} actual:{actual}")]
-    InvalidUuid {
-        txid: TransactionId,
-        expected: Uuid,
-        actual: Uuid,
-    },
-}
+        let my_keypair = self.my_keypair().map_err(SiaCheckIfMyPaymentSentError::MyKeypair)?;
+        let refund_public_key = my_keypair.public();
 
-// TODO Alright - nearly identical to MakerSpendsTakerPaymentError, refactor
-#[derive(Debug, Error)]
-pub enum TakerSpendsMakerPaymentError {
-    #[error("sia send_taker_spends_maker_payment: failed to fetch my_pubkey {0}")]
-    MyPubkey(#[from] FrameworkError),
-    #[error("sia send_taker_spends_maker_payment: invalid maker pubkey {0}")]
-    InvalidMakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse taker_payment_tx {0}")]
-    ParseTx(#[from] SiaTransactionError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse secret {0}")]
-    ParseSecret(#[from] PreimageError),
-    #[error("sia send_taker_spends_maker_payment: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
-    #[error("sia send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
-    UtxoFromTxid(#[from] SiaClientHelperError),
-    #[error("sia send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
-    SatisfyHtlc(#[from] V2TransactionBuilderError),
-}
+        // Generate HTLC SpendPolicy
+        let spend_policy = SpendPolicy::atomic_swap(
+            &sia_args.success_public_key,
+            &refund_public_key,
+            sia_args.time_lock,
+            &sia_args.secret_hash,
+        );
 
-#[derive(Debug, Error)]
-pub enum MakerSpendsTakerPaymentError {
-    #[error("sia send_maker_spends_taker_payment: failed to fetch my_pubkey {0}")]
-    MyPubkey(#[from] FrameworkError),
-    #[error("sia send_maker_spends_taker_payment: invalid taker pubkey {0}")]
-    InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse taker_payment_tx {0}")]
-    ParseTx(#[from] SiaTransactionError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse secret {0}")]
-    ParseSecret(#[from] PreimageError),
-    #[error("sia send_maker_spends_taker_payment: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
-    #[error("sia send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
-    UtxoFromTxid(#[from] SiaClientHelperError),
-    #[error("sia send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
-    SatisfyHtlc(#[from] V2TransactionBuilderError),
+        let htlc_address = spend_policy.address();
+
+        let events_result = self.client.get_address_events(htlc_address).await;
+
+        let events = match events_result {
+            Ok(events) => events,
+            Err(_) => return Ok(None),
+        };
+
+        let event = match events.len() {
+            0 => return Ok(None),
+            1 => events[0].clone(),
+            _ => return Err(SiaCheckIfMyPaymentSentError::MultipleEvents(events)),
+        };
+
+        let tx = match event.data {
+            EventDataWrapper::V2Transaction(tx) => tx,
+            wrong_variant => return Err(SiaCheckIfMyPaymentSentError::EventVariant(wrong_variant)),
+        };
+
+        // TODO Alright - check that vout index is correct, check amount is correct
+        // Unclear what the consequence of selecting the wrong transaction might have
+        // The current implementation matches the UtxoStandardCoin logic
+        Ok(Some(SiaTransaction(tx).into()))
+    }
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
-#[allow(dead_code)]
 pub struct SiaRefundPaymentArgs {
     payment_tx: SiaTransaction,
     time_lock: u64,
-    maker_public_key: PublicKey,
-    taker_public_key: PublicKey,
+    success_public_key: PublicKey,
     secret_hash: Hash256,
 }
 
-#[derive(Debug, Error)]
-pub enum RefundArgsParseError {
-    #[error("SiaRefundPaymentArgs: failed to parse other_pubkey {0}")]
-    ParseOtherPublicKey(#[from] PublicKeyError),
-    #[error("SiaRefundPaymentArgs: failed to parse payment_tx {0}")]
-    ParseTx(#[from] SiaTransactionError),
-    #[error("SiaRefundPaymentArgs: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
-    // SwapTxTypeVariant uses String Debug trait representation to avoid explicit lifetime annotations
-    #[error("SiaValidateFeeArgs: unexpected SwapTxTypeWithSecretHash variant {0}")]
-    SwapTxTypeVariant(String),
-}
+impl TryFrom<RefundPaymentArgs<'_>> for SiaRefundPaymentArgs {
+    type Error = SiaRefundPaymentArgsError;
 
-#[derive(Debug, Error)]
-pub enum SiaRefundPaymentArgsError {
-    #[error("SiaRefundPaymentArgs::maker_refund: failed {0}")]
-    Maker(RefundArgsParseError),
-    #[error("SiaRefundPaymentArgs::taker_refund: failed {0}")]
-    Taker(RefundArgsParseError),
-}
-
-impl SiaRefundPaymentArgs {
-    // treat other_pubkey as taker_public_key
-    #[allow(dead_code)]
-    fn maker_refund(
-        args: RefundPaymentArgs<'_>,
-        maker_public_key: PublicKey,
-    ) -> Result<Self, SiaRefundPaymentArgsError> {
-        let payment_tx = SiaTransaction::try_from(args.payment_tx.to_vec())
-            .map_err(RefundArgsParseError::ParseTx)
-            .map_err(SiaRefundPaymentArgsError::Maker)?;
+    fn try_from(args: RefundPaymentArgs<'_>) -> Result<Self, Self::Error> {
+        let payment_tx =
+            SiaTransaction::try_from(args.payment_tx.to_vec()).map_err(SiaRefundPaymentArgsError::ParseTx)?;
 
         let time_lock = args.time_lock;
 
-        let taker_public_key = PublicKey::from_bytes(args.other_pubkey)
-            .map_err(RefundArgsParseError::ParseOtherPublicKey)
-            .map_err(SiaRefundPaymentArgsError::Maker)?;
+        let success_public_key =
+            PublicKey::from_bytes(args.other_pubkey).map_err(SiaRefundPaymentArgsError::ParseOtherPublicKey)?;
 
         let secret_hash_slice = match args.tx_type_with_secret_hash {
             SwapTxTypeWithSecretHash::TakerOrMakerPayment { maker_secret_hash } => maker_secret_hash,
             wrong_variant => {
-                let inner = RefundArgsParseError::SwapTxTypeVariant(format!("{:?}", wrong_variant));
-                return Err(SiaRefundPaymentArgsError::Maker(inner));
+                return Err(SiaRefundPaymentArgsError::SwapTxTypeVariant(format!(
+                    "{:?}",
+                    wrong_variant
+                )));
             },
         };
 
-        let secret_hash = Hash256::try_from(secret_hash_slice)
-            .map_err(RefundArgsParseError::ParseSecretHash)
-            .map_err(SiaRefundPaymentArgsError::Maker)?;
+        let secret_hash = Hash256::try_from(secret_hash_slice).map_err(SiaRefundPaymentArgsError::ParseSecretHash)?;
 
         // TODO Alright - check watcher_reward=false, swap_unique_data and swap_contract_address are valid???
         // currently unclear what swap_unique_data and swap_contract_address are used for(if anything)
         // in the context of Sia
+
         Ok(SiaRefundPaymentArgs {
             payment_tx,
             time_lock,
-            maker_public_key,
-            taker_public_key,
-            secret_hash,
-        })
-    }
-
-    // treat other_pubkey as maker_public_key
-    fn taker_refund(
-        args: RefundPaymentArgs<'_>,
-        taker_public_key: PublicKey,
-    ) -> Result<Self, SiaRefundPaymentArgsError> {
-        let payment_tx = SiaTransaction::try_from(args.payment_tx.to_vec())
-            .map_err(RefundArgsParseError::ParseTx)
-            .map_err(SiaRefundPaymentArgsError::Taker)?;
-
-        let time_lock = args.time_lock;
-
-        let maker_public_key = PublicKey::from_bytes(args.other_pubkey)
-            .map_err(RefundArgsParseError::ParseOtherPublicKey)
-            .map_err(SiaRefundPaymentArgsError::Taker)?;
-
-        let secret_hash_slice = match args.tx_type_with_secret_hash {
-            SwapTxTypeWithSecretHash::TakerOrMakerPayment { maker_secret_hash } => maker_secret_hash,
-            wrong_variant => {
-                let inner = RefundArgsParseError::SwapTxTypeVariant(format!("{:?}", wrong_variant));
-                return Err(SiaRefundPaymentArgsError::Taker(inner));
-            },
-        };
-
-        let secret_hash = Hash256::try_from(secret_hash_slice)
-            .map_err(RefundArgsParseError::ParseSecretHash)
-            .map_err(SiaRefundPaymentArgsError::Taker)?;
-
-        // TODO Alright - check watcher_reward=false, swap_unique_data and swap_contract_address are valid???
-        // currently unclear what swap_unique_data and swap_contract_address are used for(if anything)
-        // in the context of Sia
-        Ok(SiaRefundPaymentArgs {
-            payment_tx,
-            time_lock,
-            maker_public_key,
-            taker_public_key,
+            success_public_key,
             secret_hash,
         })
     }
@@ -1399,24 +1291,6 @@ struct SiaValidateFeeArgs {
     dex_fee_amount: Currency,
     min_block_number: u64,
     uuid: Uuid,
-}
-
-#[derive(Debug, Error)]
-pub enum SiaValidateFeeArgsError {
-    #[error("SiaValidateFeeArgs: failed to parse uuid from bytes {0}")]
-    ParseUuid(#[from] uuid::Error),
-    #[error("SiaValidateFeeArgs: Unexpected Uuid version {0}")]
-    UuidVersion(usize),
-    #[error("SiaValidateFeeArgs: failed to fetch my_pubkey {0}")]
-    MyPubkey(#[from] FrameworkError),
-    #[error("SiaValidateFeeArgs: invalid taker pubkey {0}")]
-    InvalidTakerPublicKey(#[from] PublicKeyError),
-    #[error("SiaValidateFeeArgs: failed to convert trade_fee_amount to Currency {0}")]
-    SiacoinToHastings(#[from] CoinToHastingsError),
-    #[error("SiaValidateFeeArgs: unexpected DexFee variant {0:?}")]
-    DexFeeVariant(DexFee),
-    #[error("SiaValidateFeeArgs: unexpected TransactionEnum variant {0:?}")]
-    TxEnumVariant(TransactionEnum),
 }
 
 impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
@@ -1453,6 +1327,56 @@ impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
             dex_fee_amount,
             min_block_number: args.min_block_number,
             uuid,
+        })
+    }
+}
+
+/// Sia typed equivalent of coins::ValidatePaymentInput
+/// Does not include swap_contract_address, try_spv_proof_until, unique_swap_data, watcher_reward
+/// as they are not relevant to Sia
+// #[derive(Clone, Debug)]
+// struct SiaValidatePaymentInput {
+//     payment_tx: SiaTransaction,
+//     time_lock_duration: u64,
+//     time_lock: u64,
+//     other_pub: PublicKey,
+//     secret_hash: Hash256,
+//     amount: Currency,
+//     confirmations: u64,
+// }
+
+/// Sia typed equivalent of coins::CheckIfMyPaymentSentArgs
+/// Does not include irrelevant fields swap_contract_address, swap_unique_data or payment_instructions
+#[allow(dead_code)] // FIXME Alright - current WIP
+struct SiaCheckIfMyPaymentSentArgs {
+    time_lock: u64,
+    /// The PublicKey that appears in the HTLC SpendPolicy success branch
+    /// aka "other_pub" in coins::CheckIfMyPaymentSentArgs
+    success_public_key: PublicKey,
+    secret_hash: Hash256,
+    search_from_block: u64,
+    amount: Currency,
+}
+
+impl TryFrom<CheckIfMyPaymentSentArgs<'_>> for SiaCheckIfMyPaymentSentArgs {
+    type Error = SiaCheckIfMyPaymentSentArgsError;
+
+    fn try_from(args: CheckIfMyPaymentSentArgs<'_>) -> Result<Self, Self::Error> {
+        let time_lock = args.time_lock;
+        let success_public_key =
+            PublicKey::from_bytes(args.other_pub).map_err(SiaCheckIfMyPaymentSentArgsError::ParseOtherPublicKey)?;
+        let secret_hash =
+            Hash256::try_from(args.secret_hash).map_err(SiaCheckIfMyPaymentSentArgsError::ParseSecretHash)?;
+        let search_from_block = args.search_from_block;
+        let amount =
+            siacoin_to_hastings(args.amount.clone()).map_err(SiaCheckIfMyPaymentSentArgsError::SiacoinToHastings)?;
+
+        Ok(SiaCheckIfMyPaymentSentArgs {
+            time_lock,
+            success_public_key,
+            secret_hash,
+            search_from_block,
+            amount,
         })
     }
 }
@@ -1501,16 +1425,15 @@ impl SwapOps for SiaCoin {
     }
 
     async fn send_taker_refunds_payment(&self, taker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
-        self.new_send_taker_refunds_payment(taker_refunds_payment_args)
+        self.send_refund_hltc(taker_refunds_payment_args)
             .await
-            .map_err(|e| e.to_string().into())
+            .map_err(|e| SendRefundHltcMakerOrTakerError::Taker(e).to_string().into())
     }
 
-    async fn send_maker_refunds_payment(
-        &self,
-        _maker_refunds_payment_args: RefundPaymentArgs<'_>,
-    ) -> TransactionResult {
-        unimplemented!()
+    async fn send_maker_refunds_payment(&self, maker_refunds_payment_args: RefundPaymentArgs<'_>) -> TransactionResult {
+        self.send_refund_hltc(maker_refunds_payment_args)
+            .await
+            .map_err(|e| SendRefundHltcMakerOrTakerError::Maker(e).to_string().into())
     }
 
     async fn validate_fee(&self, validate_fee_args: ValidateFeeArgs<'_>) -> ValidatePaymentResult<()> {
@@ -1519,19 +1442,21 @@ impl SwapOps for SiaCoin {
             .map_err(|e| MmError::new(ValidatePaymentError::InternalError(e.to_string())))
     }
 
-    async fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
-        unimplemented!()
-    }
+    // FIXME Alright
+    async fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> { Ok(()) }
 
-    async fn validate_taker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
-        unimplemented!()
-    }
+    // FIXME Alright
+    async fn validate_taker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> { Ok(()) }
 
+    // return Ok(Some(tx)) if a transaction is found
+    // return Ok(None) if no transaction is found
     async fn check_if_my_payment_sent(
         &self,
-        _if_my_payment_sent_args: CheckIfMyPaymentSentArgs<'_>,
+        if_my_payment_sent_args: CheckIfMyPaymentSentArgs<'_>,
     ) -> Result<Option<TransactionEnum>, String> {
-        unimplemented!()
+        self.new_check_if_my_payment_sent(if_my_payment_sent_args)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     async fn search_for_swap_tx_spend_my(
@@ -1574,26 +1499,29 @@ impl SwapOps for SiaCoin {
 
     fn derive_htlc_key_pair(&self, _swap_unique_data: &[u8]) -> KeyPair { unimplemented!() }
 
+    // FIXME Alright - return the iguana ed25519 public key
     fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> Vec<u8> { unimplemented!() }
 
     async fn can_refund_htlc(&self, _locktime: u64) -> Result<CanRefundHtlc, String> { unimplemented!() }
 
+    // FIXME Alright - validate the other side's "htlc_pubkey" - other party generates this with SwapOps::derive_htlc_pubkey
     fn validate_other_pubkey(&self, _raw_pubkey: &[u8]) -> MmResult<(), ValidateOtherPubKeyErr> { unimplemented!() }
 
+    // lightning specific
     async fn maker_payment_instructions(
         &self,
         _args: PaymentInstructionArgs<'_>,
     ) -> Result<Option<Vec<u8>>, MmError<PaymentInstructionsErr>> {
         unimplemented!()
     }
-
+    // lightning specific
     async fn taker_payment_instructions(
         &self,
         _args: PaymentInstructionArgs<'_>,
     ) -> Result<Option<Vec<u8>>, MmError<PaymentInstructionsErr>> {
         unimplemented!()
     }
-
+    // lightning specific
     fn validate_maker_payment_instructions(
         &self,
         _instructions: &[u8],
@@ -1601,7 +1529,7 @@ impl SwapOps for SiaCoin {
     ) -> Result<PaymentInstructions, MmError<ValidateInstructionsErr>> {
         unimplemented!()
     }
-
+    // lightning specific
     fn validate_taker_payment_instructions(
         &self,
         _instructions: &[u8],
@@ -1611,6 +1539,7 @@ impl SwapOps for SiaCoin {
     }
 }
 
+// lightning specific
 #[async_trait]
 impl TakerSwapMakerCoin for SiaCoin {
     async fn on_taker_payment_refund_start(&self, _maker_payment: &[u8]) -> RefundResult<()> { Ok(()) }
@@ -1618,6 +1547,7 @@ impl TakerSwapMakerCoin for SiaCoin {
     async fn on_taker_payment_refund_success(&self, _maker_payment: &[u8]) -> RefundResult<()> { Ok(()) }
 }
 
+// lightning specific
 #[async_trait]
 impl MakerSwapTakerCoin for SiaCoin {
     async fn on_maker_payment_refund_start(&self, _taker_payment: &[u8]) -> RefundResult<()> { Ok(()) }
@@ -1631,14 +1561,6 @@ pub struct SiaTransaction(pub V2Transaction);
 
 impl SiaTransaction {
     pub fn txid(&self) -> Hash256 { self.0.txid() }
-}
-
-#[derive(Debug, Error)]
-pub enum SiaTransactionError {
-    #[error("SiaTransactionError: failed to convert to Vec<u8>")]
-    ToVec(serde_json::Error),
-    #[error("SiaTransactionError: failed to convert from Vec<u8>")]
-    FromVec(serde_json::Error),
 }
 
 impl TryFrom<SiaTransaction> for Vec<u8> {
@@ -1689,16 +1611,6 @@ impl SiaCoin {
         Ok(res)
     }
 
-    async fn get_address_events(&self, address: Address) -> Result<Vec<Event>, MmError<SiaApiClientError>> {
-        let request = AddressesEventsRequest {
-            address,
-            limit: None,
-            offset: None,
-        };
-        let res = self.client.dispatcher(request).await?;
-        Ok(res)
-    }
-
     pub async fn request_events_history(&self) -> Result<Vec<Event>, MmError<String>> {
         let my_address = match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair.public().address(),
@@ -1707,7 +1619,11 @@ impl SiaCoin {
             },
         };
 
-        let address_events = self.get_address_events(my_address).await.map_err(|e| e.to_string())?;
+        let address_events = self
+            .client
+            .get_address_events(my_address)
+            .await
+            .map_err(|e| e.to_string())?;
 
         Ok(address_events)
     }

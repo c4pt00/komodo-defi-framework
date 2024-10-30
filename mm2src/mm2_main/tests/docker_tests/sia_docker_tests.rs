@@ -4,7 +4,7 @@ use coins::siacoin::sia_rust::transport::endpoints::{AddressBalanceRequest, Cons
                                                      GetAddressUtxosRequest, TxpoolBroadcastRequest};
 use coins::siacoin::sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SiacoinOutputId, SpendPolicy,
                                       V2TransactionBuilder};
-use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
+use coins::siacoin::{SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
 use coins::{MarketCoinOps, PrivKeyBuildPolicy};
 use common::block_on;
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
@@ -50,8 +50,7 @@ async fn init_siacoin(ctx: MmArc, ticker: &str, request: &SiaCoinActivationReque
     );
 
     let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).unwrap();
-
-    sia_coin_from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
+    SiaCoin::from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
         .await
         .unwrap()
 }
@@ -67,23 +66,6 @@ fn default_activation_request() -> SiaCoinActivationRequest {
         }
     );
     serde_json::from_value::<SiaCoinActivationRequest>(activation_request_json).unwrap()
-}
-// FIXME WIP
-#[test]
-fn test_sia_swap_ops_send_taker_fee_wip() {
-    use coins::DexFee;
-    use mm2_number::MmNumber;
-    use uuid::Uuid;
-
-    let ctx = block_on(init_ctx("horribly insecure passphrase", 9995));
-    let coin = block_on(init_siacoin(ctx, "TSIA", &default_activation_request()));
-    let address = Address::from_str(&coin.my_address().unwrap()).unwrap();
-    mine_blocks(&coin.client, 201, &address).unwrap();
-
-    let _uuid = Uuid::new_v4();
-    let _dex_fee = DexFee::Standard(MmNumber::from("0.0001"));
-
-    assert_eq!(block_on(coin.client.current_height()).unwrap(), 0);
 }
 
 #[test]
