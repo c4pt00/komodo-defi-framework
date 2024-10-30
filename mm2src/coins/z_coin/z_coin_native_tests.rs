@@ -1,6 +1,6 @@
 use bitcrypto::dhash160;
 use common::custom_futures::timeout::FutureTimerExt;
-use common::{block_on, block_on_f01, now_sec};
+use common::{block_on, now_sec};
 use mm2_core::mm_ctx::MmCtxBuilder;
 use mm2_test_helpers::for_tests::{zombie_conf, ZOMBIE_ELECTRUMS, ZOMBIE_LIGHTWALLETD_URLS, ZOMBIE_TICKER};
 use std::path::PathBuf;
@@ -10,7 +10,7 @@ use zcash_client_backend::encoding::decode_extended_spending_key;
 use super::tx_history_events::ZCoinTxHistoryEventStreamer;
 use super::{z_coin_from_conf_and_params_with_z_key, z_mainnet_constants, PrivKeyBuildPolicy, RefundPaymentArgs,
             SendPaymentArgs, SpendPaymentArgs, SwapOps, ValidateFeeArgs, ValidatePaymentError, ZTransaction};
-use crate::utxo::rpc_clients::ElectrumRpcRequest;
+use crate::utxo::rpc_clients::ElectrumConnectionSettings;
 use crate::z_coin::z_coin_from_conf_and_params;
 use crate::z_coin::{z_htlc::z_send_dex_fee, ZcoinActivationParams, ZcoinRpcMode};
 use crate::{CoinProtocol, MarketCoinOps, SwapTxTypeWithSecretHash};
@@ -29,12 +29,15 @@ fn light_zcoin_activation_params() -> ZcoinActivationParams {
         mode: ZcoinRpcMode::Light {
             electrum_servers: ZOMBIE_ELECTRUMS
                 .iter()
-                .map(|s| ElectrumRpcRequest {
+                .map(|s| ElectrumConnectionSettings {
                     url: s.to_string(),
                     protocol: Default::default(),
                     disable_cert_verification: Default::default(),
+                    timeout_sec: None
                 })
                 .collect(),
+            min_connected: None,
+            max_connected: None,
             light_wallet_d_servers: ZOMBIE_LIGHTWALLETD_URLS.iter().map(|s| s.to_string()).collect(),
             sync_params: Some(crate::z_coin::SyncStartPoint::Date(now_sec() - 24 * 60 * 60)),
             skip_sync_params: None,
@@ -84,7 +87,7 @@ fn zombie_coin_send_and_refund_maker_payment() {
         watcher_reward: None,
         wait_for_confirmation_until: 0,
     };
-    let tx = block_on_f01(coin.send_maker_payment(args)).unwrap();
+    let tx = block_on(coin.send_maker_payment(args)).unwrap();
     log!("swap tx {}", hex::encode(tx.tx_hash_as_bytes().0));
 
     let refund_args = RefundPaymentArgs {
@@ -145,7 +148,7 @@ fn zombie_coin_send_and_spend_maker_payment() {
         wait_for_confirmation_until: 0,
     };
 
-    let tx = block_on_f01(coin.send_maker_payment(maker_payment_args)).unwrap();
+    let tx = block_on(coin.send_maker_payment(maker_payment_args)).unwrap();
     log!("swap tx {}", hex::encode(tx.tx_hash_as_bytes().0));
 
     let maker_pub = taker_pub;
@@ -263,9 +266,7 @@ fn zombie_coin_validate_dex_fee() {
         uuid: &[1; 16],
     };
     // Invalid amount should return an error
-    let err = block_on_f01(coin.validate_fee(validate_fee_args))
-        .unwrap_err()
-        .into_inner();
+    let err = block_on(coin.validate_fee(validate_fee_args)).unwrap_err().into_inner();
     match err {
         ValidatePaymentError::WrongPaymentTx(err) => assert!(err.contains("Dex fee has invalid amount")),
         _ => panic!("Expected `WrongPaymentTx`: {:?}", err),
@@ -280,9 +281,7 @@ fn zombie_coin_validate_dex_fee() {
         min_block_number: 12000,
         uuid: &[2; 16],
     };
-    let err = block_on_f01(coin.validate_fee(validate_fee_args))
-        .unwrap_err()
-        .into_inner();
+    let err = block_on(coin.validate_fee(validate_fee_args)).unwrap_err().into_inner();
     match err {
         ValidatePaymentError::WrongPaymentTx(err) => assert!(err.contains("Dex fee has invalid memo")),
         _ => panic!("Expected `WrongPaymentTx`: {:?}", err),
@@ -297,9 +296,7 @@ fn zombie_coin_validate_dex_fee() {
         min_block_number: 14000,
         uuid: &[1; 16],
     };
-    let err = block_on_f01(coin.validate_fee(validate_fee_args))
-        .unwrap_err()
-        .into_inner();
+    let err = block_on(coin.validate_fee(validate_fee_args)).unwrap_err().into_inner();
     match err {
         ValidatePaymentError::WrongPaymentTx(err) => assert!(err.contains("confirmed before min block")),
         _ => panic!("Expected `WrongPaymentTx`: {:?}", err),
@@ -314,7 +311,7 @@ fn zombie_coin_validate_dex_fee() {
         min_block_number: 12000,
         uuid: &[1; 16],
     };
-    block_on_f01(coin.validate_fee(validate_fee_args)).unwrap();
+    block_on(coin.validate_fee(validate_fee_args)).unwrap();
 }
 
 #[test]

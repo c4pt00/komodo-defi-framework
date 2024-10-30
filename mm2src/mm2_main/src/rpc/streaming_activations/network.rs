@@ -5,7 +5,7 @@ use common::HttpStatusCode;
 use http::StatusCode;
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::{map_to_mm::MapToMmResult, mm_error::MmResult};
-use mm2_net::network_event::{NetworkEvent, NetworkEventConfig};
+use mm2_libp2p::application::network_event::{NetworkEvent, NetworkEventConfig};
 
 #[derive(Deserialize)]
 pub struct EnableNetworkStreamingRequest {
