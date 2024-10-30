@@ -13,9 +13,10 @@ use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, Che
             ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentInput, ValidatePaymentResult,
             VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WithdrawFut, WithdrawRequest};
 use async_trait::async_trait;
+use bitcrypto::sha256;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, AbortedError, Timer};
-use common::log::info;
+use common::log::{debug, info};
 use common::DEX_FEE_PUBKEY_ED25510;
 use derive_more::{From, Into};
 use futures::compat::Future01CompatExt;
@@ -1233,6 +1234,42 @@ impl SiaCoin {
         // The current implementation matches the UtxoStandardCoin logic
         Ok(Some(SiaTransaction(tx).into()))
     }
+
+    fn sia_extract_secret(
+        &self,
+        expected_hash_slice: &[u8],
+        spend_tx: &[u8],
+        watcher_reward: bool,
+    ) -> Result<Vec<u8>, SiaCoinSiaExtractSecretError> {
+        // Parse arguments to Sia specific types
+        let tx = SiaTransaction::try_from(spend_tx).map_err(SiaCoinSiaExtractSecretError::ParseTx)?;
+        let expected_hash =
+            Hash256::try_from(expected_hash_slice).map_err(SiaCoinSiaExtractSecretError::ParseSecretHash)?;
+
+        // watcher_reward is irrelevant, but a true value indicates a bug within the swap protocol
+        // An error is not thrown as it would not be in the best interest of the swap participant
+        // if they are still able to extract the secret and spend the HTLC output
+        if watcher_reward {
+            debug!("SiaCoin::sia_extract_secret: expected watcher_reward false, found true");
+        }
+
+        // iterate over all inputs and search for preimage that hashes to expected_hash
+        let found_secret =
+            tx.0.siacoin_inputs
+                .iter()
+                // flat_map to iterate over all preimages of all inputs
+                .flat_map(|input| input.satisfied_policy.preimages.iter())
+                // hash each included preimage and check if secret_hash==sha256(preimage)
+                .find(|extracted_secret| {
+                    let check_secret_hash = Hash256(sha256(&extracted_secret.0).take());
+                    check_secret_hash == expected_hash
+                });
+
+        // Map Sia types to SwapOps expected types
+        found_secret
+            .map(|secret| secret.0.to_vec())
+            .ok_or(SiaCoinSiaExtractSecretError::FailedToExtract { tx, expected_hash })
+    }
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
@@ -1479,11 +1516,12 @@ impl SwapOps for SiaCoin {
 
     async fn extract_secret(
         &self,
-        _secret_hash: &[u8],
-        _spend_tx: &[u8],
-        _watcher_reward: bool,
+        secret_hash: &[u8],
+        spend_tx: &[u8],
+        watcher_reward: bool,
     ) -> Result<Vec<u8>, String> {
-        unimplemented!()
+        self.sia_extract_secret(secret_hash, spend_tx, watcher_reward)
+            .map_err(|e| e.to_string())
     }
 
     fn is_auto_refundable(&self) -> bool { false }
@@ -1494,7 +1532,8 @@ impl SwapOps for SiaCoin {
         &self,
         _other_side_address: Option<&[u8]>,
     ) -> Result<Option<BytesJson>, MmError<NegotiateSwapContractAddrErr>> {
-        unimplemented!()
+        // FIXME Alright - unclear if this is appropriate for Sia
+        Ok(None)
     }
 
     fn derive_htlc_key_pair(&self, _swap_unique_data: &[u8]) -> KeyPair { unimplemented!() }
@@ -1568,6 +1607,14 @@ impl TryFrom<SiaTransaction> for Vec<u8> {
 
     fn try_from(tx: SiaTransaction) -> Result<Self, Self::Error> {
         serde_json::ser::to_vec(&tx).map_err(SiaTransactionError::ToVec)
+    }
+}
+
+impl TryFrom<&[u8]> for SiaTransaction {
+    type Error = SiaTransactionError;
+
+    fn try_from(tx_slice: &[u8]) -> Result<Self, Self::Error> {
+        serde_json::de::from_slice(tx_slice).map_err(SiaTransactionError::FromVec)
     }
 }
 

@@ -1,5 +1,6 @@
-use crate::siacoin::{Address, Currency, Event, EventDataWrapper, ParseHashError, PreimageError, PrivateKeyError,
-                     PublicKeyError, SiaApiClientError, SiaClientHelperError, TransactionId, V2TransactionBuilderError};
+use crate::siacoin::{Address, Currency, Event, EventDataWrapper, Hash256, ParseHashError, PreimageError,
+                     PrivateKeyError, PublicKeyError, SiaApiClientError, SiaClientHelperError, SiaTransaction,
+                     TransactionId, V2TransactionBuilderError};
 use crate::{DexFee, TransactionEnum};
 use common::executor::AbortedError;
 use mm2_number::BigDecimal;
@@ -248,4 +249,16 @@ pub enum SiaCheckIfMyPaymentSentError {
     MultipleEvents(Vec<Event>),
     #[error("SiaCoin::new_check_if_my_payment_sent: unexpected event variant: {0:?}")]
     EventVariant(EventDataWrapper),
+}
+
+#[derive(Debug, Error)]
+pub enum SiaCoinSiaExtractSecretError {
+    #[error("SiaCoin::sia_extract_secret: failed to parse spend_tx {0}")]
+    ParseTx(#[from] SiaTransactionError),
+    #[error("SiaCoin::sia_extract_secret: failed to parse secret_hash {0}")]
+    ParseSecretHash(#[from] ParseHashError),
+    #[error(
+        "SiaCoin::sia_extract_secret: failed to extract secret of secret_hash:{expected_hash} from spend_tx: {tx:?}"
+    )]
+    FailedToExtract { expected_hash: Hash256, tx: SiaTransaction },
 }

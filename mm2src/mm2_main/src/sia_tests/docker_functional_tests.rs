@@ -415,3 +415,89 @@ async fn test_send_taker_payment_then_refund_taker_payment() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn test_spend_taker_payment_then_taker_extract_secret() {
+    let docker = Cli::default();
+
+    // Start the container
+    let (_container, host_port) = init_walletd_container(&docker);
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    let taker_ctx = init_ctx("taker passphrase", 9995).await;
+    let taker_sia_coin = init_siacoin(taker_ctx, "TSIA", &helper_activation_request(host_port)).await;
+    let taker_public_key = taker_sia_coin.my_keypair().unwrap().public();
+    let taker_address = taker_public_key.address();
+    mine_blocks(&taker_sia_coin.client, 201, &taker_address).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    let maker_ctx = init_ctx("maker passphrase", 9995).await;
+    let maker_sia_coin = init_siacoin(maker_ctx, "TSIA", &helper_activation_request(host_port)).await;
+    let maker_public_key = maker_sia_coin.my_keypair().unwrap().public();
+    let maker_secret = vec![0u8; 32];
+    let maker_secret_hash = SecretHashAlgo::SHA256.hash_secret(&maker_secret);
+
+    let negotiated_time_lock = now_sec();
+    let negotiated_time_lock_duration = 10u64;
+    let negotiated_amount: BigDecimal = 1u64.into();
+
+    let taker_send_payment_args = SendPaymentArgs {
+        time_lock_duration: negotiated_time_lock_duration,
+        time_lock: negotiated_time_lock,
+        other_pubkey: maker_public_key.as_bytes(),
+        secret_hash: &maker_secret_hash,
+        amount: negotiated_amount,
+        swap_contract_address: &None,
+        swap_unique_data: &[],
+        payment_instructions: &None,
+        watcher_reward: None,
+        wait_for_confirmation_until: 0,
+    };
+    let taker_payment_tx = match taker_sia_coin
+        .send_taker_payment(taker_send_payment_args)
+        .await
+        .unwrap()
+    {
+        TransactionEnum::SiaTransaction(tx) => tx,
+        _ => panic!("Expected SiaTransaction"),
+    };
+    mine_blocks(&taker_sia_coin.client, 1, &taker_address).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    let maker_spend_payment_args = SpendPaymentArgs {
+        other_payment_tx: &taker_payment_tx.tx_hex(),
+        time_lock: negotiated_time_lock,
+        other_pubkey: taker_public_key.as_bytes(),
+        secret: &maker_secret,
+        secret_hash: &maker_secret_hash,
+        swap_contract_address: &None,
+        swap_unique_data: &[],
+        watcher_reward: false,
+    };
+
+    let maker_spends_taker_payment_tx = match maker_sia_coin
+        .send_maker_spends_taker_payment(maker_spend_payment_args)
+        .await
+        .unwrap()
+    {
+        TransactionEnum::SiaTransaction(tx) => tx,
+        _ => panic!("Expected SiaTransaction"),
+    };
+    mine_blocks(&taker_sia_coin.client, 1, &taker_address).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    taker_sia_coin
+        .client
+        .get_transaction(&maker_spends_taker_payment_tx.txid())
+        .await
+        .unwrap();
+
+    let maker_spends_taker_payment_tx_hex = maker_spends_taker_payment_tx.tx_hex();
+
+    let taker_extracted_secret = taker_sia_coin
+        .extract_secret(&maker_secret_hash, maker_spends_taker_payment_tx_hex.as_slice(), false)
+        .await
+        .unwrap();
+
+    assert_eq!(taker_extracted_secret, maker_secret);
+}
