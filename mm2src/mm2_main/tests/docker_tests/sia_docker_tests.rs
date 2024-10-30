@@ -4,7 +4,7 @@ use coins::siacoin::sia_rust::transport::endpoints::{AddressBalanceRequest, Cons
                                                      GetAddressUtxosRequest, TxpoolBroadcastRequest};
 use coins::siacoin::sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SiacoinOutputId, SpendPolicy,
                                       V2TransactionBuilder};
-use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
+use coins::siacoin::{SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
 use coins::{MarketCoinOps, PrivKeyBuildPolicy};
 use common::block_on;
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
@@ -50,8 +50,7 @@ async fn init_siacoin(ctx: MmArc, ticker: &str, request: &SiaCoinActivationReque
     );
 
     let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).unwrap();
-
-    sia_coin_from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
+    SiaCoin::from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
         .await
         .unwrap()
 }

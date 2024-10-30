@@ -7,8 +7,7 @@ use async_trait::async_trait;
 use coins::coin_balance::{CoinBalanceReport, IguanaWalletBalance};
 use coins::coin_errors::MyAddressError;
 use coins::my_tx_history_v2::TxHistoryStorage;
-use coins::siacoin::{sia_coin_from_conf_and_request, SiaCoin, SiaCoinActivationRequest, SiaCoinError,
-                     SiaCoinProtocolInfo};
+use coins::siacoin::{SiaCoin, SiaCoinActivationRequest, SiaCoinError, SiaCoinProtocolInfo};
 use coins::tx_history_storage::CreateTxHistoryStorageError;
 use coins::{lp_spawn_tx_history, BalanceError, CoinBalance, CoinProtocol, MarketCoinOps, PrivKeyBuildPolicy,
             RegisterCoinError};
@@ -203,7 +202,7 @@ impl InitStandaloneCoinActivationOps for SiaCoin {
     ) -> MmResult<Self, SiaCoinInitError> {
         let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx)?;
 
-        let coin = sia_coin_from_conf_and_request(&ctx, coin_conf, activation_request, priv_key_policy)
+        let coin = SiaCoin::from_conf_and_request(&ctx, coin_conf, activation_request, priv_key_policy)
             .await
             .mm_err(|e| SiaCoinInitError::from_build_err(e, ticker))?;
 

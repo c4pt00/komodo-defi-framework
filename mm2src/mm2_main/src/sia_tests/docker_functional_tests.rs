@@ -2,7 +2,7 @@ use coins::siacoin::sia_rust::transport::client::native::NativeClient;
 use coins::siacoin::sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError};
 use coins::siacoin::sia_rust::transport::endpoints::DebugMineRequest;
 use coins::siacoin::sia_rust::types::Address;
-use coins::siacoin::{sia_coin_from_conf_and_request, ApiClientHelpers, SiaCoin, SiaCoinActivationRequest};
+use coins::siacoin::{ApiClientHelpers, SiaCoin, SiaCoinActivationRequest};
 use coins::Transaction;
 use coins::{PrivKeyBuildPolicy, RefundPaymentArgs, SendPaymentArgs, SpendPaymentArgs, SwapOps,
             SwapTxTypeWithSecretHash, TransactionEnum};
@@ -83,8 +83,7 @@ async fn init_siacoin(ctx: MmArc, ticker: &str, request: &SiaCoinActivationReque
     );
 
     let priv_key_policy = PrivKeyBuildPolicy::detect_priv_key_policy(&ctx).unwrap();
-
-    sia_coin_from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
+    SiaCoin::from_conf_and_request(&ctx, coin_conf_str, request, priv_key_policy)
         .await
         .unwrap()
 }
