@@ -1316,13 +1316,13 @@ impl SiaRefundPaymentArgs {
     ) -> Result<Self, SiaRefundPaymentArgsError> {
         let payment_tx = SiaTransaction::try_from(args.payment_tx.to_vec())
             .map_err(RefundArgsParseError::ParseTx)
-            .map_err(|e| SiaRefundPaymentArgsError::Maker(e))?;
+            .map_err(SiaRefundPaymentArgsError::Maker)?;
 
         let time_lock = args.time_lock;
 
         let taker_public_key = PublicKey::from_bytes(args.other_pubkey)
             .map_err(RefundArgsParseError::ParseOtherPublicKey)
-            .map_err(|e| SiaRefundPaymentArgsError::Maker(e))?;
+            .map_err(SiaRefundPaymentArgsError::Maker)?;
 
         let secret_hash_slice = match args.tx_type_with_secret_hash {
             SwapTxTypeWithSecretHash::TakerOrMakerPayment { maker_secret_hash } => maker_secret_hash,
@@ -1334,7 +1334,7 @@ impl SiaRefundPaymentArgs {
 
         let secret_hash = Hash256::try_from(secret_hash_slice)
             .map_err(RefundArgsParseError::ParseSecretHash)
-            .map_err(|e| SiaRefundPaymentArgsError::Maker(e))?;
+            .map_err(SiaRefundPaymentArgsError::Maker)?;
 
         // TODO Alright - check watcher_reward=false, swap_unique_data and swap_contract_address are valid???
         // currently unclear what swap_unique_data and swap_contract_address are used for(if anything)
@@ -1355,13 +1355,13 @@ impl SiaRefundPaymentArgs {
     ) -> Result<Self, SiaRefundPaymentArgsError> {
         let payment_tx = SiaTransaction::try_from(args.payment_tx.to_vec())
             .map_err(RefundArgsParseError::ParseTx)
-            .map_err(|e| SiaRefundPaymentArgsError::Taker(e))?;
+            .map_err(SiaRefundPaymentArgsError::Taker)?;
 
         let time_lock = args.time_lock;
 
         let maker_public_key = PublicKey::from_bytes(args.other_pubkey)
             .map_err(RefundArgsParseError::ParseOtherPublicKey)
-            .map_err(|e| SiaRefundPaymentArgsError::Taker(e))?;
+            .map_err(SiaRefundPaymentArgsError::Taker)?;
 
         let secret_hash_slice = match args.tx_type_with_secret_hash {
             SwapTxTypeWithSecretHash::TakerOrMakerPayment { maker_secret_hash } => maker_secret_hash,
@@ -1373,7 +1373,7 @@ impl SiaRefundPaymentArgs {
 
         let secret_hash = Hash256::try_from(secret_hash_slice)
             .map_err(RefundArgsParseError::ParseSecretHash)
-            .map_err(|e| SiaRefundPaymentArgsError::Taker(e))?;
+            .map_err(SiaRefundPaymentArgsError::Taker)?;
 
         // TODO Alright - check watcher_reward=false, swap_unique_data and swap_contract_address are valid???
         // currently unclear what swap_unique_data and swap_contract_address are used for(if anything)
