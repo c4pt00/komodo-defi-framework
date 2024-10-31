@@ -1,15 +1,13 @@
 use coins::siacoin::sia_rust::transport::client::native::{Conf, NativeClient};
 use coins::siacoin::sia_rust::transport::client::{ApiClient, ApiClientError, ApiClientHelpers};
 use coins::siacoin::sia_rust::transport::endpoints::{AddressBalanceRequest, ConsensusTipRequest, DebugMineRequest,
-                                                     GetAddressUtxosRequest, TxpoolBroadcastRequest};
-use coins::siacoin::sia_rust::types::{Address, Currency, Keypair, SiacoinOutput, SiacoinOutputId, SpendPolicy,
-                                      V2TransactionBuilder};
-use coins::siacoin::{SiaCoin, SiaCoinActivationRequest, SiaCoinConf};
-use coins::{MarketCoinOps, PrivKeyBuildPolicy};
+                                                     TxpoolBroadcastRequest};
+use coins::siacoin::sia_rust::types::{Address, Currency, Keypair, SiacoinOutputId, V2TransactionBuilder};
+use coins::siacoin::{SiaCoin, SiaCoinActivationRequest};
+use coins::PrivKeyBuildPolicy;
 use common::block_on;
 use mm2_core::mm_ctx::{MmArc, MmCtxBuilder};
 use mm2_main::lp_wallet::initialize_wallet_passphrase;
-use std::process::Command;
 use std::str::FromStr;
 use url::Url;
 

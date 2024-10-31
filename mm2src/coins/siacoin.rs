@@ -531,10 +531,12 @@ impl MmCoin for SiaCoin {
 
     fn history_sync_status(&self) -> HistorySyncState { self.history_sync_state.lock().unwrap().clone() }
 
-    /// Get fee to be paid per 1 swap transaction
-    fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> { unimplemented!() }
+    /// Legacy method and no need to implement it
+    fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> {
+        Box::new(futures01::future::err("Not implemented".into()))
+    }
 
-    // Todo: Implement this method when working on swaps
+    // Todo: Modify this when not using `DEFAULT_FEE`
     async fn get_sender_trade_fee(
         &self,
         _value: TradePreimageValue,
@@ -543,31 +545,36 @@ impl MmCoin for SiaCoin {
     ) -> TradePreimageResult<TradeFee> {
         Ok(TradeFee {
             coin: self.conf.ticker.clone(),
-            amount: Default::default(),
+            amount: hastings_to_siacoin(Currency::DEFAULT_FEE).into(),
             paid_from_trading_vol: false,
         })
     }
 
     /// Get the transaction fee required to spend the HTLC output
-    // TODO Dummy value for now
+    // Todo: Modify this when not using `DEFAULT_FEE`
     fn get_receiver_trade_fee(&self, _stage: FeeApproxStage) -> TradePreimageFut<TradeFee> {
         let ticker = self.conf.ticker.clone();
         let fut = async move {
             Ok(TradeFee {
                 coin: ticker,
-                amount: Default::default(),
+                amount: hastings_to_siacoin(Currency::DEFAULT_FEE).into(),
                 paid_from_trading_vol: false,
             })
         };
         Box::new(fut.boxed().compat())
     }
 
+    // Todo: Modify this when not using `DEFAULT_FEE`
     async fn get_fee_to_send_taker_fee(
         &self,
         _dex_fee_amount: DexFee,
         _stage: FeeApproxStage,
     ) -> TradePreimageResult<TradeFee> {
-        unimplemented!()
+        Ok(TradeFee {
+            coin: self.conf.ticker.clone(),
+            amount: hastings_to_siacoin(Currency::DEFAULT_FEE).into(),
+            paid_from_trading_vol: false,
+        })
     }
 
     fn required_confirmations(&self) -> u64 { self.required_confirmations.load(AtomicOrdering::Relaxed) }
@@ -695,7 +702,7 @@ impl MarketCoinOps for SiaCoin {
 
     fn base_coin_balance(&self) -> BalanceFut<BigDecimal> { Box::new(self.my_balance().map(|res| res.spendable)) }
 
-    fn platform_ticker(&self) -> &str { "TSIA" }
+    fn platform_ticker(&self) -> &str { self.ticker() }
 
     /// Receives raw transaction bytes in hexadecimal format as input and returns tx hash in hexadecimal format
     fn send_raw_tx(&self, tx: &str) -> Box<dyn Future<Item = String, Error = String> + Send> {
@@ -1543,7 +1550,8 @@ impl SwapOps for SiaCoin {
         Ok(None)
     }
 
-    fn derive_htlc_key_pair(&self, _swap_unique_data: &[u8]) -> KeyPair { unimplemented!() }
+    // Todo: This is only used for watchers so it's ok to use a default implementation as watchers are not supported for SIA yet
+    fn derive_htlc_key_pair(&self, _swap_unique_data: &[u8]) -> KeyPair { KeyPair::default() }
 
     /// Return the iguana ed25519 public key
     /// This is the public key that will be used inside the HTLC SpendPolicy
