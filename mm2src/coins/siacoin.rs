@@ -5,11 +5,10 @@ use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoi
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin,
-            NegotiateSwapContractAddrErr, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
-            PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult, SearchForSwapTxSpendInput,
-            SendPaymentArgs, SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin, TradePreimageFut,
-            TradePreimageResult, TradePreimageValue, Transaction, TransactionResult, TxMarshalingErr,
-            UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs, ValidateInstructionsErr,
+            NegotiateSwapContractAddrErr, PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult,
+            SearchForSwapTxSpendInput, SendPaymentArgs, SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin,
+            TradePreimageFut, TradePreimageResult, TradePreimageValue, Transaction, TransactionResult,
+            TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
             ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentInput, ValidatePaymentResult,
             VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WithdrawFut, WithdrawRequest};
 use async_trait::async_trait;
@@ -1527,10 +1526,6 @@ impl SwapOps for SiaCoin {
         unimplemented!()
     }
 
-    fn check_tx_signed_by_pub(&self, _tx: &[u8], _expected_pub: &[u8]) -> Result<bool, MmError<ValidatePaymentError>> {
-        unimplemented!();
-    }
-
     async fn extract_secret(
         &self,
         secret_hash: &[u8],
@@ -1541,15 +1536,10 @@ impl SwapOps for SiaCoin {
             .map_err(|e| e.to_string())
     }
 
-    fn is_auto_refundable(&self) -> bool { false }
-
-    async fn wait_for_htlc_refund(&self, _tx: &[u8], _locktime: u64) -> RefundResult<()> { unimplemented!() }
-
     fn negotiate_swap_contract_addr(
         &self,
         _other_side_address: Option<&[u8]>,
     ) -> Result<Option<BytesJson>, MmError<NegotiateSwapContractAddrErr>> {
-        // FIXME Alright - unclear if this is appropriate for Sia
         Ok(None)
     }
 
@@ -1584,37 +1574,6 @@ impl SwapOps for SiaCoin {
             ))
         })?;
         Ok(())
-    }
-
-    // lightning specific
-    async fn maker_payment_instructions(
-        &self,
-        _args: PaymentInstructionArgs<'_>,
-    ) -> Result<Option<Vec<u8>>, MmError<PaymentInstructionsErr>> {
-        unimplemented!()
-    }
-    // lightning specific
-    async fn taker_payment_instructions(
-        &self,
-        _args: PaymentInstructionArgs<'_>,
-    ) -> Result<Option<Vec<u8>>, MmError<PaymentInstructionsErr>> {
-        unimplemented!()
-    }
-    // lightning specific
-    fn validate_maker_payment_instructions(
-        &self,
-        _instructions: &[u8],
-        _args: PaymentInstructionArgs,
-    ) -> Result<PaymentInstructions, MmError<ValidateInstructionsErr>> {
-        unimplemented!()
-    }
-    // lightning specific
-    fn validate_taker_payment_instructions(
-        &self,
-        _instructions: &[u8],
-        _args: PaymentInstructionArgs,
-    ) -> Result<PaymentInstructions, MmError<ValidateInstructionsErr>> {
-        unimplemented!()
     }
 }
 
