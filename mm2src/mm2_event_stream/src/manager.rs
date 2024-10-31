@@ -365,14 +365,16 @@ mod tests {
         let client_id2 = 2;
         let client_id3 = 3;
 
-        assert!(matches!(manager.new_client(client_id1), Ok(..)));
+        let c1_handle = manager.new_client(client_id1);
+        assert!(matches!(c1_handle, Ok(..)));
         // Adding the same client again should fail.
         assert!(matches!(
             manager.new_client(client_id1),
             Err(StreamingManagerError::ClientExists)
         ));
         // Adding a different new client should be OK.
-        assert!(matches!(manager.new_client(client_id2), Ok(..)));
+        let c2_handle = manager.new_client(client_id2);
+        assert!(matches!(c2_handle, Ok(..)));
 
         assert!(matches!(manager.remove_client(client_id1), Ok(())));
         // Removing a removed client should fail.
