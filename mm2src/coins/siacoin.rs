@@ -1196,28 +1196,31 @@ impl SiaCoin {
         &self,
         args: CheckIfMyPaymentSentArgs<'_>,
     ) -> Result<Option<TransactionEnum>, SiaCheckIfMyPaymentSentError> {
+        // parse arguments to Sia specific types
         let sia_args = SiaCheckIfMyPaymentSentArgs::try_from(args).map_err(SiaCheckIfMyPaymentSentError::ParseArgs)?;
 
+        // Get my_keypair.public() to use in HTLC SpendPolicy
         let my_keypair = self.my_keypair().map_err(SiaCheckIfMyPaymentSentError::MyKeypair)?;
         let refund_public_key = my_keypair.public();
 
-        // Generate HTLC SpendPolicy
+        // Generate HTLC SpendPolicy and corresponding address
         let spend_policy = SpendPolicy::atomic_swap(
             &sia_args.success_public_key,
             &refund_public_key,
             sia_args.time_lock,
             &sia_args.secret_hash,
         );
-
         let htlc_address = spend_policy.address();
 
+        // Fetch all events for the HTLC address
         let events_result = self.client.get_address_events(htlc_address).await;
-
         let events = match events_result {
             Ok(events) => events,
             Err(_) => return Ok(None),
         };
 
+        // return Ok(None) if no events found - This indicates the payment has not been sent.
+        // return Err if multiple events found
         let event = match events.len() {
             0 => return Ok(None),
             1 => events[0].clone(),
