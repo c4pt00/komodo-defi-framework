@@ -54,8 +54,8 @@ use crypto::{derive_secp256k1_secret, Bip32Error, Bip44Chain, CryptoCtx, CryptoC
              Secp256k1ExtendedPublicKey, Secp256k1Secret, WithHwRpcError};
 use derive_more::Display;
 use enum_derives::{EnumFromStringify, EnumFromTrait};
-use ethereum_types::Public as EthPublic;
 use ethereum_types::{H160, H256};
+use ethereum_types::{H264, H520};
 use futures::compat::Future01CompatExt;
 use futures::lock::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use futures::{FutureExt, TryFutureExt};
@@ -99,7 +99,7 @@ cfg_native! {
 }
 
 cfg_wasm32! {
-    use ethereum_types::{H264 as EthH264, H520 as EthH520};
+    use ethereum_types::{H264 as EthH264};
     use hd_wallet::HDWalletDb;
     use mm2_db::indexed_db::{ConstructibleDb, DbLocked, SharedDb};
     use tx_history_storage::wasm::{clear_tx_history, load_tx_history, save_tx_history, TxHistoryDb};
@@ -3906,7 +3906,8 @@ pub enum PrivKeyPolicy<T> {
 
     WalletConnect {
         address: H160,
-        pubkey: EthPublic,
+        public_key: H264,
+        public_key_uncompressed: H520,
     },
 }
 
@@ -3914,7 +3915,7 @@ pub enum PrivKeyPolicy<T> {
 #[derive(Clone, Debug)]
 pub struct EthMetamaskPolicy {
     pub(crate) public_key: EthH264,
-    pub(crate) public_key_uncompressed: EthH520,
+    pub(crate) public_key_uncompressed: H520,
 }
 
 impl<T> From<T> for PrivKeyPolicy<T> {

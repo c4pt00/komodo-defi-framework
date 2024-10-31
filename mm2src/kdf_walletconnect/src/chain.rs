@@ -10,7 +10,7 @@ pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
 pub(crate) const COSMOS_SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
 pub(crate) const COSMOS_SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
 
-pub(crate) const ETH_SUPPORTED_METHODS: &[&str] = &["eth_signTransaction", "personal_sign"];
+pub(crate) const ETH_SUPPORTED_METHODS: &[&str] = &["eth_signTransaction", "personal_sign", "eth_sendTransaction"];
 pub(crate) const ETH_SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:137"];
 pub(crate) const ETH_SUPPORTED_EVENTS: &[&str] = &["accountsChanged", "chainChanged"];
 
@@ -90,6 +90,7 @@ pub enum WcRequestMethods {
     CosmosSignAmino,
     CosmosGetAccounts,
     EthSignTransaction,
+    EthSendTransaction,
     PersonalSign,
 }
 
@@ -100,6 +101,7 @@ impl AsRef<str> for WcRequestMethods {
             Self::CosmosSignAmino => "cosmos_signAmino",
             Self::CosmosGetAccounts => "cosmos_getAccounts",
             Self::EthSignTransaction => "eth_signTransaction",
+            Self::EthSendTransaction => "eth_sendTransaction",
             Self::PersonalSign => "personal_sign",
         }
     }

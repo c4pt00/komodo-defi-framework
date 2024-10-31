@@ -43,8 +43,6 @@ impl RegisterTokenInfo<TendermintToken> for TendermintCoin {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WalletConnectParams {
     #[serde(default)]
-    pub account_index: usize,
-    #[serde(default)]
     pub enabled: bool,
 }
 
@@ -239,13 +237,12 @@ impl From<TendermintInitError> for EnablePlatformCoinWithTokensError {
 
 async fn activate_with_walletconnect(
     ctx: &MmArc,
-    param: &WalletConnectParams,
     chain_id: &str,
     ticker: &str,
     wallet_type: &mut TendermintWalletConnectionType,
 ) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
     let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
-    let account = cosmos_get_accounts_impl(&wc, chain_id, param.account_index)
+    let account = cosmos_get_accounts_impl(&wc, chain_id)
         .await
         .mm_err(|err| TendermintInitError {
             ticker: ticker.to_string(),
@@ -311,7 +308,7 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
 
                     TendermintActivationPolicy::with_public_key(pubkey)
                 },
-                TendermintPubkeyActivationParams::WalletConnect(params) => {
+                TendermintPubkeyActivationParams::WalletConnect(_params) => {
                     if ctx.is_watcher() || ctx.use_watchers() {
                         return MmError::err(TendermintInitError {
                             ticker: ticker.to_string(),
@@ -321,7 +318,6 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
 
                     activate_with_walletconnect(
                         &ctx,
-                        &params,
                         protocol_conf.chain_id.as_ref(),
                         &ticker,
                         &mut wallet_connectin_type,

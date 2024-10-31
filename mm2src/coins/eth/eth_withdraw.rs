@@ -300,7 +300,7 @@ where
                 };
                 self.send_withdraw_tx(&req, tx_to_send).await?
             },
-            EthPrivKeyPolicy::WalletConnect { address: _, pubkey: _ } => {
+            EthPrivKeyPolicy::WalletConnect { .. } => {
                 let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
                 let wc = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
                 let gas_price = pay_for_gas_option.get_gas_price();
@@ -316,15 +316,18 @@ where
                     nonce,
                     data: &data,
                     my_address,
-                    to_addr,
+                    action: Action::Call(to_addr),
                     value: eth_value,
                     gas_price,
                 };
 
-                self.coin()
-                    .wc_request_sign_tx(&wc, params)
+                let (tx, bytes) = self
+                    .coin()
+                    .wc_sign_tx(&wc, params)
                     .await
-                    .mm_err(|err| WithdrawError::SigningError(err.to_string()))?
+                    .mm_err(|err| WithdrawError::SigningError(err.to_string()))?;
+
+                (tx.tx_hash(), bytes)
             },
         };
 

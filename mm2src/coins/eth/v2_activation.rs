@@ -6,10 +6,13 @@ use crate::nft::get_nfts_for_activation;
 use crate::nft::nft_errors::{GetNftInfoError, ParseChainTypeError};
 use crate::nft::nft_structs::Chain;
 #[cfg(target_arch = "wasm32")] use crate::EthMetamaskPolicy;
+
 use common::executor::AbortedError;
 use crypto::{trezor::TrezorError, Bip32Error, CryptoCtxError, HwError};
 use enum_derives::EnumFromTrait;
+use ethereum_types::H264;
 use instant::Instant;
+use kdf_walletconnect::error::WalletConnectError;
 use mm2_err_handle::common_errors::WithInternal;
 #[cfg(target_arch = "wasm32")]
 use mm2_metamask::{from_metamask_error, MetamaskError, MetamaskRpcError, WithMetamaskRpcError};
@@ -161,10 +164,7 @@ pub enum EthPrivKeyActivationPolicy {
     Trezor,
     #[cfg(target_arch = "wasm32")]
     Metamask,
-    WalletConnect {
-        #[serde(default)]
-        account_index: usize,
-    },
+    WalletConnect,
 }
 
 impl EthPrivKeyActivationPolicy {
@@ -789,10 +789,20 @@ pub(crate) async fn build_address_and_priv_key_policy(
                 DerivationMethod::SingleAddress(address),
             ))
         },
-        EthPrivKeyBuildPolicy::WalletConnect { address, pubkey } => Ok((
-            EthPrivKeyPolicy::WalletConnect { address, pubkey },
-            DerivationMethod::SingleAddress(address),
-        )),
+        EthPrivKeyBuildPolicy::WalletConnect {
+            address,
+            public_key_uncompressed,
+        } => {
+            let public_key = compress_public_key(public_key_uncompressed)?;
+            Ok((
+                EthPrivKeyPolicy::WalletConnect {
+                    address,
+                    public_key,
+                    public_key_uncompressed,
+                },
+                DerivationMethod::SingleAddress(address),
+            ))
+        },
     }
 }
 
@@ -964,7 +974,6 @@ async fn check_metamask_supports_chain_id(
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 fn compress_public_key(uncompressed: H520) -> MmResult<H264, EthActivationV2Error> {
     let public_key = PublicKey::from_slice(uncompressed.as_bytes())
         .map_to_mm(|e| EthActivationV2Error::InternalError(e.to_string()))?;

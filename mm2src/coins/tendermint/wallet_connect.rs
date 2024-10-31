@@ -109,12 +109,11 @@ pub struct CosmosAccount {
 pub async fn cosmos_get_accounts_impl(
     ctx: &WalletConnectCtx,
     chain_id: &str,
-    account_index: usize,
 ) -> MmResult<CosmosAccount, WalletConnectError> {
     let chain_id = WcChainId::new_cosmos(chain_id.to_string());
     ctx.validate_or_update_active_chain_id(&chain_id).await?;
 
-    let account = ctx.get_account_for_chain_id(&chain_id, account_index).await?;
+    let account = ctx.get_account_for_chain_id(&chain_id).await?;
     let session = ctx
         .session
         .get_session_active()
@@ -165,11 +164,7 @@ pub async fn cosmos_get_accounts_impl(
             return MmError::err(WalletConnectError::EmptyAccount(chain_id.to_string()));
         };
 
-        if accounts.len() < account_index + 1 {
-            return MmError::err(WalletConnectError::NoAccountFoundForIndex(account_index));
-        };
-
-        Ok(accounts[account_index].clone())
+        Ok(accounts[0].clone())
     })
     .await
 }

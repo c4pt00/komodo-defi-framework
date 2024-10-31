@@ -22,7 +22,7 @@ use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
-use relay_client::websocket::{Client, PublishedMessage};
+use relay_client::websocket::{connection_event_loop as client_event_loop, Client, PublishedMessage};
 use relay_client::{ConnectionOptions, MessageIdGenerator};
 use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
 use relay_rpc::domain::{MessageId, Topic};
@@ -45,14 +45,21 @@ pub trait WalletConnectOps {
     type Error;
     type Params<'a>;
     type SignTxData;
+    type SendTxData;
 
     fn wc_chain_id(&self) -> WcChainId;
 
-    async fn wc_request_sign_tx<'a>(
+    async fn wc_sign_tx<'a>(
         &self,
         ctx: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error>;
+
+    async fn wc_send_tx<'a>(
+        &self,
+        ctx: &WalletConnectCtx,
+        params: Self::Params<'a>,
+    ) -> Result<Self::SendTxData, Self::Error>;
 }
 
 pub struct WalletConnectCtx {
@@ -79,14 +86,18 @@ impl WalletConnectCtx {
         let (message_tx, session_request_receiver) = unbounded();
 
         let pairing = PairingClient::new();
-        let client = Client::new(Handler::new("Komodefi", msg_sender, conn_live_sender));
-
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
             data: None,
         };
 
         let storage = SessionStorageDb::init(ctx)?;
+
+        let client = Client::new_unmanaged();
+        ctx.spawner().spawn(client_event_loop(
+            client.control_rx().expect("client controller should never fail!"),
+            Handler::new("Komodefi", msg_sender, conn_live_sender),
+        ));
 
         Ok(Self {
             client,
@@ -364,11 +375,7 @@ impl WalletConnectCtx {
 
     /// TODO: accept WcChainId
     /// Retrieves the available account for a given chain ID.
-    pub async fn get_account_for_chain_id(
-        &self,
-        chain_id: &WcChainId,
-        account_index: usize,
-    ) -> MmResult<String, WalletConnectError> {
+    pub async fn get_account_for_chain_id(&self, chain_id: &WcChainId) -> MmResult<String, WalletConnectError> {
         let namespaces = &self
             .session
             .get_session_active()
@@ -383,7 +390,7 @@ impl WalletConnectCtx {
             ..
         }) = namespaces.get(chain_id.chain.as_ref())
         {
-            if let Some(account) = find_accounts_in_namespace(accounts, &chain_id.id).nth(account_index) {
+            if let Some(account) = find_account_in_namespace(accounts, &chain_id.id) {
                 return Ok(account);
             }
         };
@@ -397,7 +404,8 @@ impl WalletConnectCtx {
         T: DeserializeOwned,
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
-        let wait_duration = Duration::from_secs(30);
+        println!("HERE INNER");
+        let wait_duration = Duration::from_secs(300);
 
         while let Ok(Some(resp)) = timeout(wait_duration, self.message_rx.lock().await.next()).await {
             let result = resp.mm_err(WalletConnectError::InternalError)?;
@@ -419,13 +427,10 @@ impl WalletConnectCtx {
 /// WalletConnect can be usable in KDF.
 pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectError> {
     info!("Initializing WalletConnect");
-
     // Initialized WalletConnectCtx
     let wallet_connect = WalletConnectCtx::from_ctx(ctx)?;
-
     // Intialize storage.
     wallet_connect.storage.init().await.unwrap();
-
     // WalletConnectCtx is initialized, now we can connect to relayer client and spawn a watcher
     // loop for disconnection.
     ctx.spawner().spawn({
@@ -435,11 +440,10 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
             connection_handler::handle_disconnections(&this).await;
         }
     });
-
     // spawn message handler event loop
     ctx.spawner().spawn(async move {
         let this = wallet_connect.clone();
-        let mut recv = wallet_connect.inbound_message_rx.lock().await;
+        let mut recv = this.inbound_message_rx.lock().await;
         while let Some(msg) = recv.next().await {
             if let Err(e) = this.handle_published_message(msg).await {
                 info!("Error processing message: {:?}", e);
@@ -448,14 +452,12 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
     });
 
     info!("WalletConnect initialization completed successfully");
+
     Ok(())
 }
 
-fn find_accounts_in_namespace<'a>(
-    accounts: &'a BTreeSet<String>,
-    chain_id: &'a str,
-) -> impl Iterator<Item = String> + 'a {
-    accounts.iter().filter_map(move |account_name| {
+fn find_account_in_namespace<'a>(accounts: &'a BTreeSet<String>, chain_id: &'a str) -> Option<String> {
+    accounts.iter().find_map(move |account_name| {
         let parts: Vec<&str> = account_name.split(':').collect();
         if parts.len() >= 3 && parts[1] == chain_id {
             Some(parts[2].to_string())

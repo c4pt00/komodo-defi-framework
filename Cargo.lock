@@ -1953,7 +1953,7 @@ dependencies = [
 [[package]]
 name = "ethcore-transaction"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 dependencies = [
  "ethereum-types",
  "ethkey",
@@ -1980,7 +1980,7 @@ dependencies = [
 [[package]]
 name = "ethkey"
 version = "0.3.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 dependencies = [
  "byteorder",
  "edit-distance",
@@ -3847,7 +3847,7 @@ checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 [[package]]
 name = "mem"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 
 [[package]]
 name = "memchr"
@@ -4745,7 +4745,7 @@ dependencies = [
 [[package]]
 name = "pairing_api"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#174d3865f3f6b312aca259b3003084997a7c58dc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#a271959b4c6323a56963c36f9c4fb704f926d7c0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5645,7 +5645,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "relay_client"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#174d3865f3f6b312aca259b3003084997a7c58dc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#a271959b4c6323a56963c36f9c4fb704f926d7c0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -5673,7 +5673,7 @@ dependencies = [
 [[package]]
 name = "relay_rpc"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#174d3865f3f6b312aca259b3003084997a7c58dc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#a271959b4c6323a56963c36f9c4fb704f926d7c0"
 dependencies = [
  "anyhow",
  "bs58 0.4.0",
@@ -7704,7 +7704,7 @@ dependencies = [
 [[package]]
 name = "unexpected"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 
 [[package]]
 name = "unicode-bidi"
@@ -8036,7 +8036,7 @@ dependencies = [
 [[package]]
 name = "wc_common"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#174d3865f3f6b312aca259b3003084997a7c58dc"
+source = "git+https://github.com/komodoplatform/walletconnectrust?branch=pairing-api#a271959b4c6323a56963c36f9c4fb704f926d7c0"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
