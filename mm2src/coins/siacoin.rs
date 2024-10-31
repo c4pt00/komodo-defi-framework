@@ -120,6 +120,32 @@ pub struct SiaCoinActivationRequest {
     pub client_conf: SiaClientConf,
 }
 
+#[derive(Debug, Display)]
+pub enum SiaCoinFromLegacyReqErr {
+    InvalidRequiredConfs(serde_json::Error),
+    InvalidGapLimit(serde_json::Error),
+    InvalidClientConf(serde_json::Error),
+}
+
+impl SiaCoinActivationRequest {
+    pub fn from_legacy_req(req: &Json) -> Result<Self, MmError<SiaCoinFromLegacyReqErr>> {
+        let tx_history = req["tx_history"].as_bool().unwrap_or_default();
+        let required_confirmations = serde_json::from_value(req["required_confirmations"].clone())
+            .map_to_mm(SiaCoinFromLegacyReqErr::InvalidRequiredConfs)?;
+        let gap_limit =
+            serde_json::from_value(req["gap_limit"].clone()).map_to_mm(SiaCoinFromLegacyReqErr::InvalidGapLimit)?;
+        let client_conf =
+            serde_json::from_value(req["client_conf"].clone()).map_to_mm(SiaCoinFromLegacyReqErr::InvalidClientConf)?;
+
+        Ok(SiaCoinActivationRequest {
+            tx_history,
+            required_confirmations,
+            gap_limit,
+            client_conf,
+        })
+    }
+}
+
 impl SiaCoin {
     pub async fn from_conf_and_request(
         ctx: &MmArc,

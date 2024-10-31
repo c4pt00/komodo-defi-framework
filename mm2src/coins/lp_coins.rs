@@ -256,7 +256,7 @@ pub mod tx_history_storage;
 
 #[cfg(feature = "enable-sia")] pub mod siacoin;
 #[cfg(feature = "enable-sia")]
-use siacoin::{SiaCoin, SiaFeeDetails, SiaTransaction, SiaTransactionTypes};
+use siacoin::{SiaCoin, SiaCoinActivationRequest, SiaFeeDetails, SiaTransaction, SiaTransactionTypes};
 
 pub mod utxo;
 use utxo::bch::{bch_coin_with_policy, BchActivationRequest, BchCoin};
@@ -4665,8 +4665,9 @@ pub async fn lp_coininit(ctx: &MmArc, ticker: &str, req: &Json) -> Result<MmCoin
         #[cfg(not(target_arch = "wasm32"))]
         CoinProtocol::LIGHTNING { .. } => return ERR!("Lightning protocol is not supported by lp_coininit"),
         #[cfg(feature = "enable-sia")]
-        CoinProtocol::SIA { .. } => {
-            return ERR!("SIA protocol is not supported by lp_coininit. Use task::enable_sia::init");
+        CoinProtocol::SIA => {
+            let params = try_s!(SiaCoinActivationRequest::from_legacy_req(req));
+            try_s!(SiaCoin::from_conf_and_request(ctx, coins_en, &params, priv_key_policy).await).into()
         },
     };
 
