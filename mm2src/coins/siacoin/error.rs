@@ -262,3 +262,9 @@ pub enum SiaCoinSiaExtractSecretError {
     )]
     FailedToExtract { expected_hash: Hash256, tx: SiaTransaction },
 }
+
+#[derive(Debug, Error)]
+pub enum SiaCoinSiaCanRefundHtlcError {
+    #[error("SiaCoin::sia_can_refund_htlc: failed to fetch median_timestamp: {0}")]
+    FetchTimestamp(#[from] SiaClientHelperError),
+}

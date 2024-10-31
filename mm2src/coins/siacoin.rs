@@ -1270,6 +1270,20 @@ impl SiaCoin {
             .map(|secret| secret.0.to_vec())
             .ok_or(SiaCoinSiaExtractSecretError::FailedToExtract { tx, expected_hash })
     }
+
+    /// Determines if the HTLC output can be spent via refund path or if additional time must pass
+    async fn sia_can_refund_htlc(&self, locktime: u64) -> Result<CanRefundHtlc, SiaCoinSiaCanRefundHtlcError> {
+        let median_timestamp = self
+            .client
+            .get_median_timestamp()
+            .await
+            .map_err(SiaCoinSiaCanRefundHtlcError::FetchTimestamp)?;
+
+        if locktime > median_timestamp {
+            return Ok(CanRefundHtlc::CanRefundNow);
+        }
+        Ok(CanRefundHtlc::HaveToWait(median_timestamp - locktime))
+    }
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
@@ -1538,13 +1552,36 @@ impl SwapOps for SiaCoin {
 
     fn derive_htlc_key_pair(&self, _swap_unique_data: &[u8]) -> KeyPair { unimplemented!() }
 
-    // FIXME Alright - return the iguana ed25519 public key
-    fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> Vec<u8> { unimplemented!() }
+    /// Return the iguana ed25519 public key
+    /// This is the public key that will be used inside the HTLC SpendPolicy
+    // TODO Alright - method signature needs to change to use Result<>
+    fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> Vec<u8> {
+        let my_keypair = self
+            .my_keypair()
+            .expect("SiaCoin::derive_htlc_pubkey: failed to get my_keypair");
 
-    async fn can_refund_htlc(&self, _locktime: u64) -> Result<CanRefundHtlc, String> { unimplemented!() }
+        my_keypair.public().to_bytes().to_vec()
+    }
 
-    // FIXME Alright - validate the other side's "htlc_pubkey" - other party generates this with SwapOps::derive_htlc_pubkey
-    fn validate_other_pubkey(&self, _raw_pubkey: &[u8]) -> MmResult<(), ValidateOtherPubKeyErr> { unimplemented!() }
+    /// Determines "Whether the refund transaction can be sent now"
+    /// /api/consensus/tipstate provides 11 timestamps, take the median
+    /// medianTimestamp = prevTimestamps[5]
+    /// SpendPolicy::After(time) evaluates to true when `time > medianTimestamp`
+    async fn can_refund_htlc(&self, locktime: u64) -> Result<CanRefundHtlc, String> {
+        self.sia_can_refund_htlc(locktime).await.map_err(|e| e.to_string())
+    }
+
+    /// Validate the PublicKey the other party provided
+    /// The other party generates this PublicKey via SwapOps::derive_htlc_pubkey
+    fn validate_other_pubkey(&self, raw_pubkey: &[u8]) -> MmResult<(), ValidateOtherPubKeyErr> {
+        let _public_key = PublicKey::from_bytes(raw_pubkey).map_err(|e| {
+            ValidateOtherPubKeyErr::InvalidPubKey(format!(
+                "SiaCoin::validate_other_pubkey validate pubkey:{:?} failed: {}",
+                raw_pubkey, e
+            ))
+        })?;
+        Ok(())
+    }
 
     // lightning specific
     async fn maker_payment_instructions(
