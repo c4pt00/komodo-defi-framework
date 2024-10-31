@@ -2087,14 +2087,9 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     async fn on_changed(self: Box<Self>, state_machine: &mut Self::StateMachine) -> StateResult<Self::StateMachine> {
         let unique_data = state_machine.unique_data();
 
-        // TODO: impl extract_secret_v2 as we cant reuse legacy method for Eth which uses v2 smart contracts
         let secret = match state_machine
             .taker_coin
-            .extract_secret(
-                &self.negotiation_data.maker_secret_hash,
-                &self.taker_payment_spend.tx_hex(),
-                false,
-            )
+            .extract_secret_v2(&self.negotiation_data.maker_secret_hash, &self.taker_payment_spend)
             .await
         {
             Ok(s) => s,

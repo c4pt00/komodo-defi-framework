@@ -1970,6 +1970,8 @@ pub trait TakerCoinSwapOpsV2: ParseCoinAssocTypes + CommonSwapOpsV2 + Send + Syn
         from_block: u64,
         wait_until: u64,
     ) -> MmResult<Self::Tx, FindPaymentSpendError>;
+
+    async fn extract_secret_v2(&self, secret_hash: &[u8], spend_tx: &Self::Tx) -> Result<Vec<u8>, String>;
 }
 
 #[async_trait]

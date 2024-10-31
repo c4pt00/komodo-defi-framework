@@ -565,6 +565,10 @@ impl TakerCoinSwapOpsV2 for TestCoin {
     ) -> MmResult<Self::Tx, FindPaymentSpendError> {
         unimplemented!()
     }
+
+    async fn extract_secret_v2(&self, secret_hash: &[u8], spend_tx: &Self::Tx) -> Result<Vec<u8>, String> {
+        unimplemented!()
+    }
 }
 
 impl CommonSwapOpsV2 for TestCoin {

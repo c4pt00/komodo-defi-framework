@@ -767,6 +767,46 @@ impl EthCoin {
 
         Ok((decoded, taker_swap_v2_contract))
     }
+
+    /// Extracts the maker's secret from the input of transaction that calls the `spendTakerPayment` smart contract method.
+    ///
+    ///     function spendTakerPayment(
+    ///         bytes32 id,
+    ///         uint256 amount,
+    ///         uint256 dexFee,
+    ///         address taker,
+    ///         bytes32 takerSecretHash,
+    ///         bytes32 makerSecret,
+    ///         address tokenAddress
+    ///     )
+    pub(crate) async fn extract_secret_v2_impl(
+        &self,
+        _secret_hash: &[u8],
+        spend_tx: &SignedEthTx,
+    ) -> Result<Vec<u8>, String> {
+        let function = try_s!(TAKER_SWAP_V2.function("spendTakerPayment"));
+        // should be 0xcc90c199
+        let expected_signature = function.short_signature();
+        let signature = &spend_tx.unsigned().data()[0..4];
+        if signature != expected_signature {
+            return ERR!(
+                "Expected 'spendTakerPayment' contract call signature: {:?}, found {:?}",
+                expected_signature,
+                signature
+            );
+        };
+        let decoded = try_s!(decode_contract_call(function, spend_tx.unsigned().data()));
+        if decoded.len() < 7 {
+            return ERR!("Invalid arguments in 'spendTakerPayment' call: {:?}", decoded);
+        }
+        match &decoded[5] {
+            Token::FixedBytes(secret) => Ok(secret.to_vec()),
+            _ => ERR!(
+                "Expected secret to be fixed bytes, but decoded function data is {:?}",
+                decoded
+            ),
+        }
+    }
 }
 
 /// Validation function for ETH taker payment data

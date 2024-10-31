@@ -2605,6 +2605,30 @@ pub fn extract_secret(secret_hash: &[u8], spend_tx: &[u8]) -> Result<Vec<u8>, St
     ERR!("Couldn't extract secret")
 }
 
+/// Extract a secret from the `spend_tx`.
+/// Note spender could generate the spend with several inputs where the only one input is the p2sh script.
+pub fn extract_secret_v2(secret_hash: &[u8], spend_tx: &UtxoTx) -> Result<Vec<u8>, String> {
+    let expected_secret_hash = if secret_hash.len() == 32 {
+        ripemd160(secret_hash)
+    } else {
+        H160::from(secret_hash)
+    };
+    for input in spend_tx.inputs.iter() {
+        let script: Script = input.script_sig.clone().into();
+        for instruction in script.iter().flatten() {
+            if instruction.opcode == Opcode::OP_PUSHBYTES_32 {
+                if let Some(secret) = instruction.data {
+                    let actual_secret_hash = dhash160(secret);
+                    if actual_secret_hash == expected_secret_hash {
+                        return Ok(secret.to_vec());
+                    }
+                }
+            }
+        }
+    }
+    ERR!("Couldn't extract secret")
+}
+
 pub fn my_address<T: UtxoCommonOps>(coin: &T) -> MmResult<String, MyAddressError> {
     match coin.as_ref().derivation_method {
         DerivationMethod::SingleAddress(ref my_address) => {

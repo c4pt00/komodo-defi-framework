@@ -883,6 +883,10 @@ impl TakerCoinSwapOpsV2 for UtxoStandardCoin {
         .await?;
         Ok(res)
     }
+
+    async fn extract_secret_v2(&self, secret_hash: &[u8], spend_tx: &Self::Tx) -> Result<Vec<u8>, String> {
+        utxo_common::extract_secret_v2(secret_hash, spend_tx)
+    }
 }
 
 impl CommonSwapOpsV2 for UtxoStandardCoin {
