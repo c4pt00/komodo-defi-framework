@@ -7,7 +7,7 @@ mod metadata;
 pub mod session;
 mod storage;
 
-use crate::connection_handler::keep_alive_ping;
+use crate::connection_handler::keep_session_alive_ping;
 use crate::session::rpc::propose::send_proposal_request;
 
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
@@ -105,11 +105,11 @@ impl WalletConnectCtx {
         Ok(Self {
             client,
             pairing,
-            session: SessionManager::new(),
             relay,
+            storage,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
-            storage,
+            session: SessionManager::new(),
             subscriptions: Default::default(),
 
             inbound_message_rx: Arc::new(msg_receiver.into()),
@@ -233,7 +233,7 @@ impl WalletConnectCtx {
             self.session.add_session(session).await;
 
             // subcribe to session topics
-            self.client.batch_subscribe(vec![topic, pairing_topic]).await?;
+            self.client.batch_subscribe(vec![topic.clone(), pairing_topic]).await?;
         }
 
         Ok(())
@@ -446,6 +446,17 @@ impl WalletConnectCtx {
         self.client.disconnect().await?;
         MmError::err(WalletConnectError::NoWalletFeedback)
     }
+
+    pub async fn drop_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
+        self.client.unsubscribe(topic.clone()).await?;
+        self.session.delete_session(topic).await;
+        self.storage
+            .delete_session(topic)
+            .await
+            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
+
+        Ok(())
+    }
 }
 
 /// This function spwans related WalletConnect related tasks and needed initialization before
@@ -466,17 +477,13 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
         }
     });
 
-    ctx.spawner().spawn({
-        let this = wallet_connect.clone();
-        keep_alive_ping(this)
-    });
+    ctx.spawner().spawn(keep_session_alive_ping(wallet_connect.clone()));
 
     // spawn message handler event loop
     ctx.spawner().spawn(async move {
-        let this = wallet_connect.clone();
-        let mut recv = this.inbound_message_rx.lock().await;
+        let mut recv = wallet_connect.inbound_message_rx.lock().await;
         while let Some(msg) = recv.next().await {
-            if let Err(e) = this.handle_published_message(msg).await {
+            if let Err(e) = wallet_connect.clone().handle_published_message(msg).await {
                 info!("Error processing message: {:?}", e);
             }
         }

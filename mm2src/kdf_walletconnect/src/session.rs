@@ -1,15 +1,15 @@
 pub(crate) mod key;
 pub mod rpc;
 
-use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
 use common::log::debug;
+use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::{Ref, RefMut};
 use dashmap::DashMap;
 use key::SessionKey;
-use mm2_err_handle::prelude::{MapMmError, MmError, MmResult};
+use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_propose::Proposer;
@@ -260,15 +260,8 @@ impl SessionManager {
         removed_session
     }
 
-    /// Retrieves a cloned session associated with a given topic.
     pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
         let mut active_topic = self.0.active_topic.lock().await;
-        if let Some(this) = active_topic.as_mut() {
-            if topic == this {
-                return Ok(());
-            };
-        }
-
         if let Some(session) = self.get_session(topic) {
             *active_topic = Some(session.topic.clone());
             return Ok(());
@@ -312,6 +305,7 @@ impl SessionManager {
             })
     }
 
+    pub(crate) fn get_sessions_full(&self) -> impl Iterator<Item = RefMulti<Topic, Session>> { self.0.sessions.iter() }
     /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
     /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
@@ -354,17 +348,6 @@ impl SessionManager {
 
         Ok(())
     }
-}
-
-pub async fn disconnect_session_rpc(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
-    ctx.client.unsubscribe(topic.clone()).await?;
-    ctx.session.delete_session(topic).await;
-    ctx.storage
-        .delete_session(topic)
-        .await
-        .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
-
-    Ok(())
 }
 
 #[cfg(test)]

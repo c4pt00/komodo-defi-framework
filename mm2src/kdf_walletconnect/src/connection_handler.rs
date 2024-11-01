@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{WalletConnectCtx, WalletConnectError};
 
 use common::executor::Timer;
@@ -7,8 +9,8 @@ use futures::StreamExt;
 use mm2_err_handle::prelude::*;
 use relay_client::error::ClientError;
 use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
+use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::RequestParams;
-use std::sync::Arc;
 use tokio::time::interval;
 use tokio::time::Duration;
 
@@ -109,7 +111,7 @@ pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
         loop {
             match this.connect_client().await {
                 Ok(_) => {
-                    if let Err(e) = resubscribe_to_topics(this).await {
+                    if let Err(e) = resubscribe_to_topics(this, None).await {
                         error!("Failed to resubscribe after reconnection: {:?}", e);
                     }
                     debug!("Reconnection process complete.");
@@ -131,7 +133,8 @@ pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
 /// This helps prevent connection drops as the relay server tends to disconnect inactive connections after 5 minutes.
 /// The ping interval is designed to catch potential disconnections before the server timeout while minimizing
 /// unnecessary network traffic.
-pub(crate) async fn keep_alive_ping(ctx: Arc<WalletConnectCtx>) {
+pub(crate) async fn keep_session_alive_ping(ctx: Arc<WalletConnectCtx>) {
+    info!("keep_session_alive_ping running");
     let mut interval = interval(Duration::from_secs(PING_INTERVAL));
     let mut backoff = 1.;
 
@@ -139,9 +142,14 @@ pub(crate) async fn keep_alive_ping(ctx: Arc<WalletConnectCtx>) {
     interval.tick().await;
 
     loop {
+        let Ok(session_topic) = ctx.session.get_active_topic_or_err().await else {
+            info!("No active session to ping will check again shortly");
+            Timer::sleep(PING_INTERVAL as f64).await;
+            continue;
+        };
         tokio::select! {
             _ = interval.tick() => {
-                match try_ping(&ctx).await {
+                match try_ping(&ctx, &session_topic).await {
                     Ok(_) => {
                         backoff = 1.;
                         continue;
@@ -149,8 +157,8 @@ pub(crate) async fn keep_alive_ping(ctx: Arc<WalletConnectCtx>) {
                     Err(e) => {
                         error!("WalletConnect ping failed: {:?}. Attempting reconnect...", e);
                         // Attempt reconnection with backoff
-                        if let Err(reconnect_err) = handle_ping_failure(&ctx).await {
-                            error!("Reconnection failed: {:?}", reconnect_err);
+                        if let Err(reconnect_err) = handle_ping_failure(&ctx, &session_topic).await {
+                            error!("{} Session reconnection failed: {:?}", session_topic, reconnect_err);
                             // Increase backoff for next attempt
                             backoff = std::cmp::min(backoff as u64 * 2, MAX_BACKOFF ) as f64;
                             Timer::sleep(backoff).await;
@@ -158,7 +166,7 @@ pub(crate) async fn keep_alive_ping(ctx: Arc<WalletConnectCtx>) {
                         }
                         // Reset backoff after successful reconnection
                         backoff = 1.;
-                        debug!("Successfully reconnected after ping failure");
+                        debug!("{}: Successfully reconnected after ping failure", session_topic);
                     }
                 }
             }
@@ -168,10 +176,9 @@ pub(crate) async fn keep_alive_ping(ctx: Arc<WalletConnectCtx>) {
 
 /// Attempts to verify connection health with WalletConnect relay server by sending a ping message.
 /// Waits for a pong response with a specified timeout period.
-async fn try_ping(ctx: &WalletConnectCtx) -> MmResult<(), WalletConnectError> {
-    let active_topic = ctx.session.get_active_topic_or_err().await?;
+async fn try_ping(ctx: &WalletConnectCtx, session_topic: &Topic) -> MmResult<(), WalletConnectError> {
     let param = RequestParams::SessionPing(());
-    ctx.publish_request(&active_topic, param).await?;
+    ctx.publish_request(session_topic, param).await?;
 
     let timeout = Timer::sleep(PING_TIMEOUT);
     tokio::pin!(timeout);
@@ -181,12 +188,12 @@ async fn try_ping(ctx: &WalletConnectCtx) -> MmResult<(), WalletConnectError> {
         msg = recv.next() => {
             match msg {
                 Some(Ok(_)) => {
-                    debug!("WalletConnect Session Is Alive");
+                    debug!("WalletConnect {}: Session is alive", session_topic);
                     Ok(())
                 },
                 Some(Err(err)) => {
                     MmError::err(WalletConnectError::InternalError(
-                        format!("WalletConnect Ping Error: {err:?}")
+                        format!("WalletConnect {}: Ping Error: {err:?}", session_topic)
                     ))
                 },
                 None => {
@@ -198,7 +205,7 @@ async fn try_ping(ctx: &WalletConnectCtx) -> MmResult<(), WalletConnectError> {
             }
         },
         _ = timeout => {
-            error!("WalletConnect Ping timeout");
+            error!("WalletConnect {}: Ping timeout", session_topic);
             MmError::err(WalletConnectError::InternalError(
                 "WalletConnect Ping timeout".into()
             ))
@@ -207,22 +214,32 @@ async fn try_ping(ctx: &WalletConnectCtx) -> MmResult<(), WalletConnectError> {
 }
 
 // Handle reconnection after ping failure
-async fn handle_ping_failure(ctx: &WalletConnectCtx) -> MmResult<(), WalletConnectError> {
-    // Attempt to disconnect client
-    ctx.client.disconnect().await?;
+async fn handle_ping_failure(ctx: &WalletConnectCtx, session_topic: &Topic) -> MmResult<(), WalletConnectError> {
     // Attempt to reconnect
     ctx.connect_client().await?;
     // Resubscribe to topics if needed
-    resubscribe_to_topics(ctx).await?;
+    resubscribe_to_topics(ctx, Some(session_topic)).await?;
     // Verify connection with a new ping
-    try_ping(ctx).await
+    try_ping(ctx, session_topic).await
 }
 
 /// Resubscribes to previously active topics after reconnection.
 /// Called by handle_disconnections to restore subscription state.
-async fn resubscribe_to_topics(this: &WalletConnectCtx) -> MmResult<(), WalletConnectError> {
-    let subs = this.subscriptions.lock().await;
-    this.client.batch_subscribe(&**subs).await?;
+async fn resubscribe_to_topics(this: &WalletConnectCtx, topic: Option<&Topic>) -> MmResult<(), WalletConnectError> {
+    if let Some(topic) = topic {
+        if let Some(session) = this.session.get_session(topic) {
+            this.client
+                .batch_subscribe(vec![session.topic.clone(), session.pairing_topic.clone()])
+                .await?;
+            return Ok(());
+        }
+    }
+    let sessions = this.session.get_sessions();
+    for session in sessions {
+        this.client
+            .batch_subscribe(vec![session.topic.into(), session.pairing_topic.into()])
+            .await?;
+    }
 
     Ok(())
 }

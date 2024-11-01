@@ -2,7 +2,7 @@ use crate::session::{Session, SessionProperties};
 use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError, WalletConnectCtx};
 
-use common::log::info;
+use common::log::{debug, info};
 use mm2_err_handle::prelude::{MapMmError, MmResult};
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_settle::SessionSettleRequest, ResponseParamsSuccess}};
@@ -52,18 +52,36 @@ pub(crate) async fn reply_session_settle_request(
                 let session_properties = serde_json::from_str::<SessionProperties>(&value.to_string())?;
                 session.session_properties = Some(session_properties);
             }
+
             // Update storage session.
             ctx.storage
                 .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
-        }
+        };
     }
-
     info!("Session successfully settled for topic: {:?}", topic);
 
     let param = ResponseParamsSuccess::SessionSettle(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
+
+    // Delete other sessions with same controller
+    let all_sessions = ctx.session.get_sessions_full();
+    for session in all_sessions {
+        if session.controller == settle.controller && session.topic.as_ref() != topic.as_ref() {
+            ctx.client.unsubscribe(session.topic.clone()).await?;
+            ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
+            ctx.storage
+                .delete_session(&session.topic.clone())
+                .await
+                .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
+
+            // Optionally: Remove from active sessions in memory too
+            ctx.session.delete_session(&session.topic).await;
+            ctx.drop_session(&session.topic).await?;
+            debug!("Deleted previous session with topic: {:?}", session.topic);
+        }
+    }
 
     Ok(())
 }
