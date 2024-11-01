@@ -121,7 +121,6 @@ impl WalletConnectCtx {
 
     pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectError> {
         from_ctx(&ctx.wallet_connect, move || {
-            println!("HERE AGAIN");
             Self::try_init(ctx).map_err(|err| err.to_string())
         })
         .map_to_mm(WalletConnectError::InternalError)
