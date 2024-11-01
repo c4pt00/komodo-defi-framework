@@ -1,13 +1,9 @@
 use base64::engine::general_purpose;
 use base64::Engine;
-use chrono::Utc;
 use kdf_walletconnect::chain::WcChainId;
 use kdf_walletconnect::error::WalletConnectError;
 use kdf_walletconnect::{chain::WcRequestMethods, WalletConnectCtx};
 use mm2_err_handle::prelude::*;
-use relay_rpc::rpc::params::session_request::Request as SessionRequest;
-use relay_rpc::rpc::params::session_request::SessionRequestRequest;
-use relay_rpc::rpc::params::RequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
@@ -48,32 +44,13 @@ pub async fn cosmos_request_wc_signed_tx(
     chain_id: &WcChainId,
     is_ledger_conn: bool,
 ) -> MmResult<CosmosTxSignedData, WalletConnectError> {
-    let topic = ctx
-        .session
-        .get_session_active()
-        .await
-        .map(|session| session.topic.clone())
-        .ok_or(WalletConnectError::NotInitialized)?;
+    let method = if is_ledger_conn {
+        WcRequestMethods::CosmosSignAmino
+    } else {
+        WcRequestMethods::CosmosSignDirect
+    };
 
-    {
-        let method = if is_ledger_conn {
-            WcRequestMethods::CosmosSignAmino
-        } else {
-            WcRequestMethods::CosmosSignDirect
-        };
-        let request = SessionRequestRequest {
-            request: SessionRequest {
-                method: method.as_ref().to_owned(),
-                expiry: Some(Utc::now().timestamp() as u64 + 300),
-                params: sign_doc,
-            },
-            chain_id: chain_id.to_string(),
-        };
-        let session_request = RequestParams::SessionRequest(request);
-        ctx.publish_request(&topic, session_request).await?;
-    }
-
-    ctx.on_wc_session_response::<CosmosTxSignedData, _, _>(Ok).await
+    ctx.send_session_request_and_wait(chain_id, method, sign_doc, Ok).await
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -145,27 +122,19 @@ pub async fn cosmos_get_accounts_impl(
         }
     }
 
-    let request = SessionRequestRequest {
-        request: SessionRequest {
-            method: WcRequestMethods::CosmosGetAccounts.as_ref().to_owned(),
-            expiry: Some(Utc::now().timestamp() as u64 + 300),
-            params: serde_json::to_value(&account).unwrap(),
+    let params = serde_json::to_value(&account).unwrap();
+    ctx.send_session_request_and_wait(
+        &chain_id,
+        WcRequestMethods::CosmosGetAccounts,
+        params,
+        |accounts: Vec<CosmosAccount>| {
+            if accounts.is_empty() {
+                return MmError::err(WalletConnectError::EmptyAccount(chain_id.to_string()));
+            };
+
+            Ok(accounts[0].clone())
         },
-        chain_id: chain_id.to_string(),
-    };
-
-    {
-        let session_request = RequestParams::SessionRequest(request);
-        ctx.publish_request(&session.topic, session_request).await?;
-    };
-
-    ctx.on_wc_session_response::<Vec<CosmosAccount>, _, _>(|accounts| {
-        if accounts.is_empty() {
-            return MmError::err(WalletConnectError::EmptyAccount(chain_id.to_string()));
-        };
-
-        Ok(accounts[0].clone())
-    })
+    )
     .await
 }
 

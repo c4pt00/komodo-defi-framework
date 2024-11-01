@@ -7,9 +7,12 @@ mod metadata;
 pub mod session;
 mod storage;
 
+use crate::connection_handler::keep_alive_ping;
 use crate::session::rpc::propose::send_proposal_request;
 
-use chain::{WcChainId, SUPPORTED_PROTOCOL};
+use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
+use chrono::Utc;
+use common::custom_futures::timeout::FutureTimerExt;
 use common::log::info;
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
@@ -28,8 +31,9 @@ use relay_rpc::auth::{ed25519_dalek::SigningKey, AuthToken};
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::params::session::Namespace;
 use relay_rpc::rpc::params::session_event::{Event, SessionEventRequest};
-use relay_rpc::rpc::params::{IrnMetadata, Metadata, Relay, RelayProtocolMetadata, RequestParams, ResponseParamsError,
-                             ResponseParamsSuccess};
+use relay_rpc::rpc::params::session_request::SessionRequestRequest;
+use relay_rpc::rpc::params::{session_request::Request as SessionRequest, IrnMetadata, Metadata, Relay,
+                             RelayProtocolMetadata, RequestParams, ResponseParamsError, ResponseParamsSuccess};
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
 use serde::de::DeserializeOwned;
 use session::{key::SymKeyPair, SessionManager};
@@ -37,7 +41,6 @@ use std::collections::BTreeSet;
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
-use tokio::time::timeout;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
 
 #[async_trait::async_trait]
@@ -118,6 +121,7 @@ impl WalletConnectCtx {
 
     pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectError> {
         from_ctx(&ctx.wallet_connect, move || {
+            println!("HERE AGAIN");
             Self::try_init(ctx).map_err(|err| err.to_string())
         })
         .map_to_mm(WalletConnectError::InternalError)
@@ -230,15 +234,18 @@ impl WalletConnectCtx {
             self.session.add_session(session).await;
 
             // subcribe to session topics
-            self.client.subscribe(topic).await?;
-            self.client.subscribe(pairing_topic).await?;
+            self.client.batch_subscribe(vec![topic, pairing_topic]).await?;
         }
 
         Ok(())
     }
 
     /// function to publish a request.
-    pub async fn publish_request(&self, topic: &Topic, param: RequestParams) -> MmResult<(), WalletConnectError> {
+    pub(crate) async fn publish_request(
+        &self,
+        topic: &Topic,
+        param: RequestParams,
+    ) -> MmResult<(), WalletConnectError> {
         let irn_metadata = param.irn_metadata();
         let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
@@ -399,26 +406,45 @@ impl WalletConnectCtx {
     }
 
     /// Waits for and handles a WalletConnect session response with arbitrary data.
-    pub async fn on_wc_session_response<T, R, F>(&self, func: F) -> MmResult<R, WalletConnectError>
+    pub async fn send_session_request_and_wait<T, R, F>(
+        &self,
+        chain_id: &WcChainId,
+        method: WcRequestMethods,
+        params: serde_json::Value,
+        response_handler: F,
+    ) -> MmResult<R, WalletConnectError>
     where
         T: DeserializeOwned,
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
-        println!("HERE INNER");
-        let wait_duration = Duration::from_secs(300);
+        // Send request
+        let active_topic = self.session.get_active_topic_or_err().await?;
+        let request = SessionRequestRequest {
+            chain_id: chain_id.to_string(),
+            request: SessionRequest {
+                method: method.as_ref().to_string(),
+                expiry: Some(Utc::now().timestamp() as u64 + 300),
+                params,
+            },
+        };
+        self.publish_request(&active_topic, RequestParams::SessionRequest(request))
+            .await?;
 
-        while let Ok(Some(resp)) = timeout(wait_duration, self.message_rx.lock().await.next()).await {
+        // Wait for response
+        let wait_duration = Duration::from_secs(300);
+        if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout(wait_duration).await {
             let result = resp.mm_err(WalletConnectError::InternalError)?;
             if let ResponseParamsSuccess::Arbitrary(data) = result.data {
                 let data = serde_json::from_value::<T>(data)?;
                 let response = ResponseParamsSuccess::SessionEvent(true);
                 self.publish_response_ok(&result.topic, response, &result.message_id)
                     .await?;
-
-                return func(data);
+                return response_handler(data);
             }
         }
 
+        // Handle timeout/error
+        self.client.disconnect().await?;
         MmError::err(WalletConnectError::NoWalletFeedback)
     }
 }
@@ -426,7 +452,6 @@ impl WalletConnectCtx {
 /// This function spwans related WalletConnect related tasks and needed initialization before
 /// WalletConnect can be usable in KDF.
 pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectError> {
-    info!("Initializing WalletConnect");
     // Initialized WalletConnectCtx
     let wallet_connect = WalletConnectCtx::from_ctx(ctx)?;
     // Intialize storage.
@@ -436,10 +461,17 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
     ctx.spawner().spawn({
         let this = wallet_connect.clone();
         async move {
+            info!("Initializing WalletConnect connection");
             connection_handler::initial_connection(&this).await;
             connection_handler::handle_disconnections(&this).await;
         }
     });
+
+    ctx.spawner().spawn({
+        let this = wallet_connect.clone();
+        keep_alive_ping(this)
+    });
+
     // spawn message handler event loop
     ctx.spawner().spawn(async move {
         let this = wallet_connect.clone();
@@ -450,8 +482,6 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
             }
         }
     });
-
-    info!("WalletConnect initialization completed successfully");
 
     Ok(())
 }

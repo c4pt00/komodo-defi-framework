@@ -2,7 +2,6 @@ use crate::common::Future01CompatExt;
 use crate::Eip1559Ops;
 use crate::{BytesJson, TransactionErr};
 
-use chrono::Utc;
 use common::log::info;
 use derive_more::Display;
 use ethcore_transaction::{Action, SignedTransaction};
@@ -14,8 +13,6 @@ use kdf_walletconnect::{chain::{WcChainId, WcRequestMethods},
                         error::WalletConnectError,
                         WalletConnectCtx};
 use mm2_err_handle::prelude::*;
-use relay_rpc::rpc::params::session_request::SessionRequestRequest;
-use relay_rpc::rpc::params::{session_request::Request as SessionRequest, RequestParams};
 use secp256k1::{recovery::{RecoverableSignature, RecoveryId},
                 Secp256k1};
 use std::str::FromStr;
@@ -112,32 +109,15 @@ impl WalletConnectOps for EthCoin {
         ctx: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
-        let topic = ctx
-            .session
-            .get_session_active()
-            .await
-            .map(|session| session.topic.clone())
-            .ok_or(WalletConnectError::NotInitialized)?;
-
-        {
-            let tx_json = params.prepare_wc_tx_format()?;
-            let request = SessionRequestRequest {
-                chain_id: self.wc_chain_id().to_string(),
-                request: SessionRequest {
-                    method: WcRequestMethods::EthSignTransaction.as_ref().to_string(),
-                    expiry: Some(Utc::now().timestamp() as u64 + 300),
-                    params: tx_json.clone(),
-                },
-            };
-            ctx.publish_request(&topic, RequestParams::SessionRequest(request))
-                .await?;
-        };
-
         let bytes = {
-            let tx_hex: String = ctx.on_wc_session_response(Ok).await?;
+            let tx_json = params.prepare_wc_tx_format()?;
+            let tx_hex: String = ctx
+                .send_session_request_and_wait(&self.wc_chain_id(), WcRequestMethods::EthSignTransaction, tx_json, Ok)
+                .await?;
             // First 4 bytes from WalletConnect represents Protoc info
             hex::decode(&tx_hex[4..])?
         };
+
         let unverified = rlp::decode(&bytes)?;
         let signed = SignedTransaction::new(unverified)?;
         let bytes = rlp::encode(&signed);
@@ -150,28 +130,11 @@ impl WalletConnectOps for EthCoin {
         ctx: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
-        let topic = ctx
-            .session
-            .get_session_active()
-            .await
-            .map(|session| session.topic.clone())
-            .ok_or(WalletConnectError::NotInitialized)?;
-
-        {
+        let tx_hash: String = {
             let tx_json = params.prepare_wc_tx_format()?;
-            let request = SessionRequestRequest {
-                chain_id: self.wc_chain_id().to_string(),
-                request: SessionRequest {
-                    method: WcRequestMethods::EthSendTransaction.as_ref().to_string(),
-                    expiry: Some(Utc::now().timestamp() as u64 + 300),
-                    params: tx_json.clone(),
-                },
-            };
-            ctx.publish_request(&topic, RequestParams::SessionRequest(request))
-                .await?;
+            ctx.send_session_request_and_wait(&self.wc_chain_id(), WcRequestMethods::EthSendTransaction, tx_json, Ok)
+                .await?
         };
-
-        let tx_hash: String = ctx.on_wc_session_response(Ok).await?;
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
 
         // Wait for 10 seconds for the transaction to appear on the RPC node.
@@ -209,34 +172,16 @@ pub async fn eth_request_wc_personal_sign(
     let chain_id = chain_id.to_string();
     let chain_id = WcChainId::new_eip155(chain_id);
 
-    let topic = ctx
-        .session
-        .get_session_active()
-        .await
-        .map(|session| session.topic.clone())
-        .ok_or(WalletConnectError::NotInitialized)?;
-
-    let account_str = ctx.get_account_for_chain_id(&chain_id).await?;
-    let message = "Authenticate with Komodefi";
-
-    {
+    let result = {
+        let account_str = ctx.get_account_for_chain_id(&chain_id).await?;
+        let message = "Authenticate with Komodefi";
         let message_hex = format!("0x{}", hex::encode(message));
         let params = json!(&[&message_hex, &account_str]);
-        let request = SessionRequestRequest {
-            request: SessionRequest {
-                method: WcRequestMethods::PersonalSign.as_ref().to_owned(),
-                expiry: Some(Utc::now().timestamp() as u64 + 300),
-                params,
-            },
-            chain_id: chain_id.to_string(),
-        };
-        let session_request = RequestParams::SessionRequest(request);
-        ctx.publish_request(&topic, session_request).await?;
-    }
-
-    let result = ctx
-        .on_wc_session_response(|data: String| Ok(extract_pubkey_from_signature(&data, message, &account_str)?))
-        .await?;
+        ctx.send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
+            Ok(extract_pubkey_from_signature(&data, message, &account_str)?)
+        })
+        .await?
+    };
 
     Ok(result)
 }
