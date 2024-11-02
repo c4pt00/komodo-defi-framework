@@ -177,7 +177,7 @@ impl WalletConnectCtx {
         {
             let pairings = self.pairing.pairings.lock().await;
             if let Some(pairing) = pairings.get(topic.as_ref()) {
-                let key = hex::decode(pairing.sym_key.clone())?;
+                let key = const_hex::decode(pairing.sym_key.clone())?;
                 return Ok(key);
             }
         }

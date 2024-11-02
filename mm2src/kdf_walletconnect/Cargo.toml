@@ -9,6 +9,7 @@ async-trait = "0.1.52"
 base64 = "0.21.2"
 chrono = { version = "0.4.23", "features" = ["serde"] }
 common = { path = "../common" }
+const-hex = "1.13.1"
 cfg-if = "1.0"
 db_common = { path = "../db_common" }
 derive_more = "0.99"
@@ -17,7 +18,6 @@ futures = { version = "0.3", package = "futures", features = [
     "compat",
     "async-await",
 ] }
-hex = "0.4.2"
 hkdf = "0.12.4"
 dashmap = "6.1.0"
 mm2_core = { path = "../mm2_core" }
