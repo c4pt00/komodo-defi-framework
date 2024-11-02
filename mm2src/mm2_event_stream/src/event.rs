@@ -3,7 +3,7 @@ use serde_json::Value as Json;
 // Note `Event` shouldn't be `Clone`able, but rather Arc/Rc wrapped and then shared.
 // This is only for testing.
 /// Multi-purpose/generic event type that can easily be used over the event streaming
-#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
+#[cfg_attr(any(test, target_arch = "wasm32"), derive(Clone, Debug, PartialEq))]
 #[derive(Default)]
 pub struct Event {
     /// The type of the event (balance, network, swap, etc...).

@@ -350,16 +350,20 @@ impl DerefMut for ClientHandle {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.rx }
 }
 
-#[cfg(test)]
+#[cfg(any(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
     use crate::streamer::test_utils::{InitErrorStreamer, PeriodicStreamer, ReactiveStreamer};
 
     use common::executor::{abortable_queue::AbortableQueue, AbortableSystem, Timer};
+    use common::{cfg_wasm32, cross_test};
     use serde_json::json;
+    cfg_wasm32! {
+        use wasm_bindgen_test::*;
+        wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+    }
 
-    #[tokio::test]
-    async fn test_add_remove_client() {
+    cross_test!(test_add_remove_client, {
         let manager = StreamingManager::default();
         let client_id1 = 1;
         let client_id2 = 2;
@@ -387,10 +391,9 @@ mod tests {
             manager.remove_client(client_id3),
             Err(StreamingManagerError::UnknownClient)
         ));
-    }
+    });
 
-    #[tokio::test]
-    async fn test_broadcast_all() {
+    cross_test!(test_broadcast_all, {
         // Create a manager and add register two clients with it.
         let manager = StreamingManager::default();
         let mut client1 = manager.new_client(1).unwrap();
@@ -411,10 +414,9 @@ mod tests {
         // `recv` shouldn't work at this point since the client is removed.
         assert!(client1.try_recv().is_err());
         assert!(client2.try_recv().is_err());
-    }
+    });
 
-    #[tokio::test]
-    async fn test_periodic_streamer() {
+    cross_test!(test_periodic_streamer, {
         let manager = StreamingManager::default();
         let system = AbortableQueue::default();
         let (client_id1, client_id2) = (1, 2);
@@ -438,10 +440,9 @@ mod tests {
 
         // The other client shouldn't have received any events.
         assert!(client2.try_recv().is_err());
-    }
+    });
 
-    #[tokio::test]
-    async fn test_reactive_streamer() {
+    cross_test!(test_reactive_streamer, {
         let manager = StreamingManager::default();
         let system = AbortableQueue::default();
         let (client_id1, client_id2) = (1, 2);
@@ -475,10 +476,9 @@ mod tests {
 
         // The other client shouldn't have received any events.
         assert!(client2.try_recv().is_err());
-    }
+    });
 
-    #[tokio::test]
-    async fn test_erroring_streamer() {
+    cross_test!(test_erroring_streamer, {
         let manager = StreamingManager::default();
         let system = AbortableQueue::default();
         let client_id = 1;
@@ -491,10 +491,9 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(error, StreamingManagerError::SpawnError(..)));
-    }
+    });
 
-    #[tokio::test]
-    async fn test_remove_streamer_if_down() {
+    cross_test!(test_remove_streamer_if_down, {
         let manager = StreamingManager::default();
         let system = AbortableQueue::default();
         let client_id = 1;
@@ -542,5 +541,5 @@ mod tests {
             .get(&client_id)
             .unwrap()
             .listens_to(&streamer_id));
-    }
+    });
 }

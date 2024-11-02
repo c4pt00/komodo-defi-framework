@@ -113,7 +113,7 @@ impl Broadcaster {
     pub fn broadcast(&self, event: Event) { self.0.broadcast(event); }
 }
 
-#[cfg(test)]
+#[cfg(any(test, target_arch = "wasm32"))]
 pub mod test_utils {
     use super::*;
 
@@ -188,15 +188,19 @@ pub mod test_utils {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, target_arch = "wasm32"))]
 mod tests {
     use super::test_utils::{InitErrorStreamer, PeriodicStreamer, ReactiveStreamer};
     use super::*;
 
     use common::executor::abortable_queue::AbortableQueue;
+    use common::{cfg_wasm32, cross_test};
+    cfg_wasm32! {
+        use wasm_bindgen_test::*;
+        wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+    }
 
-    #[tokio::test]
-    async fn test_spawn_periodic_streamer() {
+    cross_test!(test_spawn_periodic_streamer, {
         let system = AbortableQueue::default();
         // Spawn the periodic streamer.
         let (_, data_in) = spawn(PeriodicStreamer, system.weak_spawner(), StreamingManager::default())
@@ -204,10 +208,9 @@ mod tests {
             .unwrap();
         // Periodic streamer shouldn't be ingesting any input.
         assert!(data_in.is_none());
-    }
+    });
 
-    #[tokio::test]
-    async fn test_spawn_reactive_streamer() {
+    cross_test!(test_spawn_reactive_streamer, {
         let system = AbortableQueue::default();
         // Spawn the reactive streamer.
         let (_, data_in) = spawn(ReactiveStreamer, system.weak_spawner(), StreamingManager::default())
@@ -215,10 +218,9 @@ mod tests {
             .unwrap();
         // Reactive streamer should be ingesting some input.
         assert!(data_in.is_some());
-    }
+    });
 
-    #[tokio::test]
-    async fn test_spawn_erroring_streamer() {
+    cross_test!(test_spawn_erroring_streamer, {
         let system = AbortableQueue::default();
         // Try to spawn the erroring streamer.
         let err = spawn(InitErrorStreamer, system.weak_spawner(), StreamingManager::default())
@@ -226,5 +228,5 @@ mod tests {
             .unwrap_err();
         // The streamer should return an error.
         assert_eq!(err, "error");
-    }
+    });
 }
