@@ -102,7 +102,14 @@ impl WalletConnectOps for EthCoin {
     type SendTxData = (SignedTransaction, BytesJson);
     type Params<'a> = WcEthTxParams<'a>;
 
-    fn wc_chain_id(&self) -> WcChainId { WcChainId::new_eip155(self.chain_id.to_string()) }
+    async fn wc_chain_id(&self, ctx: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
+        let chain = WcChainId::new_eip155(self.chain_id.to_string());
+        if ctx.is_chain_supported(&chain).await {
+            return MmError::err(WalletConnectError::ChainIdNotSupported(chain.to_string()).into());
+        };
+
+        Ok(chain)
+    }
 
     async fn wc_sign_tx<'a>(
         &self,
@@ -110,9 +117,10 @@ impl WalletConnectOps for EthCoin {
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
         let bytes = {
+            let chain_id = self.wc_chain_id(ctx).await?;
             let tx_json = params.prepare_wc_tx_format()?;
             let tx_hex: String = ctx
-                .send_session_request_and_wait(&self.wc_chain_id(), WcRequestMethods::EthSignTransaction, tx_json, Ok)
+                .send_session_request_and_wait(&chain_id, WcRequestMethods::EthSignTransaction, tx_json, Ok)
                 .await?;
             // First 4 bytes from WalletConnect represents Protoc info
             hex::decode(&tx_hex[4..])?
@@ -131,8 +139,9 @@ impl WalletConnectOps for EthCoin {
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
         let tx_hash: String = {
+            let chain_id = self.wc_chain_id(ctx).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            ctx.send_session_request_and_wait(&self.wc_chain_id(), WcRequestMethods::EthSendTransaction, tx_json, Ok)
+            ctx.send_session_request_and_wait(&chain_id, WcRequestMethods::EthSendTransaction, tx_json, Ok)
                 .await?
         };
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
@@ -169,8 +178,10 @@ pub async fn eth_request_wc_personal_sign(
     ctx: &WalletConnectCtx,
     chain_id: u64,
 ) -> MmResult<(H520, Address), EthWalletConnectError> {
-    let chain_id = chain_id.to_string();
-    let chain_id = WcChainId::new_eip155(chain_id);
+    let chain_id = WcChainId::new_eip155(chain_id.to_string());
+    if ctx.is_chain_supported(&chain_id).await {
+        return MmError::err(WalletConnectError::ChainIdNotSupported(chain_id.to_string()).into());
+    };
 
     let result = {
         let account_str = ctx.get_account_for_chain_id(&chain_id).await?;

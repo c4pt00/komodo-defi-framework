@@ -88,6 +88,8 @@ pub enum WalletConnectError {
     NoWalletFeedback,
     #[error("Invalid ChainId Error: {0}")]
     InvalidChainId(String),
+    #[error("ChainId not supported: {0}")]
+    ChainIdNotSupported(String),
 }
 
 impl From<Error<PublishError>> for WalletConnectError {

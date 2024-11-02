@@ -13,7 +13,7 @@ use crate::session::rpc::propose::send_proposal_request;
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
 use chrono::Utc;
 use common::custom_futures::timeout::FutureTimerExt;
-use common::log::info;
+use common::log::{debug, info};
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
 use error::WalletConnectError;
@@ -50,7 +50,7 @@ pub trait WalletConnectOps {
     type SignTxData;
     type SendTxData;
 
-    fn wc_chain_id(&self) -> WcChainId;
+    async fn wc_chain_id(&self, ctx: &WalletConnectCtx) -> Result<WcChainId, Self::Error>;
 
     async fn wc_sign_tx<'a>(
         &self,
@@ -66,7 +66,7 @@ pub trait WalletConnectOps {
 }
 
 pub struct WalletConnectCtx {
-    pub client: Client,
+    pub client: Arc<Client>,
     pub pairing: PairingClient,
     pub session: SessionManager,
 
@@ -96,7 +96,7 @@ impl WalletConnectCtx {
 
         let storage = SessionStorageDb::init(ctx)?;
 
-        let client = Client::new_unmanaged();
+        let client = Arc::new(Client::new_unmanaged());
         ctx.spawner().spawn(client_event_loop(
             client.control_rx().expect("client controller should never fail!"),
             Handler::new("Komodefi", msg_sender, conn_live_sender),
@@ -189,19 +189,18 @@ impl WalletConnectCtx {
     async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectError> {
         let message = {
             let key = self.sym_key(&msg.topic).await?;
-            decode_and_decrypt_type0(msg.message.as_bytes(), &key).unwrap()
+            decode_and_decrypt_type0(msg.message.as_bytes(), &key)?
         };
 
-        info!("Inbound message payload={message}");
+        debug!("Inbound message payload={message}");
 
-        let payload: Payload = serde_json::from_str(&message)?;
-
-        match payload {
+        match serde_json::from_str(&message)? {
             Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
             Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await,
         }
 
-        info!("Inbound message was handled successfully");
+        debug!("Inbound message was handled successfully");
+
         Ok(())
     }
 
@@ -214,12 +213,13 @@ impl WalletConnectCtx {
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
+        // bring last session to the back.
         sessions.sort_by(|a, b| a.expiry.cmp(&b.expiry));
 
         for session in sessions {
             // delete expired session
             if now > session.expiry {
-                info!("Session {} expired, trying to delete from storage", session.topic);
+                debug!("Session {} expired, trying to delete from storage", session.topic);
                 if let Err(err) = self.storage.delete_session(&session.topic).await {
                     error!("Unable to delete session: {:?} from storage", err);
                 }
@@ -229,10 +229,9 @@ impl WalletConnectCtx {
             let topic = session.topic.clone();
             let pairing_topic = session.pairing_topic.clone();
 
-            info!("Session found! activating :{}", topic);
+            debug!("Session found! activating :{}", topic);
             self.session.add_session(session).await;
 
-            // subcribe to session topics
             self.client.batch_subscribe(vec![topic.clone(), pairing_topic]).await?;
         }
 
@@ -245,13 +244,16 @@ impl WalletConnectCtx {
         topic: &Topic,
         param: RequestParams,
     ) -> MmResult<(), WalletConnectError> {
+        debug!("Outbound request message payload={param:?}");
+
         let irn_metadata = param.irn_metadata();
         let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
+
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
-        info!("Outbound request sent!");
+        debug!("Outbound request sent!");
 
         Ok(())
     }
@@ -266,6 +268,7 @@ impl WalletConnectCtx {
         let irn_metadata = result.irn_metadata();
         let value = serde_json::to_value(result)?;
         let response = Response::Success(SuccessfulResponse::new(*message_id, value));
+
         self.publish_payload(topic, irn_metadata, Payload::Response(response))
             .await?;
 
@@ -282,6 +285,7 @@ impl WalletConnectCtx {
         let error = error_data.error();
         let irn_metadata = error_data.irn_metadata();
         let response = Response::Error(ErrorResponse::new(*message_id, error));
+
         self.publish_payload(topic, irn_metadata, Payload::Response(response))
             .await?;
 
@@ -295,24 +299,22 @@ impl WalletConnectCtx {
         irn_metadata: IrnMetadata,
         payload: Payload,
     ) -> MmResult<(), WalletConnectError> {
-        let sym_key = self.sym_key(topic).await?;
-        let payload = serde_json::to_string(&payload)?;
-
-        info!("\n Sending Outbound request: {payload}!");
-
-        let message = encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?;
-        {
-            self.client
-                .publish(
-                    topic.clone(),
-                    message,
-                    None,
-                    irn_metadata.tag,
-                    Duration::from_secs(irn_metadata.ttl),
-                    irn_metadata.prompt,
-                )
-                .await?;
+        let message = {
+            let sym_key = self.sym_key(topic).await?;
+            let payload = serde_json::to_string(&payload)?;
+            encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?
         };
+
+        self.client
+            .publish(
+                topic.clone(),
+                message,
+                None,
+                irn_metadata.tag,
+                Duration::from_secs(irn_metadata.ttl),
+                irn_metadata.prompt,
+            )
+            .await?;
 
         Ok(())
     }

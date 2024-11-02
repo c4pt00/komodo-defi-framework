@@ -1,12 +1,16 @@
 use base64::engine::general_purpose;
 use base64::Engine;
+use cosmrs::proto::cosmos::tx::v1beta1::TxRaw;
 use kdf_walletconnect::chain::WcChainId;
 use kdf_walletconnect::error::WalletConnectError;
+use kdf_walletconnect::WalletConnectOps;
 use kdf_walletconnect::{chain::WcRequestMethods, WalletConnectCtx};
 use mm2_err_handle::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
+
+use super::{CosmosTransaction, TendermintCoin};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct CosmosTxSignedData {
@@ -36,21 +40,6 @@ pub struct CosmosSignData {
     pub auth_info_bytes: Vec<u8>,
     #[serde(deserialize_with = "deserialize_vec_field")]
     pub body_bytes: Vec<u8>,
-}
-
-pub async fn cosmos_request_wc_signed_tx(
-    ctx: &WalletConnectCtx,
-    sign_doc: Value,
-    chain_id: &WcChainId,
-    is_ledger_conn: bool,
-) -> MmResult<CosmosTxSignedData, WalletConnectError> {
-    let method = if is_ledger_conn {
-        WcRequestMethods::CosmosSignAmino
-    } else {
-        WcRequestMethods::CosmosSignDirect
-    };
-
-    ctx.send_session_request_and_wait(chain_id, method, sign_doc, Ok).await
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -83,21 +72,71 @@ pub struct CosmosAccount {
     pub is_ledger: Option<bool>,
 }
 
+#[async_trait::async_trait]
+impl WalletConnectOps for TendermintCoin {
+    type Error = MmError<WalletConnectError>;
+    type Params<'a> = serde_json::Value;
+    type SignTxData = TxRaw;
+    type SendTxData = CosmosTransaction;
+
+    async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
+        let chain = WcChainId::new_cosmos(self.chain_id.to_string());
+        if !wc.is_chain_supported(&chain).await {
+            return MmError::err(WalletConnectError::ChainIdNotSupported(chain.to_string()));
+        };
+
+        Ok(chain)
+    }
+
+    async fn wc_sign_tx<'a>(
+        &self,
+        wc: &WalletConnectCtx,
+        params: Self::Params<'a>,
+    ) -> Result<Self::SignTxData, Self::Error> {
+        let chain_id = self.wc_chain_id(wc).await?;
+        let method = if wc.is_ledger_connection().await {
+            WcRequestMethods::CosmosSignAmino
+        } else {
+            WcRequestMethods::CosmosSignDirect
+        };
+
+        wc.send_session_request_and_wait(&chain_id, method, params, |data: CosmosTxSignedData| {
+            let signature = general_purpose::STANDARD
+                .decode(data.signature.signature)
+                .map_to_mm(|err| WalletConnectError::PayloadError(err.to_string()))?;
+            Ok(TxRaw {
+                body_bytes: data.signed.body_bytes,
+                auth_info_bytes: data.signed.auth_info_bytes,
+                signatures: vec![signature],
+            })
+        })
+        .await
+    }
+
+    async fn wc_send_tx<'a>(
+        &self,
+        _ctx: &WalletConnectCtx,
+        _params: Self::Params<'a>,
+    ) -> Result<Self::SendTxData, Self::Error> {
+        todo!()
+    }
+}
+
 pub async fn cosmos_get_accounts_impl(
-    ctx: &WalletConnectCtx,
+    wc: &WalletConnectCtx,
     chain_id: &str,
 ) -> MmResult<CosmosAccount, WalletConnectError> {
     let chain_id = WcChainId::new_cosmos(chain_id.to_string());
-    ctx.validate_or_update_active_chain_id(&chain_id).await?;
+    wc.validate_or_update_active_chain_id(&chain_id).await?;
 
-    let account = ctx.get_account_for_chain_id(&chain_id).await?;
-    let session = ctx
+    let account = wc.get_account_for_chain_id(&chain_id).await?;
+    let session = wc
         .session
         .get_session_active()
         .await
         .ok_or(WalletConnectError::NotInitialized)?;
 
-    // Check if existing session has session_properties and return wallet account;
+    // Check iexisting session has session_properties and return wallet account;
     if let Some(props) = &session.session_properties {
         if let Some(keys) = &props.keys {
             if let Some(key) = keys.iter().next() {
@@ -123,7 +162,7 @@ pub async fn cosmos_get_accounts_impl(
     }
 
     let params = serde_json::to_value(&account).unwrap();
-    ctx.send_session_request_and_wait(
+    wc.send_session_request_and_wait(
         &chain_id,
         WcRequestMethods::CosmosGetAccounts,
         params,
