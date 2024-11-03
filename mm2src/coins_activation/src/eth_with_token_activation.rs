@@ -13,7 +13,7 @@ use coins::eth::v2_activation::{eth_coin_from_conf_and_request_v2, Erc20Protocol
                                 EthActivationV2Error, EthActivationV2Request, EthPrivKeyActivationPolicy,
                                 EthTokenActivationError, NftActivationRequest, NftProviderEnum};
 use coins::eth::wallet_connect::eth_request_wc_personal_sign;
-use coins::eth::{Erc20TokenInfo, EthCoin, EthCoinType, EthPrivKeyBuildPolicy};
+use coins::eth::{display_eth_address, Erc20TokenInfo, EthCoin, EthCoinType, EthPrivKeyBuildPolicy};
 use coins::hd_wallet::RpcTaskXPubExtractor;
 use coins::my_tx_history_v2::TxHistoryStorage;
 use coins::nft::nft_structs::NftInfo;
@@ -369,8 +369,11 @@ impl PlatformCoinWithTokensActivationOps for EthCoin {
                     return Ok(EthWithTokensActivationResult::Iguana(
                         IguanaEthWithTokensActivationResult {
                             current_block,
-                            eth_addresses_infos: HashMap::from([(my_address.to_string(), eth_address_info)]),
-                            erc20_addresses_infos: HashMap::from([(my_address.to_string(), erc20_address_info)]),
+                            eth_addresses_infos: HashMap::from([(display_eth_address(my_address), eth_address_info)]),
+                            erc20_addresses_infos: HashMap::from([(
+                                display_eth_address(my_address),
+                                erc20_address_info,
+                            )]),
                             nfts_infos: nfts_map,
                         },
                     ));
@@ -394,8 +397,8 @@ impl PlatformCoinWithTokensActivationOps for EthCoin {
                 Ok(EthWithTokensActivationResult::Iguana(
                     IguanaEthWithTokensActivationResult {
                         current_block,
-                        eth_addresses_infos: HashMap::from([(my_address.to_string(), eth_address_info)]),
-                        erc20_addresses_infos: HashMap::from([(my_address.to_string(), erc20_address_info)]),
+                        eth_addresses_infos: HashMap::from([(display_eth_address(my_address), eth_address_info)]),
+                        erc20_addresses_infos: HashMap::from([(display_eth_address(my_address), erc20_address_info)]),
                         nfts_infos: nfts_map,
                     },
                 ))
