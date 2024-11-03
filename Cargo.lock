@@ -859,9 +859,9 @@ dependencies = [
  "ed25519-dalek 1.0.1",
  "enum_derives",
  "ethabi",
- "ethcore-transaction",
+ "ethcore-transaction 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
  "ethereum-types",
- "ethkey",
+ "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
  "ff 0.8.0",
  "futures 0.1.29",
  "futures 0.3.28",
@@ -1969,11 +1969,24 @@ version = "0.1.0"
 source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 dependencies = [
  "ethereum-types",
- "ethkey",
+ "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
  "keccak-hash",
  "rlp",
  "rustc-hex",
- "unexpected",
+ "unexpected 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
+]
+
+[[package]]
+name = "ethcore-transaction"
+version = "0.1.0"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+dependencies = [
+ "ethereum-types",
+ "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "keccak-hash",
+ "rlp",
+ "rustc-hex",
+ "unexpected 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
 ]
 
 [[package]]
@@ -1999,7 +2012,25 @@ dependencies = [
  "edit-distance",
  "ethereum-types",
  "log",
- "mem",
+ "mem 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
+ "rand 0.6.5",
+ "rustc-hex",
+ "secp256k1 0.20.3",
+ "serde",
+ "serde_derive",
+ "tiny-keccak 1.4.4",
+]
+
+[[package]]
+name = "ethkey"
+version = "0.3.0"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+dependencies = [
+ "byteorder",
+ "edit-distance",
+ "ethereum-types",
+ "log",
+ "mem 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
  "rand 0.6.5",
  "rustc-hex",
  "secp256k1 0.20.3",
@@ -3864,6 +3895,11 @@ version = "0.1.0"
 source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 
 [[package]]
+name = "mem"
+version = "0.1.0"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
+
+[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4096,7 +4132,7 @@ name = "mm2_eth"
 version = "0.1.0"
 dependencies = [
  "ethabi",
- "ethkey",
+ "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
  "hex",
  "indexmap 1.9.3",
  "itertools",
@@ -4196,7 +4232,7 @@ dependencies = [
  "enum-primitive-derive",
  "enum_derives",
  "ethabi",
- "ethcore-transaction",
+ "ethcore-transaction 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
  "ethereum-types",
  "futures 0.1.29",
  "futures 0.3.28",
@@ -4327,7 +4363,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "common",
  "derive_more",
- "ethkey",
+ "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
  "futures 0.3.28",
  "futures-util",
  "gstuff",
@@ -7610,9 +7646,9 @@ dependencies = [
  "byteorder",
  "common",
  "derive_more",
- "ethcore-transaction",
+ "ethcore-transaction 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
  "ethereum-types",
- "ethkey",
+ "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
  "futures 0.3.28",
  "hw_common",
  "js-sys",
@@ -7760,6 +7796,11 @@ checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
 name = "unexpected"
 version = "0.1.0"
 source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
+
+[[package]]
+name = "unexpected"
+version = "0.1.0"
+source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
 
 [[package]]
 name = "unicode-bidi"

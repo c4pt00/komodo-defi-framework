@@ -2,6 +2,7 @@ use super::WalletConnectStorageOps;
 use crate::error::WcIndexedDbError;
 use crate::session::Session;
 use async_trait::async_trait;
+use common::log::debug;
 use mm2_core::mm_ctx::MmArc;
 use mm2_db::indexed_db::{ConstructibleDb, DbIdentifier, DbInstance, DbLocked, DbUpgrader, IndexedDb, IndexedDbBuilder,
                          InitDbResult, OnUpgradeResult, SharedDb, TableSignature};
@@ -122,7 +123,7 @@ impl WalletConnectStorageOps for IDBSessionStorage {
     }
 
     async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error> {
-        debug!("Updating WalletConnect session: {topic} in storage");
+        debug!("Updating WalletConnect session: {} in storage", session.topic);
         self.save_session(session).await
     }
 }
