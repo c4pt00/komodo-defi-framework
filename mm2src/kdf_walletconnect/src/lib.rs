@@ -205,6 +205,7 @@ impl WalletConnectCtx {
 
     /// Loads sessions from storage, activates valid ones, and deletes expired ones.
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectError> {
+        info!("Loading WalletConnect session from storage");
         let now = chrono::Utc::now().timestamp() as u64;
         let mut sessions = self
             .storage

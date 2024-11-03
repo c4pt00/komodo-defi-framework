@@ -45,7 +45,7 @@ impl ConnectionHandler for Handler {
         info!("\n[{}] connection closed: frame={frame:?}", self.name);
 
         if let Err(e) = self.conn_live_sender.start_send(()) {
-            info!("\n[{}] failed to send to the receiver: {e}", self.name);
+            error!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 
@@ -56,16 +56,22 @@ impl ConnectionHandler for Handler {
         );
 
         if let Err(e) = self.msg_sender.start_send(message) {
-            info!("\n[{}] failed to send to the receiver: {e}", self.name);
+            error!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 
     fn inbound_error(&mut self, error: ClientError) {
         info!("\n[{}] inbound error: {error}", self.name);
+        if let Err(e) = self.conn_live_sender.start_send(()) {
+            error!("\n[{}] failed to send to the receiver: {e}", self.name);
+        }
     }
 
     fn outbound_error(&mut self, error: ClientError) {
         info!("\n[{}] outbound error: {error}", self.name);
+        if let Err(e) = self.conn_live_sender.start_send(()) {
+            error!("\n[{}] failed to send to the receiver: {e}", self.name);
+        }
     }
 }
 
@@ -91,12 +97,12 @@ pub(crate) async fn initialize_connection(this: Arc<WalletConnectCtx>) {
 
     // Initialize storage
     if let Err(err) = this.storage.init().await {
-        info!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
+        error!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
     };
 
     // load session from storage
     if let Err(err) = this.load_session_from_storage().await {
-        info!("Unable to load session from storage: {err:?}");
+        error!("Unable to load session from storage: {err:?}");
     };
 
     // Spawn session disconnection watcher.
