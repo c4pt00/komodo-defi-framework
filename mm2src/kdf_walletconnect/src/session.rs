@@ -1,12 +1,13 @@
 pub(crate) mod key;
 pub mod rpc;
 
+use crate::chain::WcChainId;
 use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
-use common::log::debug;
+use common::log::info;
 use dashmap::mapref::multiple::RefMulti;
-use dashmap::mapref::one::{Ref, RefMut};
+use dashmap::mapref::one::RefMut;
 use dashmap::DashMap;
 use key::SessionKey;
 use mm2_err_handle::prelude::{MmError, MmResult};
@@ -128,6 +129,8 @@ pub struct Session {
     /// Indicates whether this session info represents a Controller or Proposer perspective.
     pub session_type: SessionType,
     pub session_properties: Option<SessionProperties>,
+    /// Session active chain_id
+    pub active_chain_id: Option<WcChainId>,
 }
 
 impl Session {
@@ -168,10 +171,17 @@ impl Session {
             session_type,
             topic: session_topic,
             session_properties: None,
+            active_chain_id: Default::default(),
         }
     }
 
     pub(crate) fn extend(&mut self, till: u64) { self.expiry = till; }
+
+    /// Get the active chain ID for the current session.
+    pub async fn get_active_chain_id(&self) -> &Option<WcChainId> { &self.active_chain_id }
+
+    /// Sets the active chain ID for the current session.
+    pub async fn set_active_chain_id(&mut self, chain_id: WcChainId) { self.active_chain_id = Some(chain_id); }
 }
 
 /// Internal implementation of session management.
@@ -179,8 +189,6 @@ impl Session {
 struct SessionManagerImpl {
     /// The currently active session topic.
     active_topic: Mutex<Option<Topic>>,
-    /// Session active chain_id
-    active_chain_id: Mutex<Option<String>>,
     /// A thread-safe map of sessions indexed by topic.
     sessions: DashMap<Topic, Session>,
 }
@@ -220,12 +228,6 @@ impl SessionManager {
             )))
     }
 
-    /// Get the active chain ID for the current session.
-    pub async fn get_active_chain_id(&self) -> Option<String> { self.0.active_chain_id.lock().await.clone() }
-
-    /// Sets the active chain ID for the current session.
-    pub async fn set_active_chain_id(&self, chain_id: String) { *self.0.active_chain_id.lock().await = Some(chain_id); }
-
     /// Inserts the provided `Session` into the session store, associated with the specified topic.
     /// If a session with the same topic already exists, it will be overwritten.
     pub(crate) async fn add_session(&self, session: Session) {
@@ -239,7 +241,7 @@ impl SessionManager {
     /// Removes the session corresponding to the specified topic from the session store.
     /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
-        debug!("Deleting session with topic: {topic}");
+        info!("Deleting session with topic: {topic}");
         let mut active_topic = self.0.active_topic.lock().await;
 
         // Remove the session and get the removed session (if any)
@@ -251,9 +253,9 @@ impl SessionManager {
             *active_topic = self.0.sessions.iter().next().map(|session| session.topic.clone());
 
             if let Some(new_active_topic) = active_topic.as_ref() {
-                debug!("New session with topic: {} activated!", new_active_topic);
+                info!("New session with topic: {} activated!", new_active_topic);
             } else {
-                debug!("No active sessions remaining");
+                info!("No active sessions remaining");
             }
         }
 
@@ -263,7 +265,7 @@ impl SessionManager {
     pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
         let mut active_topic = self.0.active_topic.lock().await;
         if let Some(session) = self.get_session(topic) {
-            *active_topic = Some(session.topic.clone());
+            *active_topic = Some(session.topic);
             return Ok(());
         }
 
@@ -271,15 +273,15 @@ impl SessionManager {
     }
 
     /// Retrieves a cloned session associated with a given topic.
-    pub fn get_session(&self, topic: &Topic) -> Option<Ref<'_, Topic, Session>> { self.0.sessions.get(topic) }
+    pub fn get_session(&self, topic: &Topic) -> Option<Session> { self.0.sessions.get(topic).map(|s| s.clone()) }
 
     /// Retrieves a mutable reference to the session associated with a given topic.
-    pub(crate) async fn get_session_mut(&self, topic: &Topic) -> Option<RefMut<'_, Topic, Session>> {
+    pub(crate) fn get_session_mut(&self, topic: &Topic) -> Option<RefMut<'_, Topic, Session>> {
         self.0.sessions.get_mut(topic)
     }
 
-    /// Returns an `Option<Session>` containing the active session if it exists; otherwise, returns `None`.
-    pub async fn get_session_active(&self) -> Option<Ref<'_, Topic, Session>> {
+    /// returns an `option<session>` containing the active session if it exists; otherwise, returns `none`.
+    pub async fn get_session_active(&self) -> Option<Session> {
         let active_topic = self.0.active_topic.lock().await;
         if let Some(ref topic) = *active_topic {
             self.get_session(topic)
@@ -296,10 +298,10 @@ impl SessionManager {
             .into_iter()
             .map(|(topic, session)| SessionRpcInfo {
                 topic: topic.to_string(),
-                metadata: session.controller.metadata.clone(),
-                peer_pubkey: session.controller.public_key.clone(),
+                metadata: session.controller.metadata,
+                peer_pubkey: session.controller.public_key,
                 pairing_topic: session.pairing_topic.to_string(),
-                namespaces: session.namespaces.clone(),
+                namespaces: session.namespaces,
                 subscription_id: session.subscription_id,
                 properties: session.session_properties,
             })
@@ -309,7 +311,7 @@ impl SessionManager {
     /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
     /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
-        debug!("Extending session with topic: {topic}");
+        info!("Extending session with topic: {topic}");
         if let Some(mut session) = self.0.sessions.get_mut(topic) {
             session.extend(till);
         }
@@ -337,10 +339,8 @@ impl SessionManager {
 
     /// Retrieves the symmetric key associated with a given topic.
     pub(crate) fn sym_key(&self, topic: &Topic) -> Option<Vec<u8>> {
-        self.0
-            .sessions
-            .get(topic)
-            .map(|k| k.session_key.symmetric_key().to_vec())
+        self.get_session(topic)
+            .map(|sess| sess.session_key.symmetric_key().to_vec())
     }
 
     async fn disconnect_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {

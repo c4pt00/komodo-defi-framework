@@ -15,7 +15,7 @@ pub(crate) async fn reply_session_update_request(
     update: SessionUpdateRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        if let Some(mut session) = ctx.session.get_session_mut(topic).await {
+        if let Some(mut session) = ctx.session.get_session_mut(topic) {
             update
                 .namespaces
                 .caip2_validate()

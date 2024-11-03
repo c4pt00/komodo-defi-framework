@@ -41,7 +41,7 @@ pub(crate) async fn reply_session_settle_request(
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        let session = ctx.session.get_session_mut(topic).await;
+        let session = ctx.session.get_session_mut(topic);
         if let Some(mut session) = session {
             session.namespaces = settle.namespaces.0.clone();
             session.controller = settle.controller.clone();

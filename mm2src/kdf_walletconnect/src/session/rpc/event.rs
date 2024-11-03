@@ -1,12 +1,11 @@
-use crate::{chain::WcChainId,
-            error::{WalletConnectError, INVALID_EVENT, UNSUPPORTED_CHAINS},
+use crate::{chain::{WcChain, WcChainId},
+            error::{WalletConnectError, UNSUPPORTED_CHAINS},
             WalletConnectCtx};
 
-use common::log::info;
+use common::log::{error, info};
 use mm2_err_handle::prelude::*;
 use relay_rpc::{domain::{MessageId, Topic},
-                rpc::{params::{session::Namespace, session_event::SessionEventRequest, ResponseParamsError,
-                               ResponseParamsSuccess},
+                rpc::{params::{session_event::SessionEventRequest, ResponseParamsError, ResponseParamsSuccess},
                       ErrorData}};
 
 pub async fn handle_session_event(
@@ -20,60 +19,60 @@ pub async fn handle_session_event(
 
     match event_name {
         "chainChanged" => {
-            // check if chain_id is supported.
-            let chain_id_new = serde_json::from_value::<u32>(event.event.data)?;
-            if !ctx.is_chain_supported(&chain_id).await {
-                return MmError::err(WalletConnectError::InternalError(format!(
-                    "chain_id not supported: {}",
-                    event.chain_id
-                )));
+            let session = ctx
+                .session
+                .get_session(topic)
+                .ok_or(MmError::new(WalletConnectError::SessionError(
+                    "No active WalletConnect session found".to_string(),
+                )))?;
+
+            if WcChain::Eip155 != chain_id.chain {
+                return Ok(());
             };
 
-            if let Some(session) = ctx.session.get_session_active().await {
-                if let Some(Namespace {
-                    chains: Some(chains), ..
-                }) = session.namespaces.get(chain_id.chain.as_ref())
-                {
-                    if chains.contains(&chain_id.to_string()) {
-                        let chain_id = chain_id.chain_id_from_id(chain_id_new.to_string().as_str());
-                        ctx.session.set_active_chain_id(chain_id).await;
+            ctx.validate_chain_id(&session, &chain_id).await?;
 
-                        let params = ResponseParamsSuccess::SessionEvent(true);
-                        ctx.publish_response_ok(topic, params, message_id).await?;
-
-                        return Ok(());
-                    };
+            if let Some(active_chain_id) = session.get_active_chain_id().await {
+                if &chain_id == active_chain_id {
+                    return Ok(());
                 }
             };
 
-            println!("Chain ID not supported");
-            let error_data = ErrorData {
-                code: UNSUPPORTED_CHAINS,
-                message: "Chain_Id was changed to an unsupported chain".to_string(),
-                data: None,
-            };
+            // check if chain_id is supported.
+            let id_string = serde_json::from_value::<u32>(event.event.data)?;
+            let new_chain = chain_id.chain.derive_chain_id(id_string.to_string());
+            if let Err(err) = ctx.validate_chain_id(&session, &new_chain).await {
+                error!("{err:?}");
+                let error_data = ErrorData {
+                    code: UNSUPPORTED_CHAINS,
+                    message: "Unsupported chain id".to_string(),
+                    data: None,
+                };
+                let params = ResponseParamsError::SessionEvent(error_data);
+                ctx.publish_response_err(topic, params, message_id).await?;
+            } else {
+                {
+                    ctx.session
+                        .get_session_mut(topic)
+                        .ok_or(MmError::new(WalletConnectError::SessionError(
+                            "No active WalletConnect session found".to_string(),
+                        )))?
+                        .set_active_chain_id(chain_id.clone())
+                        .await;
+                }
 
-            ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
-                .await?;
+                let params = ResponseParamsSuccess::SessionEvent(true);
+                ctx.publish_response_ok(topic, params, message_id).await?;
+            };
         },
         "accountsChanged" => {
-            // TODO: Handle account change logic.
-
-            info!("accountsChanged session event received: {event:?}");
-            // let data = serde_json::from_value::<Vec<String>>(event.event.data)?;
-            let param = ResponseParamsSuccess::SessionEvent(true);
-            ctx.publish_response_ok(topic, param, message_id).await?;
+            // TODO: Handle accountsChanged event logic.
         },
         _ => {
-            let error_data = ErrorData {
-                code: INVALID_EVENT,
-                message: format!("Received an invalid/unsupported session event: {}", event.event.name),
-                data: None,
-            };
-            ctx.publish_response_err(topic, ResponseParamsError::SessionEvent(error_data), message_id)
-                .await?;
+            // TODO: Handle other event logic.},
         },
     };
 
+    info!("chainChanged event handled successfully");
     Ok(())
 }

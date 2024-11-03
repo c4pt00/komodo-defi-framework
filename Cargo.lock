@@ -3158,6 +3158,7 @@ dependencies = [
  "mm2_err_handle",
  "mm2_test_helpers",
  "pairing_api",
+ "parking_lot",
  "rand 0.8.5",
  "relay_client",
  "relay_rpc",

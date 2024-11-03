@@ -80,12 +80,10 @@ impl WalletConnectOps for TendermintCoin {
     type SendTxData = CosmosTransaction;
 
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
-        let chain = WcChainId::new_cosmos(self.chain_id.to_string());
-        if !wc.is_chain_supported(&chain).await {
-            return MmError::err(WalletConnectError::ChainIdNotSupported(chain.to_string()));
-        };
+        let chain_id = WcChainId::new_cosmos(self.chain_id.to_string());
+        wc.validate_update_active_chain_id(&chain_id).await?;
 
-        Ok(chain)
+        Ok(chain_id)
     }
 
     async fn wc_sign_tx<'a>(
@@ -127,7 +125,7 @@ pub async fn cosmos_get_accounts_impl(
     chain_id: &str,
 ) -> MmResult<CosmosAccount, WalletConnectError> {
     let chain_id = WcChainId::new_cosmos(chain_id.to_string());
-    wc.validate_or_update_active_chain_id(&chain_id).await?;
+    wc.validate_update_active_chain_id(&chain_id).await?;
 
     let account = wc.get_account_for_chain_id(&chain_id).await?;
     let session = wc

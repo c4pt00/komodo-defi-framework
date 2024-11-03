@@ -1,5 +1,6 @@
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
+use serde::{Deserialize, Serialize};
 use std::{collections::{BTreeMap, BTreeSet},
           str::FromStr};
 
@@ -14,7 +15,7 @@ pub(crate) const ETH_SUPPORTED_METHODS: &[&str] = &["eth_signTransaction", "pers
 pub(crate) const ETH_SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:137"];
 pub(crate) const ETH_SUPPORTED_EVENTS: &[&str] = &["accountsChanged", "chainChanged"];
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WcChainId {
     pub chain: WcChain,
     pub id: String,
@@ -52,11 +53,9 @@ impl WcChainId {
             id: sp[1].to_owned(),
         })
     }
-
-    pub(crate) fn chain_id_from_id(&self, id: &str) -> String { format!("{}:{}", self.chain.as_ref(), id) }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WcChain {
     Eip155,
     Cosmos,
@@ -80,6 +79,15 @@ impl AsRef<str> for WcChain {
         match self {
             Self::Eip155 => "eip155",
             Self::Cosmos => "cosmos",
+        }
+    }
+}
+
+impl WcChain {
+    pub(crate) fn derive_chain_id(&self, id: String) -> WcChainId {
+        WcChainId {
+            chain: self.clone(),
+            id,
         }
     }
 }

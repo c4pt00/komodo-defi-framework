@@ -46,7 +46,7 @@ pub async fn reply_session_proposal_request(
     let sender_public_key = const_hex::decode(&proposal.proposer.public_key)?
         .as_slice()
         .try_into()
-        .unwrap();
+        .map_to_mm(|_| WalletConnectError::InternalError("Invalid sender_public_key".to_owned()))?;
 
     let session_key = SessionKey::from_osrng(&sender_public_key)?;
     let session_topic: Topic = session_key.generate_topic().into();

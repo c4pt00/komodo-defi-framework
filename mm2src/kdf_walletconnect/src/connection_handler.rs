@@ -1,24 +1,20 @@
 use std::sync::Arc;
 
+use crate::storage::WalletConnectStorageOps;
 use crate::{WalletConnectCtx, WalletConnectError};
 
 use common::executor::Timer;
-use common::log::{debug, error, info};
+use common::log::{error, info};
 use futures::channel::mpsc::UnboundedSender;
 use futures::StreamExt;
 use mm2_err_handle::prelude::*;
 use relay_client::error::ClientError;
 use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
 use relay_rpc::domain::Topic;
-use relay_rpc::rpc::params::RequestParams;
-use tokio::time::interval;
-use tokio::time::Duration;
 
 const INITIAL_RETRY_SECS: f64 = 5.0;
-const RETRY_INCREMENT: f64 = 5.0;
 const MAX_BACKOFF: u64 = 60;
-const PING_INTERVAL: u64 = 140;
-const PING_TIMEOUT: f64 = 60.;
+const RETRY_INCREMENT: f64 = 5.0;
 
 pub struct Handler {
     name: &'static str,
@@ -76,7 +72,8 @@ impl ConnectionHandler for Handler {
 /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
 /// Uses increasing delay between retry attempts starting from INITIAL_RETRY_SECS.
 /// After successful connection, attempts to restore previous session state from storage.
-pub(crate) async fn initial_connection(this: &WalletConnectCtx) {
+pub(crate) async fn initialize_connection(this: Arc<WalletConnectCtx>) {
+    info!("Initializing WalletConnect connection");
     let mut retry_count = 0;
     let mut retry_secs = INITIAL_RETRY_SECS;
 
@@ -90,12 +87,20 @@ pub(crate) async fn initial_connection(this: &WalletConnectCtx) {
         retry_secs += RETRY_INCREMENT;
     }
 
-    debug!("Successfully connected to client after {} attempt(s).", retry_count + 1);
+    info!("Successfully connected to client after {} attempt(s).", retry_count + 1);
+
+    // Initialize storage
+    if let Err(err) = this.storage.init().await {
+        info!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
+    };
 
     // load session from storage
     if let Err(err) = this.load_session_from_storage().await {
-        error!("Unable to load session from storage: {err:?}");
+        info!("Unable to load session from storage: {err:?}");
     };
+
+    // Spawn session disconnection watcher.
+    handle_disconnections(&this).await;
 }
 
 /// Handles unexpected disconnections from WalletConnect relay server.
@@ -106,7 +111,7 @@ pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
     let mut backoff = 1;
 
     while let Some(_msg) = recv.next().await {
-        debug!("Connection disconnected. Attempting to reconnect...");
+        info!("Connection disconnected. Attempting to reconnect...");
 
         loop {
             match this.connect_client().await {
@@ -114,7 +119,7 @@ pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
                     if let Err(e) = resubscribe_to_topics(this, None).await {
                         error!("Failed to resubscribe after reconnection: {:?}", e);
                     }
-                    debug!("Reconnection process complete.");
+                    info!("Reconnection process complete.");
                     backoff = 1;
                     break;
                 },
@@ -126,101 +131,6 @@ pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
             }
         }
     }
-}
-
-/// Maintains connection health with WalletConnect relay server through periodic pings.
-/// Sends a ping every 4 minutes to proactively detect disconnections and automatically reconnects if needed.
-/// This helps prevent connection drops as the relay server tends to disconnect inactive connections after 5 minutes.
-/// The ping interval is designed to catch potential disconnections before the server timeout while minimizing
-/// unnecessary network traffic.
-pub(crate) async fn keep_session_alive_ping(ctx: Arc<WalletConnectCtx>) {
-    info!("keep_session_alive_ping running");
-    let mut interval = interval(Duration::from_secs(PING_INTERVAL));
-    let mut backoff = 1.;
-
-    // Skip the first tick which happens immediately
-    interval.tick().await;
-
-    loop {
-        let Ok(session_topic) = ctx.session.get_active_topic_or_err().await else {
-            info!("No active session to ping will check again shortly");
-            Timer::sleep(PING_INTERVAL as f64).await;
-            continue;
-        };
-        tokio::select! {
-            _ = interval.tick() => {
-                match try_ping(&ctx, &session_topic).await {
-                    Ok(_) => {
-                        backoff = 1.;
-                        continue;
-                    }
-                    Err(e) => {
-                        error!("WalletConnect ping failed: {:?}. Attempting reconnect...", e);
-                        // Attempt reconnection with backoff
-                        if let Err(reconnect_err) = handle_ping_failure(&ctx, &session_topic).await {
-                            error!("{} Session reconnection failed: {:?}", session_topic, reconnect_err);
-                            // Increase backoff for next attempt
-                            backoff = std::cmp::min(backoff as u64 * 2, MAX_BACKOFF ) as f64;
-                            Timer::sleep(backoff).await;
-                            continue;
-                        }
-                        // Reset backoff after successful reconnection
-                        backoff = 1.;
-                        debug!("{}: Successfully reconnected after ping failure", session_topic);
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Attempts to verify connection health with WalletConnect relay server by sending a ping message.
-/// Waits for a pong response with a specified timeout period.
-async fn try_ping(ctx: &WalletConnectCtx, session_topic: &Topic) -> MmResult<(), WalletConnectError> {
-    let param = RequestParams::SessionPing(());
-    ctx.publish_request(session_topic, param).await?;
-
-    let timeout = Timer::sleep(PING_TIMEOUT);
-    tokio::pin!(timeout);
-
-    let mut recv = ctx.message_rx.lock().await;
-    tokio::select! {
-        msg = recv.next() => {
-            match msg {
-                Some(Ok(_)) => {
-                    debug!("WalletConnect {}: Session is alive", session_topic);
-                    Ok(())
-                },
-                Some(Err(err)) => {
-                    MmError::err(WalletConnectError::InternalError(
-                        format!("WalletConnect {}: Ping Error: {err:?}", session_topic)
-                    ))
-                },
-                None => {
-                    error!("WalletConnect Ping timeout");
-                    MmError::err(WalletConnectError::InternalError(
-                        "WalletConnect Ping timeout".into()
-                    ))
-                }
-            }
-        },
-        _ = timeout => {
-            error!("WalletConnect {}: Ping timeout", session_topic);
-            MmError::err(WalletConnectError::InternalError(
-                "WalletConnect Ping timeout".into()
-            ))
-        }
-    }
-}
-
-// Handle reconnection after ping failure
-async fn handle_ping_failure(ctx: &WalletConnectCtx, session_topic: &Topic) -> MmResult<(), WalletConnectError> {
-    // Attempt to reconnect
-    ctx.connect_client().await?;
-    // Resubscribe to topics if needed
-    resubscribe_to_topics(ctx, Some(session_topic)).await?;
-    // Verify connection with a new ping
-    try_ping(ctx, session_topic).await
 }
 
 /// Resubscribes to previously active topics after reconnection.

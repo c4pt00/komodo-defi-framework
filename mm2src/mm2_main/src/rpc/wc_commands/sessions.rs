@@ -43,10 +43,7 @@ pub struct GetSessionRequest {
 pub async fn get_session(ctx: MmArc, req: GetSessionRequest) -> MmResult<GetSessionResponse, WalletConnectRpcError> {
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
-    let session = ctx
-        .session
-        .get_session(&req.topic.into())
-        .map(|s| SessionRpcInfo::from(s.clone()));
+    let session = ctx.session.get_session(&req.topic.into()).map(SessionRpcInfo::from);
 
     Ok(GetSessionResponse { session })
 }

@@ -1,12 +1,10 @@
 mod delete_connection;
-mod get_chain_id;
 mod new_connection;
 mod sessions;
 
 use common::HttpStatusCode;
 pub use delete_connection::delete_connection;
 use derive_more::Display;
-pub use get_chain_id::get_chain_id;
 use http::StatusCode;
 pub use new_connection::new_connection;
 use serde::Deserialize;

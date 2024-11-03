@@ -102,24 +102,22 @@ impl WalletConnectOps for EthCoin {
     type SendTxData = (SignedTransaction, BytesJson);
     type Params<'a> = WcEthTxParams<'a>;
 
-    async fn wc_chain_id(&self, ctx: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
-        let chain = WcChainId::new_eip155(self.chain_id.to_string());
-        if ctx.is_chain_supported(&chain).await {
-            return MmError::err(WalletConnectError::ChainIdNotSupported(chain.to_string()).into());
-        };
+    async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
+        let chain_id = WcChainId::new_eip155(self.chain_id.to_string());
+        wc.validate_update_active_chain_id(&chain_id).await?;
 
-        Ok(chain)
+        Ok(chain_id)
     }
 
     async fn wc_sign_tx<'a>(
         &self,
-        ctx: &WalletConnectCtx,
+        wc: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
         let bytes = {
-            let chain_id = self.wc_chain_id(ctx).await?;
+            let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            let tx_hex: String = ctx
+            let tx_hex: String = wc
                 .send_session_request_and_wait(&chain_id, WcRequestMethods::EthSignTransaction, tx_json, Ok)
                 .await?;
             // First 4 bytes from WalletConnect represents Protoc info
@@ -135,13 +133,13 @@ impl WalletConnectOps for EthCoin {
 
     async fn wc_send_tx<'a>(
         &self,
-        ctx: &WalletConnectCtx,
+        wc: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
         let tx_hash: String = {
-            let chain_id = self.wc_chain_id(ctx).await?;
+            let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            ctx.send_session_request_and_wait(&chain_id, WcRequestMethods::EthSendTransaction, tx_json, Ok)
+            wc.send_session_request_and_wait(&chain_id, WcRequestMethods::EthSendTransaction, tx_json, Ok)
                 .await?
         };
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
@@ -175,20 +173,18 @@ impl WalletConnectOps for EthCoin {
 }
 
 pub async fn eth_request_wc_personal_sign(
-    ctx: &WalletConnectCtx,
+    wc: &WalletConnectCtx,
     chain_id: u64,
 ) -> MmResult<(H520, Address), EthWalletConnectError> {
     let chain_id = WcChainId::new_eip155(chain_id.to_string());
-    if ctx.is_chain_supported(&chain_id).await {
-        return MmError::err(WalletConnectError::ChainIdNotSupported(chain_id.to_string()).into());
-    };
+    wc.validate_update_active_chain_id(&chain_id).await?;
 
     let result = {
-        let account_str = ctx.get_account_for_chain_id(&chain_id).await?;
+        let account_str = wc.get_account_for_chain_id(&chain_id).await?;
         let message = "Authenticate with Komodefi";
         let message_hex = format!("0x{}", hex::encode(message));
         let params = json!(&[&message_hex, &account_str]);
-        ctx.send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
+        wc.send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
             Ok(extract_pubkey_from_signature(&data, message, &account_str)?)
         })
         .await?
@@ -255,7 +251,6 @@ pub(crate) async fn send_transaction_with_walletconnect(
         coin.get_swap_pay_for_gas_option(coin.get_swap_transaction_fee_policy())
             .await
     );
-
     let (nonce, _) = try_tx_s!(coin.clone().get_addr_nonce(address).compat().await);
     let params = WcEthTxParams {
         gas,
@@ -268,6 +263,7 @@ pub(crate) async fn send_transaction_with_walletconnect(
     };
     // Please note that this method may take a long time
     // due to `eth_sendTransaction` requests.
+    info!(target: "sign-and-send", "wallet signing and sending tx…");
     let (signed_tx, _) = try_tx_s!(coin.wc_send_tx(wc, params).await);
 
     Ok(signed_tx)
