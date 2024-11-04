@@ -23,6 +23,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wc_common::SymKey;
 
 pub(crate) const FIVE_MINUTES: u64 = 300;
 pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
@@ -338,9 +339,8 @@ impl SessionManager {
     }
 
     /// Retrieves the symmetric key associated with a given topic.
-    pub(crate) fn sym_key(&self, topic: &Topic) -> Option<Vec<u8>> {
-        self.get_session(topic)
-            .map(|sess| sess.session_key.symmetric_key().to_vec())
+    pub(crate) fn sym_key(&self, topic: &Topic) -> Option<SymKey> {
+        self.get_session(topic).map(|sess| sess.session_key.symmetric_key())
     }
 
     async fn disconnect_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {

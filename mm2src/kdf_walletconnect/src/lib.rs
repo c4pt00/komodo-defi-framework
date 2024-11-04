@@ -40,7 +40,7 @@ use std::collections::BTreeSet;
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
-use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType};
+use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType, SymKey};
 
 #[async_trait::async_trait]
 pub trait WalletConnectOps {
@@ -166,22 +166,18 @@ impl WalletConnectCtx {
     }
 
     /// Retrieves the symmetric key associated with a given `topic`.
-    async fn sym_key(&self, topic: &Topic) -> MmResult<Vec<u8>, WalletConnectError> {
-        {
-            if let Some(key) = self.session.sym_key(topic) {
-                return Ok(key);
-            }
+    async fn sym_key(&self, topic: &Topic) -> MmResult<SymKey, WalletConnectError> {
+        if let Some(key) = self.session.sym_key(topic) {
+            return Ok(key);
         }
 
-        {
-            let pairings = self.pairing.pairings.lock().await;
-            if let Some(pairing) = pairings.get(topic.as_ref()) {
-                let key = const_hex::decode(pairing.sym_key.clone())?;
-                return Ok(key);
-            }
+        if let Ok(key) = self.pairing.sym_key(topic.as_ref()).await {
+            return Ok(key);
         }
 
-        MmError::err(WalletConnectError::InternalError(format!("Topic not found:{topic}")))
+        MmError::err(WalletConnectError::InternalError(format!(
+            "topic sym_key not found:{topic}"
+        )))
     }
 
     /// Handles an inbound published message by decrypting, decoding, and processing it.

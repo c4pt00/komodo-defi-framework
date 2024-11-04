@@ -1,6 +1,7 @@
 use crate::error::SessionError;
 
 use serde::{Deserialize, Serialize};
+use wc_common::SymKey;
 use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
 use {hkdf::Hkdf,
      rand::{rngs::OsRng, CryptoRng, RngCore},
@@ -24,8 +25,8 @@ impl SymKeyPair {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SessionKey {
-    pub(crate) sym_key: [u8; 32],
-    pub(crate) public_key: [u8; 32],
+    pub(crate) sym_key: SymKey,
+    pub(crate) public_key: SymKey,
 }
 
 impl std::fmt::Debug for SessionKey {
@@ -47,12 +48,12 @@ impl SessionKey {
     }
 
     /// Creates a new `SessionKey` using a random number generator and a peer's public key.
-    pub fn from_osrng(other_public_key: &[u8; 32]) -> Result<Self, SessionError> {
+    pub fn from_osrng(other_public_key: &SymKey) -> Result<Self, SessionError> {
         SessionKey::diffie_hellman(OsRng, other_public_key)
     }
 
     /// Performs Diffie-Hellman key exchange to derive a symmetric key.
-    pub fn diffie_hellman<T>(csprng: T, other_public_key: &[u8; 32]) -> Result<Self, SessionError>
+    pub fn diffie_hellman<T>(csprng: T, other_public_key: &SymKey) -> Result<Self, SessionError>
     where
         T: RngCore + CryptoRng,
     {
@@ -73,7 +74,7 @@ impl SessionKey {
     pub fn generate_symmetric_key(
         &mut self,
         static_secret: &StaticSecret,
-        peer_public_key: &[u8; 32],
+        peer_public_key: &SymKey,
     ) -> Result<(), SessionError> {
         let shared_secret = static_secret.diffie_hellman(&PublicKey::from(*peer_public_key));
         self.derive_symmetric_key(&shared_secret)
@@ -87,10 +88,10 @@ impl SessionKey {
     }
 
     /// Gets symmetic key reference.
-    pub fn symmetric_key(&self) -> &[u8; 32] { &self.sym_key }
+    pub fn symmetric_key(&self) -> SymKey { self.sym_key }
 
     /// Gets "our" public key used in symmetric key derivation.
-    pub fn diffie_public_key(&self) -> &[u8; 32] { &self.public_key }
+    pub fn diffie_public_key(&self) -> SymKey { self.public_key }
 
     /// Generates new session topic.
     pub fn generate_topic(&self) -> String {

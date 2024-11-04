@@ -2557,7 +2557,7 @@ async fn sign_transaction_with_keypair<'a>(
 
 /// Sign and send eth transaction with provided keypair,
 /// This fn is primarily for swap transactions so it uses swap tx fee policy
-async fn sign_and_send_transaction_with_keypair<'a>(
+async fn sign_and_send_transaction_with_keypair(
     coin: &EthCoin,
     key_pair: &KeyPair,
     address: Address,
@@ -2694,8 +2694,10 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
             .map_to_mm(|err| RawTransactionError::TransactionError(err.get_plain_text_format()))
         },
         EthPrivKeyPolicy::WalletConnect { .. } => {
-            let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
-            let wc = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+            let wc = {
+                let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
+                WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!")
+            };
             let my_address = coin
                 .derivation_method
                 .single_addr_or_err()
@@ -2717,18 +2719,17 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
                 .compat()
                 .await
                 .map_to_mm(RawTransactionError::InvalidParam)?;
-            let tx_params = WcEthTxParams {
-                my_address,
-                gas_price: pay_for_gas_option.get_gas_price(),
-                action,
-                value,
-                gas: args.gas_limit,
-                data: &data,
-                nonce,
-            };
 
             let (signed_tx, _) = coin
-                .wc_sign_tx(&wc, tx_params)
+                .wc_sign_tx(&wc, WcEthTxParams {
+                    my_address,
+                    gas_price: pay_for_gas_option.get_gas_price(),
+                    action,
+                    value,
+                    gas: args.gas_limit,
+                    data: &data,
+                    nonce,
+                })
                 .await
                 .mm_err(|err| RawTransactionError::TransactionError(err.to_string()))?;
 
@@ -3688,8 +3689,10 @@ impl EthCoin {
                     sign_and_send_transaction_with_keypair(&coin, key_pair, address, value, action, data, gas).await
                 },
                 EthPrivKeyPolicy::WalletConnect { .. } => {
-                    let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
-                    let wc = WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!");
+                    let wc = {
+                        let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
+                        WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!")
+                    };
                     send_transaction_with_walletconnect(coin, &wc, value, action, &data, gas).await
                 },
                 EthPrivKeyPolicy::Trezor => Err(TransactionErr::Plain(ERRL!("Trezor is not supported for swaps yet!"))),
