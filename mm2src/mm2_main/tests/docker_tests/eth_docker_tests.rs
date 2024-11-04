@@ -1768,8 +1768,11 @@ fn taker_send_approve_and_spend_eth() {
             .unwrap();
     log!("Maker spent ETH payment, tx hash: {:02x}", spend_tx.tx_hash());
     wait_for_confirmations(&maker_coin, &spend_tx, 100);
-    block_on(taker_coin.find_taker_payment_spend_tx(&taker_approve_tx, taker_coin_start_block, payment_time_lock))
-        .unwrap();
+    let found_spend_tx =
+        block_on(taker_coin.find_taker_payment_spend_tx(&taker_approve_tx, taker_coin_start_block, payment_time_lock))
+            .unwrap();
+    let extracted_maker_secret = block_on(taker_coin.extract_secret_v2(&[], &found_spend_tx)).unwrap();
+    assert_eq!(maker_secret, extracted_maker_secret);
 }
 
 #[cfg(feature = "sepolia-taker-swap-v2-tests")]
@@ -1880,8 +1883,11 @@ fn taker_send_approve_and_spend_erc20() {
         block_on(maker_coin.sign_and_broadcast_taker_payment_spend(&preimage, &spend_args, &maker_secret, &[]))
             .unwrap();
     log!("Maker spent ERC20 payment, tx hash: {:02x}", spend_tx.tx_hash());
-    block_on(taker_coin.find_taker_payment_spend_tx(&taker_approve_tx, taker_coin_start_block, payment_time_lock))
-        .unwrap();
+    let found_spend_tx =
+        block_on(taker_coin.find_taker_payment_spend_tx(&taker_approve_tx, taker_coin_start_block, payment_time_lock))
+            .unwrap();
+    let extracted_maker_secret = block_on(taker_coin.extract_secret_v2(&[], &found_spend_tx)).unwrap();
+    assert_eq!(maker_secret, extracted_maker_secret);
 }
 
 #[cfg(feature = "sepolia-taker-swap-v2-tests")]
