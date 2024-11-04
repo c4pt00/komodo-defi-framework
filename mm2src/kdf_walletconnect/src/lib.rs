@@ -37,6 +37,7 @@ use serde::de::DeserializeOwned;
 use session::Session;
 use session::{key::SymKeyPair, SessionManager};
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
@@ -66,6 +67,7 @@ pub trait WalletConnectOps {
 
 pub struct WalletConnectCtx {
     pub client: Client,
+    is_client_connected: AtomicBool,
     pub pairing: PairingClient,
     pub session: SessionManager,
 
@@ -103,6 +105,7 @@ impl WalletConnectCtx {
 
         Ok(Self {
             client,
+            is_client_connected: AtomicBool::default(),
             pairing,
             relay,
             storage,
@@ -137,6 +140,7 @@ impl WalletConnectCtx {
         let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
 
         self.client.connect(&opts).await?;
+        self.is_client_connected.store(true, Ordering::Relaxed);
 
         Ok(())
     }
@@ -240,6 +244,11 @@ impl WalletConnectCtx {
         topic: &Topic,
         param: RequestParams,
     ) -> MmResult<(), WalletConnectError> {
+        let is_client_connected = self.is_client_connected.load(Ordering::Relaxed);
+        if !is_client_connected {
+            self.connect_client().await?;
+        }
+
         let irn_metadata = param.irn_metadata();
         let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
