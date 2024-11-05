@@ -776,15 +776,12 @@ impl MarketCoinOps for SiaCoin {
 
                 match client.dispatcher(tx_request.clone()).await {
                     Ok(event) => {
-                        // if event.confirmations >= input.confirmations {
-                        if event.index.height > 0 {
-                            return Ok(()); // Transaction is confirmed at least once
+                        if event.confirmations >= input.confirmations {
+                            return Ok(());
                         }
                     },
                     Err(e) => info!("Waiting for confirmation of Sia txid {}: {}", txid, e),
                 }
-                // TODO Alright above is a placeholder to allow swaps to progress after 1 confirmation.
-                // Sia team will add a "confirmations" field in GetEventResponse for us to use here.
 
                 Timer::sleep(input.check_every as f64).await;
             }
