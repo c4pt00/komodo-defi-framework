@@ -29,9 +29,10 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-// expose all of sia-rust so mm2_main can use it via coins::siacoin::sia_rust
+// TODO Alright - remove this import; if we're forced to import this, it means sia-rust is lacking some functionality
 use ed25519_dalek::SecretKey;
 use hex::ToHex;
+// expose all of sia-rust so mm2_main can use it via coins::siacoin::sia_rust
 pub use sia_rust;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
                                       ApiClientHelpers, HelperError as SiaClientHelperError};
@@ -815,6 +816,8 @@ impl MarketCoinOps for SiaCoin {
         // TODO: Let's not just return a raw bytes object here in `.private()`. We better return a proper object.
         let private_bytes = keypair.private();
         let private_key = SecretKey::from_bytes(&private_bytes).map_err(|e| e.to_string())?;
+        // TODO Alright - Firstly, this privkey is useless to a typical sia user because they only ever handle seed phrases.
+        // Second, Do not directly import ed25519-dalek, do this via sia-rust
         Ok(private_key.encode_hex())
     }
 
