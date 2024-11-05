@@ -166,11 +166,12 @@ async fn test_send_maker_payment_then_spend_maker_payment() {
     mine_blocks(&maker_sia_coin.client, 1, &maker_address).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-    maker_sia_coin
+    let event = maker_sia_coin
         .client
-        .get_transaction(&taker_spends_maker_payment_tx.txid())
+        .get_event(&taker_spends_maker_payment_tx.txid())
         .await
         .unwrap();
+    assert_eq!(event.confirmations, 1u64);
 }
 
 /**
