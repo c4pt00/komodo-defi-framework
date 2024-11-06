@@ -128,6 +128,7 @@ impl CoinWithTxHistoryV2 for TendermintToken {
 struct TendermintTxHistoryStateMachine<Coin: CoinCapabilities, Storage: TxHistoryStorage> {
     coin: Coin,
     storage: Storage,
+    streaming_manager: StreamingManager,
     balances: AllBalancesResult,
     last_received_page: u32,
     last_spent_page: u32,
@@ -573,6 +574,7 @@ where
             address: String,
             coin: &Coin,
             storage: &Storage,
+            streaming_manager: &StreamingManager,
             query: String,
             from_height: u64,
             page: &mut u32,
@@ -589,7 +591,6 @@ where
                 "could not get rpc client"
             );
 
-            let streaming_manager: StreamingManager = panic!();
             loop {
                 let response = try_or_return_stopped_as_err!(
                     client
@@ -788,6 +789,7 @@ where
             self.address.clone(),
             &ctx.coin,
             &ctx.storage,
+            &ctx.streaming_manager,
             q,
             self.from_block_height,
             &mut ctx.last_spent_page,
@@ -810,6 +812,7 @@ where
             self.address.clone(),
             &ctx.coin,
             &ctx.storage,
+            &ctx.streaming_manager,
             q,
             self.from_block_height,
             &mut ctx.last_received_page,
@@ -923,7 +926,7 @@ fn get_value_from_event_attributes(events: &[EventAttribute], tag: &str, base64_
 pub async fn tendermint_history_loop(
     coin: TendermintCoin,
     storage: impl TxHistoryStorage,
-    _ctx: MmArc,
+    ctx: MmArc,
     _current_balance: Option<BigDecimal>,
 ) {
     let balances = match coin.get_all_balances().await {
@@ -937,6 +940,7 @@ pub async fn tendermint_history_loop(
     let mut state_machine = TendermintTxHistoryStateMachine {
         coin,
         storage,
+        streaming_manager: ctx.event_stream_manager.clone(),
         balances,
         last_received_page: 1,
         last_spent_page: 1,
