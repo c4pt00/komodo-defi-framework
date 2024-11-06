@@ -40,12 +40,6 @@ impl RegisterTokenInfo<TendermintToken> for TendermintCoin {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct WalletConnectParams {
-    #[serde(default)]
-    pub enabled: bool,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TendermintPubkeyActivationParams {
@@ -56,7 +50,7 @@ pub enum TendermintPubkeyActivationParams {
         is_ledger_connection: bool,
     },
     /// Activation via WalletConnect
-    WalletConnect(WalletConnectParams),
+    WalletConnect,
 }
 
 #[derive(Clone, Deserialize)]
@@ -241,13 +235,22 @@ async fn activate_with_walletconnect(
     ticker: &str,
     wallet_type: &mut TendermintWalletConnectionType,
 ) -> MmResult<TendermintActivationPolicy, TendermintInitError> {
-    let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
-    let account = cosmos_get_accounts_impl(&wc, chain_id)
-        .await
-        .mm_err(|err| TendermintInitError {
-            ticker: ticker.to_string(),
-            kind: TendermintInitErrorKind::UnableToFetchChainAccount(err.to_string()),
-        })?;
+    let account = {
+        let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
+
+        if wc.is_ledger_connection().await {
+            *wallet_type = TendermintWalletConnectionType::WcLedger;
+        } else {
+            *wallet_type = TendermintWalletConnectionType::Wc;
+        };
+
+        cosmos_get_accounts_impl(&wc, chain_id)
+            .await
+            .mm_err(|err| TendermintInitError {
+                ticker: ticker.to_string(),
+                kind: TendermintInitErrorKind::UnableToFetchChainAccount(err.to_string()),
+            })?
+    };
 
     let pubkey = match account.algo {
         CosmosAccountAlgo::Secp256k1 | CosmosAccountAlgo::TendermintSecp256k1 => {
@@ -258,12 +261,6 @@ async fn activate_with_walletconnect(
         ticker: ticker.to_string(),
         kind: TendermintInitErrorKind::Internal(e),
     })?;
-
-    if wc.is_ledger_connection().await {
-        *wallet_type = TendermintWalletConnectionType::WcLedger;
-    } else {
-        *wallet_type = TendermintWalletConnectionType::Wc;
-    };
 
     Ok(TendermintActivationPolicy::with_public_key(pubkey))
 }
@@ -308,7 +305,7 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
 
                     TendermintActivationPolicy::with_public_key(pubkey)
                 },
-                TendermintPubkeyActivationParams::WalletConnect(_params) => {
+                TendermintPubkeyActivationParams::WalletConnect => {
                     activate_with_walletconnect(
                         &ctx,
                         protocol_conf.chain_id.as_ref(),

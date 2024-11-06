@@ -5,6 +5,7 @@ use crate::{BytesJson, TransactionErr};
 
 use common::log::info;
 use derive_more::Display;
+use enum_derives::EnumFromStringify;
 use ethcore_transaction::{Action, SignedTransaction};
 use ethereum_types::H256;
 use ethereum_types::{Address, Public, H160, H520, U256};
@@ -21,12 +22,14 @@ use web3::signing::hash_message;
 
 use super::EthCoin;
 
-#[derive(Display, Debug)]
+#[derive(Display, Debug, EnumFromStringify)]
 pub enum EthWalletConnectError {
     UnsupportedChainId(WcChainId),
     InvalidSignature(String),
     AccoountMisMatch(String),
+    #[from_stringify("rlp::DecoderError", "hex::FromHexError")]
     TxDecodingFailed(String),
+    #[from_stringify("ethkey::Error")]
     InternalError(String),
     InvalidTxData(String),
     WalletConnectError(WalletConnectError),
@@ -34,22 +37,6 @@ pub enum EthWalletConnectError {
 
 impl From<WalletConnectError> for EthWalletConnectError {
     fn from(value: WalletConnectError) -> Self { Self::WalletConnectError(value) }
-}
-
-impl From<EthWalletConnectError> for WalletConnectError {
-    fn from(value: EthWalletConnectError) -> Self { Self::SessionError(value.to_string()) }
-}
-
-impl From<rlp::DecoderError> for EthWalletConnectError {
-    fn from(value: rlp::DecoderError) -> Self { Self::TxDecodingFailed(value.to_string()) }
-}
-
-impl From<ethkey::Error> for EthWalletConnectError {
-    fn from(value: ethkey::Error) -> Self { Self::InternalError(value.to_string()) }
-}
-
-impl From<hex::FromHexError> for EthWalletConnectError {
-    fn from(value: hex::FromHexError) -> Self { Self::TxDecodingFailed(value.to_string()) }
 }
 
 pub struct WcEthTxParams<'a> {
@@ -124,7 +111,6 @@ impl WalletConnectOps for EthCoin {
             // First 4 bytes from WalletConnect represents Protoc info
             hex::decode(&tx_hex[4..])?
         };
-
         let unverified = rlp::decode(&bytes)?;
         let signed = SignedTransaction::new(unverified)?;
         let bytes = rlp::encode(&signed);
@@ -144,22 +130,14 @@ impl WalletConnectOps for EthCoin {
                 .await?
         };
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
-
         let maybe_signed_tx = {
             // Wait for 10 seconds for the transaction to appear on the RPC node.
             let wait_rpc_timeout = 10_000;
             let check_every = 1.;
-            self.wait_for_tx_appears_on_rpc(
-                H256::from_slice(
-                    &hex::decode(tx_hash).map_to_mm(|err| EthWalletConnectError::InvalidTxData(err.to_string()))?,
-                ),
-                wait_rpc_timeout,
-                check_every,
-            )
-            .await
-            .mm_err(|err| EthWalletConnectError::InternalError(err.to_string()))?
+            self.wait_for_tx_appears_on_rpc(H256::from_slice(&hex::decode(tx_hash)?), wait_rpc_timeout, check_every)
+                .await
+                .mm_err(|err| EthWalletConnectError::InternalError(err.to_string()))?
         };
-
         let signed_tx = match maybe_signed_tx {
             Some(signed_tx) => signed_tx,
             None => {
@@ -184,15 +162,18 @@ pub async fn eth_request_wc_personal_sign(
 
     let account_str = wc.get_account_for_chain_id(&chain_id).await?;
     let message = "Authenticate with Komodefi";
-    let message_hex = format!("0x{}", hex::encode(message));
-    let params = json!(&[&message_hex, &account_str]);
-    let result = wc
+    let params = {
+        let message_hex = format!("0x{}", hex::encode(message));
+        json!(&[&message_hex, &account_str])
+    };
+    let data = wc
         .send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
-            Ok(extract_pubkey_from_signature(&data, message, &account_str)?)
+            extract_pubkey_from_signature(&data, message, &account_str)
+                .mm_err(|err| WalletConnectError::SessionError(err.to_string()))
         })
         .await?;
 
-    Ok(result)
+    Ok(data)
 }
 
 fn extract_pubkey_from_signature(
@@ -211,7 +192,6 @@ fn extract_pubkey_from_signature(
             EthWalletConnectError::InvalidSignature(error)
         })?
     };
-
     let mut public = Public::default();
     public.as_mut().copy_from_slice(&uncompressed[1..65]);
 
@@ -243,35 +223,30 @@ pub(crate) fn recover(signature: &Signature, message: &Message) -> Result<H520, 
 pub(crate) async fn send_transaction_with_walletconnect(
     coin: EthCoin,
     wc: &WalletConnectCtx,
+    my_address: Address,
     value: U256,
     action: Action,
     data: &[u8],
     gas: U256,
 ) -> Result<SignedTransaction, TransactionErr> {
-    let address = try_tx_s!(coin
-        .derivation_method
-        .single_addr_or_err()
-        .await
-        .map_err(|e| TransactionErr::Plain(ERRL!("{}", e))));
-
     info!(target: "sign-and-send", "get_gas_price…");
     let pay_for_gas_option = try_tx_s!(
         coin.get_swap_pay_for_gas_option(coin.get_swap_transaction_fee_policy())
             .await
     );
-    let (nonce, _) = try_tx_s!(coin.clone().get_addr_nonce(address).compat().await);
+    let (nonce, _) = try_tx_s!(coin.clone().get_addr_nonce(my_address).compat().await);
     let params = WcEthTxParams {
         gas,
         nonce,
         data,
-        my_address: address,
+        my_address,
         action,
         value,
         gas_price: pay_for_gas_option.get_gas_price(),
     };
     // Please note that this method may take a long time
     // due to `eth_sendTransaction` requests.
-    info!(target: "sign-and-send", "wallet signing and sending tx…");
+    info!(target: "sign-and-send", "WalletConnect signing and sending tx…");
     let (signed_tx, _) = try_tx_s!(coin.wc_send_tx(wc, params).await);
 
     Ok(signed_tx)

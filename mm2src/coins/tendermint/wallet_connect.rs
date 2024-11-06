@@ -53,7 +53,6 @@ pub enum CosmosAccountAlgo {
 
 impl FromStr for CosmosAccountAlgo {
     type Err = String;
-
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "secp256k1" => Ok(Self::Secp256k1),
@@ -83,7 +82,6 @@ impl WalletConnectOps for TendermintCoin {
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
         let chain_id = WcChainId::new_cosmos(self.chain_id.to_string());
         wc.validate_update_active_chain_id(&chain_id).await?;
-
         Ok(chain_id)
     }
 
@@ -103,6 +101,7 @@ impl WalletConnectOps for TendermintCoin {
             let signature = general_purpose::STANDARD
                 .decode(data.signature.signature)
                 .map_to_mm(|err| WalletConnectError::PayloadError(err.to_string()))?;
+
             Ok(TxRaw {
                 body_bytes: data.signed.body_bytes,
                 auth_info_bytes: data.signed.auth_info_bytes,
@@ -234,7 +233,8 @@ mod test_cosmos_walletconnect {
 
     #[test]
     fn test_decode_base64() {
-        let base64_data = "SGVsbG8gd29ybGQ="; // "Hello world" in base64
+        // "Hello world" in base64
+        let base64_data = "SGVsbG8gd29ybGQ=";
         let expected = b"Hello world".to_vec();
         let result = decode_data(base64_data);
         assert_eq!(result.unwrap(), expected, "Base64 decoding failed");
@@ -242,7 +242,8 @@ mod test_cosmos_walletconnect {
 
     #[test]
     fn test_decode_hex() {
-        let hex_data = "48656c6c6f20776f726c64"; // "Hello world" in hex
+        // "Hello world" in hex
+        let hex_data = "48656c6c6f20776f726c64";
         let expected = b"Hello world".to_vec();
         let result = decode_data(hex_data);
         assert_eq!(result.unwrap(), expected, "Hex decoding failed");

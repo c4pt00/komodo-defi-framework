@@ -2694,8 +2694,8 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
             .map_to_mm(|err| RawTransactionError::TransactionError(err.get_plain_text_format()))
         },
         EthPrivKeyPolicy::WalletConnect { .. } => {
-            //NOTE: doesn't work with wallets that doesn't support `eth_signTransaction` e.g
-            //Metamask
+            // NOTE: doesn't work with wallets that doesn't support `eth_signTransaction`.
+            // e.g Metamask
             let wc = {
                 let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
                 WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!")
@@ -2722,6 +2722,7 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
                 .await
                 .map_to_mm(RawTransactionError::InvalidParam)?;
 
+            info!(target: "sign-and-send", "WalletConnect signing and sending tx…");
             let (signed_tx, _) = coin
                 .wc_sign_tx(&wc, WcEthTxParams {
                     my_address,
@@ -3688,6 +3689,7 @@ impl EthCoin {
                         .single_addr_or_err()
                         .await
                         .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
+
                     sign_and_send_transaction_with_keypair(&coin, key_pair, address, value, action, data, gas).await
                 },
                 EthPrivKeyPolicy::WalletConnect { .. } => {
@@ -3695,7 +3697,13 @@ impl EthCoin {
                         let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
                         WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!")
                     };
-                    send_transaction_with_walletconnect(coin, &wc, value, action, &data, gas).await
+                    let address = coin
+                        .derivation_method
+                        .single_addr_or_err()
+                        .await
+                        .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
+
+                    send_transaction_with_walletconnect(coin, &wc, address, value, action, &data, gas).await
                 },
                 EthPrivKeyPolicy::Trezor => Err(TransactionErr::Plain(ERRL!("Trezor is not supported for swaps yet!"))),
                 #[cfg(target_arch = "wasm32")]
