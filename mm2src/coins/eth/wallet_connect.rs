@@ -1,3 +1,4 @@
+/// https://docs.reown.com/advanced/multichain/rpc-reference/ethereum-rpc
 use crate::common::Future01CompatExt;
 use crate::Eip1559Ops;
 use crate::{BytesJson, TransactionErr};
@@ -223,7 +224,7 @@ fn extract_pubkey_from_signature(
     Ok((uncompressed, recovered_address))
 }
 
-pub fn recover(signature: &Signature, message: &Message) -> Result<H520, ethkey::Error> {
+pub(crate) fn recover(signature: &Signature, message: &Message) -> Result<H520, ethkey::Error> {
     let recovery_id = {
         let recovery_id = (signature[64] as i32)
             .checked_sub(27)

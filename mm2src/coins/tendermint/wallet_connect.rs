@@ -1,3 +1,4 @@
+/// https://docs.reown.com/advanced/multichain/rpc-reference/cosmos-rpc
 use base64::engine::general_purpose;
 use base64::Engine;
 use cosmrs::proto::cosmos::tx::v1beta1::TxRaw;
@@ -13,33 +14,33 @@ use std::str::FromStr;
 use super::{CosmosTransaction, TendermintCoin};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct CosmosTxSignedData {
-    pub signature: CosmosTxSignature,
-    pub signed: CosmosSignData,
+pub(crate) struct CosmosTxSignedData {
+    pub(crate) signature: CosmosTxSignature,
+    pub(crate) signed: CosmosSignData,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct CosmosTxSignature {
-    pub pub_key: CosmosTxPublicKey,
-    pub signature: String,
+pub(crate) struct CosmosTxSignature {
+    pub(crate) pub_key: CosmosTxPublicKey,
+    pub(crate) signature: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct CosmosTxPublicKey {
+pub(crate) struct CosmosTxPublicKey {
     #[serde(rename = "type")]
-    pub key_type: String,
-    pub value: String,
+    pub(crate) key_type: String,
+    pub(crate) value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CosmosSignData {
-    pub chain_id: String,
-    pub account_number: String,
+pub(crate) struct CosmosSignData {
+    pub(crate) chain_id: String,
+    pub(crate) account_number: String,
     #[serde(deserialize_with = "deserialize_vec_field")]
-    pub auth_info_bytes: Vec<u8>,
+    pub(crate) auth_info_bytes: Vec<u8>,
     #[serde(deserialize_with = "deserialize_vec_field")]
-    pub body_bytes: Vec<u8>,
+    pub(crate) body_bytes: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

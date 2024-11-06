@@ -2122,8 +2122,7 @@ pub struct WithdrawRequest {
     memo: Option<String>,
     /// Tendermint specific field used for manually providing the IBC channel IDs.
     ibc_source_channel: Option<String>,
-    /// Currently, this flag is used by ETH/ERC20 coins activated with MetaMask **only**.
-    #[cfg(target_arch = "wasm32")]
+    /// Currently, this flag is used by ETH/ERC20 coins activated with MetaMask/WalletConnect **only**.
     #[serde(default)]
     broadcast: bool,
 }
@@ -2177,7 +2176,6 @@ impl WithdrawRequest {
             fee: None,
             memo: None,
             ibc_source_channel: None,
-            #[cfg(target_arch = "wasm32")]
             broadcast: false,
         }
     }
@@ -5600,6 +5598,7 @@ pub mod for_tests {
             fee,
             memo: None,
             ibc_source_channel: None,
+            broadcast: false,
         };
         let init = init_withdraw(ctx.clone(), withdraw_req).await.unwrap();
         let timeout = wait_until_ms(150000);

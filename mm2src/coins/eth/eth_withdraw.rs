@@ -321,11 +321,17 @@ where
                     gas_price,
                 };
 
-                let (tx, bytes) = self
-                    .coin()
-                    .wc_sign_tx(&wc, params)
-                    .await
-                    .mm_err(|err| WithdrawError::SigningError(err.to_string()))?;
+                let (tx, bytes) = if req.broadcast {
+                    self.coin()
+                        .wc_send_tx(&wc, params)
+                        .await
+                        .mm_err(|err| WithdrawError::SigningError(err.to_string()))?
+                } else {
+                    self.coin()
+                        .wc_sign_tx(&wc, params)
+                        .await
+                        .mm_err(|err| WithdrawError::SigningError(err.to_string()))?
+                };
 
                 (tx.tx_hash(), bytes)
             },
