@@ -12,7 +12,8 @@ use crate::session::rpc::propose::send_proposal_request;
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
 use chrono::Utc;
 use common::custom_futures::timeout::FutureTimerExt;
-use common::log::info;
+use common::executor::{spawn_abortable, AbortOnDropHandle};
+use common::log::{debug, info};
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::{initialize_connection, Handler};
 use error::WalletConnectError;
@@ -37,11 +38,12 @@ use serde::de::DeserializeOwned;
 use session::Session;
 use session::{key::SymKeyPair, SessionManager};
 use std::collections::BTreeSet;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType, SymKey};
+
+const WAIT_DURATION: Duration = Duration::from_secs(60);
 
 #[async_trait::async_trait]
 pub trait WalletConnectOps {
@@ -67,7 +69,6 @@ pub trait WalletConnectOps {
 
 pub struct WalletConnectCtx {
     pub client: Client,
-    is_client_connected: AtomicBool,
     pub pairing: PairingClient,
     pub session: SessionManager,
 
@@ -81,11 +82,13 @@ pub struct WalletConnectCtx {
     connection_live_rx: Arc<Mutex<UnboundedReceiver<()>>>,
     message_tx: UnboundedSender<SessionMessageType>,
     message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
+
+    _abort_handle: AbortOnDropHandle,
 }
 
 impl WalletConnectCtx {
     pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
-        let (msg_sender, msg_receiver) = unbounded();
+        let (inbound_message_tx, inbound_message_rx) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (message_tx, session_request_receiver) = unbounded();
 
@@ -97,15 +100,12 @@ impl WalletConnectCtx {
 
         let storage = SessionStorageDb::init(ctx)?;
 
-        let client = Client::new_unmanaged();
-        ctx.spawner().spawn(client_event_loop(
-            client.control_rx().expect("client controller should never fail!"),
-            Handler::new("Komodefi", msg_sender, conn_live_sender),
-        ));
+        let handler = Handler::new("Komodefi", inbound_message_tx, conn_live_sender);
+        let (client, _abort_handle) =
+            Client::new_with_callback(handler, |r, h| spawn_abortable(client_event_loop(r, h)));
 
         Ok(Self {
             client,
-            is_client_connected: AtomicBool::default(),
             pairing,
             relay,
             storage,
@@ -114,10 +114,12 @@ impl WalletConnectCtx {
             session: SessionManager::new(),
             subscriptions: Default::default(),
 
-            inbound_message_rx: Arc::new(msg_receiver.into()),
+            inbound_message_rx: Arc::new(inbound_message_rx.into()),
             connection_live_rx: Arc::new(conn_live_receiver.into()),
             message_rx: Arc::new(session_request_receiver.into()),
             message_tx,
+
+            _abort_handle,
         })
     }
 
@@ -135,12 +137,11 @@ impl WalletConnectCtx {
                 .aud(RELAY_ADDRESS)
                 .ttl(Duration::from_secs(8 * 60 * 60))
                 .as_jwt(&key)
-                .unwrap()
+                .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?
         };
         let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
 
         self.client.connect(&opts).await?;
-        self.is_client_connected.store(true, Ordering::Relaxed);
 
         Ok(())
     }
@@ -155,7 +156,11 @@ impl WalletConnectCtx {
 
         info!("Subscribing to topic: {topic:?}");
 
-        self.client.subscribe(topic.clone()).await?;
+        self.client
+            .subscribe(topic.clone())
+            .timeout(WAIT_DURATION)
+            .await
+            .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))??;
 
         info!("Subscribed to topic: {topic:?}");
 
@@ -213,13 +218,12 @@ impl WalletConnectCtx {
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
-        // bring last session to the back.
+        // bring last active session to the back.
         sessions.sort_by(|a, b| a.expiry.cmp(&b.expiry));
-
         for session in sessions {
             // delete expired session
             if now > session.expiry {
-                info!("Session {} expired, trying to delete from storage", session.topic);
+                debug!("Session {} expired, trying to delete from storage", session.topic);
                 if let Err(err) = self.storage.delete_session(&session.topic).await {
                     error!("Unable to delete session: {:?} from storage", err);
                 }
@@ -228,10 +232,8 @@ impl WalletConnectCtx {
 
             let topic = session.topic.clone();
             let pairing_topic = session.pairing_topic.clone();
-
-            info!("Session found! activating :{}", topic);
+            debug!("Session found! activating :{}", topic);
             self.session.add_session(session).await;
-
             self.client.batch_subscribe(vec![topic.clone(), pairing_topic]).await?;
         }
 
@@ -244,19 +246,12 @@ impl WalletConnectCtx {
         topic: &Topic,
         param: RequestParams,
     ) -> MmResult<(), WalletConnectError> {
-        let is_client_connected = self.is_client_connected.load(Ordering::Relaxed);
-        if !is_client_connected {
-            self.connect_client().await?;
-        }
-
         let irn_metadata = param.irn_metadata();
         let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
 
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
-
-        info!("Outbound request sent!");
 
         Ok(())
     }
@@ -302,27 +297,51 @@ impl WalletConnectCtx {
         irn_metadata: IrnMetadata,
         payload: Payload,
     ) -> MmResult<(), WalletConnectError> {
-        info!("Publishing message={:?} to topic: {topic}", payload);
+        debug!("Publishing message={:?} to topic: {topic}", payload);
         let message = {
             let sym_key = self.sym_key(topic).await?;
             let payload = serde_json::to_string(&payload)?;
             encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?
         };
 
-        self.client
+        // Attempt to publish, retrying once on NotConnected error
+        match self
+            .client
             .publish(
                 topic.clone(),
-                message,
+                message.clone(),
                 None,
                 irn_metadata.tag,
                 Duration::from_secs(irn_metadata.ttl),
                 irn_metadata.prompt,
             )
-            .await?;
-
-        info!("Message published successfully");
-
-        Ok(())
+            .await
+        {
+            Ok(_) => {
+                info!("Message published successfully to topic: {topic}");
+                Ok(())
+            },
+            Err(err) => {
+                if err.to_string().contains("WebsocketClient") {
+                    debug!("Reconnecting client after NotConnected error...");
+                    self.connect_client().await?;
+                    self.client
+                        .publish(
+                            topic.clone(),
+                            message,
+                            None,
+                            irn_metadata.tag,
+                            Duration::from_secs(irn_metadata.ttl),
+                            irn_metadata.prompt,
+                        )
+                        .await?;
+                    info!("Message published successfully after reconnect");
+                    Ok(())
+                } else {
+                    MmError::err(err.into())
+                }
+            },
+        }
     }
 
     /// Checks if the current session is connected to a Ledger device.
@@ -448,40 +467,37 @@ impl WalletConnectCtx {
         chain_id: &WcChainId,
         method: WcRequestMethods,
         params: serde_json::Value,
-        response_handler: F,
+        callback: F,
     ) -> MmResult<R, WalletConnectError>
     where
         T: DeserializeOwned,
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
-        // Send request
         let active_topic = self.session.get_active_topic_or_err().await?;
         let request = SessionRequestRequest {
             chain_id: chain_id.to_string(),
             request: SessionRequest {
                 method: method.as_ref().to_string(),
-                expiry: Some(Utc::now().timestamp() as u64 + 300),
+                expiry: Some(Utc::now().timestamp() as u64 + 60),
                 params,
             },
         };
         self.publish_request(&active_topic, RequestParams::SessionRequest(request))
             .await?;
-
         // Wait for response
-        let wait_duration = Duration::from_secs(300);
-        if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout(wait_duration).await {
+        if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout(WAIT_DURATION).await {
             let result = resp.mm_err(WalletConnectError::InternalError)?;
             if let ResponseParamsSuccess::Arbitrary(data) = result.data {
                 let data = serde_json::from_value::<T>(data)?;
                 let response = ResponseParamsSuccess::SessionEvent(true);
                 self.publish_response_ok(&result.topic, response, &result.message_id)
                     .await?;
-                return response_handler(data);
+
+                return callback(data);
             }
         }
 
-        // Handle timeout/error
-        self.client.disconnect().await?;
+        // QUESTION: should we consider retrying request instead of returning error immediately.
         MmError::err(WalletConnectError::NoWalletFeedback)
     }
 

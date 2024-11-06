@@ -181,16 +181,15 @@ pub async fn eth_request_wc_personal_sign(
     let chain_id = WcChainId::new_eip155(chain_id.to_string());
     wc.validate_update_active_chain_id(&chain_id).await?;
 
-    let result = {
-        let account_str = wc.get_account_for_chain_id(&chain_id).await?;
-        let message = "Authenticate with Komodefi";
-        let message_hex = format!("0x{}", hex::encode(message));
-        let params = json!(&[&message_hex, &account_str]);
-        wc.send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
+    let account_str = wc.get_account_for_chain_id(&chain_id).await?;
+    let message = "Authenticate with Komodefi";
+    let message_hex = format!("0x{}", hex::encode(message));
+    let params = json!(&[&message_hex, &account_str]);
+    let result = wc
+        .send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
             Ok(extract_pubkey_from_signature(&data, message, &account_str)?)
         })
-        .await?
-    };
+        .await?;
 
     Ok(result)
 }

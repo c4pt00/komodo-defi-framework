@@ -93,8 +93,6 @@ pub(crate) async fn initialize_connection(this: Arc<WalletConnectCtx>) {
         retry_secs += RETRY_INCREMENT;
     }
 
-    info!("Successfully connected to client after {} attempt(s).", retry_count + 1);
-
     // Initialize storage
     if let Err(err) = this.storage.init().await {
         error!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
@@ -113,9 +111,6 @@ pub(crate) async fn initialize_connection(this: Arc<WalletConnectCtx>) {
 /// Implements exponential backoff retry mechanism for reconnection attempts.
 /// After successful reconnection, resubscribes to previous topics to restore full functionality.
 pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
-    this.is_client_connected
-        .store(false, std::sync::atomic::Ordering::Relaxed);
-
     let mut recv = this.connection_live_rx.lock().await;
     let mut backoff = 1;
 

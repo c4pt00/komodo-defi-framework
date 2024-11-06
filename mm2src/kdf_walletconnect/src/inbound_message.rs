@@ -9,7 +9,7 @@ use crate::{error::WalletConnectError,
                            update::reply_session_update_request},
             WalletConnectCtx};
 
-use common::log::info;
+use common::log::{info, LogOnError};
 use futures::sink::SinkExt;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::domain::{MessageId, Topic};
@@ -62,7 +62,7 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: R
                 // Probably the best place to handle session propose response
                 // as we might not get a feedback for a long time or even at all
                 if let ResponseParamsSuccess::SessionPropose(propose) = &data {
-                    process_session_propose_response(ctx, topic, propose).await.ok();
+                    process_session_propose_response(ctx, topic, propose).await.error_log();
                 }
 
                 Ok(SessionMessage {
@@ -77,5 +77,5 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: R
     };
 
     let mut sender = ctx.message_tx.clone();
-    sender.send(result).await.ok();
+    sender.send(result).await.error_log();
 }
