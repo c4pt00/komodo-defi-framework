@@ -309,13 +309,6 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                     TendermintActivationPolicy::with_public_key(pubkey)
                 },
                 TendermintPubkeyActivationParams::WalletConnect(_params) => {
-                    if ctx.is_watcher() || ctx.use_watchers() {
-                        return MmError::err(TendermintInitError {
-                            ticker: ticker.to_string(),
-                            kind: TendermintInitErrorKind::CantUseWatchersWithPubkeyPolicy,
-                        });
-                    };
-
                     activate_with_walletconnect(
                         &ctx,
                         protocol_conf.chain_id.as_ref(),
