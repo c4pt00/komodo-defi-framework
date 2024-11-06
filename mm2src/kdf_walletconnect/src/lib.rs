@@ -78,7 +78,7 @@ pub struct WalletConnectCtx {
     relay: Relay,
     metadata: Metadata,
     inbound_message_rx: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
-    connection_live_rx: Arc<Mutex<UnboundedReceiver<()>>>,
+    connection_live_rx: Arc<Mutex<UnboundedReceiver<Option<String>>>>,
     message_tx: UnboundedSender<SessionMessageType>,
     message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
 

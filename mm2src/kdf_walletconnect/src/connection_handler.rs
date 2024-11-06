@@ -19,14 +19,14 @@ const RETRY_INCREMENT: f64 = 5.0;
 pub struct Handler {
     name: &'static str,
     msg_sender: UnboundedSender<PublishedMessage>,
-    conn_live_sender: UnboundedSender<()>,
+    conn_live_sender: UnboundedSender<Option<String>>,
 }
 
 impl Handler {
     pub fn new(
         name: &'static str,
         msg_sender: UnboundedSender<PublishedMessage>,
-        conn_live_sender: UnboundedSender<()>,
+        conn_live_sender: UnboundedSender<Option<String>>,
     ) -> Self {
         Self {
             name,
@@ -44,7 +44,7 @@ impl ConnectionHandler for Handler {
     fn disconnected(&mut self, frame: Option<CloseFrame<'static>>) {
         info!("\n[{}] connection closed: frame={frame:?}", self.name);
 
-        if let Err(e) = self.conn_live_sender.start_send(()) {
+        if let Err(e) = self.conn_live_sender.start_send(None) {
             error!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
@@ -62,14 +62,14 @@ impl ConnectionHandler for Handler {
 
     fn inbound_error(&mut self, error: ClientError) {
         info!("\n[{}] inbound error: {error}", self.name);
-        if let Err(e) = self.conn_live_sender.start_send(()) {
+        if let Err(e) = self.conn_live_sender.start_send(Some(error.to_string())) {
             error!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 
     fn outbound_error(&mut self, error: ClientError) {
         info!("\n[{}] outbound error: {error}", self.name);
-        if let Err(e) = self.conn_live_sender.start_send(()) {
+        if let Err(e) = self.conn_live_sender.start_send(Some(error.to_string())) {
             error!("\n[{}] failed to send to the receiver: {e}", self.name);
         }
     }
@@ -114,8 +114,15 @@ pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
     let mut recv = this.connection_live_rx.lock().await;
     let mut backoff = 1;
 
-    while let Some(_msg) = recv.next().await {
+    while let Some(msg) = recv.next().await {
         info!("Connection disconnected. Attempting to reconnect...");
+        // In some rare occasion, WalletConnect websocket client returns
+        // `Websocket transport error: IO error: unexpected end of file`
+        // probably a problem with the relay server.
+        let msg = msg.map_or("".to_string(), |m| m);
+        if msg.contains("unexpected end of file") {
+            this.client.disconnect().await.ok();
+        }
 
         loop {
             match this.connect_client().await {
