@@ -156,6 +156,7 @@ mod eip1559_gas_fee;
 pub(crate) use eip1559_gas_fee::FeePerGasEstimated;
 use eip1559_gas_fee::{BlocknativeGasApiCaller, FeePerGasSimpleEstimator, GasApiConfig, GasApiProvider,
                       InfuraGasApiCaller};
+
 pub(crate) mod eth_swap_v2;
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
@@ -903,20 +904,20 @@ pub async fn withdraw_erc1155(ctx: MmArc, withdraw_type: WithdrawErc1155) -> Wit
         get_valid_nft_addr_to_withdraw(coin, &withdraw_type.to, &withdraw_type.token_address)?;
 
     let token_id_str = &withdraw_type.token_id.to_string();
-    let wallet_amount = eth_coin.erc1155_balance(token_addr, token_id_str).await?;
+    let wallet_erc1155_amount = eth_coin.erc1155_balance(token_addr, token_id_str).await?;
 
-    let amount_dec = if withdraw_type.max {
-        wallet_amount.clone()
+    let amount_uint = if withdraw_type.max {
+        wallet_erc1155_amount.clone()
     } else {
-        withdraw_type.amount.unwrap_or_else(|| 1.into())
+        withdraw_type.amount.unwrap_or_else(|| BigUint::from(1u32))
     };
 
-    if amount_dec > wallet_amount {
+    if amount_uint > wallet_erc1155_amount {
         return MmError::err(WithdrawError::NotEnoughNftsAmount {
             token_address: withdraw_type.token_address,
             token_id: withdraw_type.token_id.to_string(),
-            available: wallet_amount,
-            required: amount_dec,
+            available: wallet_erc1155_amount,
+            required: amount_uint,
         });
     }
 
@@ -927,7 +928,7 @@ pub async fn withdraw_erc1155(ctx: MmArc, withdraw_type: WithdrawErc1155) -> Wit
             let token_id_u256 =
                 U256::from_dec_str(token_id_str).map_to_mm(|e| NumConversError::new(format!("{:?}", e)))?;
             let amount_u256 =
-                U256::from_dec_str(&amount_dec.to_string()).map_to_mm(|e| NumConversError::new(format!("{:?}", e)))?;
+                U256::from_dec_str(&amount_uint.to_string()).map_to_mm(|e| NumConversError::new(format!("{:?}", e)))?;
             let data = function.encode_input(&[
                 Token::Address(my_address),
                 Token::Address(to_addr),
@@ -986,7 +987,7 @@ pub async fn withdraw_erc1155(ctx: MmArc, withdraw_type: WithdrawErc1155) -> Wit
         contract_type: ContractType::Erc1155,
         token_address: withdraw_type.token_address,
         token_id: withdraw_type.token_id,
-        amount: amount_dec,
+        amount: amount_uint,
         fee_details: Some(fee_details.into()),
         coin: eth_coin.ticker.clone(),
         block_height: 0,
@@ -1077,7 +1078,7 @@ pub async fn withdraw_erc721(ctx: MmArc, withdraw_type: WithdrawErc721) -> Withd
         contract_type: ContractType::Erc721,
         token_address: withdraw_type.token_address,
         token_id: withdraw_type.token_id,
-        amount: 1.into(),
+        amount: BigUint::from(1u8),
         fee_details: Some(fee_details.into()),
         coin: eth_coin.ticker.clone(),
         block_height: 0,
@@ -2339,18 +2340,18 @@ impl MarketCoinOps for EthCoin {
         Box::new(fut.boxed().compat())
     }
 
-    fn wait_for_htlc_tx_spend(&self, args: WaitForHTLCTxSpendArgs<'_>) -> TransactionFut {
-        let unverified: UnverifiedTransactionWrapper = try_tx_fus!(rlp::decode(args.tx_bytes));
-        let tx = try_tx_fus!(SignedEthTx::new(unverified));
+    async fn wait_for_htlc_tx_spend(&self, args: WaitForHTLCTxSpendArgs<'_>) -> TransactionResult {
+        let unverified: UnverifiedTransactionWrapper = try_tx_s!(rlp::decode(args.tx_bytes));
+        let tx = try_tx_s!(SignedEthTx::new(unverified));
 
         let swap_contract_address = match args.swap_contract_address {
-            Some(addr) => try_tx_fus!(addr.try_to_address()),
+            Some(addr) => try_tx_s!(addr.try_to_address()),
             None => match tx.unsigned().action() {
                 Call(address) => *address,
                 Create => {
-                    return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                    return Err(TransactionErr::Plain(ERRL!(
                         "Invalid payment action: the payment action cannot be create"
-                    ))))
+                    )))
                 },
             },
         };
@@ -2359,85 +2360,79 @@ impl MarketCoinOps for EthCoin {
             EthCoinType::Eth => get_function_name("ethPayment", args.watcher_reward),
             EthCoinType::Erc20 { .. } => get_function_name("erc20Payment", args.watcher_reward),
             EthCoinType::Nft { .. } => {
-                return Box::new(futures01::future::err(TransactionErr::ProtocolNotSupported(ERRL!(
+                return Err(TransactionErr::ProtocolNotSupported(ERRL!(
                     "Nft Protocol is not supported yet!"
-                ))))
+                )))
             },
         };
 
-        let payment_func = try_tx_fus!(SWAP_CONTRACT.function(&func_name));
-        let decoded = try_tx_fus!(decode_contract_call(payment_func, tx.unsigned().data()));
+        let payment_func = try_tx_s!(SWAP_CONTRACT.function(&func_name));
+        let decoded = try_tx_s!(decode_contract_call(payment_func, tx.unsigned().data()));
         let id = match decoded.first() {
             Some(Token::FixedBytes(bytes)) => bytes.clone(),
             invalid_token => {
-                return Box::new(futures01::future::err(TransactionErr::Plain(ERRL!(
+                return Err(TransactionErr::Plain(ERRL!(
                     "Expected Token::FixedBytes, got {:?}",
                     invalid_token
-                ))))
+                )))
             },
         };
-        let selfi = self.clone();
-        let from_block = args.from_block;
-        let wait_until = args.wait_until;
-        let check_every = args.check_every;
-        let fut = async move {
-            loop {
-                if now_sec() > wait_until {
-                    return TX_PLAIN_ERR!(
-                        "Waited too long until {} for transaction {:?} to be spent ",
-                        wait_until,
-                        tx,
-                    );
-                }
 
-                let current_block = match selfi.current_block().compat().await {
-                    Ok(b) => b,
-                    Err(e) => {
-                        error!("Error getting block number: {}", e);
-                        Timer::sleep(5.).await;
-                        continue;
-                    },
-                };
-
-                let events = match selfi
-                    .spend_events(swap_contract_address, from_block, current_block)
-                    .compat()
-                    .await
-                {
-                    Ok(ev) => ev,
-                    Err(e) => {
-                        error!("Error getting spend events: {}", e);
-                        Timer::sleep(5.).await;
-                        continue;
-                    },
-                };
-
-                let found = events.iter().find(|event| &event.data.0[..32] == id.as_slice());
-
-                if let Some(event) = found {
-                    if let Some(tx_hash) = event.transaction_hash {
-                        let transaction = match selfi.transaction(TransactionId::Hash(tx_hash)).await {
-                            Ok(Some(t)) => t,
-                            Ok(None) => {
-                                info!("Tx {} not found yet", tx_hash);
-                                Timer::sleep(check_every).await;
-                                continue;
-                            },
-                            Err(e) => {
-                                error!("Get tx {} error: {}", tx_hash, e);
-                                Timer::sleep(check_every).await;
-                                continue;
-                            },
-                        };
-
-                        return Ok(TransactionEnum::from(try_tx_s!(signed_tx_from_web3_tx(transaction))));
-                    }
-                }
-
-                Timer::sleep(5.).await;
+        loop {
+            if now_sec() > args.wait_until {
+                return TX_PLAIN_ERR!(
+                    "Waited too long until {} for transaction {:?} to be spent ",
+                    args.wait_until,
+                    tx,
+                );
             }
-        };
-        Box::new(fut.boxed().compat())
+
+            let current_block = match self.current_block().compat().await {
+                Ok(b) => b,
+                Err(e) => {
+                    error!("Error getting block number: {}", e);
+                    Timer::sleep(5.).await;
+                    continue;
+                },
+            };
+
+            let events = match self
+                .spend_events(swap_contract_address, args.from_block, current_block)
+                .compat()
+                .await
+            {
+                Ok(ev) => ev,
+                Err(e) => {
+                    error!("Error getting spend events: {}", e);
+                    Timer::sleep(5.).await;
+                    continue;
+                },
+            };
+
+            let found = events.iter().find(|event| &event.data.0[..32] == id.as_slice());
+
+            if let Some(event) = found {
+                if let Some(tx_hash) = event.transaction_hash {
+                    let transaction = match self.transaction(TransactionId::Hash(tx_hash)).await {
+                        Ok(Some(t)) => t,
+                        Ok(None) => {
+                            info!("Tx {} not found yet", tx_hash);
+                            Timer::sleep(args.check_every).await;
+                            continue;
+                        },
+                        Err(e) => {
+                            error!("Get tx {} error: {}", tx_hash, e);
+                            Timer::sleep(args.check_every).await;
+                            continue;
+                        },
+                    };
+
+                    return Ok(TransactionEnum::from(try_tx_s!(signed_tx_from_web3_tx(transaction))));
+                }
+            }
+
+            Timer::sleep(5.).await;
+        }
     }
 
     fn tx_enum_from_bytes(&self, bytes: &[u8]) -> Result<TransactionEnum, MmError<TxMarshalingErr>> {
@@ -4403,7 +4398,7 @@ impl EthCoin {
         self.get_token_balance_for_address(my_address, token_address).await
     }
 
-    async fn erc1155_balance(&self, token_addr: Address, token_id: &str) -> MmResult<BigDecimal, BalanceError> {
+    async fn erc1155_balance(&self, token_addr: Address, token_id: &str) -> MmResult<BigUint, BalanceError> {
         let wallet_amount_uint = match self.coin_type {
             EthCoinType::Eth | EthCoinType::Nft { .. } => {
                 let function = ERC1155_CONTRACT.function("balanceOf")?;
@@ -4429,7 +4424,8 @@ impl EthCoin {
                 ))
             },
         };
-        let wallet_amount = u256_to_big_decimal(wallet_amount_uint, self.decimals)?;
+        // The "balanceOf" function in ERC1155 standard returns the exact count of tokens held by address without any decimals or scaling factors
+        let wallet_amount = wallet_amount_uint.to_string().parse::<BigUint>()?;
         Ok(wallet_amount)
     }
 

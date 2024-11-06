@@ -66,7 +66,7 @@ use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
 use mm2_metrics::MetricsWeak;
 use mm2_number::{bigdecimal::{BigDecimal, ParseBigDecimalError, Zero},
-                 MmNumber};
+                 BigUint, MmNumber, ParseBigIntError};
 use mm2_rpc::data::legacy::{EnabledCoin, GetEnabledResponse, Mm2RpcResult};
 use parking_lot::Mutex as PaMutex;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
@@ -2151,7 +2151,13 @@ pub trait MarketCoinOps {
 
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send>;
 
-    fn wait_for_htlc_tx_spend(&self, args: WaitForHTLCTxSpendArgs<'_>) -> TransactionFut;
+    /// Waits for spending/unlocking of funds locked in a HTLC construction specific to the coin's
+    /// chain. Implementation should monitor locked funds (UTXO/contract/etc.) until funds are
+    /// spent/unlocked or timeout is reached.
+    ///
+    /// Returns spending tx/event from mempool/pending state to allow prompt extraction of preimage
+    /// secret.
+    async fn wait_for_htlc_tx_spend(&self, args: WaitForHTLCTxSpendArgs<'_>) -> TransactionResult;
 
     fn tx_enum_from_bytes(&self, bytes: &[u8]) -> Result<TransactionEnum, MmError<TxMarshalingErr>>;
 
@@ -2790,7 +2796,7 @@ pub enum BalanceError {
     UnexpectedDerivationMethod(UnexpectedDerivationMethod),
     #[display(fmt = "Wallet storage error: {}", _0)]
     WalletStorageError(String),
-    #[from_stringify("Bip32Error", "NumConversError")]
+    #[from_stringify("Bip32Error", "NumConversError", "ParseBigIntError")]
     #[display(fmt = "Internal: {}", _0)]
     Internal(String),
 }
@@ -3142,8 +3148,8 @@ pub enum WithdrawError {
     NotEnoughNftsAmount {
         token_address: String,
         token_id: String,
-        available: BigDecimal,
-        required: BigDecimal,
+        available: BigUint,
+        required: BigUint,
     },
     #[display(fmt = "DB error {}", _0)]
     DbError(String),
@@ -4411,9 +4417,10 @@ pub enum CoinProtocol {
     },
 }
 
-pub type RpcTransportEventHandlerShared = Arc<dyn RpcTransportEventHandler + Send + Sync + 'static>;
-
-/// Common methods to measure the outgoing requests and incoming responses statistics.
+/// Common methods to handle the connection events.
+///
+/// Note that the handler methods are sync and shouldn't take long time executing, otherwise it will hurt the performance.
+/// If a handler needs to do some heavy work, it should be spawned/done in a separate thread.
 pub trait RpcTransportEventHandler {
     fn debug_info(&self) -> String;
 
@@ -4421,12 +4428,15 @@ pub trait RpcTransportEventHandler {
 
     fn on_incoming_response(&self, data: &[u8]);
 
-    fn on_connected(&self, address: String) -> Result<(), String>;
+    fn on_connected(&self, address: &str) -> Result<(), String>;
 
-    fn on_disconnected(&self, address: String) -> Result<(), String>;
+    fn on_disconnected(&self, address: &str) -> Result<(), String>;
 }
 
-impl fmt::Debug for dyn RpcTransportEventHandler + Send + Sync {
+pub type SharableRpcTransportEventHandler = dyn RpcTransportEventHandler + Send + Sync;
+pub type RpcTransportEventHandlerShared = Arc<SharableRpcTransportEventHandler>;
+
+impl fmt::Debug for SharableRpcTransportEventHandler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.debug_info()) }
 }
 
@@ -4437,9 +4447,21 @@ impl RpcTransportEventHandler for RpcTransportEventHandlerShared {
 
     fn on_incoming_response(&self, data: &[u8]) { self.as_ref().on_incoming_response(data) }
 
-    fn on_connected(&self, address: String) -> Result<(), String> { self.as_ref().on_connected(address) }
+    fn on_connected(&self, address: &str) -> Result<(), String> { self.as_ref().on_connected(address) }
 
-    fn on_disconnected(&self, address: String) -> Result<(), String> { self.as_ref().on_disconnected(address) }
+    fn on_disconnected(&self, address: &str) -> Result<(), String> { self.as_ref().on_disconnected(address) }
+}
+
+impl RpcTransportEventHandler for Box<SharableRpcTransportEventHandler> {
+    fn debug_info(&self) -> String { self.as_ref().debug_info() }
+
+    fn on_outgoing_request(&self, data: &[u8]) { self.as_ref().on_outgoing_request(data) }
+
+    fn on_incoming_response(&self, data: &[u8]) { self.as_ref().on_incoming_response(data) }
+
+    fn on_connected(&self, address: &str) -> Result<(), String> { self.as_ref().on_connected(address) }
+
+    fn on_disconnected(&self, address: &str) -> Result<(), String> { self.as_ref().on_disconnected(address) }
 }
 
 impl<T: RpcTransportEventHandler> RpcTransportEventHandler for Vec<T> {
@@ -4460,16 +4482,28 @@ impl<T: RpcTransportEventHandler> RpcTransportEventHandler for Vec<T> {
         }
     }
 
-    fn on_connected(&self, address: String) -> Result<(), String> {
+    fn on_connected(&self, address: &str) -> Result<(), String> {
+        let mut errors = vec![];
         for handler in self {
-            try_s!(handler.on_connected(address.clone()))
+            if let Err(e) = handler.on_connected(address) {
+                errors.push((handler.debug_info(), e))
+            }
+        }
+        if !errors.is_empty() {
+            return Err(format!("Errors: {:?}", errors));
         }
         Ok(())
     }
 
-    fn on_disconnected(&self, address: String) -> Result<(), String> {
+    fn on_disconnected(&self, address: &str) -> Result<(), String> {
+        let mut errors = vec![];
         for handler in self {
-            try_s!(handler.on_disconnected(address.clone()))
+            if let Err(e) = handler.on_disconnected(address) {
+                errors.push((handler.debug_info(), e))
+            }
+        }
+        if !errors.is_empty() {
+            return Err(format!("Errors: {:?}", errors));
         }
         Ok(())
     }
@@ -4530,17 +4564,9 @@ impl RpcTransportEventHandler for CoinTransportMetrics {
             "coin" => self.ticker.to_owned(), "client" => self.client.to_owned());
     }
 
-    fn on_connected(&self, _address: String) -> Result<(), String> {
-        // Handle a new connected endpoint if necessary.
-        // Now just return the Ok
-        Ok(())
-    }
+    fn on_connected(&self, _address: &str) -> Result<(), String> { Ok(()) }
 
-    fn on_disconnected(&self, _address: String) -> Result<(), String> {
-        // Handle disconnected endpoint if necessary.
-        // Now just return the Ok
-        Ok(())
-    }
+    fn on_disconnected(&self, _address: &str) -> Result<(), String> { Ok(()) }
 }
 
 #[async_trait]

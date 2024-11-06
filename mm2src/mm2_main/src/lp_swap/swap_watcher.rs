@@ -356,7 +356,7 @@ impl State for WaitForTakerPaymentSpend {
                     watcher_reward: watcher_ctx.watcher_reward,
                 });
 
-                if f.compat().await.is_ok() {
+                if f.await.is_ok() {
                     info!("{}", MAKER_PAYMENT_SPEND_FOUND_LOG);
                     return Self::change_state(Stopped::from_reason(StopReason::Finished(
                         WatcherSuccess::MakerPaymentSpentByTaker,
