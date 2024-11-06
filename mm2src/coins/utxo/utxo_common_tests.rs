@@ -291,6 +291,7 @@ pub(super) async fn test_hd_utxo_tx_history_impl(rpc_client: ElectrumClient) {
         coin.clone(),
         storage,
         ctx.metrics.clone(),
+        ctx.event_stream_manager.clone(),
         current_balances.clone(),
     ));
 
@@ -316,6 +317,7 @@ pub(super) async fn test_hd_utxo_tx_history_impl(rpc_client: ElectrumClient) {
         coin.clone(),
         storage,
         ctx.metrics.clone(),
+        ctx.event_stream_manager.clone(),
         current_balances,
     ));
 

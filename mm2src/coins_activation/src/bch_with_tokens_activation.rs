@@ -346,7 +346,13 @@ impl PlatformCoinWithTokensActivationOps for BchCoin {
         storage: impl TxHistoryStorage + Send + 'static,
         initial_balance: Option<BigDecimal>,
     ) {
-        let fut = bch_and_slp_history_loop(self.clone(), storage, ctx.metrics.clone(), initial_balance);
+        let fut = bch_and_slp_history_loop(
+            self.clone(),
+            storage,
+            ctx.metrics.clone(),
+            ctx.event_stream_manager.clone(),
+            initial_balance,
+        );
 
         let settings = AbortSettings::info_on_abort(format!("bch_and_slp_history_loop stopped for {}", self.ticker()));
         self.spawner().spawn_with_settings(fut, settings);

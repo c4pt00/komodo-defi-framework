@@ -1600,8 +1600,6 @@ impl From<SlpFeeDetails> for TxFeeDetails {
 impl MmCoin for SlpToken {
     fn is_asset_chain(&self) -> bool { false }
 
-    fn get_ctx(&self) -> Option<MmArc> { MmArc::from_weak(&self.as_ref().ctx) }
-
     fn spawner(&self) -> WeakSpawner { self.conf.abortable_system.weak_spawner() }
 
     fn get_raw_transaction(&self, req: RawTransactionRequest) -> RawTransactionFut {

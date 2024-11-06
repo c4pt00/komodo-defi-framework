@@ -15,6 +15,7 @@ use common::log::{error, info};
 use derive_more::Display;
 use keys::Address;
 use mm2_err_handle::prelude::*;
+use mm2_event_stream::StreamingManager;
 use mm2_metrics::MetricsArc;
 use mm2_number::BigDecimal;
 use mm2_state_machine::prelude::*;
@@ -146,6 +147,8 @@ struct UtxoTxHistoryStateMachine<Coin: UtxoTxHistoryOps, Storage: TxHistoryStora
     coin: Coin,
     storage: Storage,
     metrics: MetricsArc,
+    /// An instance of the streaming manager used for sending TX updates in realtime.
+    streaming_manager: StreamingManager,
     /// Last requested balances of the activated coin's addresses.
     /// TODO add a `CoinBalanceState` structure and replace [`HashMap<String, BigDecimal>`] everywhere.
     balances: HashMap<String, BigDecimal>,
@@ -590,7 +593,6 @@ where
 
         let my_addresses = try_or_stop_unknown!(ctx.coin.my_addresses().await, "Error on getting my addresses");
 
-        let streaming_manager = ctx.coin.get_ctx().unwrap().event_stream_manager.clone();
         for (tx_hash, height) in self.all_tx_ids_with_height {
             let tx_hash_string = format!("{:02x}", tx_hash);
             match ctx.storage.history_has_tx_hash(&wallet_id, &tx_hash_string).await {
@@ -622,7 +624,7 @@ where
                 },
             };
 
-            streaming_manager
+            ctx.streaming_manager
                 .send_fn(&TxHistoryEventStreamer::derive_streamer_id(ctx.coin.ticker()), || {
                     tx_details.clone()
                 })
@@ -715,6 +717,7 @@ pub async fn bch_and_slp_history_loop(
     coin: BchCoin,
     storage: impl TxHistoryStorage,
     metrics: MetricsArc,
+    streaming_manager: StreamingManager,
     current_balance: Option<BigDecimal>,
 ) {
     let balances = match current_balance {
@@ -751,6 +754,7 @@ pub async fn bch_and_slp_history_loop(
         coin,
         storage,
         metrics,
+        streaming_manager,
         balances,
     };
     state_machine
@@ -763,6 +767,7 @@ pub async fn utxo_history_loop<Coin, Storage>(
     coin: Coin,
     storage: Storage,
     metrics: MetricsArc,
+    streaming_manager: StreamingManager,
     current_balances: HashMap<String, BigDecimal>,
 ) where
     Coin: UtxoTxHistoryOps,
@@ -772,6 +777,7 @@ pub async fn utxo_history_loop<Coin, Storage>(
         coin,
         storage,
         metrics,
+        streaming_manager,
         balances: current_balances,
     };
     state_machine

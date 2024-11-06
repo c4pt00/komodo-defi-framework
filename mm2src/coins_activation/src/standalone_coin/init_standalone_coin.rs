@@ -10,6 +10,7 @@ use coins::{lp_coinfind, lp_register_coin, CoinsContext, MmCoinEnum, RegisterCoi
 use common::{log, SuccessResponse};
 use mm2_core::mm_ctx::MmArc;
 use mm2_err_handle::prelude::*;
+use mm2_event_stream::StreamingManager;
 use mm2_metrics::MetricsArc;
 use mm2_number::BigDecimal;
 use rpc_task::rpc_common::{CancelRpcTaskRequest, InitRpcTaskResponse, RpcTaskStatusRequest, RpcTaskUserActionRequest};
@@ -73,6 +74,7 @@ pub trait InitStandaloneCoinActivationOps: Into<MmCoinEnum> + Send + Sync + 'sta
         &self,
         metrics: MetricsArc,
         storage: impl TxHistoryStorage,
+        streaming_manager: StreamingManager,
         current_balances: HashMap<String, BigDecimal>,
     );
 }
@@ -217,6 +219,7 @@ where
             coin.start_history_background_fetching(
                 self.ctx.metrics.clone(),
                 TxHistoryStorageBuilder::new(&self.ctx).build()?,
+                self.ctx.event_stream_manager.clone(),
                 current_balances,
             );
         }
