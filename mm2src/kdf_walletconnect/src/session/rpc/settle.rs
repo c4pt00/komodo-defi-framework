@@ -43,7 +43,7 @@ pub(crate) async fn reply_session_settle_request(
     {
         let session = ctx.session.get_session_mut(topic);
         if let Some(mut session) = session {
-            session.namespaces = settle.namespaces.0.clone();
+            session.namespaces = settle.namespaces.0;
             session.controller = settle.controller.clone();
             session.relay = settle.relay;
             session.expiry = settle.expiry;
@@ -66,6 +66,7 @@ pub(crate) async fn reply_session_settle_request(
     ctx.publish_response_ok(topic, param, message_id).await?;
 
     // Delete other sessions with same controller
+    // TODO: we might not want to do this!
     let all_sessions = ctx.session.get_sessions_full();
     for session in all_sessions {
         if session.controller == settle.controller && session.topic.as_ref() != topic.as_ref() {

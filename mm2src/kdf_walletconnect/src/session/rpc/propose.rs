@@ -14,7 +14,7 @@ use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
                               RequestParams, ResponseParamsSuccess}};
 
-/// Creates a new session proposal form topic and metadata.
+/// Creates a new session proposal from topic and metadata.
 pub(crate) async fn send_proposal_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
@@ -43,28 +43,29 @@ pub async fn reply_session_proposal_request(
     topic: &Topic,
     message_id: &MessageId,
 ) -> MmResult<(), WalletConnectError> {
-    let sender_public_key = const_hex::decode(&proposal.proposer.public_key)?
-        .as_slice()
-        .try_into()
-        .map_to_mm(|_| WalletConnectError::InternalError("Invalid sender_public_key".to_owned()))?;
+    let session = {
+        let sender_public_key = const_hex::decode(&proposal.proposer.public_key)?
+            .as_slice()
+            .try_into()
+            .map_to_mm(|_| WalletConnectError::InternalError("Invalid sender_public_key".to_owned()))?;
+        let session_key = SessionKey::from_osrng(&sender_public_key)?;
+        let session_topic: Topic = session_key.generate_topic().into();
+        let subscription_id = ctx
+            .client
+            .subscribe(session_topic.clone())
+            .await
+            .map_to_mm(|err| WalletConnectError::SubscriptionError(err.to_string()))?;
 
-    let session_key = SessionKey::from_osrng(&sender_public_key)?;
-    let session_topic: Topic = session_key.generate_topic().into();
-    let subscription_id = ctx
-        .client
-        .subscribe(session_topic.clone())
-        .await
-        .map_to_mm(|err| WalletConnectError::SubscriptionError(err.to_string()))?;
-
-    let session = Session::new(
-        ctx,
-        session_topic.clone(),
-        subscription_id,
-        session_key,
-        topic.clone(),
-        proposal.proposer.metadata,
-        SessionType::Controller,
-    );
+        Session::new(
+            ctx,
+            session_topic.clone(),
+            subscription_id,
+            session_key,
+            topic.clone(),
+            proposal.proposer.metadata,
+            SessionType::Controller,
+        )
+    };
     session
         .propose_namespaces
         .supported(&proposal.required_namespaces)
@@ -79,14 +80,9 @@ pub async fn reply_session_proposal_request(
 
         // Add session to session lists
         ctx.session.add_session(session.clone()).await;
-        // Add topic to subscription list
-        let mut subs = ctx.subscriptions.lock().await;
-        subs.push(session_topic);
     }
 
-    {
-        send_session_settle_request(ctx, &session).await?;
-    };
+    send_session_settle_request(ctx, &session).await?;
 
     // Respond to incoming session propose.
     let param = ResponseParamsSuccess::SessionPropose(SessionProposeResponse {
@@ -105,34 +101,38 @@ pub(crate) async fn process_session_propose_response(
     pairing_topic: &Topic,
     response: &SessionProposeResponse,
 ) -> MmResult<(), WalletConnectError> {
-    let other_public_key = const_hex::decode(&response.responder_public_key)?
-        .as_slice()
-        .try_into()
-        .unwrap();
+    let session_key = {
+        let other_public_key = const_hex::decode(&response.responder_public_key)?
+            .as_slice()
+            .try_into()
+            .unwrap();
+        let mut session_key = SessionKey::new(ctx.key_pair.public_key);
+        session_key.generate_symmetric_key(&ctx.key_pair.secret, &other_public_key)?;
+        session_key
+    };
 
-    let mut session_key = SessionKey::new(ctx.key_pair.public_key);
-    session_key.generate_symmetric_key(&ctx.key_pair.secret, &other_public_key)?;
+    let session = {
+        let session_topic: Topic = session_key.generate_topic().into();
+        let subscription_id = ctx
+            .client
+            .subscribe(session_topic.clone())
+            .await
+            .map_to_mm(|err| WalletConnectError::SubscriptionError(err.to_string()))?;
 
-    let session_topic: Topic = session_key.generate_topic().into();
-    let subscription_id = ctx
-        .client
-        .subscribe(session_topic.clone())
-        .await
-        .map_to_mm(|err| WalletConnectError::SubscriptionError(err.to_string()))?;
-
-    let mut session = Session::new(
-        ctx,
-        session_topic.clone(),
-        subscription_id,
-        session_key,
-        pairing_topic.clone(),
-        generate_metadata(),
-        SessionType::Proposer,
-    );
-    session.relay = response.relay.clone();
-    session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
-    session.controller.public_key = response.responder_public_key.clone();
-
+        let mut session = Session::new(
+            ctx,
+            session_topic.clone(),
+            subscription_id,
+            session_key,
+            pairing_topic.clone(),
+            generate_metadata(),
+            SessionType::Proposer,
+        );
+        session.relay = response.relay.clone();
+        session.expiry = Utc::now().timestamp() as u64 + THIRTY_DAYS;
+        session.controller.public_key = response.responder_public_key.clone();
+        session
+    };
     {
         // save session to storage
         ctx.storage
@@ -142,9 +142,6 @@ pub(crate) async fn process_session_propose_response(
 
         // Add session to session lists
         ctx.session.add_session(session.clone()).await;
-        // Add topic to subscription list
-        let mut subs = ctx.subscriptions.lock().await;
-        subs.push(session_topic.clone());
     };
 
     // Activate pairing_topic

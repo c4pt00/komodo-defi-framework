@@ -77,7 +77,6 @@ pub struct WalletConnectCtx {
 
     relay: Relay,
     metadata: Metadata,
-    subscriptions: Arc<Mutex<Vec<Topic>>>,
     inbound_message_rx: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_rx: Arc<Mutex<UnboundedReceiver<()>>>,
     message_tx: UnboundedSender<SessionMessageType>,
@@ -112,7 +111,6 @@ impl WalletConnectCtx {
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             session: SessionManager::new(),
-            subscriptions: Default::default(),
 
             inbound_message_rx: Arc::new(inbound_message_rx.into()),
             connection_live_rx: Arc::new(conn_live_receiver.into()),
@@ -165,11 +163,6 @@ impl WalletConnectCtx {
         info!("Subscribed to topic: {topic:?}");
 
         send_proposal_request(self, &topic, namespaces).await?;
-
-        {
-            let mut subs = self.subscriptions.lock().await;
-            subs.push(topic);
-        };
 
         Ok(url)
     }

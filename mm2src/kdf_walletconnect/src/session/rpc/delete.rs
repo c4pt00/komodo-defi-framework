@@ -48,10 +48,6 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResu
         ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
         // Attempt to disconnect the pairing
         ctx.pairing.delete(session.pairing_topic.as_ref()).await;
-        // Remove subscriptions
-        let mut subs = ctx.subscriptions.lock().await;
-        subs.retain(|s| s != &session.topic);
-        subs.retain(|s| s != &session.pairing_topic);
 
         // delete session from storage as well.
         ctx.storage
