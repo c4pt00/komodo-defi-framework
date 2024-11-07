@@ -268,3 +268,21 @@ pub enum SiaCoinSiaCanRefundHtlcError {
     #[error("SiaCoin::sia_can_refund_htlc: failed to fetch median_timestamp: {0}")]
     FetchTimestamp(#[from] SiaClientHelperError),
 }
+
+#[derive(Debug, Error)]
+pub enum SiaWaitForHTLCTxSpendArgsError {
+    #[error("SiaWaitForHTLCTxSpendArgs::TryFrom<WaitForHTLCTxSpendArgs>: Failed to parse transaction: {0}")]
+    ParseTx(#[from] SiaTransactionError),
+    #[error("SiaWaitForHTLCTxSpendArgs::TryFrom<WaitForHTLCTxSpendArgs>: Failed to parse secret hash: {0}")]
+    ParseSecretHash(#[from] ParseHashError),
+}
+
+#[derive(Debug, Error)]
+pub enum SiaWaitForHTLCTxSpendError {
+    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: Failed to parse transaction: {0}")]
+    ParseArgs(#[from] SiaWaitForHTLCTxSpendArgsError),
+    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: Failed to fetch memory pool: {0}")]
+    FetchMempool(#[from] SiaApiClientError),
+    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: timed out waiting for txid:{txid}")]
+    Timeout { txid: TransactionId },
+}

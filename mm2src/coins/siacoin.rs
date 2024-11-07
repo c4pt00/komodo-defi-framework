@@ -1,7 +1,6 @@
 use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoinOps, MmCoin, RawTransactionError,
             RawTransactionFut, RawTransactionRequest, SignatureError, SwapOps, SwapTxTypeWithSecretHash, TradeFee,
-            TransactionData, TransactionDetails, TransactionEnum, TransactionErr, TransactionFut, TransactionType,
-            VerificationError};
+            TransactionData, TransactionDetails, TransactionEnum, TransactionErr, TransactionType, VerificationError};
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin,
@@ -37,7 +36,7 @@ pub use sia_rust;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
                                       ApiClientHelpers, HelperError as SiaClientHelperError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
-                                         TxpoolBroadcastRequest};
+                                         TxpoolBroadcastRequest, TxpoolTransactionsRequest, TxpoolTransactionsResponse};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
                           Keypair as SiaKeypair, ParseHashError, Preimage, PreimageError, PrivateKeyError, PublicKey,
                           PublicKeyError, SiacoinElement, SiacoinOutput, SpendPolicy, TransactionId, V1Transaction,
@@ -790,7 +789,11 @@ impl MarketCoinOps for SiaCoin {
         Box::new(fut.boxed().compat())
     }
 
-    async fn wait_for_htlc_tx_spend(&self, _args: WaitForHTLCTxSpendArgs<'_>) -> TransactionResult { unimplemented!() }
+    async fn wait_for_htlc_tx_spend(&self, args: WaitForHTLCTxSpendArgs<'_>) -> TransactionResult {
+        self.sia_wait_for_htlc_tx_spend(args)
+            .await
+            .map_err(|e| TransactionErr::Plain(e.to_string()))
+    }
 
     fn tx_enum_from_bytes(&self, bytes: &[u8]) -> Result<TransactionEnum, MmError<TxMarshalingErr>> {
         let tx: V2Transaction =
@@ -1319,6 +1322,50 @@ impl SiaCoin {
         }
         Ok(CanRefundHtlc::HaveToWait(median_timestamp - locktime))
     }
+
+    async fn sia_wait_for_htlc_tx_spend(
+        &self,
+        args: WaitForHTLCTxSpendArgs<'_>,
+    ) -> Result<TransactionEnum, SiaWaitForHTLCTxSpendError> {
+        let sia_args = SiaWaitForHTLCTxSpendArgs::try_from(args).map_err(SiaWaitForHTLCTxSpendError::ParseArgs)?;
+
+        let txid = sia_args.tx.txid();
+        loop {
+            // search the memory pool by txid first
+            let found_in_mempool = self
+                .client
+                .dispatcher(TxpoolTransactionsRequest)
+                .await
+                .unwrap_or({
+                    // log any client error here because we must continue to search for the tx
+                    // in the blockchain regardless of the error
+                    debug!("SiaCoin::sia_wait_for_htlc_tx_spend: failed to fetch mempool transactions");
+                    TxpoolTransactionsResponse::default()
+                })
+                .v2transactions
+                .into_iter()
+                .find(|tx| tx.txid() == txid);
+
+            if let Some(tx) = found_in_mempool {
+                return Ok(TransactionEnum::SiaTransaction(SiaTransaction(tx)));
+            }
+
+            // Search confirmed blocks by txid
+            // TODO Alright - this could also log an error but the Err() here is expected if the tx
+            // is not confirmed. We could log an error if we get any status other then 404
+            if let Ok(found_in_block) = self.client.get_transaction(&txid).await {
+                return Ok(TransactionEnum::SiaTransaction(SiaTransaction(found_in_block)));
+            }
+
+            // Check timeout
+            if now_sec() >= sia_args.wait_until {
+                return Err(SiaWaitForHTLCTxSpendError::Timeout { txid: txid.clone() });
+            }
+
+            // Wait before trying again
+            Timer::sleep(sia_args.check_every).await;
+        }
+    }
 }
 
 /// Sia typed equivalent of coins::RefundPaymentArgs
@@ -1417,19 +1464,35 @@ impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
     }
 }
 
-/// Sia typed equivalent of coins::ValidatePaymentInput
-/// Does not include swap_contract_address, try_spv_proof_until, unique_swap_data, watcher_reward
-/// as they are not relevant to Sia
-// #[derive(Clone, Debug)]
-// struct SiaValidatePaymentInput {
-//     payment_tx: SiaTransaction,
-//     time_lock_duration: u64,
-//     time_lock: u64,
-//     other_pub: PublicKey,
-//     secret_hash: Hash256,
-//     amount: Currency,
-//     confirmations: u64,
-// }
+/// Sia typed equivalent of coins::WaitForHTLCTxSpendArgs
+struct SiaWaitForHTLCTxSpendArgs {
+    pub tx: SiaTransaction,
+    pub secret_hash: Hash256,
+    pub wait_until: u64,
+    pub from_block: u64,
+    pub check_every: f64,
+}
+
+impl TryFrom<WaitForHTLCTxSpendArgs<'_>> for SiaWaitForHTLCTxSpendArgs {
+    type Error = SiaWaitForHTLCTxSpendArgsError;
+
+    fn try_from(args: WaitForHTLCTxSpendArgs<'_>) -> Result<Self, Self::Error> {
+        // Convert tx_bytes to an owned type to prevent lifetime issues
+        let tx = SiaTransaction::try_from(args.tx_bytes.to_owned()).map_err(SiaWaitForHTLCTxSpendArgsError::ParseTx)?;
+
+        let secret_hash_slice: &[u8] = &args.secret_hash.to_owned();
+        let secret_hash =
+            Hash256::try_from(secret_hash_slice).map_err(SiaWaitForHTLCTxSpendArgsError::ParseSecretHash)?;
+
+        Ok(SiaWaitForHTLCTxSpendArgs {
+            tx,
+            secret_hash,
+            wait_until: args.wait_until,
+            from_block: args.from_block,
+            check_every: args.check_every,
+        })
+    }
+}
 
 /// Sia typed equivalent of coins::CheckIfMyPaymentSentArgs
 /// Does not include irrelevant fields swap_contract_address, swap_unique_data or payment_instructions
