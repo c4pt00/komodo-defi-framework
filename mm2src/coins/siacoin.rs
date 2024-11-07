@@ -1467,9 +1467,7 @@ impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
 /// Sia typed equivalent of coins::WaitForHTLCTxSpendArgs
 struct SiaWaitForHTLCTxSpendArgs {
     pub tx: SiaTransaction,
-    pub secret_hash: Hash256,
     pub wait_until: u64,
-    pub from_block: u64,
     pub check_every: f64,
 }
 
@@ -1480,15 +1478,14 @@ impl TryFrom<WaitForHTLCTxSpendArgs<'_>> for SiaWaitForHTLCTxSpendArgs {
         // Convert tx_bytes to an owned type to prevent lifetime issues
         let tx = SiaTransaction::try_from(args.tx_bytes.to_owned()).map_err(SiaWaitForHTLCTxSpendArgsError::ParseTx)?;
 
-        let secret_hash_slice: &[u8] = &args.secret_hash.to_owned();
-        let secret_hash =
+        // verify secret_hash is valid, but we don't need it otherwise
+        let secret_hash_slice: &[u8] = &args.secret_hash;
+        let _secret_hash =
             Hash256::try_from(secret_hash_slice).map_err(SiaWaitForHTLCTxSpendArgsError::ParseSecretHash)?;
 
         Ok(SiaWaitForHTLCTxSpendArgs {
             tx,
-            secret_hash,
             wait_until: args.wait_until,
-            from_block: args.from_block,
             check_every: args.check_every,
         })
     }
