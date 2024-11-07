@@ -686,11 +686,8 @@ fn test_taker_completes_swap_after_taker_payment_spent_while_offline() {
     // stop taker after taker payment sent
     let taker_payment_msg = "Taker payment tx hash ";
     block_on(mm_alice.wait_for_log(120., |log| log.contains(taker_payment_msg))).unwrap();
-    let alice_log = mm_alice.log_as_utf8().unwrap();
-    let tx_hash_start = alice_log.find(taker_payment_msg).unwrap() + taker_payment_msg.len();
-    let payment_tx_hash = alice_log[tx_hash_start..tx_hash_start + 64].to_string();
     // ensure p2p message is sent to the maker, this happens before this message:
-    block_on(mm_alice.wait_for_log(120., |log| log.contains(&format!("Waiting for tx {}", payment_tx_hash)))).unwrap();
+    block_on(mm_alice.wait_for_log(120., |log| log.contains("Waiting for maker to spend taker payment!"))).unwrap();
     alice_conf.conf["dbdir"] = mm_alice.folder.join("DB").to_str().unwrap().into();
     block_on(mm_alice.stop()).unwrap();
 
@@ -1209,7 +1206,7 @@ fn test_watcher_validate_taker_fee_utxo() {
     let taker_amount = MmNumber::from((10, 1));
     let fee_amount = dex_fee_amount_from_taker_coin(&taker_coin, maker_coin.ticker(), &taker_amount);
 
-    let taker_fee = block_on_f01(taker_coin.send_taker_fee(
+    let taker_fee = block_on(taker_coin.send_taker_fee(
         &DEX_FEE_ADDR_RAW_PUBKEY,
         fee_amount,
         Uuid::new_v4().as_bytes(),
@@ -1323,7 +1320,7 @@ fn test_watcher_validate_taker_fee_eth() {
 
     let taker_amount = MmNumber::from((1, 1));
     let fee_amount = dex_fee_amount_from_taker_coin(&taker_coin, "ETH", &taker_amount);
-    let taker_fee = block_on_f01(taker_coin.send_taker_fee(
+    let taker_fee = block_on(taker_coin.send_taker_fee(
         &DEX_FEE_ADDR_RAW_PUBKEY,
         fee_amount,
         Uuid::new_v4().as_bytes(),
@@ -1420,7 +1417,7 @@ fn test_watcher_validate_taker_fee_erc20() {
 
     let taker_amount = MmNumber::from((1, 1));
     let fee_amount = dex_fee_amount_from_taker_coin(&taker_coin, "ETH", &taker_amount);
-    let taker_fee = block_on_f01(taker_coin.send_taker_fee(
+    let taker_fee = block_on(taker_coin.send_taker_fee(
         &DEX_FEE_ADDR_RAW_PUBKEY,
         fee_amount,
         Uuid::new_v4().as_bytes(),
@@ -1521,7 +1518,7 @@ fn test_watcher_validate_taker_payment_utxo() {
 
     let secret_hash = dhash160(&generate_secret().unwrap());
 
-    let taker_payment = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -1617,7 +1614,7 @@ fn test_watcher_validate_taker_payment_utxo() {
         ),
     }
 
-    let taker_payment_wrong_secret = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment_wrong_secret = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -1731,7 +1728,7 @@ fn test_watcher_validate_taker_payment_eth() {
         .unwrap(),
     );
 
-    let taker_payment = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -1796,7 +1793,7 @@ fn test_watcher_validate_taker_payment_eth() {
         ),
     }
 
-    let taker_payment_wrong_contract = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment_wrong_contract = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -1865,7 +1862,7 @@ fn test_watcher_validate_taker_payment_eth() {
         ),
     }
 
-    let taker_payment_wrong_secret = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment_wrong_secret = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -1970,7 +1967,7 @@ fn test_watcher_validate_taker_payment_erc20() {
         .unwrap(),
     );
 
-    let taker_payment = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2032,7 +2029,7 @@ fn test_watcher_validate_taker_payment_erc20() {
         ),
     }
 
-    let taker_payment_wrong_contract = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment_wrong_contract = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2097,7 +2094,7 @@ fn test_watcher_validate_taker_payment_erc20() {
         ),
     }
 
-    let taker_payment_wrong_secret = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment_wrong_secret = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2183,7 +2180,7 @@ fn test_taker_validates_taker_payment_refund_utxo() {
 
     let secret_hash = dhash160(&generate_secret().unwrap());
 
-    let taker_payment = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2273,7 +2270,7 @@ fn test_taker_validates_taker_payment_refund_eth() {
     ))
     .unwrap();
 
-    let taker_payment = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2575,7 +2572,7 @@ fn test_taker_validates_taker_payment_refund_erc20() {
         .unwrap(),
     );
 
-    let taker_payment = block_on_f01(taker_coin.send_taker_payment(SendPaymentArgs {
+    let taker_payment = block_on(taker_coin.send_taker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2677,7 +2674,7 @@ fn test_taker_validates_maker_payment_spend_utxo() {
     let secret = generate_secret().unwrap();
     let secret_hash = dhash160(&secret);
 
-    let maker_payment = block_on_f01(maker_coin.send_maker_payment(SendPaymentArgs {
+    let maker_payment = block_on(maker_coin.send_maker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -2764,7 +2761,7 @@ fn test_taker_validates_maker_payment_spend_eth() {
     .unwrap()
     .unwrap();
 
-    let maker_payment = block_on_f01(maker_coin.send_maker_payment(SendPaymentArgs {
+    let maker_payment = block_on(maker_coin.send_maker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -3067,7 +3064,7 @@ fn test_taker_validates_maker_payment_spend_erc20() {
     ))
     .unwrap();
 
-    let maker_payment = block_on_f01(maker_coin.send_maker_payment(SendPaymentArgs {
+    let maker_payment = block_on(maker_coin.send_maker_payment(SendPaymentArgs {
         other_version: SWAP_PROTOCOL_VERSION,
         time_lock_duration,
         time_lock,
@@ -3179,7 +3176,7 @@ fn test_send_taker_payment_refund_preimage_utxo() {
         watcher_reward: None,
         wait_for_confirmation_until: 0,
     };
-    let tx = block_on_f01(coin.send_taker_payment(taker_payment_args)).unwrap();
+    let tx = block_on(coin.send_taker_payment(taker_payment_args)).unwrap();
 
     let confirm_payment_input = ConfirmPaymentInput {
         payment_tx: tx.tx_hex(),

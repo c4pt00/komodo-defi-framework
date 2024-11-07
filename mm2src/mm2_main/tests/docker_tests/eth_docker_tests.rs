@@ -172,7 +172,7 @@ fn geth_erc712_owner(token_id: U256) -> Address {
     block_on(erc721_contract.query("ownerOf", Token::Uint(token_id), None, Options::default(), None)).unwrap()
 }
 
-fn mint_erc1155(to_addr: Address, token_id: U256, amount: U256) {
+fn mint_erc1155(to_addr: Address, token_id: U256, amount: u32) {
     let _guard = GETH_NONCE_LOCK.lock().unwrap();
     let erc1155_contract =
         Contract::from_json(GETH_WEB3.eth(), geth_erc1155_contract(), ERC1155_TEST_ABI.as_bytes()).unwrap();
@@ -182,7 +182,7 @@ fn mint_erc1155(to_addr: Address, token_id: U256, amount: U256) {
         (
             Token::Address(to_addr),
             Token::Uint(token_id),
-            Token::Uint(amount),
+            Token::Uint(U256::from(amount)),
             Token::Bytes("".into()),
         ),
         geth_account(),
@@ -201,10 +201,15 @@ fn mint_erc1155(to_addr: Address, token_id: U256, amount: U256) {
     ))
     .unwrap();
 
+    // check that "balanceOf" from ERC11155 returns the exact amount of token without any decimals or scaling factors
+    let balance_dec = balance.to_string().parse::<BigDecimal>().unwrap();
     assert_eq!(
-        balance, amount,
+        balance_dec,
+        BigDecimal::from(amount),
         "The balance of tokenId {:?} for address {:?} does not match the expected amount {:?}.",
-        token_id, to_addr, amount
+        token_id,
+        to_addr,
+        amount
     );
 }
 
@@ -382,7 +387,7 @@ fn global_nft_with_random_privkey(
     if let Some(nft_type) = nft_type {
         match nft_type {
             TestNftType::Erc1155 { token_id, amount } => {
-                mint_erc1155(my_address, U256::from(token_id), U256::from(amount));
+                mint_erc1155(my_address, U256::from(token_id), amount);
                 block_on(fill_erc1155_info(
                     &global_nft,
                     geth_erc1155_contract(),
@@ -541,7 +546,7 @@ fn send_and_refund_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         watcher_reward: None,
         wait_for_confirmation_until: 0,
     };
-    let eth_maker_payment = block_on_f01(eth_coin.send_maker_payment(send_payment_args)).unwrap();
+    let eth_maker_payment = block_on(eth_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -628,7 +633,7 @@ fn send_and_spend_eth_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         watcher_reward: None,
         wait_for_confirmation_until: 0,
     };
-    let eth_maker_payment = block_on_f01(maker_eth_coin.send_maker_payment(send_payment_args)).unwrap();
+    let eth_maker_payment = block_on(maker_eth_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -713,7 +718,7 @@ fn send_and_refund_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) 
         watcher_reward: None,
         wait_for_confirmation_until: now_sec() + 60,
     };
-    let eth_maker_payment = block_on_f01(erc20_coin.send_maker_payment(send_payment_args)).unwrap();
+    let eth_maker_payment = block_on(erc20_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
@@ -803,7 +808,7 @@ fn send_and_spend_erc20_maker_payment_impl(swap_txfee_policy: SwapTxFeePolicy) {
         watcher_reward: None,
         wait_for_confirmation_until: now_sec() + 60,
     };
-    let eth_maker_payment = block_on_f01(maker_erc20_coin.send_maker_payment(send_payment_args)).unwrap();
+    let eth_maker_payment = block_on(maker_erc20_coin.send_maker_payment(send_payment_args)).unwrap();
 
     let confirm_input = ConfirmPaymentInput {
         payment_tx: eth_maker_payment.tx_hex(),
