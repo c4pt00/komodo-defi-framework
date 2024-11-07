@@ -5863,10 +5863,8 @@ fn orderbook_address(
         CoinProtocol::LIGHTNING { .. } => Ok(OrderbookAddress::Shielded),
         #[cfg(feature = "enable-sia")]
         CoinProtocol::SIA => {
-            let pubkey = coins::siacoin::PublicKey::from_str_no_prefix(pubkey)
-                .map_to_mm(|e| OrderbookAddrErr::DeserializationError(e.to_string()))?;
-            let address = coins::siacoin::Address::from_public_key(&pubkey);
-            Ok(OrderbookAddress::Transparent(address.to_string()))
+            // deprecated "orderbook address" feature. The "pubkey" provided here is secp256k1, so we can't create a sia address from it.
+            Ok(OrderbookAddress::Shielded)
         },
     }
 }
