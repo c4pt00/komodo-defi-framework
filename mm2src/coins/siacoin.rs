@@ -777,7 +777,6 @@ impl MarketCoinOps for SiaCoin {
         let client = self.client.clone();
         let tx_request = GetEventRequest { txid: txid.clone() };
 
-        let fut = async move {
             loop {
                 if now_sec() > input.wait_until {
                     return ERR!(
