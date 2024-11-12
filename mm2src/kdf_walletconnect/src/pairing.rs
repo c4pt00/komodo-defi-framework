@@ -28,8 +28,7 @@ pub(crate) async fn reply_pairing_extend_response(
     extend: PairingExtendRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        let mut pairings = ctx.pairing.pairings.lock().await;
-        if let Some(pairing) = pairings.get_mut(topic.as_ref()) {
+        if let Some(mut pairing) = ctx.pairing.pairings.get_mut(topic) {
             pairing.pairing.expiry = extend.expiry;
             pairing.pairing.active = true;
         };
@@ -48,7 +47,7 @@ pub(crate) async fn reply_pairing_delete_response(
     _delete: PairingDeleteRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        ctx.pairing.disconnect(topic.as_ref(), &ctx.client).await?;
+        ctx.pairing.disconnect_rpc(topic, &ctx.client).await?;
     }
 
     let param = ResponseParamsSuccess::PairingDelete(true);

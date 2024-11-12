@@ -145,7 +145,7 @@ pub(crate) async fn process_session_propose_response(
     };
 
     // Activate pairing_topic
-    ctx.pairing.activate(pairing_topic.as_ref()).await?;
+    ctx.pairing.activate(pairing_topic)?;
 
     Ok(())
 }

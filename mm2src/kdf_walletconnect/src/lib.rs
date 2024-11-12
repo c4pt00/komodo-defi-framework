@@ -12,7 +12,7 @@ use crate::session::rpc::propose::send_proposal_request;
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
 use chrono::Utc;
 use common::custom_futures::timeout::FutureTimerExt;
-use common::executor::{spawn_abortable, AbortOnDropHandle};
+use common::executor::{spawn_abortable, AbortOnDropHandle, Timer};
 use common::log::{debug, info};
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::{initialize_connection, Handler};
@@ -99,9 +99,10 @@ impl WalletConnectCtx {
 
         let storage = SessionStorageDb::init(ctx)?;
 
-        let handler = Handler::new("Komodefi", inbound_message_tx, conn_live_sender);
-        let (client, _abort_handle) =
-            Client::new_with_callback(handler, |r, h| spawn_abortable(client_event_loop(r, h)));
+        let (client, _abort_handle) = Client::new_with_callback(
+            Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
+            |r, h| spawn_abortable(client_event_loop(r, h)),
+        );
 
         Ok(Self {
             client,
@@ -144,15 +145,28 @@ impl WalletConnectCtx {
         Ok(())
     }
 
+    pub(crate) async fn reconnect_and_subscribe(&self) -> MmResult<(), WalletConnectError> {
+        self.connect_client().await?;
+        // Resubscribes to previously active session topics after reconnection.
+        let sessions = self.session.get_sessions();
+        for session in sessions {
+            self.client
+                .batch_subscribe(vec![session.topic.into(), session.pairing_topic.into()])
+                .await?;
+        }
+
+        Ok(())
+    }
+
     /// Create a WalletConnect pairing connection url.
     pub async fn new_connection(&self, namespaces: Option<serde_json::Value>) -> MmResult<String, WalletConnectError> {
         let namespaces = match namespaces {
             Some(value) => Some(serde_json::from_value(value)?),
             None => None,
         };
-        let (topic, url) = self.pairing.create(self.metadata.clone(), None).await?;
+        let (topic, url) = self.pairing.create(self.metadata.clone(), None)?;
 
-        info!("Subscribing to topic: {topic:?}");
+        info!("[topic] Subscribing to topic");
 
         self.client
             .subscribe(topic.clone())
@@ -160,7 +174,7 @@ impl WalletConnectCtx {
             .await
             .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))??;
 
-        info!("Subscribed to topic: {topic:?}");
+        info!("[topic] Subscribed to topic");
 
         send_proposal_request(self, &topic, namespaces).await?;
 
@@ -168,12 +182,12 @@ impl WalletConnectCtx {
     }
 
     /// Retrieves the symmetric key associated with a given `topic`.
-    async fn sym_key(&self, topic: &Topic) -> MmResult<SymKey, WalletConnectError> {
+    fn sym_key(&self, topic: &Topic) -> MmResult<SymKey, WalletConnectError> {
         if let Some(key) = self.session.sym_key(topic) {
             return Ok(key);
         }
 
-        if let Ok(key) = self.pairing.sym_key(topic.as_ref()).await {
+        if let Ok(key) = self.pairing.sym_key(topic) {
             return Ok(key);
         }
 
@@ -185,18 +199,18 @@ impl WalletConnectCtx {
     /// Handles an inbound published message by decrypting, decoding, and processing it.
     async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectError> {
         let message = {
-            let key = self.sym_key(&msg.topic).await?;
+            let key = self.sym_key(&msg.topic)?;
             decode_and_decrypt_type0(msg.message.as_bytes(), &key)?
         };
 
-        info!("Inbound message payload={message}");
+        info!("[{}] Inbound message payload={message}", msg.topic);
 
         match serde_json::from_str(&message)? {
             Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
             Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await,
         }
 
-        info!("Inbound message was handled successfully");
+        info!("[{}] Inbound message was handled successfully", msg.topic);
 
         Ok(())
     }
@@ -218,16 +232,16 @@ impl WalletConnectCtx {
             if now > session.expiry {
                 debug!("Session {} expired, trying to delete from storage", session.topic);
                 if let Err(err) = self.storage.delete_session(&session.topic).await {
-                    error!("Unable to delete session: {:?} from storage", err);
+                    error!("[{}] Unable to delete session from storage: {err:?}", session.topic);
                 }
                 continue;
             };
 
             let topic = session.topic.clone();
             let pairing_topic = session.pairing_topic.clone();
-            debug!("Session found! activating :{}", topic);
+            debug!("[{topic}] Session found! activating");
             self.session.add_session(session).await;
-            self.client.batch_subscribe(vec![topic.clone(), pairing_topic]).await?;
+            self.client.batch_subscribe(vec![topic, pairing_topic]).await?;
         }
 
         Ok(())
@@ -290,51 +304,63 @@ impl WalletConnectCtx {
         irn_metadata: IrnMetadata,
         payload: Payload,
     ) -> MmResult<(), WalletConnectError> {
-        debug!("Publishing message={:?} to topic: {topic}", payload);
+        const MAX_RETRIES: usize = 5;
+        const PUBLISH_TIMEOUT_SECS: f64 = 5.0;
+
+        info!("[{topic}] Publishing message={payload:?}");
         let message = {
-            let sym_key = self.sym_key(topic).await?;
+            let sym_key = self.sym_key(topic)?;
             let payload = serde_json::to_string(&payload)?;
             encrypt_and_encode(EnvelopeType::Type0, payload, &sym_key)?
         };
 
-        // Attempt to publish, retrying once on NotConnected error
-        match self
-            .client
-            .publish(
-                topic.clone(),
-                message.clone(),
-                None,
-                irn_metadata.tag,
-                Duration::from_secs(irn_metadata.ttl),
-                irn_metadata.prompt,
-            )
-            .await
-        {
-            Ok(_) => {
-                info!("Message published successfully to topic: {topic}");
-                Ok(())
-            },
-            Err(err) => {
-                if err.to_string().contains("WebsocketClient") {
-                    debug!("Reconnecting client after NotConnected error...");
-                    self.connect_client().await?;
-                    self.client
-                        .publish(
-                            topic.clone(),
-                            message,
-                            None,
-                            irn_metadata.tag,
-                            Duration::from_secs(irn_metadata.ttl),
-                            irn_metadata.prompt,
-                        )
-                        .await?;
-                    info!("Message published successfully after reconnect");
-                    Ok(())
-                } else {
-                    MmError::err(err.into())
-                }
-            },
+        for attempt in 0..MAX_RETRIES {
+            match self
+                .client
+                .publish(
+                    topic.clone(),
+                    message.clone(),
+                    None,
+                    irn_metadata.tag,
+                    Duration::from_secs(irn_metadata.ttl),
+                    irn_metadata.prompt,
+                )
+                .timeout_secs(PUBLISH_TIMEOUT_SECS)
+                .await
+            {
+                Ok(Ok(_)) => {
+                    info!("[{topic}] Message published successfully");
+                    return Ok(());
+                },
+                Ok(Err(err)) => return MmError::err(err.into()),
+                Err(timeout_err) => {
+                    // This persistent reconnection and retry strategy keeps the WebSocket connection active,
+                    // allowing the client to automatically resume operations after network interruptions or disconnections.
+                    // Since TCP handles connection timeouts (which can be lengthy), we're using a shorter timeout here
+                    // to detect issues quickly and reconnect as needed.
+                    if attempt >= MAX_RETRIES - 1 {
+                        return MmError::err(WalletConnectError::InternalError(timeout_err.to_string()));
+                    }
+                    debug!("Attempt {} failed due to timeout. Reconnecting...", attempt + 1);
+                    loop {
+                        match self.reconnect_and_subscribe().await {
+                            Ok(_) => {
+                                info!("Reconnected and subscribed successfully.");
+                                break;
+                            },
+                            Err(reconnect_err) => {
+                                error!("Reconnection attempt failed: {reconnect_err:?}. Retrying...");
+                                Timer::sleep(1.5).await;
+                            },
+                        }
+                    }
+                },
+            }
         }
+
+        info!("[{topic}] Message published successfully");
+
+        Ok(())
     }
 
     /// Checks if the current session is connected to a Ledger device.
@@ -499,7 +525,7 @@ impl WalletConnectCtx {
 
         if let Some(session) = self.session.delete_session(topic).await {
             self.pairing
-                .disconnect(session.pairing_topic.as_ref(), &self.client)
+                .disconnect_rpc(&session.pairing_topic, &self.client)
                 .await?;
         };
 
@@ -526,7 +552,7 @@ pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnect
         let mut recv = wallet_connect.inbound_message_rx.lock().await;
         while let Some(msg) = recv.next().await {
             if let Err(e) = wallet_connect.handle_published_message(msg).await {
-                info!("Error processing message: {:?}", e);
+                debug!("Error processing message: {:?}", e);
             }
         }
     });
