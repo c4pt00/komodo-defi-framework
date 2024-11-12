@@ -44,6 +44,8 @@ use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType, SymKey};
 
 const WAIT_DURATION: Duration = Duration::from_secs(60);
+const PUBLISH_TIMEOUT_SECS: f64 = 5.0;
+const MAX_RETRIES: usize = 5;
 
 #[async_trait::async_trait]
 pub trait WalletConnectOps {
@@ -168,17 +170,26 @@ impl WalletConnectCtx {
 
         info!("[topic] Subscribing to topic");
 
-        self.client
-            .subscribe(topic.clone())
-            .timeout(WAIT_DURATION)
-            .await
-            .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))??;
+        for attempt in 0..MAX_RETRIES {
+            match self
+                .client
+                .subscribe(topic.clone())
+                .timeout_secs(PUBLISH_TIMEOUT_SECS)
+                .await
+            {
+                Ok(Ok(_)) => {
+                    info!("[topic] Subscribed to topic");
+                    send_proposal_request(self, &topic, namespaces).await?;
+                    return Ok(url);
+                },
+                Ok(Err(err)) => return MmError::err(err.into()),
+                Err(_) => self.wait_until_client_is_online(attempt).await,
+            }
+        }
 
-        info!("[topic] Subscribed to topic");
-
-        send_proposal_request(self, &topic, namespaces).await?;
-
-        Ok(url)
+        MmError::err(WalletConnectError::InternalError(
+            "client connection timeout".to_string(),
+        ))
     }
 
     /// Retrieves the symmetric key associated with a given `topic`.
@@ -225,7 +236,7 @@ impl WalletConnectCtx {
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
-        // bring last active session to the back.
+        // bring most recent active session to the back.
         sessions.sort_by(|a, b| a.expiry.cmp(&b.expiry));
         for session in sessions {
             // delete expired session
@@ -304,9 +315,6 @@ impl WalletConnectCtx {
         irn_metadata: IrnMetadata,
         payload: Payload,
     ) -> MmResult<(), WalletConnectError> {
-        const MAX_RETRIES: usize = 5;
-        const PUBLISH_TIMEOUT_SECS: f64 = 5.0;
-
         info!("[{topic}] Publishing message={payload:?}");
         let message = {
             let sym_key = self.sym_key(topic)?;
@@ -333,34 +341,33 @@ impl WalletConnectCtx {
                     return Ok(());
                 },
                 Ok(Err(err)) => return MmError::err(err.into()),
-                Err(timeout_err) => {
-                    // This persistent reconnection and retry strategy keeps the WebSocket connection active,
-                    // allowing the client to automatically resume operations after network interruptions or disconnections.
-                    // Since TCP handles connection timeouts (which can be lengthy), we're using a shorter timeout here
-                    // to detect issues quickly and reconnect as needed.
-                    if attempt >= MAX_RETRIES - 1 {
-                        return MmError::err(WalletConnectError::InternalError(timeout_err.to_string()));
-                    }
-                    debug!("Attempt {} failed due to timeout. Reconnecting...", attempt + 1);
-                    loop {
-                        match self.reconnect_and_subscribe().await {
-                            Ok(_) => {
-                                info!("Reconnected and subscribed successfully.");
-                                break;
-                            },
-                            Err(reconnect_err) => {
-                                error!("Reconnection attempt failed: {reconnect_err:?}. Retrying...");
-                                Timer::sleep(1.5).await;
-                            },
-                        }
-                    }
-                },
+                Err(_) => self.wait_until_client_is_online(attempt).await,
             }
         }
 
-        info!("[{topic}] Message published successfully");
+        MmError::err(WalletConnectError::InternalError(
+            "client connection timeout".to_string(),
+        ))
+    }
 
-        Ok(())
+    /// This persistent reconnection and retry strategy keeps the WebSocket connection active,
+    /// allowing the client to automatically resume operations after network interruptions or disconnections.
+    /// Since TCP handles connection timeouts (which can be lengthy), we're using a shorter timeout here
+    /// to detect issues quickly and reconnect as needed.
+    async fn wait_until_client_is_online(&self, attempt: usize) {
+        debug!("Attempt {} failed due to timeout. Reconnecting...", attempt + 1);
+        loop {
+            match self.reconnect_and_subscribe().await {
+                Ok(_) => {
+                    info!("Reconnected and subscribed successfully.");
+                    break;
+                },
+                Err(reconnect_err) => {
+                    error!("Reconnection attempt failed: {reconnect_err:?}. Retrying...");
+                    Timer::sleep(1.5).await;
+                },
+            }
+        }
     }
 
     /// Checks if the current session is connected to a Ledger device.
