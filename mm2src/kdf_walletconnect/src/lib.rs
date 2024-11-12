@@ -183,7 +183,7 @@ impl WalletConnectCtx {
                     return Ok(url);
                 },
                 Ok(Err(err)) => return MmError::err(err.into()),
-                Err(_) => self.wait_until_client_is_online(attempt).await,
+                Err(_) => self.wait_until_client_is_online_loop(attempt).await,
             }
         }
 
@@ -269,9 +269,7 @@ impl WalletConnectCtx {
         let request = Request::new(message_id, param.into());
 
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
-            .await?;
-
-        Ok(())
+            .await
     }
 
     /// Private function to publish a success request response.
@@ -286,9 +284,7 @@ impl WalletConnectCtx {
         let response = Response::Success(SuccessfulResponse::new(*message_id, value));
 
         self.publish_payload(topic, irn_metadata, Payload::Response(response))
-            .await?;
-
-        Ok(())
+            .await
     }
 
     /// Private function to publish an error request response.
@@ -303,9 +299,7 @@ impl WalletConnectCtx {
         let response = Response::Error(ErrorResponse::new(*message_id, error));
 
         self.publish_payload(topic, irn_metadata, Payload::Response(response))
-            .await?;
-
-        Ok(())
+            .await
     }
 
     /// Private function to publish a payload.
@@ -327,7 +321,7 @@ impl WalletConnectCtx {
                 .client
                 .publish(
                     topic.clone(),
-                    message.clone(),
+                    &*message,
                     None,
                     irn_metadata.tag,
                     Duration::from_secs(irn_metadata.ttl),
@@ -341,7 +335,7 @@ impl WalletConnectCtx {
                     return Ok(());
                 },
                 Ok(Err(err)) => return MmError::err(err.into()),
-                Err(_) => self.wait_until_client_is_online(attempt).await,
+                Err(_) => self.wait_until_client_is_online_loop(attempt).await,
             }
         }
 
@@ -354,7 +348,7 @@ impl WalletConnectCtx {
     /// allowing the client to automatically resume operations after network interruptions or disconnections.
     /// Since TCP handles connection timeouts (which can be lengthy), we're using a shorter timeout here
     /// to detect issues quickly and reconnect as needed.
-    async fn wait_until_client_is_online(&self, attempt: usize) {
+    async fn wait_until_client_is_online_loop(&self, attempt: usize) {
         debug!("Attempt {} failed due to timeout. Reconnecting...", attempt + 1);
         loop {
             match self.reconnect_and_subscribe().await {
@@ -389,12 +383,13 @@ impl WalletConnectCtx {
         session: &Session,
         chain_id: &WcChainId,
     ) -> MmResult<(), WalletConnectError> {
-        if let Some(ns) = session.namespaces.get(chain_id.chain.as_ref()) {
-            if let Some(chains) = &ns.chains {
-                if chains.contains(&chain_id.to_string()) {
-                    return Ok(());
-                };
-            }
+        if let Some(Namespace {
+            chains: Some(chains), ..
+        }) = session.namespaces.get(chain_id.chain.as_ref())
+        {
+            if chains.contains(&chain_id.to_string()) {
+                return Ok(());
+            };
         }
 
         // https://specs.walletconnect.com/2.0/specs/clients/sign/namespaces
@@ -440,7 +435,6 @@ impl WalletConnectCtx {
         //
         // let wait_duration = Duration::from_secs(60);
         // if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout(wait_duration).await {
-        //     println!("{resp:?}");
         //     let result = resp.mm_err(WalletConnectError::InternalError)?;
         //     if let ResponseParamsSuccess::SessionEvent(data) = result.data {
         //         if !data {

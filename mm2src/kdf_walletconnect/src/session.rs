@@ -272,6 +272,7 @@ impl SessionManager {
             )))?;
 
         *active_topic = Some(session.topic);
+
         Ok(())
     }
 
