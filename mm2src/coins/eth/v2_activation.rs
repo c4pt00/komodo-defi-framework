@@ -427,7 +427,9 @@ impl EthCoin {
         };
         let platform_fee_estimator_state = FeeEstimatorState::init_fee_estimator(&ctx, &conf, &coin_type).await?;
         let max_eth_tx_type = get_max_eth_tx_type_conf(&ctx, &conf, &coin_type).await?;
-        let gas_limit = extract_gas_limit_from_conf(&conf)
+        let gas_limit: EthGasLimit = extract_gas_limit_from_conf(&conf)
+            .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?;
+        let gas_limit_v2: EthGasLimitV2 = extract_gas_limit_from_conf(&conf)
             .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?;
 
         let token = EthCoinImpl {
@@ -458,6 +460,7 @@ impl EthCoin {
             nfts_infos: Default::default(),
             platform_fee_estimator_state,
             gas_limit,
+            gas_limit_v2,
             abortable_system,
         };
 
@@ -516,7 +519,9 @@ impl EthCoin {
         };
         let platform_fee_estimator_state = FeeEstimatorState::init_fee_estimator(&ctx, &conf, &coin_type).await?;
         let max_eth_tx_type = get_max_eth_tx_type_conf(&ctx, &conf, &coin_type).await?;
-        let gas_limit = extract_gas_limit_from_conf(&conf)
+        let gas_limit: EthGasLimit = extract_gas_limit_from_conf(&conf)
+            .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?;
+        let gas_limit_v2: EthGasLimitV2 = extract_gas_limit_from_conf(&conf)
             .map_to_mm(|e| EthTokenActivationError::InternalError(format!("invalid gas_limit config {}", e)))?;
 
         let global_nft = EthCoinImpl {
@@ -544,6 +549,7 @@ impl EthCoin {
             nfts_infos: Arc::new(AsyncMutex::new(nft_infos)),
             platform_fee_estimator_state,
             gas_limit,
+            gas_limit_v2,
             abortable_system,
         };
         Ok(EthCoin(Arc::new(global_nft)))
@@ -650,7 +656,9 @@ pub async fn eth_coin_from_conf_and_request_v2(
     let coin_type = EthCoinType::Eth;
     let platform_fee_estimator_state = FeeEstimatorState::init_fee_estimator(ctx, conf, &coin_type).await?;
     let max_eth_tx_type = get_max_eth_tx_type_conf(ctx, conf, &coin_type).await?;
-    let gas_limit = extract_gas_limit_from_conf(conf)
+    let gas_limit: EthGasLimit = extract_gas_limit_from_conf(conf)
+        .map_to_mm(|e| EthActivationV2Error::InternalError(format!("invalid gas_limit config {}", e)))?;
+    let gas_limit_v2: EthGasLimitV2 = extract_gas_limit_from_conf(conf)
         .map_to_mm(|e| EthActivationV2Error::InternalError(format!("invalid gas_limit config {}", e)))?;
 
     let coin = EthCoinImpl {
@@ -678,6 +686,7 @@ pub async fn eth_coin_from_conf_and_request_v2(
         nfts_infos: Default::default(),
         platform_fee_estimator_state,
         gas_limit,
+        gas_limit_v2,
         abortable_system,
     };
 
