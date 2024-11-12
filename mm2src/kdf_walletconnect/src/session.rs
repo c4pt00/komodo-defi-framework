@@ -218,6 +218,7 @@ impl From<Session> for SessionRpcInfo {
 impl SessionManager {
     pub fn new() -> Self { Self(Default::default()) }
 
+    /// Get active session topic or return error if no session has been activated.
     pub async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
         self.0
             .active_topic
@@ -229,17 +230,16 @@ impl SessionManager {
             )))
     }
 
-    /// Inserts the provided `Session` into the session store, associated with the specified topic.
+    /// Inserts `Session` into the session store, associated with the specified topic.
     /// If a session with the same topic already exists, it will be overwritten.
     pub(crate) async fn add_session(&self, session: Session) {
         // set active session topic.
         *self.0.active_topic.lock().await = Some(session.topic.clone());
-
         // insert session
         self.0.sessions.insert(session.topic.clone(), session);
     }
 
-    /// Removes the session corresponding to the specified topic from the session store.
+    /// Removes session corresponding to the specified topic from the session store.
     /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
         info!("Deleting session with topic: {topic}");
@@ -265,12 +265,14 @@ impl SessionManager {
 
     pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
         let mut active_topic = self.0.active_topic.lock().await;
-        if let Some(session) = self.get_session(topic) {
-            *active_topic = Some(session.topic);
-            return Ok(());
-        }
+        let session = self
+            .get_session(topic)
+            .ok_or(MmError::new(WalletConnectError::SessionError(
+                "Session not found".to_owned(),
+            )))?;
 
-        MmError::err(WalletConnectError::SessionError("Session not found".to_owned()))
+        *active_topic = Some(session.topic);
+        Ok(())
     }
 
     /// Retrieves a cloned session associated with a given topic.
@@ -283,12 +285,12 @@ impl SessionManager {
 
     /// returns an `option<session>` containing the active session if it exists; otherwise, returns `none`.
     pub async fn get_session_active(&self) -> Option<Session> {
-        let active_topic = self.0.active_topic.lock().await;
-        if let Some(ref topic) = *active_topic {
-            self.get_session(topic)
-        } else {
-            None
-        }
+        self.0
+            .active_topic
+            .lock()
+            .await
+            .as_ref()
+            .and_then(|topic| self.get_session(topic))
     }
 
     /// Retrieves all sessions(active and inactive)
@@ -341,12 +343,6 @@ impl SessionManager {
     /// Retrieves the symmetric key associated with a given topic.
     pub(crate) fn sym_key(&self, topic: &Topic) -> Option<SymKey> {
         self.get_session(topic).map(|sess| sess.session_key.symmetric_key())
-    }
-
-    async fn disconnect_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
-        self.delete_session(topic).await;
-
-        Ok(())
     }
 }
 
