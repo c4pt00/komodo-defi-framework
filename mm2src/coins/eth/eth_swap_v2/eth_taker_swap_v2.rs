@@ -515,6 +515,15 @@ impl EthCoin {
                 },
             };
 
+            if events.is_empty() {
+                info!(
+                    "No events found yet for the block range {} to {}",
+                    from_block, current_block
+                );
+                Timer::sleep(5.).await;
+                continue;
+            }
+
             // this is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret)
             let found_event = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice());
 
@@ -779,11 +788,7 @@ impl EthCoin {
     ///         bytes32 makerSecret,
     ///         address tokenAddress
     ///     )
-    pub(crate) async fn extract_secret_v2_impl(
-        &self,
-        _secret_hash: &[u8],
-        spend_tx: &SignedEthTx,
-    ) -> Result<Vec<u8>, String> {
+    pub(crate) async fn extract_secret_v2_impl(&self, spend_tx: &SignedEthTx) -> Result<Vec<u8>, String> {
         let function = try_s!(TAKER_SWAP_V2.function("spendTakerPayment"));
         // should be 0xcc90c199
         let expected_signature = function.short_signature();

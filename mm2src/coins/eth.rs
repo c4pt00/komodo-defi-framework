@@ -7386,8 +7386,8 @@ impl TakerCoinSwapOpsV2 for EthCoin {
             .await
     }
 
-    async fn extract_secret_v2(&self, secret_hash: &[u8], spend_tx: &Self::Tx) -> Result<Vec<u8>, String> {
-        self.extract_secret_v2_impl(secret_hash, spend_tx).await
+    async fn extract_secret_v2(&self, _secret_hash: &[u8], spend_tx: &Self::Tx) -> Result<Vec<u8>, String> {
+        self.extract_secret_v2_impl(spend_tx).await
     }
 }
 
