@@ -363,11 +363,12 @@ pub enum TendermintWalletConnectionType {
     Wc,
     WcLedger,
     KeplrLedger,
-    Internal,
+    Keplr,
+    Native,
 }
 
 impl Default for TendermintWalletConnectionType {
-    fn default() -> Self { Self::Internal }
+    fn default() -> Self { Self::Native }
 }
 
 pub struct TendermintCoinImpl {
@@ -1380,9 +1381,8 @@ impl TendermintCoin {
 
         let tx_json = if self.is_wallet_connect() {
             // if wallet_type is WalletConnect, update tx_json to use WalletConnect type.
-            let my_address = self.my_address().unwrap();
             json!({
-                "signerAddress": my_address,
+                "signerAddress":  self.my_address()?,
                 "signDoc": {
                     "accountNumber": sign_doc.account_number.to_string(),
                     "chainId": sign_doc.chain_id,
@@ -1407,7 +1407,7 @@ impl TendermintCoin {
         })
     }
 
-    /// This should only be used for Keplr from Ledger!
+    /// This should only be used for Keplr/WalletConnect from Ledger!
     /// When using Keplr from Ledger, they don't accept `SING_MODE_DIRECT` transactions.
     ///
     /// Visit https://docs.cosmos.network/main/build/architecture/adr-050-sign-mode-textual#context for more context.
