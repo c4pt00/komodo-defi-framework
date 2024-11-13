@@ -41,7 +41,7 @@ impl ConnectionHandler for Handler {
     fn disconnected(&mut self, frame: Option<CloseFrame<'static>>) {
         debug!("[{}] connection closed: frame={frame:?}", self.name);
 
-        if let Err(e) = self.conn_live_sender.start_send(None) {
+        if let Err(e) = self.conn_live_sender.start_send(frame.map(|f| f.to_string())) {
             error!("[{}] failed to send to the receiver: {e}", self.name);
         }
     }
@@ -75,12 +75,12 @@ impl ConnectionHandler for Handler {
 /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
 /// Uses increasing delay between retry attempts starting from INITIAL_RETRY_SECS.
 /// After successful connection, attempts to restore previous session state from storage.
-pub(crate) async fn initialize_connection(this: Arc<WalletConnectCtx>) {
+pub(crate) async fn initialize_connection(wc: Arc<WalletConnectCtx>) {
     info!("Initializing WalletConnect connection");
     let mut retry_count = 0;
     let mut retry_secs = INITIAL_RETRY_SECS;
 
-    while let Err(err) = this.connect_client().await {
+    while let Err(err) = wc.connect_client().await {
         retry_count += 1;
         info!(
             "Error during initial connection attempt {}: {:?}. Retrying in {retry_secs} seconds...",
@@ -91,17 +91,17 @@ pub(crate) async fn initialize_connection(this: Arc<WalletConnectCtx>) {
     }
 
     // Initialize storage
-    if let Err(err) = this.storage.init().await {
+    if let Err(err) = wc.session.storage().init().await {
         error!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
     };
 
     // load session from storage
-    if let Err(err) = this.load_session_from_storage().await {
+    if let Err(err) = wc.load_session_from_storage().await {
         error!("Unable to load session from storage: {err:?}");
     };
 
     // Spawn session disconnection watcher.
-    handle_disconnections(&this).await;
+    handle_disconnections(&wc).await;
 }
 
 /// Handles unexpected disconnections from WalletConnect relay server.

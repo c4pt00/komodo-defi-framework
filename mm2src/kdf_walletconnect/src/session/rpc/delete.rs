@@ -50,7 +50,8 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResu
         ctx.pairing.delete(&session.pairing_topic);
 
         // delete session from storage as well.
-        ctx.storage
+        ctx.session
+            .storage()
             .delete_session(topic)
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;

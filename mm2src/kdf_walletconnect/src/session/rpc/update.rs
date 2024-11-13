@@ -23,7 +23,8 @@ pub(crate) async fn reply_session_update_request(
             //TODO: session.namespaces.supported(update.namespaces.0)
             session.namespaces = update.namespaces.0;
             //  Update storage session.
-            ctx.storage
+            ctx.session
+                .storage()
                 .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;

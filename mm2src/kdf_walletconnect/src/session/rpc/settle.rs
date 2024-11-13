@@ -4,8 +4,8 @@ use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use common::log::{debug, info};
 use mm2_err_handle::prelude::{MapMmError, MmResult};
-use relay_rpc::{domain::{MessageId, Topic},
-                rpc::params::{session_settle::SessionSettleRequest, ResponseParamsSuccess}};
+use relay_rpc::domain::Topic;
+use relay_rpc::rpc::params::session_settle::SessionSettleRequest;
 
 pub(crate) async fn send_session_settle_request(
     _ctx: &WalletConnectCtx,
@@ -37,7 +37,6 @@ pub(crate) async fn send_session_settle_request(
 pub(crate) async fn reply_session_settle_request(
     ctx: &WalletConnectCtx,
     topic: &Topic,
-    message_id: &MessageId,
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
@@ -54,16 +53,14 @@ pub(crate) async fn reply_session_settle_request(
             }
 
             // Update storage session.
-            ctx.storage
+            ctx.session
+                .storage()
                 .update_session(&session)
                 .await
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
         };
     }
     info!("Session successfully settled for topic: {:?}", topic);
-
-    let param = ResponseParamsSuccess::SessionSettle(true);
-    ctx.publish_response_ok(topic, param, message_id).await?;
 
     // Delete other sessions with same controller
     // TODO: we might not want to do this!
@@ -72,7 +69,8 @@ pub(crate) async fn reply_session_settle_request(
         if session.controller == settle.controller && session.topic.as_ref() != topic.as_ref() {
             ctx.client.unsubscribe(session.topic.clone()).await?;
             ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
-            ctx.storage
+            ctx.session
+                .storage()
                 .delete_session(&session.topic.clone())
                 .await
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;

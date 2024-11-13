@@ -73,7 +73,8 @@ pub async fn reply_session_proposal_request(
 
     {
         // save session to storage
-        ctx.storage
+        ctx.session
+            .storage()
             .save_session(&session)
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
@@ -135,7 +136,8 @@ pub(crate) async fn process_session_propose_response(
     };
     {
         // save session to storage
-        ctx.storage
+        ctx.session
+            .storage()
             .save_session(&session)
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;

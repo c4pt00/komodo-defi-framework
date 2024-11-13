@@ -75,7 +75,6 @@ pub struct WalletConnectCtx {
     pub session: SessionManager,
 
     pub(crate) key_pair: SymKeyPair,
-    pub(crate) storage: SessionStorageDb,
 
     relay: Relay,
     metadata: Metadata,
@@ -110,10 +109,9 @@ impl WalletConnectCtx {
             client,
             pairing,
             relay,
-            storage,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
-            session: SessionManager::new(),
+            session: SessionManager::new(storage),
 
             inbound_message_rx: Arc::new(inbound_message_rx.into()),
             connection_live_rx: Arc::new(conn_live_receiver.into()),
@@ -153,7 +151,7 @@ impl WalletConnectCtx {
         let sessions = self.session.get_sessions();
         for session in sessions {
             self.client
-                .batch_subscribe(vec![session.topic.into(), session.pairing_topic.into()])
+                .batch_subscribe(vec![session.topic, session.pairing_topic])
                 .await?;
         }
 
@@ -231,7 +229,8 @@ impl WalletConnectCtx {
         info!("Loading WalletConnect session from storage");
         let now = chrono::Utc::now().timestamp() as u64;
         let mut sessions = self
-            .storage
+            .session
+            .storage()
             .get_all_sessions()
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
@@ -242,7 +241,7 @@ impl WalletConnectCtx {
             // delete expired session
             if now > session.expiry {
                 debug!("Session {} expired, trying to delete from storage", session.topic);
-                if let Err(err) = self.storage.delete_session(&session.topic).await {
+                if let Err(err) = self.session.storage().delete_session(&session.topic).await {
                     error!("[{}] Unable to delete session from storage: {err:?}", session.topic);
                 }
                 continue;
@@ -509,10 +508,6 @@ impl WalletConnectCtx {
             let result = resp.mm_err(WalletConnectError::InternalError)?;
             if let ResponseParamsSuccess::Arbitrary(data) = result.data {
                 let data = serde_json::from_value::<T>(data)?;
-                let response = ResponseParamsSuccess::SessionEvent(true);
-                self.publish_response_ok(&result.topic, response, &result.message_id)
-                    .await?;
-
                 return callback(data);
             }
         }
@@ -530,7 +525,8 @@ impl WalletConnectCtx {
                 .await?;
         };
 
-        self.storage
+        self.session
+            .storage()
             .delete_session(topic)
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;

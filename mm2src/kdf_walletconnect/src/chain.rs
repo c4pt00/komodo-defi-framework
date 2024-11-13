@@ -16,6 +16,43 @@ pub(crate) const ETH_SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:137"];
 pub(crate) const ETH_SUPPORTED_EVENTS: &[&str] = &["accountsChanged", "chainChanged"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WcChain {
+    Eip155,
+    Cosmos,
+}
+
+impl FromStr for WcChain {
+    type Err = MmError<WalletConnectError>;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "eip155" => Ok(WcChain::Eip155),
+            "cosmos" => Ok(WcChain::Cosmos),
+            _ => MmError::err(WalletConnectError::InvalidChainId(format!(
+                "chain_id not supported: {s}"
+            ))),
+        }
+    }
+}
+
+impl AsRef<str> for WcChain {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Eip155 => "eip155",
+            Self::Cosmos => "cosmos",
+        }
+    }
+}
+
+impl WcChain {
+    pub(crate) fn derive_chain_id(&self, id: String) -> WcChainId {
+        WcChainId {
+            chain: self.clone(),
+            id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WcChainId {
     pub chain: WcChain,
     pub id: String,
@@ -52,43 +89,6 @@ impl WcChainId {
             chain: WcChain::from_str(sp[0])?,
             id: sp[1].to_owned(),
         })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WcChain {
-    Eip155,
-    Cosmos,
-}
-
-impl FromStr for WcChain {
-    type Err = MmError<WalletConnectError>;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "eip155" => Ok(WcChain::Eip155),
-            "cosmos" => Ok(WcChain::Cosmos),
-            _ => MmError::err(WalletConnectError::InvalidChainId(format!(
-                "chain_id not supported: {s}"
-            ))),
-        }
-    }
-}
-
-impl AsRef<str> for WcChain {
-    fn as_ref(&self) -> &str {
-        match self {
-            Self::Eip155 => "eip155",
-            Self::Cosmos => "cosmos",
-        }
-    }
-}
-
-impl WcChain {
-    pub(crate) fn derive_chain_id(&self, id: String) -> WcChainId {
-        WcChainId {
-            chain: self.clone(),
-            id,
-        }
     }
 }
 

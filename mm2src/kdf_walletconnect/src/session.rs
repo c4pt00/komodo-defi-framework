@@ -2,6 +2,7 @@ pub(crate) mod key;
 pub mod rpc;
 
 use crate::chain::WcChainId;
+use crate::storage::SessionStorageDb;
 use crate::{error::WalletConnectError, WalletConnectCtx};
 
 use chrono::Utc;
@@ -52,13 +53,14 @@ impl ToString for SessionType {
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct SessionRpcInfo {
-    pub topic: String,
+    pub topic: Topic,
     pub metadata: Metadata,
     pub peer_pubkey: String,
-    pub pairing_topic: String,
+    pub pairing_topic: Topic,
     pub namespaces: BTreeMap<String, Namespace>,
     pub subscription_id: SubscriptionId,
     pub properties: Option<SessionProperties>,
+    pub expiry: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -186,37 +188,45 @@ impl Session {
 }
 
 /// Internal implementation of session management.
-#[derive(Default, Debug)]
 struct SessionManagerImpl {
     /// The currently active session topic.
     active_topic: Mutex<Option<Topic>>,
     /// A thread-safe map of sessions indexed by topic.
     sessions: DashMap<Topic, Session>,
+    pub(crate) storage: SessionStorageDb,
 }
 
 pub struct SessionManager(Arc<SessionManagerImpl>);
 
-impl Default for SessionManager {
-    fn default() -> Self { Self::new() }
-}
-
 impl From<Session> for SessionRpcInfo {
     fn from(value: Session) -> Self {
         Self {
-            topic: value.topic.to_string(),
+            topic: value.topic,
             metadata: value.controller.metadata,
             peer_pubkey: value.controller.public_key,
-            pairing_topic: value.pairing_topic.to_string(),
+            pairing_topic: value.pairing_topic,
             namespaces: value.namespaces,
             subscription_id: value.subscription_id,
             properties: value.session_properties,
+            expiry: value.expiry,
         }
     }
 }
 
 #[allow(unused)]
 impl SessionManager {
-    pub fn new() -> Self { Self(Default::default()) }
+    pub(crate) fn new(storage: SessionStorageDb) -> Self {
+        Self(
+            SessionManagerImpl {
+                active_topic: Default::default(),
+                sessions: Default::default(),
+                storage,
+            }
+            .into(),
+        )
+    }
+
+    pub(crate) fn storage(&self) -> &SessionStorageDb { &self.0.storage }
 
     /// Get active session topic or return error if no session has been activated.
     pub async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
@@ -242,7 +252,7 @@ impl SessionManager {
     /// Removes session corresponding to the specified topic from the session store.
     /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
-        info!("Deleting session with topic: {topic}");
+        info!("[{topic}] Deleting session with topic");
         let mut active_topic = self.0.active_topic.lock().await;
 
         // Remove the session and get the removed session (if any)
@@ -254,9 +264,7 @@ impl SessionManager {
             *active_topic = self.0.sessions.iter().next().map(|session| session.topic.clone());
 
             if let Some(new_active_topic) = active_topic.as_ref() {
-                info!("New session with topic: {} activated!", new_active_topic);
-            } else {
-                info!("No active sessions remaining");
+                info!("[{new_active_topic}] New session with topic activated!");
             }
         }
 
@@ -296,49 +304,17 @@ impl SessionManager {
 
     /// Retrieves all sessions(active and inactive)
     pub fn get_sessions(&self) -> impl Iterator<Item = SessionRpcInfo> {
-        self.0
-            .sessions
-            .clone()
-            .into_iter()
-            .map(|(topic, session)| SessionRpcInfo {
-                topic: topic.to_string(),
-                metadata: session.controller.metadata,
-                peer_pubkey: session.controller.public_key,
-                pairing_topic: session.pairing_topic.to_string(),
-                namespaces: session.namespaces,
-                subscription_id: session.subscription_id,
-                properties: session.session_properties,
-            })
+        self.0.sessions.clone().into_iter().map(|(_, session)| session.into())
     }
 
     pub(crate) fn get_sessions_full(&self) -> impl Iterator<Item = RefMulti<Topic, Session>> { self.0.sessions.iter() }
     /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
     /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
-        info!("Extending session with topic: {topic}");
+        info!("[{topic}] Extending session with topic");
         if let Some(mut session) = self.0.sessions.get_mut(topic) {
             session.extend(till);
         }
-    }
-
-    /// This method checks all sessions for expiration based on the current time.
-    /// Expired sessions are removed from the session store and returned.
-    /// If the active session is expired, it is also removed, and the active session is set to `None`.
-    pub(crate) async fn delete_expired_sessions(&self) -> Vec<Session> {
-        let now = Utc::now().timestamp() as u64;
-        let mut expired_sessions = Vec::new();
-
-        // Collect session arcs for processing
-        for session in self.0.sessions.iter() {
-            if session.expiry <= now {
-                // Remove the session from the map
-                if let Some(session) = self.delete_session(&session.topic).await {
-                    expired_sessions.push(session);
-                }
-            }
-        }
-
-        expired_sessions
     }
 
     /// Retrieves the symmetric key associated with a given topic.

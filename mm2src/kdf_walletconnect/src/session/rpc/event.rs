@@ -5,7 +5,7 @@ use crate::{chain::{WcChain, WcChainId},
 use common::log::{error, info};
 use mm2_err_handle::prelude::*;
 use relay_rpc::{domain::{MessageId, Topic},
-                rpc::{params::{session_event::SessionEventRequest, ResponseParamsError, ResponseParamsSuccess},
+                rpc::{params::{session_event::SessionEventRequest, ResponseParamsError},
                       ErrorData}};
 
 pub async fn handle_session_event(
@@ -60,9 +60,6 @@ pub async fn handle_session_event(
                         .set_active_chain_id(chain_id.clone())
                         .await;
                 }
-
-                let params = ResponseParamsSuccess::SessionEvent(true);
-                ctx.publish_response_ok(topic, params, message_id).await?;
             };
         },
         "accountsChanged" => {

@@ -34,7 +34,7 @@ pub(crate) async fn process_inbound_request(
         Params::SessionExtend(param) => reply_session_extend_request(ctx, topic, &message_id, param).await?,
         Params::SessionDelete(param) => reply_session_delete_request(ctx, topic, &message_id, param).await?,
         Params::SessionPing(()) => reply_session_ping_request(ctx, topic, &message_id).await?,
-        Params::SessionSettle(param) => reply_session_settle_request(ctx, topic, &message_id, param).await?,
+        Params::SessionSettle(param) => reply_session_settle_request(ctx, topic, param).await?,
         Params::SessionUpdate(param) => reply_session_update_request(ctx, topic, &message_id, param).await?,
         Params::SessionEvent(param) => handle_session_event(ctx, topic, &message_id, param).await?,
         Params::SessionRequest(_param) => {
@@ -60,7 +60,6 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: R
         Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
             Ok(data) => {
                 // TODO: move to session::proposal mod and spawn in a different thread to avoid
-                // blocking
                 if let ResponseParamsSuccess::SessionPropose(propose) = &data {
                     process_session_propose_response(ctx, topic, propose).await.error_log();
                 }
