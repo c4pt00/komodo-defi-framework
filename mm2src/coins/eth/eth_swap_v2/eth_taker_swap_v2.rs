@@ -4,7 +4,7 @@ use crate::eth::{decode_contract_call, get_function_input_data, signed_tx_from_w
                  EthCoinType, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs,
                  SendTakerFundingArgs, SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr,
                  ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};
-use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, MarketCoinOps,
+use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
             SearchForFundingSpendErr};
 use common::executor::Timer;
 use common::log::{error, info};
@@ -483,7 +483,7 @@ impl EthCoin {
                 )))
             },
         };
-        let _tx_hash = H256::default();
+        let mut tx_hash: Option<H256> = None;
         // loop to find maker's spendTakerPayment transaction
         loop {
             let now = now_sec();
@@ -491,74 +491,71 @@ impl EthCoin {
                 return MmError::err(FindPaymentSpendError::Timeout { wait_until, now });
             }
 
-            let current_block = match self.current_block().compat().await {
-                Ok(b) => b,
-                Err(e) => {
-                    error!("Error getting block number: {}", e);
+            // Skip retrieving events if tx_hash is already found
+            if tx_hash.is_none() {
+                // get all logged TakerPaymentSpent events from `from_block` till current block
+                let events = match self
+                    .events_from_block(taker_swap_v2_contract, "TakerPaymentSpent", from_block)
+                    .await
+                {
+                    Ok(events) => events,
+                    Err(e) => {
+                        error!(
+                            "Error getting TakerPaymentSpent events from {} block: {}",
+                            from_block, e
+                        );
+                        Timer::sleep(5.).await;
+                        continue;
+                    },
+                };
+
+                if events.is_empty() {
+                    info!("No events found yet from block {}", from_block);
                     Timer::sleep(5.).await;
-                    continue;
-                },
-            };
-
-            // get all logged TakerPaymentSpent events from `from_block` till current block
-            let events = match self
-                .events_from_block(taker_swap_v2_contract, "TakerPaymentSpent", from_block, current_block)
-                .await
-            {
-                Ok(events) => events,
-                Err(e) => {
-                    error!(
-                        "Error getting TakerPaymentSpent events from {} block: {}",
-                        from_block, e
-                    );
-                    Timer::sleep(5.).await;
-                    continue;
-                },
-            };
-
-            if events.is_empty() {
-                info!(
-                    "No events found yet for the block range {} to {}",
-                    from_block, current_block
-                );
-                Timer::sleep(5.).await;
-                continue;
-            }
-
-            // this is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret)
-            let found_event = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice());
-
-            if let Some(event) = found_event {
-                if let Some(tx_hash) = event.transaction_hash {
-                    match self.transaction(TransactionId::Hash(tx_hash)).await {
-                        Ok(Some(t)) => {
-                            let transaction = signed_tx_from_web3_tx(t).map_err(FindPaymentSpendError::Internal)?;
-                            return Ok(transaction);
-                        },
-                        Ok(None) => info!("spendTakerPayment transaction {} not found yet", tx_hash),
-                        Err(e) => error!("Get tx {} error: {}", tx_hash, e),
-                    };
-                    Timer::sleep(check_every).await;
                     continue;
                 }
+
+                // this is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret)
+                let found_event = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice());
+
+                if let Some(event) = found_event {
+                    if let Some(hash) = event.transaction_hash {
+                        // Store tx_hash to skip fetching events in the next iteration if `"eth_getTransactionByHash"` is unsuccessful
+                        tx_hash = Some(hash);
+                    }
+                }
+            }
+
+            // Proceed to check transaction if we have a tx_hash
+            if let Some(tx_hash) = tx_hash {
+                match self.transaction(TransactionId::Hash(tx_hash)).await {
+                    Ok(Some(t)) => {
+                        let transaction = signed_tx_from_web3_tx(t).map_err(FindPaymentSpendError::Internal)?;
+                        return Ok(transaction);
+                    },
+                    Ok(None) => info!("spendTakerPayment transaction {} not found yet", tx_hash),
+                    Err(e) => error!("Get tx {} error: {}", tx_hash, e),
+                };
+                Timer::sleep(check_every).await;
+                continue;
             }
 
             Timer::sleep(5.).await;
         }
     }
 
+    /// Returns events from `from_block` to current `latest` block.
+    /// According to ["eth_getLogs" doc](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getlogs) `toBlock` is optional, default is "latest".
     async fn events_from_block(
         &self,
         swap_contract_address: Address,
         event_name: &str,
         from_block: u64,
-        to_block: u64,
     ) -> MmResult<Vec<Log>, FindPaymentSpendError> {
         let contract_event = TAKER_SWAP_V2.event(event_name)?;
         let filter = FilterBuilder::default()
             .topics(Some(vec![contract_event.signature()]), None, None, None)
             .from_block(BlockNumber::Number(from_block.into()))
-            .to_block(BlockNumber::Number(to_block.into()))
             .address(vec![swap_contract_address])
             .build();
         let events_logs = self
