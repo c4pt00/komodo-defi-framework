@@ -483,7 +483,7 @@ impl EthCoin {
                 )))
             },
         };
-        let mut tx_hash = H256::default();
+        let _tx_hash = H256::default();
         // loop to find maker's spendTakerPayment transaction
         loop {
             let now = now_sec();
