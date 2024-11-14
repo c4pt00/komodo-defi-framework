@@ -16,7 +16,7 @@ use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use std::convert::TryInto;
-use web3::types::{BlockNumber, FilterBuilder, Log, TransactionId};
+use web3::types::{BlockNumber, FilterBuilder, Log, TransactionId, H256};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
@@ -483,6 +483,7 @@ impl EthCoin {
                 )))
             },
         };
+        let mut tx_hash = H256::default();
         // loop to find maker's spendTakerPayment transaction
         loop {
             let now = now_sec();
@@ -534,7 +535,7 @@ impl EthCoin {
                             let transaction = signed_tx_from_web3_tx(t).map_err(FindPaymentSpendError::Internal)?;
                             return Ok(transaction);
                         },
-                        Ok(None) => info!("Tx {} not found yet", tx_hash),
+                        Ok(None) => info!("spendTakerPayment transaction {} not found yet", tx_hash),
                         Err(e) => error!("Get tx {} error: {}", tx_hash, e),
                     };
                     Timer::sleep(check_every).await;
