@@ -520,7 +520,7 @@ impl EthCoin {
 
                 if let Some(event) = found_event {
                     if let Some(hash) = event.transaction_hash {
-                        // Store tx_hash to skip fetching events in the next iteration if `"eth_getTransactionByHash"` is unsuccessful
+                        // Store tx_hash to skip fetching events in the next iteration if "eth_getTransactionByHash" is unsuccessful
                         tx_hash = Some(hash);
                     }
                 }
