@@ -1171,9 +1171,9 @@ pub struct TakerRequest {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub swap_version: Option<u32>,
+    #[serde(default = "legacy_swap_version")]
+    #[serde(skip_serializing_if = "is_legacy_swap_version")]
+    pub swap_version: u32,
 }
 
 impl TakerRequest {
@@ -1250,6 +1250,10 @@ impl TakerRequest {
 
     fn get_rel_amount(&self) -> &MmNumber { &self.rel_amount }
 }
+
+fn legacy_swap_version() -> u32 { 1 }
+
+fn is_legacy_swap_version(swap_version: &u32) -> bool { *swap_version == 1 }
 
 pub struct TakerOrderBuilder<'a> {
     base_coin: &'a MmCoinEnum,
@@ -1509,7 +1513,7 @@ impl<'a> TakerOrderBuilder<'a> {
                 conf_settings: self.conf_settings,
                 base_protocol_info: Some(base_protocol_info),
                 rel_protocol_info: Some(rel_protocol_info),
-                swap_version: Some(self.swap_version),
+                swap_version: self.swap_version,
             },
             matches: Default::default(),
             min_volume,
@@ -1550,7 +1554,7 @@ impl<'a> TakerOrderBuilder<'a> {
                 conf_settings: self.conf_settings,
                 base_protocol_info: Some(base_protocol_info),
                 rel_protocol_info: Some(rel_protocol_info),
-                swap_version: Some(self.swap_version),
+                swap_version: self.swap_version,
             },
             matches: HashMap::new(),
             min_volume: Default::default(),
@@ -1712,9 +1716,9 @@ pub struct MakerOrder {
     /// A custom priv key for more privacy to prevent linking orders of the same node between each other
     /// Commonly used with privacy coins (ARRR, ZCash, etc.)
     p2p_privkey: Option<SerializableSecp256k1Keypair>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub swap_version: Option<u32>,
+    #[serde(default = "legacy_swap_version")]
+    #[serde(skip_serializing_if = "is_legacy_swap_version")]
+    pub swap_version: u32,
 }
 
 pub struct MakerOrderBuilder<'a> {
@@ -1983,7 +1987,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: self.base_orderbook_ticker,
             rel_orderbook_ticker: self.rel_orderbook_ticker,
             p2p_privkey,
-            swap_version: Some(self.swap_version),
+            swap_version: self.swap_version,
         })
     }
 
@@ -2008,7 +2012,7 @@ impl<'a> MakerOrderBuilder<'a> {
             base_orderbook_ticker: None,
             rel_orderbook_ticker: None,
             p2p_privkey: None,
-            swap_version: Some(self.swap_version),
+            swap_version: self.swap_version,
         }
     }
 }
@@ -2215,9 +2219,9 @@ pub struct MakerReserved {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rel_protocol_info: Option<Vec<u8>>,
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub swap_version: Option<u32>,
+    #[serde(default = "legacy_swap_version")]
+    #[serde(skip_serializing_if = "is_legacy_swap_version")]
+    pub swap_version: u32,
 }
 
 impl MakerReserved {
@@ -3026,7 +3030,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
 
         let alice_swap_v = maker_match.request.swap_version;
         // if taker order doesn't have swap version or taker uses legacy swap protocol, start legacy swap
-        if alice_swap_v.is_none() || alice_swap_v == Some(1) {
+        if alice_swap_v == 1u32 {
             let params = LegacySwapParams {
                 maker_coin: &maker_coin,
                 taker_coin: &taker_coin,
@@ -3041,7 +3045,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             return;
         }
 
-        if ctx.use_trading_proto_v2() && alice_swap_v == Some(2) {
+        if ctx.use_trading_proto_v2() && alice_swap_v == 2u32 {
             let params = StateMachineParams {
                 secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
                 uuid: &uuid,
@@ -3271,7 +3275,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
 
         let bob_swap_v = taker_match.reserved.swap_version;
         // if maker order doesn't have swap version or maker uses legacy swap protocol, start legacy swap
-        if bob_swap_v.is_none() || bob_swap_v == Some(1) {
+        if bob_swap_v == 1u32 {
             let params = LegacySwapParams {
                 maker_coin: &maker_coin,
                 taker_coin: &taker_coin,
@@ -3286,7 +3290,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             return;
         }
 
-        if ctx.use_trading_proto_v2() && bob_swap_v == Some(2) {
+        if ctx.use_trading_proto_v2() && bob_swap_v == 2u32 {
             let taker_secret = match generate_secret() {
                 Ok(s) => s.into(),
                 Err(e) => {
