@@ -467,11 +467,10 @@ impl EthCoin {
     ) -> MmResult<SignedEthTx, FindPaymentSpendError> {
         let taker_swap_v2_contract = self
             .swap_v2_contracts
-            .as_ref()
-            .map(|contracts| contracts.taker_swap_v2_contract)
             .ok_or_else(|| {
                 FindPaymentSpendError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
-            })?;
+            })?
+            .taker_swap_v2_contract;
         let approve_func = TAKER_SWAP_V2.function(TAKER_PAYMENT_APPROVE)?;
         let decoded = decode_contract_call(approve_func, taker_payment.unsigned().data())?;
         let id = match decoded.first() {
@@ -504,14 +503,14 @@ impl EthCoin {
                             "Error getting TakerPaymentSpent events from {} block: {}",
                             from_block, e
                         );
-                        Timer::sleep(5.).await;
+                        Timer::sleep(check_every).await;
                         continue;
                     },
                 };
 
                 if events.is_empty() {
                     info!("No events found yet from block {}", from_block);
-                    Timer::sleep(5.).await;
+                    Timer::sleep(check_every).await;
                     continue;
                 }
 
@@ -534,13 +533,11 @@ impl EthCoin {
                         return Ok(transaction);
                     },
                     Ok(None) => info!("spendTakerPayment transaction {} not found yet", tx_hash),
-                    Err(e) => error!("Get tx {} error: {}", tx_hash, e),
+                    Err(e) => error!("Get spendTakerPayment transaction {} error: {}", tx_hash, e),
                 };
                 Timer::sleep(check_every).await;
                 continue;
             }
-
-            Timer::sleep(5.).await;
         }
     }
 
