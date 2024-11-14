@@ -529,21 +529,16 @@ impl EthCoin {
 
             if let Some(event) = found_event {
                 if let Some(tx_hash) = event.transaction_hash {
-                    let transaction = match self.transaction(TransactionId::Hash(tx_hash)).await {
-                        Ok(Some(t)) => t,
-                        Ok(None) => {
-                            info!("Tx {} not found yet", tx_hash);
-                            Timer::sleep(check_every).await;
-                            continue;
+                    match self.transaction(TransactionId::Hash(tx_hash)).await {
+                        Ok(Some(t)) => {
+                            let transaction = signed_tx_from_web3_tx(t).map_err(FindPaymentSpendError::Internal)?;
+                            return Ok(transaction);
                         },
-                        Err(e) => {
-                            error!("Get tx {} error: {}", tx_hash, e);
-                            Timer::sleep(check_every).await;
-                            continue;
-                        },
+                        Ok(None) => info!("Tx {} not found yet", tx_hash),
+                        Err(e) => error!("Get tx {} error: {}", tx_hash, e),
                     };
-                    let result = signed_tx_from_web3_tx(transaction).map_err(FindPaymentSpendError::Internal)?;
-                    return Ok(result);
+                    Timer::sleep(check_every).await;
+                    continue;
                 }
             }
 
