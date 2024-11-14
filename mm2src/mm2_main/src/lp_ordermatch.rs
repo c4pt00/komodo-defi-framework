@@ -3029,8 +3029,8 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
         };
 
         let alice_swap_v = maker_match.request.swap_version;
-        // if taker order doesn't have swap version or taker uses legacy swap protocol, start legacy swap
-        if alice_swap_v == 1u32 {
+        // Start legacy swap if taker uses legacy protocol (version 1) or if conditions for trading_proto_v2 aren't met.
+        if alice_swap_v == 1u32 || !(ctx.use_trading_proto_v2() && alice_swap_v == 2u32) {
             let params = LegacySwapParams {
                 maker_coin: &maker_coin,
                 taker_coin: &taker_coin,
@@ -3045,58 +3045,44 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             return;
         }
 
-        if ctx.use_trading_proto_v2() && alice_swap_v == 2u32 {
-            let params = StateMachineParams {
-                secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
-                uuid: &uuid,
-                my_conf_settings: &my_conf_settings,
-                locktime: &lock_time,
-                maker_amount: &maker_amount,
-                taker_amount: &taker_amount,
-            };
-            let taker_p2p_pubkey = match taker_p2p_pubkey {
-                PublicKey::Secp256k1(pubkey) => pubkey.into(),
-            };
+        let params = StateMachineParams {
+            secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
+            uuid: &uuid,
+            my_conf_settings: &my_conf_settings,
+            locktime: &lock_time,
+            maker_amount: &maker_amount,
+            taker_amount: &taker_amount,
+        };
+        let taker_p2p_pubkey = match taker_p2p_pubkey {
+            PublicKey::Secp256k1(pubkey) => pubkey.into(),
+        };
 
-            match (&maker_coin, &taker_coin) {
-                (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-                    start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
-                },
-                (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
-                    start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
-                },
-                (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
-                    start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
-                },
-                (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-                    start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
-                },
-                _ => {
-                    let params = LegacySwapParams {
-                        maker_coin: &maker_coin,
-                        taker_coin: &taker_coin,
-                        uuid: &uuid,
-                        my_conf_settings: &my_conf_settings,
-                        my_persistent_pub: &my_persistent_pub,
-                        maker_amount: &maker_amount,
-                        taker_amount: &taker_amount,
-                        locktime: &lock_time,
-                    };
-                    start_maker_legacy_swap(&ctx, maker_order, alice, secret, params).await
-                },
-            }
-        } else {
-            let params = LegacySwapParams {
-                maker_coin: &maker_coin,
-                taker_coin: &taker_coin,
-                uuid: &uuid,
-                my_conf_settings: &my_conf_settings,
-                my_persistent_pub: &my_persistent_pub,
-                maker_amount: &maker_amount,
-                taker_amount: &taker_amount,
-                locktime: &lock_time,
-            };
-            start_maker_legacy_swap(&ctx, maker_order, alice, secret, params).await
+        match (&maker_coin, &taker_coin) {
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
+                start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
+            },
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
+                start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
+            },
+            _ => {
+                let params = LegacySwapParams {
+                    maker_coin: &maker_coin,
+                    taker_coin: &taker_coin,
+                    uuid: &uuid,
+                    my_conf_settings: &my_conf_settings,
+                    my_persistent_pub: &my_persistent_pub,
+                    maker_amount: &maker_amount,
+                    taker_amount: &taker_amount,
+                    locktime: &lock_time,
+                };
+                start_maker_legacy_swap(&ctx, maker_order, alice, secret, params).await
+            },
         }
     };
 
@@ -3274,8 +3260,8 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
         );
 
         let bob_swap_v = taker_match.reserved.swap_version;
-        // if maker order doesn't have swap version or maker uses legacy swap protocol, start legacy swap
-        if bob_swap_v == 1u32 {
+        // Start legacy swap if maker uses legacy protocol (version 1) or if conditions for trading_proto_v2 aren't met.
+        if bob_swap_v == 1u32 || !(ctx.use_trading_proto_v2() && bob_swap_v == 2u32) {
             let params = LegacySwapParams {
                 maker_coin: &maker_coin,
                 taker_coin: &taker_coin,
@@ -3290,69 +3276,55 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             return;
         }
 
-        if ctx.use_trading_proto_v2() && bob_swap_v == 2u32 {
-            let taker_secret = match generate_secret() {
-                Ok(s) => s.into(),
-                Err(e) => {
-                    error!("Error {} on secret generation", e);
-                    return;
-                },
-            };
-            let params = StateMachineParams {
-                secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
-                uuid: &uuid,
-                my_conf_settings: &my_conf_settings,
-                locktime: &locktime,
-                maker_amount: &maker_amount,
-                taker_amount: &taker_amount,
-            };
-            let maker_p2p_pubkey = match maker_p2p_pubkey {
-                PublicKey::Secp256k1(pubkey) => pubkey.into(),
-            };
+        let taker_secret = match generate_secret() {
+            Ok(s) => s.into(),
+            Err(e) => {
+                error!("Error {} on secret generation", e);
+                return;
+            },
+        };
+        let params = StateMachineParams {
+            secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
+            uuid: &uuid,
+            my_conf_settings: &my_conf_settings,
+            locktime: &locktime,
+            maker_amount: &maker_amount,
+            taker_amount: &taker_amount,
+        };
+        let maker_p2p_pubkey = match maker_p2p_pubkey {
+            PublicKey::Secp256k1(pubkey) => pubkey.into(),
+        };
 
-            match (&maker_coin, &taker_coin) {
-                (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-                    start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
-                        .await;
-                },
-                (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
-                    start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
-                        .await;
-                },
-                (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
-                    start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
-                        .await;
-                },
-                (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-                    start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
-                        .await;
-                },
-                _ => {
-                    let params = LegacySwapParams {
-                        maker_coin: &maker_coin,
-                        taker_coin: &taker_coin,
-                        uuid: &uuid,
-                        my_conf_settings: &my_conf_settings,
-                        my_persistent_pub: &my_persistent_pub,
-                        maker_amount: &maker_amount,
-                        taker_amount: &taker_amount,
-                        locktime: &locktime,
-                    };
-                    start_taker_legacy_swap(&ctx, taker_order, maker, params).await;
-                },
-            }
-        } else {
-            let params = LegacySwapParams {
-                maker_coin: &maker_coin,
-                taker_coin: &taker_coin,
-                uuid: &uuid,
-                my_conf_settings: &my_conf_settings,
-                my_persistent_pub: &my_persistent_pub,
-                maker_amount: &maker_amount,
-                taker_amount: &taker_amount,
-                locktime: &locktime,
-            };
-            start_taker_legacy_swap(&ctx, taker_order, maker, params).await;
+        match (&maker_coin, &taker_coin) {
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
+                    .await;
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
+                start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
+                    .await;
+            },
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
+                start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
+                    .await;
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
+                    .await;
+            },
+            _ => {
+                let params = LegacySwapParams {
+                    maker_coin: &maker_coin,
+                    taker_coin: &taker_coin,
+                    uuid: &uuid,
+                    my_conf_settings: &my_conf_settings,
+                    my_persistent_pub: &my_persistent_pub,
+                    maker_amount: &maker_amount,
+                    taker_amount: &taker_amount,
+                    locktime: &locktime,
+                };
+                start_taker_legacy_swap(&ctx, taker_order, maker, params).await;
+            },
         }
     };
 
