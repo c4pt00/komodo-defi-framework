@@ -2616,18 +2616,8 @@ impl MarketCoinOps for EthCoin {
                 );
             }
 
-            let current_block = match self.current_block().compat().await {
-                Ok(b) => b,
-                Err(e) => {
-                    error!("Error getting block number: {}", e);
-                    Timer::sleep(5.).await;
-                    continue;
-                },
-            };
-
             let events = match self
-                .spend_events(swap_contract_address, args.from_block, current_block)
-                .compat()
+                .events_from_block(swap_contract_address, "ReceiverSpent", args.from_block, &SWAP_CONTRACT)
                 .await
             {
                 Ok(ev) => ev,
@@ -4872,8 +4862,8 @@ impl EthCoin {
         Box::new(fut.boxed().compat())
     }
 
-    /// Gets `ReceiverSpent` events from etomic swap smart contract since `from_block`
-    fn spend_events(
+    /// Gets `ReceiverSpent` events from etomic swap smart contract since `from_block` to `to_block`
+    fn legacy_spend_events(
         &self,
         swap_contract_address: Address,
         from_block: u64,
@@ -4891,6 +4881,28 @@ impl EthCoin {
 
         let fut = async move { coin.logs(filter).await.map_err(|e| ERRL!("{}", e)) };
         Box::new(fut.boxed().compat())
+    }
+
+    /// Returns events from `from_block` to current `latest` block.
+    /// According to ["eth_getLogs" doc](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getlogs) `toBlock` is optional, default is "latest".
+    async fn events_from_block(
+        &self,
+        swap_contract_address: Address,
+        event_name: &str,
+        from_block: u64,
+        swap_contract: &Contract,
+    ) -> MmResult<Vec<Log>, FindPaymentSpendError> {
+        let contract_event = swap_contract.event(event_name)?;
+        let filter = FilterBuilder::default()
+            .topics(Some(vec![contract_event.signature()]), None, None, None)
+            .from_block(BlockNumber::Number(from_block.into()))
+            .address(vec![swap_contract_address])
+            .build();
+        let events_logs = self
+            .logs(filter)
+            .await
+            .map_err(|e| FindPaymentSpendError::Transport(e.to_string()))?;
+        Ok(events_logs)
     }
 
     fn validate_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentFut<()> {
@@ -5252,7 +5264,7 @@ impl EthCoin {
             let to_block = current_block.min(from_block + self.logs_block_range);
 
             let spend_events = try_s!(
-                self.spend_events(swap_contract_address, from_block, to_block)
+                self.legacy_spend_events(swap_contract_address, from_block, to_block)
                     .compat()
                     .await
             );

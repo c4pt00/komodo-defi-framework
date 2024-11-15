@@ -16,7 +16,7 @@ use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use std::convert::TryInto;
-use web3::types::{BlockNumber, FilterBuilder, Log, TransactionId, H256};
+use web3::types::{TransactionId, H256};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
@@ -494,7 +494,7 @@ impl EthCoin {
             if tx_hash.is_none() {
                 // get all logged TakerPaymentSpent events from `from_block` till current block
                 let events = match self
-                    .events_from_block(taker_swap_v2_contract, "TakerPaymentSpent", from_block)
+                    .events_from_block(taker_swap_v2_contract, "TakerPaymentSpent", from_block, &TAKER_SWAP_V2)
                     .await
                 {
                     Ok(events) => events,
@@ -541,27 +541,6 @@ impl EthCoin {
 
             Timer::sleep(check_every).await;
         }
-    }
-
-    /// Returns events from `from_block` to current `latest` block.
-    /// According to ["eth_getLogs" doc](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getlogs) `toBlock` is optional, default is "latest".
-    async fn events_from_block(
-        &self,
-        swap_contract_address: Address,
-        event_name: &str,
-        from_block: u64,
-    ) -> MmResult<Vec<Log>, FindPaymentSpendError> {
-        let contract_event = TAKER_SWAP_V2.event(event_name)?;
-        let filter = FilterBuilder::default()
-            .topics(Some(vec![contract_event.signature()]), None, None, None)
-            .from_block(BlockNumber::Number(from_block.into()))
-            .address(vec![swap_contract_address])
-            .build();
-        let events_logs = self
-            .logs(filter)
-            .await
-            .map_err(|e| FindPaymentSpendError::Transport(e.to_string()))?;
-        Ok(events_logs)
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract [ethTakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L44) method
