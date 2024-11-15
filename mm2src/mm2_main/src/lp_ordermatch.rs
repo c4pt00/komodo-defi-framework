@@ -3057,6 +3057,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
             PublicKey::Secp256k1(pubkey) => pubkey.into(),
         };
 
+        // TODO try to handle it more gracefully during project redesign
         match (&maker_coin, &taker_coin) {
             (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
                 start_maker_swap_state_machine(&ctx, &maker_order, &taker_p2p_pubkey, &secret, m, t, &params).await;
@@ -3295,6 +3296,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             PublicKey::Secp256k1(pubkey) => pubkey.into(),
         };
 
+        // TODO try to handle it more gracefully during project redesign
         match (&maker_coin, &taker_coin) {
             (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
                 start_taker_swap_state_machine(&ctx, &taker_order, &maker_p2p_pubkey, &taker_secret, m, t, &params)
