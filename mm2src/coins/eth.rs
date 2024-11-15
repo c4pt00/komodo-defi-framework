@@ -2956,7 +2956,7 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
             })
         },
         EthPrivKeyPolicy::Trezor => MmError::err(RawTransactionError::InvalidParam(
-            "sign raw eth tx not implemented for Metamask".into(),
+            "sign raw eth tx not implemented for Trezor".into(),
         )),
         #[cfg(target_arch = "wasm32")]
         EthPrivKeyPolicy::Metamask(_) => MmError::err(RawTransactionError::InvalidParam(

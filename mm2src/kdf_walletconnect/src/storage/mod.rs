@@ -37,7 +37,7 @@ impl Deref for SessionStorageDb {
 }
 
 impl SessionStorageDb {
-    pub(crate) fn init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
+    pub(crate) fn new(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
         let db = DB::new(ctx).mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         Ok(SessionStorageDb(db))

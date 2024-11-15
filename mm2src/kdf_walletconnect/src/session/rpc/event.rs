@@ -32,17 +32,20 @@ pub async fn handle_session_event(
 
             ctx.validate_chain_id(&session, &chain_id).await?;
 
-            if let Some(active_chain_id) = session.get_active_chain_id().await {
-                if &chain_id == active_chain_id {
-                    return Ok(());
-                }
+            if session
+                .get_active_chain_id()
+                .await
+                .as_ref()
+                .map_or(false, |c| c == &chain_id)
+            {
+                return Ok(());
             };
 
-            // check if chain_id is supported.
-            let id_string = serde_json::from_value::<u32>(event.event.data)?;
-            let new_chain = chain_id.chain.derive_chain_id(id_string.to_string());
+            // check if if new chain_id is supported.
+            let new_id = serde_json::from_value::<u32>(event.event.data)?;
+            let new_chain = chain_id.chain.derive_chain_id(new_id.to_string());
             if let Err(err) = ctx.validate_chain_id(&session, &new_chain).await {
-                error!("{err:?}");
+                error!("[{topic}] {err:?}");
                 let error_data = ErrorData {
                     code: UNSUPPORTED_CHAINS,
                     message: "Unsupported chain id".to_string(),
@@ -57,7 +60,7 @@ pub async fn handle_session_event(
                         .ok_or(MmError::new(WalletConnectError::SessionError(
                             "No active WalletConnect session found".to_string(),
                         )))?
-                        .set_active_chain_id(chain_id.clone())
+                        .set_active_chain_id(chain_id)
                         .await;
                 }
             };
@@ -70,6 +73,6 @@ pub async fn handle_session_event(
         },
     };
 
-    info!("chainChanged event handled successfully");
+    info!("[{topic}] chainChanged event handled successfully");
     Ok(())
 }

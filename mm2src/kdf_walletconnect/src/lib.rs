@@ -43,8 +43,7 @@ use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType, SymKey};
 
-const WAIT_DURATION: Duration = Duration::from_secs(60);
-const PUBLISH_TIMEOUT_SECS: f64 = 5.0;
+const PUBLISH_TIMEOUT_SECS: f64 = 6.;
 const MAX_RETRIES: usize = 5;
 
 #[async_trait::async_trait]
@@ -70,36 +69,30 @@ pub trait WalletConnectOps {
 }
 
 pub struct WalletConnectCtx {
-    pub client: Client,
-    pub pairing: PairingClient,
+    pub(crate) client: Client,
+    pub(crate) pairing: PairingClient,
     pub session: SessionManager,
-
     pub(crate) key_pair: SymKeyPair,
-
     relay: Relay,
     metadata: Metadata,
     inbound_message_rx: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
     connection_live_rx: Arc<Mutex<UnboundedReceiver<Option<String>>>>,
     message_tx: UnboundedSender<SessionMessageType>,
     message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
-
     _abort_handle: AbortOnDropHandle,
 }
 
 impl WalletConnectCtx {
     pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
-        let (inbound_message_tx, inbound_message_rx) = unbounded();
-        let (conn_live_sender, conn_live_receiver) = unbounded();
-        let (message_tx, session_request_receiver) = unbounded();
-
+        let storage = SessionStorageDb::new(ctx)?;
         let pairing = PairingClient::new();
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
             data: None,
         };
-
-        let storage = SessionStorageDb::init(ctx)?;
-
+        let (inbound_message_tx, inbound_message_rx) = unbounded();
+        let (conn_live_sender, conn_live_receiver) = unbounded();
+        let (message_tx, session_request_receiver) = unbounded();
         let (client, _abort_handle) = Client::new_with_callback(
             Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
             |r, h| spawn_abortable(client_event_loop(r, h)),
@@ -112,12 +105,10 @@ impl WalletConnectCtx {
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             session: SessionManager::new(storage),
-
             inbound_message_rx: Arc::new(inbound_message_rx.into()),
             connection_live_rx: Arc::new(conn_live_receiver.into()),
             message_rx: Arc::new(session_request_receiver.into()),
             message_tx,
-
             _abort_handle,
         })
     }
@@ -134,7 +125,7 @@ impl WalletConnectCtx {
             let key = SigningKey::generate(&mut rand::thread_rng());
             AuthToken::new(AUTH_TOKEN_SUB)
                 .aud(RELAY_ADDRESS)
-                .ttl(Duration::from_secs(8 * 60 * 60))
+                .ttl(Duration::from_secs(5 * 60 * 60))
                 .as_jwt(&key)
                 .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?
         };
@@ -339,7 +330,7 @@ impl WalletConnectCtx {
         }
 
         MmError::err(WalletConnectError::InternalError(
-            "client connection timeout".to_string(),
+            "[{topic}] client connection timeout".to_string(),
         ))
     }
 
@@ -501,10 +492,11 @@ impl WalletConnectCtx {
                 params,
             },
         };
-        self.publish_request(&active_topic, RequestParams::SessionRequest(request))
-            .await?;
-        // Wait for response
-        if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout(WAIT_DURATION).await {
+        let request = RequestParams::SessionRequest(request);
+        let ttl = request.irn_metadata().ttl;
+        self.publish_request(&active_topic, request).await?;
+
+        if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout_secs(ttl as f64).await {
             let result = resp.mm_err(WalletConnectError::InternalError)?;
             if let ResponseParamsSuccess::Arbitrary(data) = result.data {
                 let data = serde_json::from_value::<T>(data)?;
@@ -512,7 +504,6 @@ impl WalletConnectCtx {
             }
         }
 
-        // QUESTION: should we consider retrying request instead of returning error immediately.
         MmError::err(WalletConnectError::NoWalletFeedback)
     }
 

@@ -82,7 +82,7 @@ pub(crate) async fn initialize_connection(wc: Arc<WalletConnectCtx>) {
 
     while let Err(err) = wc.connect_client().await {
         retry_count += 1;
-        info!(
+        error!(
             "Error during initial connection attempt {}: {:?}. Retrying in {retry_secs} seconds...",
             retry_count, err
         );

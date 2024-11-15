@@ -10,6 +10,7 @@ use common::log::info;
 use dashmap::mapref::multiple::RefMulti;
 use dashmap::mapref::one::RefMut;
 use dashmap::DashMap;
+use derive_more::Display;
 use key::SessionKey;
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::domain::Topic;
@@ -26,29 +27,20 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use wc_common::SymKey;
 
-pub(crate) const FIVE_MINUTES: u64 = 300;
-pub(crate) const THIRTY_DAYS: u64 = 60 * 60 * 30;
+pub(crate) const FIVE_MINUTES: u64 = 5 * 60;
+pub(crate) const THIRTY_DAYS: u64 = 30 * 24 * 60 * 60;
 
 pub(crate) type WcRequestResponseResult = MmResult<(Value, IrnMetadata), WalletConnectError>;
 
 /// In the WalletConnect protocol, a session involves two parties: a controller
 /// (typically a wallet) and a proposer (typically a dApp). This enum is used
 /// to distinguish between these two roles.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Display, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SessionType {
     /// Represents the controlling party in a session, typically a wallet.
     Controller,
     /// Represents the proposing party in a session, typically a dApp.
     Proposer,
-}
-
-impl ToString for SessionType {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Controller => "Controller".to_string(),
-            Self::Proposer => "Proposer".to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -146,7 +138,6 @@ impl Session {
         metadata: Metadata,
         session_type: SessionType,
     ) -> Self {
-        // handle proposer or controller
         let (proposer, controller) = match session_type {
             SessionType::Proposer => (
                 Proposer {
