@@ -226,17 +226,6 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "wc_disconnect_session" => handle_mmrpc(ctx, request, disconnect_session).await,
         "wc_set_active_session" => handle_mmrpc(ctx, request, set_active_session).await,
         "wc_ping_session" => handle_mmrpc(ctx, request, ping_session).await,
-        #[cfg(not(target_arch = "wasm32"))]
-        native_only_methods => match native_only_methods {
-            #[cfg(all(feature = "enable-solana", not(target_os = "ios"), not(target_os = "android")))]
-            "enable_solana_with_tokens" => {
-                handle_mmrpc(ctx, request, enable_platform_coin_with_tokens::<SolanaCoin>).await
-            },
-            #[cfg(all(feature = "enable-solana", not(target_os = "ios"), not(target_os = "android")))]
-            "enable_spl" => handle_mmrpc(ctx, request, enable_token::<SplToken>).await,
-            _ => MmError::err(DispatcherError::NoSuchMethod),
-        },
-        #[cfg(target_arch = "wasm32")]
         _ => MmError::err(DispatcherError::NoSuchMethod),
     }
 }

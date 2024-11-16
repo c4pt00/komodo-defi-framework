@@ -4745,10 +4745,10 @@ pub fn derive_htlc_key_pair(coin: &UtxoCoinFields, _swap_unique_data: &[u8]) -> 
             activated_key: activated_key_pair,
             ..
         } => activated_key_pair,
-        PrivKeyPolicy::Trezor => todo!(),
+        PrivKeyPolicy::Trezor => panic!("`PrivKeyPolicy::Trezor` is not supported for UTXO coins"),
         #[cfg(target_arch = "wasm32")]
         PrivKeyPolicy::Metamask(_) => panic!("`PrivKeyPolicy::Metamask` is not supported for UTXO coins"),
-        PrivKeyPolicy::WalletConnect { .. } => todo!(),
+        PrivKeyPolicy::WalletConnect { .. } => panic!("`PrivKeyPolicy::WalletConnect` is not supported for UTXO coins"),
     }
 }
 

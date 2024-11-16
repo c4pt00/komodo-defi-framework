@@ -54,8 +54,7 @@ use crypto::{derive_secp256k1_secret, Bip32Error, Bip44Chain, CryptoCtx, CryptoC
              Secp256k1ExtendedPublicKey, Secp256k1Secret, WithHwRpcError};
 use derive_more::Display;
 use enum_derives::{EnumFromStringify, EnumFromTrait};
-use ethereum_types::{H160, H256};
-use ethereum_types::{H264, H520};
+use ethereum_types::{H256, H264, H520};
 use futures::compat::Future01CompatExt;
 use futures::lock::{Mutex as AsyncMutex, MutexGuard as AsyncMutexGuard};
 use futures::{FutureExt, TryFutureExt};
@@ -2123,7 +2122,7 @@ pub struct WithdrawRequest {
     memo: Option<String>,
     /// Tendermint specific field used for manually providing the IBC channel IDs.
     ibc_source_channel: Option<String>,
-    /// Currently, this flag is used by ETH/ERC20 coins activated with MetaMask/WalletConnect **only**.
+    /// Currently, this flag is used by ETH/ERC20 coins activated with MetaMask/WalletConnect(Some wallets e.g Metamask) **only**.
     #[serde(default)]
     broadcast: bool,
 }
@@ -3903,7 +3902,6 @@ pub enum PrivKeyPolicy<T> {
     Metamask(EthMetamaskPolicy),
 
     WalletConnect {
-        address: H160,
         public_key: H264,
         public_key_uncompressed: H520,
     },

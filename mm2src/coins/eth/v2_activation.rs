@@ -311,8 +311,6 @@ pub enum EthTokenActivationParams {
 #[derive(Clone, Deserialize)]
 pub struct Erc20TokenActivationRequest {
     pub required_confirmations: Option<u64>,
-    // #[serde(default)]
-    // pub use_walletconnect: Option<bool>,
 }
 
 /// Holds ERC-20 token-specific activation parameters when using the task manager for activation.
@@ -805,7 +803,6 @@ pub(crate) async fn build_address_and_priv_key_policy(
             let public_key = compress_public_key(public_key_uncompressed)?;
             Ok((
                 EthPrivKeyPolicy::WalletConnect {
-                    address,
                     public_key,
                     public_key_uncompressed,
                 },
