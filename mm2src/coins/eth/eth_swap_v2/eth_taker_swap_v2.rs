@@ -4,7 +4,7 @@ use crate::eth::{decode_contract_call, get_function_input_data, signed_tx_from_w
                  EthCoinType, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs,
                  SendTakerFundingArgs, SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr,
                  ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};
-use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
+use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, MarketCoinOps,
             SearchForFundingSpendErr};
 use common::executor::Timer;
 use common::log::{error, info};
@@ -490,38 +490,57 @@ impl EthCoin {
                 return MmError::err(FindPaymentSpendError::Timeout { wait_until, now });
             }
 
-            // Skip retrieving events if tx_hash is already found
-            if tx_hash.is_none() {
-                // get all logged TakerPaymentSpent events from `from_block` till current block
-                let events = match self
-                    .events_from_block(taker_swap_v2_contract, "TakerPaymentSpent", from_block, &TAKER_SWAP_V2)
-                    .await
-                {
-                    Ok(events) => events,
-                    Err(e) => {
-                        error!(
-                            "Error getting TakerPaymentSpent events from {} block: {}",
-                            from_block, e
-                        );
-                        Timer::sleep(check_every).await;
-                        continue;
-                    },
-                };
-
-                if events.is_empty() {
-                    info!("No events found yet from block {}", from_block);
+            let current_block = match self.current_block().compat().await {
+                Ok(b) => b,
+                Err(e) => {
+                    error!("Error getting block number: {}", e);
                     Timer::sleep(check_every).await;
                     continue;
-                }
+                },
+            };
 
-                // this is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret)
-                let found_event = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice());
+            // Skip retrieving events if tx_hash is already found
+            if tx_hash.is_none() {
+                let mut next_from_block = from_block;
 
-                if let Some(event) = found_event {
-                    if let Some(hash) = event.transaction_hash {
-                        // Store tx_hash to skip fetching events in the next iteration if "eth_getTransactionByHash" is unsuccessful
-                        tx_hash = Some(hash);
+                while next_from_block <= current_block {
+                    let to_block = std::cmp::min(next_from_block + self.logs_block_range - 1, current_block);
+
+                    // Fetch TakerPaymentSpent events for the current block range
+                    let events = match self
+                        .events_from_block(
+                            taker_swap_v2_contract,
+                            "TakerPaymentSpent",
+                            next_from_block,
+                            Some(to_block),
+                            &TAKER_SWAP_V2,
+                        )
+                        .await
+                    {
+                        Ok(events) => events,
+                        Err(e) => {
+                            error!(
+                                "Error getting TakerPaymentSpent events from {} to {} block: {}",
+                                next_from_block, to_block, e
+                            );
+                            Timer::sleep(check_every).await;
+                            // Move to next window if there was an error
+                            next_from_block += self.logs_block_range;
+                            continue;
+                        },
+                    };
+
+                    // This is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret).
+                    // Check if any event matches the ID.
+                    if let Some(found_event) = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice()) {
+                        if let Some(hash) = found_event.transaction_hash {
+                            // Store tx_hash to skip fetching events in the next iteration if "eth_getTransactionByHash" is unsuccessful
+                            tx_hash = Some(hash);
+                            break;
+                        }
                     }
+
+                    next_from_block += self.logs_block_range;
                 }
             }
 

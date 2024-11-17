@@ -2617,7 +2617,13 @@ impl MarketCoinOps for EthCoin {
             }
 
             let events = match self
-                .events_from_block(swap_contract_address, "ReceiverSpent", args.from_block, &SWAP_CONTRACT)
+                .events_from_block(
+                    swap_contract_address,
+                    "ReceiverSpent",
+                    args.from_block,
+                    None,
+                    &SWAP_CONTRACT,
+                )
                 .await
             {
                 Ok(ev) => ev,
@@ -4883,21 +4889,25 @@ impl EthCoin {
         Box::new(fut.boxed().compat())
     }
 
-    /// Returns events from `from_block` to current `latest` block.
+    /// Returns events from `from_block` to `to_block` or current `latest` block.
     /// According to ["eth_getLogs" doc](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getlogs) `toBlock` is optional, default is "latest".
     async fn events_from_block(
         &self,
         swap_contract_address: Address,
         event_name: &str,
         from_block: u64,
+        to_block: Option<u64>,
         swap_contract: &Contract,
     ) -> MmResult<Vec<Log>, FindPaymentSpendError> {
         let contract_event = swap_contract.event(event_name)?;
-        let filter = FilterBuilder::default()
+        let mut filter_builder = FilterBuilder::default()
             .topics(Some(vec![contract_event.signature()]), None, None, None)
             .from_block(BlockNumber::Number(from_block.into()))
-            .address(vec![swap_contract_address])
-            .build();
+            .address(vec![swap_contract_address]);
+        if let Some(block) = to_block {
+            filter_builder = filter_builder.to_block(BlockNumber::Number(block.into()));
+        }
+        let filter = filter_builder.build();
         let events_logs = self
             .logs(filter)
             .await
