@@ -1,6 +1,6 @@
-use crate::siacoin::{Address, Currency, Event, EventDataWrapper, Hash256, ParseHashError, PreimageError,
-                     PrivateKeyError, PublicKeyError, SiaApiClientError, SiaClientHelperError, SiaTransaction,
-                     TransactionId, V2TransactionBuilderError};
+use crate::siacoin::{Address, Currency, Event, EventDataWrapper, Hash256, Hash256Error, KeypairError, PreimageError,
+                     PublicKeyError, SiaApiClientError, SiaClientHelperError, SiaTransaction, TransactionId,
+                     V2TransactionBuilderError};
 use crate::{DexFee, TransactionEnum};
 use common::executor::AbortedError;
 use mm2_number::BigDecimal;
@@ -44,7 +44,7 @@ pub enum SendMakerPaymentError {
     #[error("SiaCoin::new_send_maker_payment: failed to fund transaction {0}")]
     FundTx(SiaClientHelperError),
     #[error("SiaCoin::new_send_maker_payment: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
     #[error("SiaCoin::new_send_maker_payment: failed to broadcast maker_payment transaction {0}")]
     BroadcastTx(SiaClientHelperError),
 }
@@ -60,7 +60,7 @@ pub enum SendTakerPaymentError {
     #[error("SiaCoin::new_send_taker_payment: failed to fund transaction {0}")]
     FundTx(SiaClientHelperError),
     #[error("SiaCoin::new_send_taker_payment: invalid secret_hash length {0}")]
-    SecretHashLength(#[from] ParseHashError),
+    SecretHashLength(#[from] Hash256Error),
     #[error("SiaCoin::new_send_taker_payment: failed to broadcast taker_payment transaction {0}")]
     BroadcastTx(SiaClientHelperError),
 }
@@ -131,7 +131,7 @@ pub enum TakerSpendsMakerPaymentError {
     #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to parse secret {0}")]
     ParseSecret(#[from] PreimageError),
     #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
     #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to fetch SiacoinElement from txid {0}")]
     UtxoFromTxid(SiaClientHelperError),
     #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to satisfy HTLC SpendPolicy {0}")]
@@ -151,7 +151,7 @@ pub enum MakerSpendsTakerPaymentError {
     #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to parse secret {0}")]
     ParseSecret(#[from] PreimageError),
     #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
     #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to fetch SiacoinElement from txid {0}")]
     UtxoFromTxid(SiaClientHelperError),
     #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to satisfy HTLC SpendPolicy {0}")]
@@ -167,7 +167,7 @@ pub enum SiaRefundPaymentArgsError {
     #[error("SiaRefundPaymentArgs: failed to parse payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
     #[error("SiaRefundPaymentArgs: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
     // SwapTxTypeVariant uses String Debug trait representation to avoid explicit lifetime annotations
     // otherwise this should be SwapTxTypeVariant(SwapTxTypeWithSecretHash) and displayed via {0:?}
     #[error("SiaRefundPaymentArgs: unexpected SwapTxTypeWithSecretHash variant {0}")]
@@ -216,7 +216,7 @@ pub enum SiaCoinError {
     #[error("SiaCoin::from_conf_and_request: failed to parse SiaCoinConf from JSON: {0}")]
     InvalidConf(#[from] serde_json::Error),
     #[error("SiaCoin::from_conf_and_request: invalid private key: {0}")]
-    InvalidPrivateKey(#[from] PrivateKeyError),
+    InvalidPrivateKey(#[from] KeypairError),
     #[error("SiaCoin::from_conf_and_request: invalid private key policy, must use iguana seed")]
     UnsupportedPrivKeyPolicy,
     #[error("SiaCoin::from_conf_and_request: failed to build SiaCoin: {0}")]
@@ -230,7 +230,7 @@ pub enum SiaCheckIfMyPaymentSentArgsError {
     #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to parse other_pub {0}")]
     ParseOtherPublicKey(#[from] PublicKeyError),
     #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
     #[error(
         "SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to convert amount to Currency {0}"
     )]
@@ -256,7 +256,7 @@ pub enum SiaCoinSiaExtractSecretError {
     #[error("SiaCoin::sia_extract_secret: failed to parse spend_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
     #[error("SiaCoin::sia_extract_secret: failed to parse secret_hash {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
     #[error(
         "SiaCoin::sia_extract_secret: failed to extract secret of secret_hash:{expected_hash} from spend_tx: {tx:?}"
     )]
@@ -274,7 +274,7 @@ pub enum SiaWaitForHTLCTxSpendArgsError {
     #[error("SiaWaitForHTLCTxSpendArgs::TryFrom<WaitForHTLCTxSpendArgs>: Failed to parse transaction: {0}")]
     ParseTx(#[from] SiaTransactionError),
     #[error("SiaWaitForHTLCTxSpendArgs::TryFrom<WaitForHTLCTxSpendArgs>: Failed to parse secret hash: {0}")]
-    ParseSecretHash(#[from] ParseHashError),
+    ParseSecretHash(#[from] Hash256Error),
 }
 
 #[derive(Debug, Error)]

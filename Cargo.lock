@@ -2504,6 +2504,9 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hex_fmt"
@@ -6284,7 +6287,7 @@ dependencies = [
 [[package]]
 name = "sia-rust"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/sia-rust.git?rev=21da3c1#21da3c164fcb13915ca177e485f5545719ac8188"
+source = "git+https://github.com/KomodoPlatform/sia-rust.git?rev=bec8f12c683dbf8f2ed2bbfb65edf7ea1fbdc743#bec8f12c683dbf8f2ed2bbfb65edf7ea1fbdc743"
 dependencies = [
  "async-trait",
  "base64 0.21.7",

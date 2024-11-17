@@ -37,10 +37,10 @@ pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError 
                                       ApiClientHelpers, HelperError as SiaClientHelperError};
 pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxosRequest, GetEventRequest,
                                          TxpoolBroadcastRequest, TxpoolTransactionsRequest, TxpoolTransactionsResponse};
-pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256,
-                          Keypair as SiaKeypair, ParseHashError, Preimage, PreimageError, PrivateKeyError, PublicKey,
-                          PublicKeyError, SiacoinElement, SiacoinOutput, SpendPolicy, TransactionId, V1Transaction,
-                          V2Transaction, V2TransactionBuilder, V2TransactionBuilderError};
+pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256, Hash256Error,
+                          Keypair as SiaKeypair, KeypairError, Preimage, PreimageError, PublicKey, PublicKeyError,
+                          SiacoinElement, SiacoinOutput, SpendPolicy, TransactionId, V1Transaction, V2Transaction,
+                          V2TransactionBuilder, V2TransactionBuilderError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -287,7 +287,7 @@ impl MmCoin for SiaCoin {
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
 
     fn get_raw_transaction(&self, req: RawTransactionRequest) -> RawTransactionFut {
-        let tx_hash = match Hash256::from_str_no_prefix(&req.tx_hash) {
+        let tx_hash = match Hash256::from_str(&req.tx_hash) {
             Ok(hash) => hash,
             Err(e) => {
                 return Box::new(futures01::future::err(MmError::new(
@@ -1916,7 +1916,7 @@ impl SiaCoin {
                 })
             },
             EventDataWrapper::MinerPayout(event_payout) | EventDataWrapper::FoundationPayout(event_payout) => {
-                let txid = event_payout.siacoin_element.state_element.id.to_string();
+                let txid = event_payout.siacoin_element.id.to_string();
 
                 let from: Vec<String> = vec![];
 
