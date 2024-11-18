@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::streamer::spawn;
 use crate::{Event, EventStreamer};
 use common::executor::abortable_queue::WeakSpawner;
-use common::log;
+use common::log::{error, LogOnError};
 
 use common::on_drop_callback::OnDropCallback;
 use futures::channel::mpsc::UnboundedSender;
@@ -90,7 +90,7 @@ impl ClientInfo {
         // Only `try_send` here. If the channel is full (client is slow), the message
         // will be dropped and the client won't receive it.
         // This avoids blocking the broadcast to other receivers.
-        self.channel.try_send(event).ok();
+        self.channel.try_send(event).error_log();
     }
 }
 
@@ -297,9 +297,7 @@ impl StreamingManager {
             if let Some(streamer_info) = this.streamers.get_mut(&streamer_id) {
                 streamer_info.remove_client(&client_id);
             } else {
-                log::error!(
-                    "Client {client_id} was listening to a non-existent streamer {streamer_id}. This is a bug!"
-                );
+                error!("Client {client_id} was listening to a non-existent streamer {streamer_id}. This is a bug!");
             }
             // If there are no more listening clients, terminate the streamer.
             if this.streamers.get(&streamer_id).map(|info| info.clients.len()) == Some(0) {

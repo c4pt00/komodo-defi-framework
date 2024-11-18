@@ -66,12 +66,13 @@ where
         move |any_input_data| {
             let streamer_id = streamer_id.clone();
             future::ready(
-                if let Ok(input_data) = any_input_data.downcast() {
-                    Some(*input_data)
-                } else {
-                    error!("Couldn't downcast a received message to {}. This message wasn't intended to be sent to this streamer ({streamer_id}).", any::type_name::<<S as EventStreamer>::DataInType>());
-                    None
-                }
+                any_input_data
+                    .downcast()
+                    .map(|input_data| *input_data)
+                    .map_err(|_| {
+                        error!("Couldn't downcast a received message to {}. This message wasn't intended to be sent to this streamer ({streamer_id}).", any::type_name::<S::DataInType>());
+                    })
+                    .ok(),
             )
         }
     });
@@ -97,7 +98,7 @@ where
     })?;
 
     // If the handler takes no input data, return `None` for the data sender.
-    if any::TypeId::of::<<S as EventStreamer>::DataInType>() == any::TypeId::of::<NoDataIn>() {
+    if any::TypeId::of::<S::DataInType>() == any::TypeId::of::<NoDataIn>() {
         Ok((tx_shutdown, None))
     } else {
         Ok((tx_shutdown, Some(any_data_sender)))
