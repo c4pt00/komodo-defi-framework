@@ -557,8 +557,6 @@ impl EthCoin {
                 Timer::sleep(check_every).await;
                 continue;
             }
-
-            Timer::sleep(check_every).await;
         }
     }
 

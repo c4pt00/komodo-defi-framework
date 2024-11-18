@@ -2681,8 +2681,6 @@ impl MarketCoinOps for EthCoin {
                 Timer::sleep(args.check_every).await;
                 continue;
             }
-
-            Timer::sleep(5.).await;
         }
     }
 
