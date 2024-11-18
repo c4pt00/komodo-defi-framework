@@ -888,7 +888,7 @@ impl SiaCoin {
             .map_err(SendTakerFeeError::FundTx)?;
 
         // Embed swap uuid to provide better validation from maker
-        tx_builder.arbitrary_data(uuid.to_vec());
+        tx_builder.arbitrary_data(uuid.to_vec().into());
 
         // Sign inputs and finalize the transaction
         let tx = tx_builder.sign_simple(vec![my_keypair]).build();
@@ -1168,7 +1168,7 @@ impl SiaCoin {
         }
 
         // check that arbitrary_data is the same as the uuid
-        let fee_tx_uuid = Uuid::from_slice(&fee_tx.arbitrary_data).map_err(ValidateFeeError::ParseUuid)?;
+        let fee_tx_uuid = Uuid::from_slice(&fee_tx.arbitrary_data.0).map_err(ValidateFeeError::ParseUuid)?;
         if fee_tx_uuid != args.uuid {
             return Err(ValidateFeeError::InvalidUuid {
                 txid: fee_txid.clone(),
