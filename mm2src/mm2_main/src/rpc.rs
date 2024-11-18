@@ -22,10 +22,10 @@
 
 use crate::rpc::rate_limiter::RateLimitError;
 use common::log::{error, info};
-use common::{err_to_rpc_json_string, err_tp_rpc_json, HttpStatusCode, APPLICATION_JSON};
+use common::{err_to_rpc_json_string, err_tp_rpc_json, HttpStatusCode};
 use derive_more::Display;
 use futures::future::{join_all, FutureExt};
-use http::header::{HeaderValue, ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE};
+use http::header::{HeaderValue, ACCESS_CONTROL_ALLOW_ORIGIN};
 use http::request::Parts;
 use http::{Method, Request, Response, StatusCode};
 use mm2_core::mm_ctx::MmArc;
