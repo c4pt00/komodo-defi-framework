@@ -40,8 +40,8 @@ impl Event {
     pub fn origin(&self) -> &str { &self.event_type }
 
     /// Returns the event type and message as a pair.
-    pub fn get(&self) -> (String, Json) {
+    pub fn get(&self) -> (String, &Json) {
         let prefix = if self.error { "ERROR:" } else { "" };
-        (format!("{prefix}{}", self.event_type), self.message.clone())
+        (format!("{prefix}{}", self.event_type), &self.message)
     }
 }

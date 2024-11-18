@@ -464,7 +464,7 @@ mod tests {
             let event = client1.try_recv().unwrap();
             assert_eq!(event.origin(), streamer_id);
             // It's an echo streamer, so the message should be the same.
-            assert_eq!(event.get().1, json!(msg));
+            assert_eq!(event.get().1, &json!(msg));
         }
 
         // If we send the wrong datatype (void here instead of String), the streamer should ignore it.
