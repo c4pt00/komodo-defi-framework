@@ -139,12 +139,13 @@ impl WalletConnectCtx {
     pub(crate) async fn reconnect_and_subscribe(&self) -> MmResult<(), WalletConnectError> {
         self.connect_client().await?;
         // Resubscribes to previously active session topics after reconnection.
-        let sessions = self.session.get_sessions();
-        for session in sessions {
-            self.client
-                .batch_subscribe(vec![session.topic, session.pairing_topic])
-                .await?;
-        }
+        let sessions = self
+            .session
+            .get_sessions()
+            .flat_map(|s| vec![s.topic, s.pairing_topic])
+            .collect::<Vec<_>>();
+
+        self.client.batch_subscribe(sessions).await?;
 
         Ok(())
     }
@@ -382,8 +383,7 @@ impl WalletConnectCtx {
             };
         }
 
-        // https://specs.walletconnect.com/2.0/specs/clients/sign/namespaces
-        // #13-chains-might-be-omitted-if-the-caip-2-is-defined-in-the-index
+        // https://specs.walletconnect.com/2.0/specs/clients/sign/namespaces#13-chains-might-be-omitted-if-the-caip-2-is-defined-in-the-index
         if session.namespaces.contains_key(&chain_id.to_string()) {
             return Ok(());
         }

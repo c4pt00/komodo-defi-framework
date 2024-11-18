@@ -272,14 +272,10 @@ impl TendermintActivationPolicy {
                         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Couldn't generate public key"))
                 },
 
-                PrivKeyPolicy::Trezor => Err(io::Error::new(
+                _ => Err(io::Error::new(
                     io::ErrorKind::Unsupported,
-                    "Trezor is not supported yet!",
+                    "UnsupportedModeForPrivKeyPolicy",
                 )),
-
-                #[cfg(target_arch = "wasm32")]
-                PrivKeyPolicy::Metamask(_) => unreachable!(),
-                PrivKeyPolicy::WalletConnect { .. } => unreachable!(),
             },
             Self::PublicKey(account_public_key) => Ok(*account_public_key),
         }
