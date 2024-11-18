@@ -1180,9 +1180,7 @@ pub trait SwapOps {
         &self,
         _args: PaymentInstructionArgs<'_>,
     ) -> Result<Option<Vec<u8>>, MmError<PaymentInstructionsErr>> {
-        MmError::err(PaymentInstructionsErr::InternalError(
-            "maker_payment_instructions is not supported for this coin!".into(),
-        ))
+        Ok(None)
     }
 
     /// Instructions from the maker on how the taker should send his payment. - lightning specific
@@ -1190,9 +1188,7 @@ pub trait SwapOps {
         &self,
         _args: PaymentInstructionArgs<'_>,
     ) -> Result<Option<Vec<u8>>, MmError<PaymentInstructionsErr>> {
-        MmError::err(PaymentInstructionsErr::InternalError(
-            "taker_payment_instructions is not supported for this coin!".into(),
-        ))
+        Ok(None)
     }
 
     /// lightning specific
