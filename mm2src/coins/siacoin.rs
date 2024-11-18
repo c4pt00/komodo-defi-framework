@@ -909,8 +909,9 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(SendMakerPaymentError::MyKeypair)?;
 
         let maker_public_key = my_keypair.public();
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
         let taker_public_key =
-            PublicKey::from_bytes(args.other_pubkey).map_err(SendMakerPaymentError::InvalidTakerPublicKey)?;
+            PublicKey::from_bytes(&args.other_pubkey[..32]).map_err(SendMakerPaymentError::InvalidTakerPublicKey)?;
 
         let secret_hash = Hash256::try_from(args.secret_hash).map_err(SendMakerPaymentError::ParseSecretHash)?;
 
@@ -1057,8 +1058,9 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(TakerSpendsMakerPaymentError::MyKeypair)?;
 
         let taker_public_key = my_keypair.public();
-        let maker_public_key =
-            PublicKey::from_bytes(args.other_pubkey).map_err(TakerSpendsMakerPaymentError::InvalidMakerPublicKey)?;
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        let maker_public_key = PublicKey::from_bytes(&args.other_pubkey[..32])
+            .map_err(TakerSpendsMakerPaymentError::InvalidMakerPublicKey)?;
 
         let maker_payment_tx =
             SiaTransaction::try_from(args.other_payment_tx.to_vec()).map_err(TakerSpendsMakerPaymentError::ParseTx)?;
@@ -1436,8 +1438,9 @@ impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
             wrong_variant => return Err(SiaValidateFeeArgsError::TxEnumVariant(wrong_variant.clone())),
         };
 
-        let expected_sender_public_key =
-            PublicKey::from_bytes(args.expected_sender).map_err(SiaValidateFeeArgsError::InvalidTakerPublicKey)?;
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        let expected_sender_public_key = PublicKey::from_bytes(&args.expected_sender[..32])
+            .map_err(SiaValidateFeeArgsError::InvalidTakerPublicKey)?;
 
         // Convert the DexFee to a Currency amount
         let dex_fee_amount = match args.dex_fee {
@@ -1509,8 +1512,9 @@ impl TryFrom<CheckIfMyPaymentSentArgs<'_>> for SiaCheckIfMyPaymentSentArgs {
 
     fn try_from(args: CheckIfMyPaymentSentArgs<'_>) -> Result<Self, Self::Error> {
         let time_lock = args.time_lock;
-        let success_public_key =
-            PublicKey::from_bytes(args.other_pub).map_err(SiaCheckIfMyPaymentSentArgsError::ParseOtherPublicKey)?;
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        let success_public_key = PublicKey::from_bytes(&args.other_pub[..32])
+            .map_err(SiaCheckIfMyPaymentSentArgsError::ParseOtherPublicKey)?;
         let secret_hash =
             Hash256::try_from(args.secret_hash).map_err(SiaCheckIfMyPaymentSentArgsError::ParseSecretHash)?;
         let search_from_block = args.search_from_block;
@@ -1647,7 +1651,11 @@ impl SwapOps for SiaCoin {
             .my_keypair()
             .expect("SiaCoin::derive_htlc_pubkey: failed to get my_keypair");
 
-        my_keypair.public().to_bytes().to_vec()
+        let mut ret = my_keypair.public().to_bytes().to_vec();
+        // FIXME Alright - MakerSwapData is badly designed and assumes this is a 33 byte array aka H264
+        // we will pad it then drop the last byte when we use it for now
+        ret.push(0u8);
+        ret
     }
 
     /// Determines "Whether the refund transaction can be sent now"
@@ -1661,7 +1669,8 @@ impl SwapOps for SiaCoin {
     /// Validate the PublicKey the other party provided
     /// The other party generates this PublicKey via SwapOps::derive_htlc_pubkey
     fn validate_other_pubkey(&self, raw_pubkey: &[u8]) -> MmResult<(), ValidateOtherPubKeyErr> {
-        let _public_key = PublicKey::from_bytes(raw_pubkey).map_err(|e| {
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        let _public_key = PublicKey::from_bytes(&raw_pubkey[..32]).map_err(|e| {
             ValidateOtherPubKeyErr::InvalidPubKey(format!(
                 "SiaCoin::validate_other_pubkey validate pubkey:{:?} failed: {}",
                 raw_pubkey, e
