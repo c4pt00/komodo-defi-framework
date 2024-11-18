@@ -584,7 +584,7 @@ impl MmCoin for SiaCoin {
             Ok(TradeFee {
                 coin: ticker,
                 amount: hastings_to_siacoin(Currency::DEFAULT_FEE).into(),
-                paid_from_trading_vol: false,
+                paid_from_trading_vol: true,
             })
         };
         Box::new(fut.boxed().compat())
