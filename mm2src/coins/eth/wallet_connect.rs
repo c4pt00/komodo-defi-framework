@@ -15,12 +15,16 @@ use kdf_walletconnect::{chain::{WcChainId, WcRequestMethods},
                         error::WalletConnectError,
                         WalletConnectCtx};
 use mm2_err_handle::prelude::*;
+use secp256k1::PublicKey;
 use secp256k1::{recovery::{RecoverableSignature, RecoveryId},
                 Secp256k1};
 use std::str::FromStr;
 use web3::signing::hash_message;
 
 use super::EthCoin;
+
+// Wait for 20 seconds for the transaction to appear on the RPC node.
+const WAIT_RPC_TIMEOUT: u64 = 30_000;
 
 #[derive(Display, Debug, EnumFromStringify)]
 pub enum EthWalletConnectError {
@@ -131,10 +135,8 @@ impl WalletConnectOps for EthCoin {
         };
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
         let maybe_signed_tx = {
-            // Wait for 10 seconds for the transaction to appear on the RPC node.
-            let wait_rpc_timeout = 10_000;
             let check_every = 1.;
-            self.wait_for_tx_appears_on_rpc(H256::from_slice(&hex::decode(tx_hash)?), wait_rpc_timeout, check_every)
+            self.wait_for_tx_appears_on_rpc(H256::from_slice(&hex::decode(tx_hash)?), WAIT_RPC_TIMEOUT, check_every)
                 .await
                 .mm_err(|err| EthWalletConnectError::InternalError(err.to_string()))?
         };
@@ -183,15 +185,17 @@ fn extract_pubkey_from_signature(
 ) -> MmResult<(H520, Address), EthWalletConnectError> {
     let account =
         H160::from_str(&account[2..]).map_to_mm(|err| EthWalletConnectError::InternalError(err.to_string()))?;
-    let uncompressed = {
+    let uncompressed: H520 = {
         let message_hash = hash_message(message.to_string());
         let signature = Signature::from_str(&signature_str[2..])
             .map_to_mm(|err| EthWalletConnectError::InvalidSignature(err.to_string()))?;
-        recover(&signature, &message_hash).map_to_mm(|err| {
+        let pubkey = recover(&signature, &message_hash).map_to_mm(|err| {
             let error = format!("Couldn't recover a public key from the signature: '{signature:?}, error: {err:?}'");
             EthWalletConnectError::InvalidSignature(error)
-        })?
+        })?;
+        pubkey.serialize_uncompressed().into()
     };
+
     let mut public = Public::default();
     public.as_mut().copy_from_slice(&uncompressed[1..65]);
 
@@ -204,7 +208,7 @@ fn extract_pubkey_from_signature(
     Ok((uncompressed, recovered_address))
 }
 
-pub(crate) fn recover(signature: &Signature, message: &Message) -> Result<H520, ethkey::Error> {
+pub(crate) fn recover(signature: &Signature, message: &Message) -> Result<PublicKey, ethkey::Error> {
     let recovery_id = {
         let recovery_id = (signature[64] as i32)
             .checked_sub(27)
@@ -213,9 +217,8 @@ pub(crate) fn recover(signature: &Signature, message: &Message) -> Result<H520, 
     };
     let sig = RecoverableSignature::from_compact(&signature[0..64], recovery_id)?;
     let pubkey = Secp256k1::new().recover(&secp256k1::Message::from_slice(&message[..])?, &sig)?;
-    let serialized = pubkey.serialize_uncompressed();
 
-    Ok(serialized.into())
+    Ok(pubkey)
 }
 
 /// Sign and send eth transaction with WalletConnect,
