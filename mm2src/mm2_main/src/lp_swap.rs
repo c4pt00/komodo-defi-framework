@@ -1667,6 +1667,10 @@ pub fn detect_secret_hash_algo(maker_coin: &MmCoinEnum, taker_coin: &MmCoinEnum)
         },
         // If taker is lightning coin the SHA256 of the secret will be sent as part of the maker signed invoice
         (_, MmCoinEnum::Tendermint(_) | MmCoinEnum::TendermintToken(_)) => SecretHashAlgo::SHA256,
+        // #[cfg(feature = "enable-sia")]
+        // (_, MmCoinEnum::SiaCoin(_)) => SecretHashAlgo::SHA256,
+        #[cfg(feature = "enable-sia")]
+        (MmCoinEnum::SiaCoin(_), _) => SecretHashAlgo::SHA256,
         (_, _) => SecretHashAlgo::DHASH160,
     }
 }
