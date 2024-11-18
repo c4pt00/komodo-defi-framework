@@ -1479,7 +1479,7 @@ impl TryFrom<WaitForHTLCTxSpendArgs<'_>> for SiaWaitForHTLCTxSpendArgs {
         let tx = SiaTransaction::try_from(args.tx_bytes.to_owned()).map_err(SiaWaitForHTLCTxSpendArgsError::ParseTx)?;
 
         // verify secret_hash is valid, but we don't need it otherwise
-        let secret_hash_slice: &[u8] = &args.secret_hash;
+        let secret_hash_slice: &[u8] = args.secret_hash;
         let _secret_hash =
             Hash256::try_from(secret_hash_slice).map_err(SiaWaitForHTLCTxSpendArgsError::ParseSecretHash)?;
 
