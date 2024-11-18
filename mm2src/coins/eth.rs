@@ -4892,27 +4892,6 @@ impl EthCoin {
         Box::new(fut.boxed().compat())
     }
 
-    /// Gets `ReceiverSpent` events from etomic swap smart contract since `from_block` to `to_block`
-    fn legacy_spend_events(
-        &self,
-        swap_contract_address: Address,
-        from_block: u64,
-        to_block: u64,
-    ) -> Box<dyn Future<Item = Vec<Log>, Error = String> + Send> {
-        let contract_event = try_fus!(SWAP_CONTRACT.event("ReceiverSpent"));
-        let filter = FilterBuilder::default()
-            .topics(Some(vec![contract_event.signature()]), None, None, None)
-            .from_block(BlockNumber::Number(from_block.into()))
-            .to_block(BlockNumber::Number(to_block.into()))
-            .address(vec![swap_contract_address])
-            .build();
-
-        let coin = self.clone();
-
-        let fut = async move { coin.logs(filter).await.map_err(|e| ERRL!("{}", e)) };
-        Box::new(fut.boxed().compat())
-    }
-
     /// Returns events from `from_block` to `to_block` or current `latest` block.
     /// According to ["eth_getLogs" doc](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getlogs) `toBlock` is optional, default is "latest".
     async fn events_from_block(
@@ -5298,10 +5277,16 @@ impl EthCoin {
             let to_block = current_block.min(from_block + self.logs_block_range);
 
             let spend_events = try_s!(
-                self.legacy_spend_events(swap_contract_address, from_block, to_block)
-                    .compat()
-                    .await
+                self.events_from_block(
+                    swap_contract_address,
+                    "ReceiverSpent",
+                    from_block,
+                    Some(to_block),
+                    &SWAP_CONTRACT
+                )
+                .await
             );
+
             let found = spend_events.iter().find(|event| &event.data.0[..32] == id.as_slice());
 
             if let Some(event) = found {
