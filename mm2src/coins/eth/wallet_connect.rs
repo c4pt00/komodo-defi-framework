@@ -23,8 +23,8 @@ use web3::signing::hash_message;
 
 use super::EthCoin;
 
-// Wait for 20 seconds for the transaction to appear on the RPC node.
-const WAIT_RPC_TIMEOUT: u64 = 30_000;
+// Wait for 30 seconds for the transaction to appear on the RPC node.
+const WAIT_RPC_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Display, Debug, EnumFromStringify)]
 pub enum EthWalletConnectError {
@@ -136,9 +136,13 @@ impl WalletConnectOps for EthCoin {
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
         let maybe_signed_tx = {
             let check_every = 1.;
-            self.wait_for_tx_appears_on_rpc(H256::from_slice(&hex::decode(tx_hash)?), WAIT_RPC_TIMEOUT, check_every)
-                .await
-                .mm_err(|err| EthWalletConnectError::InternalError(err.to_string()))?
+            self.wait_for_tx_appears_on_rpc(
+                H256::from_slice(&hex::decode(tx_hash)?),
+                WAIT_RPC_TIMEOUT_SECS,
+                check_every,
+            )
+            .await
+            .mm_err(|err| EthWalletConnectError::InternalError(err.to_string()))?
         };
         let signed_tx = match maybe_signed_tx {
             Some(signed_tx) => signed_tx,

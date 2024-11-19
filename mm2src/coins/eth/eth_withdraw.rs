@@ -167,7 +167,7 @@ where
                 }
 
                 // Wait for 10 seconds for the transaction to appear on the RPC node.
-                let wait_rpc_timeout = 10_000;
+                let wait_rpc_timeout = 10;
                 let check_every = 1.;
 
                 // Please note that this method may take a long time

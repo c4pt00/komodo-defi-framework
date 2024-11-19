@@ -59,7 +59,7 @@ use common::executor::{abortable_queue::AbortableQueue, AbortOnDropHandle, Abort
                        AbortedError, SpawnAbortable, Timer};
 use common::log::{debug, error, info, warn};
 use common::number_type_casting::SafeTypeCastingNumbers;
-use common::{now_ms, wait_until_ms};
+use common::{now_ms, wait_until_sec};
 use common::{now_sec, small_rng, DEX_FEE_ADDR_RAW_PUBKEY};
 use crypto::privkey::key_pair_from_secret;
 use crypto::{Bip44Chain, CryptoCtx, CryptoCtxError, GlobalHDAccountArc, KeyPairPolicy};
@@ -2841,7 +2841,7 @@ async fn sign_and_send_transaction_with_metamask(
 
     // It's important to return the transaction hex for the swap,
     // so wait up to 60 seconds for the transaction to appear on the RPC node.
-    let wait_rpc_timeout = 60_000;
+    let wait_rpc_timeout = 60;
     let check_every = 1.;
 
     // Please note that this method may take a long time
@@ -5535,10 +5535,10 @@ impl EthCoin {
     async fn wait_for_tx_appears_on_rpc(
         &self,
         tx_hash: H256,
-        wait_rpc_timeout_ms: u64,
+        wait_rpc_timeout_s: u64,
         check_every: f64,
     ) -> Web3RpcResult<Option<SignedEthTx>> {
-        let wait_until = wait_until_ms(wait_rpc_timeout_ms);
+        let wait_until = wait_until_sec(wait_rpc_timeout_s);
         while now_ms() < wait_until {
             let maybe_tx = self.transaction(TransactionId::Hash(tx_hash)).await?;
             if let Some(tx) = maybe_tx {
@@ -5549,9 +5549,8 @@ impl EthCoin {
             Timer::sleep(check_every).await;
         }
 
-        let timeout_s = wait_rpc_timeout_ms / 1000;
         warn!(
-            "Couldn't fetch the '{tx_hash:02x}' transaction hex as it hasn't appeared on the RPC node in {timeout_s}s"
+            "Couldn't fetch the '{tx_hash:02x}' transaction hex as it hasn't appeared on the RPC node in {wait_rpc_timeout_s}s"
         );
 
         Ok(None)
