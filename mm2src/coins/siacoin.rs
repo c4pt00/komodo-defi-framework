@@ -1141,9 +1141,9 @@ impl SiaCoin {
             return Err(ValidateFeeError::InputsOrigin(fee_txid.clone()));
         }
 
-        // check that fee_tx has exactly 1 output
+        // check that fee_tx has 1 or 2 outputs
         match fee_tx.siacoin_outputs.len() {
-            1 => (),
+            1 | 2 => (),
             outputs_length => {
                 return Err(ValidateFeeError::VoutLength {
                     txid: fee_txid.clone(),

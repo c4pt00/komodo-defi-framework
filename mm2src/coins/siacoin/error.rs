@@ -98,7 +98,7 @@ pub enum ValidateFeeError {
     MininumHeight { event: Event, min_block_number: u64 },
     #[error("SiaCoin::new_validate_fee: all inputs do not originate from taker address txid:{0}")]
     InputsOrigin(TransactionId),
-    #[error("SiaCoin::new_validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1")]
+    #[error("SiaCoin::new_validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1 or 2")]
     VoutLength { txid: TransactionId, outputs_length: usize },
     #[error("SiaCoin::new_validate_fee: fee_tx:{txid} pays wrong address:{address}")]
     InvalidFeeAddress { txid: TransactionId, address: Address },
