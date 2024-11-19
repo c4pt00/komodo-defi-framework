@@ -258,7 +258,7 @@ pub enum SiaCoinSiaExtractSecretError {
     #[error("SiaCoin::sia_extract_secret: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] Hash256Error),
     #[error(
-        "SiaCoin::sia_extract_secret: failed to extract secret of secret_hash:{expected_hash} from spend_tx: {tx:?}"
+        "SiaCoin::sia_extract_secret: failed to extract secret of secret_hash:{expected_hash} from spend_tx: {tx}"
     )]
     FailedToExtract { expected_hash: Hash256, tx: SiaTransaction },
 }
@@ -281,8 +281,8 @@ pub enum SiaWaitForHTLCTxSpendArgsError {
 pub enum SiaWaitForHTLCTxSpendError {
     #[error("SiaCoin::sia_wait_for_htlc_tx_spend: Failed to parse transaction: {0}")]
     ParseArgs(#[from] SiaWaitForHTLCTxSpendArgsError),
-    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: Failed to fetch memory pool: {0}")]
-    FetchMempool(#[from] SiaApiClientError),
-    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: timed out waiting for txid:{txid}")]
+    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: timed out waiting for spend of txid:{txid} vout 0")]
     Timeout { txid: TransactionId },
+    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: find_where_utxo_spent failed: {0}")]
+    FindWhereUtxoSpent(#[from] SiaClientHelperError),
 }

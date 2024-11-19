@@ -39,8 +39,8 @@ pub use sia_rust::transport::endpoints::{AddressesEventsRequest, GetAddressUtxos
                                          TxpoolBroadcastRequest, TxpoolTransactionsRequest, TxpoolTransactionsResponse};
 pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayout, EventType, Hash256, Hash256Error,
                           Keypair as SiaKeypair, KeypairError, Preimage, PreimageError, PublicKey, PublicKeyError,
-                          SiacoinElement, SiacoinOutput, SpendPolicy, TransactionId, V1Transaction, V2Transaction,
-                          V2TransactionBuilder, V2TransactionBuilderError};
+                          SiacoinElement, SiacoinOutput, SiacoinOutputId, SpendPolicy, TransactionId, V1Transaction,
+                          V2Transaction, V2TransactionBuilder, V2TransactionBuilderError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -62,6 +62,9 @@ lazy_static! {
         PublicKey::from_bytes(&FEE_PUBLIC_KEY_BYTES).expect("DEX_FEE_PUBKEY_ED25510 is a valid PublicKey");
     pub static ref FEE_ADDR: Address = Address::from_public_key(&FEE_PUBLIC_KEY);
 }
+
+/// The index of the HTLC output in the transaction that locks the funds
+const HTLC_VOUT_INDEX: u32 = 0;
 
 // TODO consider if this is the best way to handle wasm vs native
 #[cfg(not(target_arch = "wasm32"))]
@@ -957,8 +960,9 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(SendTakerPaymentError::MyKeypair)?;
 
         let taker_public_key = my_keypair.public();
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
         let maker_public_key =
-            PublicKey::from_bytes(args.other_pubkey).map_err(SendTakerPaymentError::InvalidMakerPublicKey)?;
+            PublicKey::from_bytes(&args.other_pubkey[..32]).map_err(SendTakerPaymentError::InvalidMakerPublicKey)?;
 
         let secret_hash = Hash256::try_from(args.secret_hash).map_err(SendTakerPaymentError::SecretHashLength)?;
 
@@ -1003,8 +1007,9 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(MakerSpendsTakerPaymentError::MyKeypair)?;
 
         let maker_public_key = my_keypair.public();
-        let taker_public_key =
-            PublicKey::from_bytes(args.other_pubkey).map_err(MakerSpendsTakerPaymentError::InvalidTakerPublicKey)?;
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        let taker_public_key = PublicKey::from_bytes(&args.other_pubkey[..32])
+            .map_err(MakerSpendsTakerPaymentError::InvalidTakerPublicKey)?;
 
         let taker_payment_tx =
             SiaTransaction::try_from(args.other_payment_tx.to_vec()).map_err(MakerSpendsTakerPaymentError::ParseTx)?;
@@ -1332,7 +1337,8 @@ impl SiaCoin {
     ) -> Result<TransactionEnum, SiaWaitForHTLCTxSpendError> {
         let sia_args = SiaWaitForHTLCTxSpendArgs::try_from(args).map_err(SiaWaitForHTLCTxSpendError::ParseArgs)?;
 
-        let txid = sia_args.tx.txid();
+        let htlc_lock_txid = sia_args.tx.txid();
+        let output_id = SiacoinOutputId::new(htlc_lock_txid.clone(), HTLC_VOUT_INDEX);
         loop {
             // search the memory pool by txid first
             let found_in_mempool = self
@@ -1347,22 +1353,24 @@ impl SiaCoin {
                 })
                 .v2transactions
                 .into_iter()
-                .find(|tx| tx.txid() == txid);
+                .find(|tx| tx.siacoin_inputs.iter().any(|input| input.parent.id == output_id));
 
             if let Some(tx) = found_in_mempool {
                 return Ok(TransactionEnum::SiaTransaction(SiaTransaction(tx)));
             }
 
-            // Search confirmed blocks by txid
-            // TODO Alright - this could also log an error but the Err() here is expected if the tx
-            // is not confirmed. We could log an error if we get any status other then 404
-            if let Ok(found_in_block) = self.client.get_transaction(&txid).await {
-                return Ok(TransactionEnum::SiaTransaction(SiaTransaction(found_in_block)));
+            // Search confirmed blocks
+            let found_in_block = self
+                .client
+                .find_where_utxo_spent(&output_id, sia_args.from_block)
+                .await?;
+            if let Some(tx) = found_in_block {
+                return Ok(TransactionEnum::SiaTransaction(SiaTransaction(tx)));
             }
 
             // Check timeout
             if now_sec() >= sia_args.wait_until {
-                return Err(SiaWaitForHTLCTxSpendError::Timeout { txid: txid.clone() });
+                return Err(SiaWaitForHTLCTxSpendError::Timeout { txid: htlc_lock_txid });
             }
 
             // Wait before trying again
@@ -1473,6 +1481,7 @@ struct SiaWaitForHTLCTxSpendArgs {
     pub tx: SiaTransaction,
     pub wait_until: u64,
     pub check_every: f64,
+    pub from_block: u64,
 }
 
 impl TryFrom<WaitForHTLCTxSpendArgs<'_>> for SiaWaitForHTLCTxSpendArgs {
@@ -1491,6 +1500,7 @@ impl TryFrom<WaitForHTLCTxSpendArgs<'_>> for SiaWaitForHTLCTxSpendArgs {
             tx,
             wait_until: args.wait_until,
             check_every: args.check_every,
+            from_block: args.from_block,
         })
     }
 }
