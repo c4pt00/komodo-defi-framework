@@ -126,11 +126,11 @@ pub(crate) fn build_default_required_namespaces() -> ProposeNamespaces {
 }
 
 pub(crate) fn build_optional_namespaces() -> ProposeNamespaces {
-    let required = BTreeMap::from([(WcChain::Cosmos.as_ref().to_string(), ProposeNamespace {
+    let optional = BTreeMap::from([(WcChain::Cosmos.as_ref().to_string(), ProposeNamespace {
         methods: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
         chains: COSMOS_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
         events: BTreeSet::default(),
     })]);
 
-    ProposeNamespaces(required)
+    ProposeNamespaces(optional)
 }

@@ -221,7 +221,7 @@ impl WalletConnectCtx {
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectError> {
         info!("Loading WalletConnect session from storage");
         let now = chrono::Utc::now().timestamp() as u64;
-        let mut sessions = self
+        let sessions = self
             .session
             .storage()
             .get_all_sessions()
@@ -229,8 +229,7 @@ impl WalletConnectCtx {
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // bring most recent active session to the back.
-        sessions.sort_by(|a, b| a.expiry.cmp(&b.expiry));
-        for session in sessions {
+        for session in sessions.into_iter().rev() {
             // delete expired session
             if now > session.expiry {
                 debug!("Session {} expired, trying to delete from storage", session.topic);
