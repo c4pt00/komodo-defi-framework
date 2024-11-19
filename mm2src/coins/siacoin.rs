@@ -1499,7 +1499,7 @@ impl TryFrom<ValidatePaymentInput> for SiaValidatePaymentInput {
         // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
         if args.other_pub.len() != 33 {
             return Err(SiaValidatePaymentInputError::InvalidOtherPublicKeyLength(
-                args.other_pub.clone(),
+                args.other_pub,
             ));
         }
         let other_pub = PublicKey::from_bytes(&args.other_pub[..32])?;
