@@ -115,6 +115,7 @@ pub enum Chain {
     Eth,
     Fantom,
     Polygon,
+    Arbitrum,
 }
 
 pub trait ConvertChain {
@@ -133,6 +134,7 @@ impl ConvertChain for Chain {
             Chain::Eth => "ETH",
             Chain::Fantom => "FTM",
             Chain::Polygon => "MATIC",
+            Chain::Arbitrum => "ETH-ARB20",
         }
     }
 
@@ -145,6 +147,7 @@ impl ConvertChain for Chain {
             "ETH" | "eth" => Ok(Chain::Eth),
             "FTM" | "ftm" => Ok(Chain::Fantom),
             "MATIC" | "matic" => Ok(Chain::Polygon),
+            "ETH-ARB20" | "eth-arb20" => Ok(Chain::Arbitrum),
             _ => Err(ParseChainTypeError::UnsupportedChainType),
         }
     }
@@ -157,6 +160,7 @@ impl ConvertChain for Chain {
             Chain::Eth => "NFT_ETH",
             Chain::Fantom => "NFT_FTM",
             Chain::Polygon => "NFT_MATIC",
+            Chain::Arbitrum => "NFT_ETH-ARB20",
         }
     }
 
@@ -169,6 +173,7 @@ impl ConvertChain for Chain {
             "NFT_ETH" => Ok(Chain::Eth),
             "NFT_FTM" => Ok(Chain::Fantom),
             "NFT_MATIC" => Ok(Chain::Polygon),
+            "NFT_ETH-ARB20" => Ok(Chain::Arbitrum),
             _ => Err(ParseChainTypeError::UnsupportedChainType),
         }
     }
@@ -182,6 +187,7 @@ impl fmt::Display for Chain {
             Chain::Eth => write!(f, "ETH"),
             Chain::Fantom => write!(f, "FANTOM"),
             Chain::Polygon => write!(f, "POLYGON"),
+            Chain::Arbitrum => write!(f, "ARBITRUM"),
         }
     }
 }
@@ -199,6 +205,7 @@ impl FromStr for Chain {
             "ETH" | "eth" => Ok(Chain::Eth),
             "FANTOM" | "fantom" => Ok(Chain::Fantom),
             "POLYGON" | "polygon" => Ok(Chain::Polygon),
+            "ARBITRUM" | "arbitrum" => Ok(Chain::Arbitrum),
             _ => Err(ParseChainTypeError::UnsupportedChainType),
         }
     }
