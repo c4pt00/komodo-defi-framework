@@ -51,7 +51,7 @@ pub enum SendMakerPaymentError {
 
 #[derive(Debug, Error)]
 pub enum SendTakerPaymentError {
-    #[error("SiaCoin::new_send_taker_payment: invalid taker pubkey {0}")]
+    #[error("SiaCoin::new_send_taker_payment: invalid maker pubkey {0}")]
     InvalidMakerPublicKey(#[from] PublicKeyError),
     #[error("SiaCoin::new_send_taker_payment: failed to fetch my_keypair {0}")]
     MyKeypair(#[from] SiaCoinError),
