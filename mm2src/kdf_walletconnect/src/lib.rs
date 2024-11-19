@@ -35,6 +35,7 @@ use relay_rpc::rpc::params::{session_request::Request as SessionRequest, IrnMeta
                              RelayProtocolMetadata, RequestParams, ResponseParamsError, ResponseParamsSuccess};
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
 use serde::de::DeserializeOwned;
+use session::rpc::delete::send_session_delete_request;
 use session::Session;
 use session::{key::SymKeyPair, SessionManager};
 use std::collections::BTreeSet;
@@ -508,21 +509,7 @@ impl WalletConnectCtx {
     }
 
     pub async fn drop_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
-        self.client.unsubscribe(topic.clone()).await?;
-
-        if let Some(session) = self.session.delete_session(topic).await {
-            self.pairing
-                .disconnect_rpc(&session.pairing_topic, &self.client)
-                .await?;
-        };
-
-        self.session
-            .storage()
-            .delete_session(topic)
-            .await
-            .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
-
-        Ok(())
+        send_session_delete_request(self, topic).await
     }
 }
 

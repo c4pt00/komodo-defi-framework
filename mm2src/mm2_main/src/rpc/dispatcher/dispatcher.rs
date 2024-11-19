@@ -9,7 +9,7 @@ use crate::lp_ordermatch::{best_orders_rpc_v2, orderbook_rpc_v2, start_simple_ma
 use crate::lp_swap::swap_v2_rpcs::{active_swaps_rpc, my_recent_swaps_rpc, my_swap_status_rpc};
 use crate::lp_wallet::{get_mnemonic_rpc, get_wallet_names_rpc};
 use crate::rpc::rate_limiter::{process_rate_limit, RateLimitContext};
-use crate::rpc::wc_commands::{delete_connection, new_connection, ping_session};
+use crate::rpc::wc_commands::{new_connection, ping_session};
 use crate::{lp_stats::{add_node_to_version_stat, remove_node_from_version_stat, start_version_stat_collection,
                        stop_version_stat_collection, update_version_stat_collection},
             lp_swap::{get_locked_amount_rpc, max_maker_vol, recreate_swap_data, trade_preimage_rpc},
@@ -220,10 +220,9 @@ async fn dispatcher_v2(request: MmRpcRequest, ctx: MmArc) -> DispatcherResult<Re
         "send_asked_data" => handle_mmrpc(ctx, request, send_asked_data_rpc).await,
         "z_coin_tx_history" => handle_mmrpc(ctx, request, coins::my_tx_history_v2::z_coin_tx_history_rpc).await,
         "wc_new_connection" => handle_mmrpc(ctx, request, new_connection).await,
-        "wc_delete_connection" => handle_mmrpc(ctx, request, delete_connection).await,
         "wc_get_session" => handle_mmrpc(ctx, request, get_session).await,
         "wc_get_sessions" => handle_mmrpc(ctx, request, get_all_sessions).await,
-        "wc_disconnect_session" => handle_mmrpc(ctx, request, disconnect_session).await,
+        "wc_delete_session" => handle_mmrpc(ctx, request, disconnect_session).await,
         "wc_set_active_session" => handle_mmrpc(ctx, request, set_active_session).await,
         "wc_ping_session" => handle_mmrpc(ctx, request, ping_session).await,
         _ => MmError::err(DispatcherError::NoSuchMethod),

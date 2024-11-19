@@ -1,9 +1,7 @@
-mod delete_connection;
 mod new_connection;
 mod sessions;
 
 use common::HttpStatusCode;
-pub use delete_connection::delete_connection;
 use derive_more::Display;
 use http::StatusCode;
 pub use new_connection::new_connection;
