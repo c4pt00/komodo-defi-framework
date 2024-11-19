@@ -8,6 +8,7 @@ mod z_rpc;
 mod z_tx_history;
 
 use crate::coin_errors::{MyAddressError, ValidatePaymentResult};
+use crate::common::log::LogOnError;
 use crate::hd_wallet::HDPathAccountToAddressId;
 use crate::my_tx_history_v2::{MyTxHistoryErrorV2, MyTxHistoryRequestV2, MyTxHistoryResponseV2};
 use crate::rpc_command::init_withdraw::{InitWithdrawCoin, WithdrawInProgressStatus, WithdrawTaskHandleShared};
@@ -478,7 +479,7 @@ impl ZCoin {
 
         // Store any change outputs we created in this transaction by decrypting them with our keys
         // and saving them to the wallet database for future spends
-        store_change_output(self.consensus_params_ref(), &self.z_fields.light_wallet_db, &zcash_tx)
+        store_change_output(self.consensus_params_ref(), &self.z_fields.light_wallet_db, &tx)
             .await
             .error_log();
 
