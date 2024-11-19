@@ -64,6 +64,8 @@ lazy_static! {
 }
 
 /// The index of the HTLC output in the transaction that locks the funds
+/// u32 is used to because this is generally used as an index of a Vec or slice
+/// Setting usize would result in a u64->u32 cast in some cases, and we want to avoid that.
 const HTLC_VOUT_INDEX: u32 = 0;
 
 // TODO consider if this is the best way to handle wasm vs native
