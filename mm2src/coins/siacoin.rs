@@ -1377,8 +1377,65 @@ impl SiaCoin {
             Timer::sleep(sia_args.check_every).await;
         }
     }
+
+    async fn sia_validate_maker_payment(
+        &self,
+        input: ValidatePaymentInput,
+    ) -> Result<(), SiaValidateMakerPaymentError> {
+        let _sia_args = SiaValidatePaymentInput::try_from(input)?;
+        Ok(())
+    }
+
+    async fn sia_validate_taker_payment(
+        &self,
+        input: ValidatePaymentInput,
+    ) -> Result<(), SiaValidateTakerPaymentError> {
+        let _sia_args = SiaValidatePaymentInput::try_from(input)?;
+        Ok(())
+    }
 }
 
+/// Sia typed equivalent of coins::ValidatePaymentInput
+#[derive(Clone, Debug)]
+struct SiaValidatePaymentInput {
+    payment_tx: SiaTransaction,
+    time_lock_duration: u64,
+    time_lock: u64,
+    other_pub: PublicKey,
+    secret_hash: Hash256,
+    amount: Currency,
+    confirmations: u64,
+}
+
+impl TryFrom<ValidatePaymentInput> for SiaValidatePaymentInput {
+    type Error = SiaValidatePaymentInputError;
+
+    fn try_from(args: ValidatePaymentInput) -> Result<Self, Self::Error> {
+        let payment_tx =
+            SiaTransaction::try_from(args.payment_tx.to_vec()).map_err(SiaValidatePaymentInputError::ParseTx)?;
+
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        if args.other_pub.len() != 33 {
+            return Err(SiaValidatePaymentInputError::InvalidOtherPublicKeyLength(
+                args.other_pub.clone(),
+            ));
+        }
+        let other_pub = PublicKey::from_bytes(&args.other_pub[..32])?;
+
+        let secret_hash = Hash256::try_from(args.secret_hash.as_slice())?;
+        let amount = siacoin_to_hastings(args.amount)?;
+
+        Ok(SiaValidatePaymentInput {
+            payment_tx,
+            time_lock_duration: args.time_lock_duration,
+            time_lock: args.time_lock,
+            other_pub,
+            secret_hash,
+            amount,
+            confirmations: args.confirmations,
+        })
+    }
+}
 /// Sia typed equivalent of coins::RefundPaymentArgs
 pub struct SiaRefundPaymentArgs {
     payment_tx: SiaTransaction,
@@ -1604,10 +1661,18 @@ impl SwapOps for SiaCoin {
     }
 
     // FIXME Alright
-    async fn validate_maker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> { Ok(()) }
+    async fn validate_maker_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
+        self.sia_validate_maker_payment(input)
+            .await
+            .map_err(|e| MmError::new(ValidatePaymentError::InternalError(e.to_string())))
+    }
 
     // FIXME Alright
-    async fn validate_taker_payment(&self, _input: ValidatePaymentInput) -> ValidatePaymentResult<()> { Ok(()) }
+    async fn validate_taker_payment(&self, input: ValidatePaymentInput) -> ValidatePaymentResult<()> {
+        self.sia_validate_taker_payment(input)
+            .await
+            .map_err(|e| MmError::new(ValidatePaymentError::InternalError(e.to_string())))
+    }
 
     // return Ok(Some(tx)) if a transaction is found
     // return Ok(None) if no transaction is found

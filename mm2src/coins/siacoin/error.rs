@@ -279,10 +279,36 @@ pub enum SiaWaitForHTLCTxSpendArgsError {
 
 #[derive(Debug, Error)]
 pub enum SiaWaitForHTLCTxSpendError {
-    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: Failed to parse transaction: {0}")]
+    #[error("SiaCoin::sia_wait_for_htlc_tx_spend: Failed to parse arguments: {0}")]
     ParseArgs(#[from] SiaWaitForHTLCTxSpendArgsError),
     #[error("SiaCoin::sia_wait_for_htlc_tx_spend: timed out waiting for spend of txid:{txid} vout 0")]
     Timeout { txid: TransactionId },
     #[error("SiaCoin::sia_wait_for_htlc_tx_spend: find_where_utxo_spent failed: {0}")]
     FindWhereUtxoSpent(#[from] SiaClientHelperError),
+}
+
+#[derive(Debug, Error)]
+pub enum SiaValidatePaymentInputError {
+    #[error("SiaValidatePaymentInput::TryFrom<ValidatePaymentInput>: Failed to parse payment_tx: {0}")]
+    ParseTx(#[from] SiaTransactionError),
+    #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: invalid other_pub, expected 33 bytes found: {0:?}")]
+    InvalidOtherPublicKeyLength(Vec<u8>),
+    #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: Failed to parse other_pub: {0}")]
+    ParseOtherPublicKey(#[from] PublicKeyError),
+    #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: Failed to parse secret_hash: {0}")]
+    ParseSecretHash(#[from] Hash256Error),
+    #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: failed to convert amount to Currency: {0}")]
+    SiacoinToHastings(#[from] SiacoinToHastingsError),
+}
+
+#[derive(Debug, Error)]
+pub enum SiaValidateMakerPaymentError {
+    #[error("SiaCoin::sia_validate_maker_payment: failed to parse ValidatePaymentInput: {0}")]
+    ParseArgs(#[from] SiaValidatePaymentInputError),
+}
+
+#[derive(Debug, Error)]
+pub enum SiaValidateTakerPaymentError {
+    #[error("SiaCoin::sia_validate_taker_payment: failed to parse ValidatePaymentInput: {0}")]
+    ParseArgs(#[from] SiaValidatePaymentInputError),
 }
