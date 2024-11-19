@@ -42,6 +42,9 @@
   - Balance is now returned as `CoinBalanceMap` for both UTXOs and QTUM. [#2259](https://github.com/KomodoPlatform/komodo-defi-framework/pull/2259)
     - This is to return the same type/json across all coins for GUIs since EVM uses `CoinBalanceMap`.
   - EVM addresses are displayed in full in `get_new_address` response after [#2264](https://github.com/KomodoPlatform/komodo-defi-framework/pull/2264)
+- RPC Service
+  - A fix was introduced to run rpc request futures till completion in [#1966](https://github.com/KomodoPlatform/komodo-defi-framework/pull/1966)
+    - This ensures RPC request futures complete fully even if clients disconnect, preventing partial state updates and maintaining data consistency.
 - Security Enhancements
   - Message lifetime overflows were added to prevent creating messages for proxy with too long lifetimes. [#2233](https://github.com/KomodoPlatform/komodo-defi-framework/pull/2233)
   - Remote files are now handled in a safer way in CI. [#2217](https://github.com/KomodoPlatform/komodo-defi-framework/pull/2217)
