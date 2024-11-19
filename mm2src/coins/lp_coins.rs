@@ -1004,6 +1004,8 @@ pub struct ValidateFeeArgs<'a> {
     pub expected_sender: &'a [u8],
     pub fee_addr: &'a [u8],
     pub dex_fee: &'a DexFee,
+    /// the minimum block number the fee transaction can be included in the blockchain
+    /// this can be the current height if the transaction is in mempool or the confirmed block height
     pub min_block_number: u64,
     pub uuid: &'a [u8],
 }
