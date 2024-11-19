@@ -1117,25 +1117,59 @@ impl SiaCoin {
     async fn new_validate_fee(&self, args: ValidateFeeArgs<'_>) -> Result<(), ValidateFeeError> {
         let args = SiaValidateFeeArgs::try_from(args).map_err(ValidateFeeError::ParseArgs)?;
 
-        let fee_tx = args.fee_tx.0.clone();
-        let fee_txid = fee_tx.txid();
+        // Transaction provided by peer via p2p stack
+        let peer_tx = args.fee_tx.0.clone();
+        let fee_txid = peer_tx.txid();
 
-        let event = self
-            .client
-            .get_event(&fee_txid)
-            .await
-            .map_err(ValidateFeeError::FetchEvent)?;
+        let found_in_block = self.client.get_event(&fee_txid).await;
 
-        // Begin validation logic
+        // TODO Alright - this creates a significant mess in the Error type and can be simplified
+        // with a helper method for fetching transactions from chain or mempool
+        let fee_tx = match found_in_block {
+            Ok(event) => {
+                // check fetched event is V2Transaction
+                let tx = match event.data {
+                    EventDataWrapper::V2Transaction(tx) => tx,
+                    _ => return Err(ValidateFeeError::EventVariant(event)),
+                };
 
-        // check that tx confirmed at or after min_block_number
-        let confirmed_at_height = event.index.height;
-        if confirmed_at_height < args.min_block_number {
-            return Err(ValidateFeeError::MininumHeight {
-                event,
-                min_block_number: args.min_block_number,
-            });
-        }
+                // check tx confirmed at or after min_block_number
+                let confirmed_at_height = event.index.height;
+                if confirmed_at_height < args.min_block_number {
+                    return Err(ValidateFeeError::MininumConfirmedHeight {
+                        txid: tx.txid(),
+                        min_block_number: args.min_block_number,
+                    });
+                }
+                tx
+            },
+            Err(e) => {
+                // Log the error incase of actual error rather than just not finding the tx
+                // TODO Alright - can be simplified, see get_transaction FIXME dev comment
+                debug!(
+                    "SiaCoin::new_validate_fee: fee_tx not found on chain {}, checking mempool",
+                    e
+                );
+                match self.client.get_unconfirmed_transaction(&fee_txid).await? {
+                    Some(tx) => {
+                        let current_height = self
+                            .client
+                            .current_height()
+                            .await
+                            .map_err(ValidateFeeError::FetchHeight)?;
+                        // if tx found in mempool, check that it would confirm at or after min_block_number
+                        if current_height < args.min_block_number {
+                            return Err(ValidateFeeError::MininumMempoolHeight {
+                                txid: tx.txid(),
+                                min_block_number: args.min_block_number,
+                            });
+                        }
+                        tx
+                    },
+                    None => return Err(ValidateFeeError::TxNotFound(fee_txid.clone())),
+                }
+            },
+        };
 
         // check that all inputs originate from taker address
         // This mimicks the behavior of KDF's utxo_standard protocol for consistency.
@@ -1380,20 +1414,68 @@ impl SiaCoin {
         }
     }
 
+    /// Validates that a given transaction has the expected HTLC output at HTLC_VOUT_INDEX
+    async fn validate_htlc_payment(&self, input: ValidatePaymentInput) -> Result<(), SiaValidateHtlcPaymentError> {
+        let sia_args = SiaValidatePaymentInput::try_from(input)?;
+
+        let my_keypair = self.my_keypair()?;
+        let success_public_key = my_keypair.public();
+        let refund_public_key = sia_args.other_pub;
+
+        // Generate the expected HTLC address where funds should be locked
+        let htlc_address = SpendPolicy::atomic_swap(
+            &success_public_key,
+            &refund_public_key,
+            sia_args.time_lock,
+            &sia_args.secret_hash,
+        )
+        .address();
+
+        // Build the expected HTLC output
+        let expected_htlc_output = SiacoinOutput {
+            value: sia_args.amount,
+            address: htlc_address,
+        };
+
+        // Check that the transaction has the expected output at HTLC_VOUT_INDEX
+        let htlc_output = match sia_args.payment_tx.0.siacoin_outputs.get(HTLC_VOUT_INDEX as usize) {
+            Some(output) => output,
+            None => {
+                return Err(SiaValidateHtlcPaymentError::InvalidOutputLength {
+                    expected: HTLC_VOUT_INDEX + 1,
+                    actual: sia_args.payment_tx.0.siacoin_outputs.len() as u32,
+                    txid: sia_args.payment_tx.0.txid(),
+                })
+            },
+        };
+
+        if *htlc_output != expected_htlc_output {
+            return Err(SiaValidateHtlcPaymentError::InvalidOutput {
+                expected: expected_htlc_output,
+                actual: htlc_output.clone(),
+                txid: sia_args.payment_tx.0.txid(),
+            });
+        }
+
+        Ok(())
+    }
+
     async fn sia_validate_maker_payment(
         &self,
         input: ValidatePaymentInput,
     ) -> Result<(), SiaValidateMakerPaymentError> {
-        let _sia_args = SiaValidatePaymentInput::try_from(input)?;
-        Ok(())
+        self.validate_htlc_payment(input)
+            .await
+            .map_err(SiaValidateMakerPaymentError::ValidatePayment)
     }
 
     async fn sia_validate_taker_payment(
         &self,
         input: ValidatePaymentInput,
     ) -> Result<(), SiaValidateTakerPaymentError> {
-        let _sia_args = SiaValidatePaymentInput::try_from(input)?;
-        Ok(())
+        self.validate_htlc_payment(input)
+            .await
+            .map_err(SiaValidateTakerPaymentError::ValidatePayment)
     }
 }
 
@@ -1401,12 +1483,10 @@ impl SiaCoin {
 #[derive(Clone, Debug)]
 struct SiaValidatePaymentInput {
     payment_tx: SiaTransaction,
-    time_lock_duration: u64,
     time_lock: u64,
     other_pub: PublicKey,
     secret_hash: Hash256,
     amount: Currency,
-    confirmations: u64,
 }
 
 impl TryFrom<ValidatePaymentInput> for SiaValidatePaymentInput {
@@ -1429,12 +1509,10 @@ impl TryFrom<ValidatePaymentInput> for SiaValidatePaymentInput {
 
         Ok(SiaValidatePaymentInput {
             payment_tx,
-            time_lock_duration: args.time_lock_duration,
             time_lock: args.time_lock,
             other_pub,
             secret_hash,
             amount,
-            confirmations: args.confirmations,
         })
     }
 }

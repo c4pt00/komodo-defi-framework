@@ -1,6 +1,6 @@
 use crate::siacoin::{Address, Currency, Event, EventDataWrapper, Hash256, Hash256Error, KeypairError, PreimageError,
-                     PublicKeyError, SiaApiClientError, SiaClientHelperError, SiaTransaction, TransactionId,
-                     V2TransactionBuilderError};
+                     PublicKeyError, SiaApiClientError, SiaClientHelperError, SiaTransaction, SiacoinOutput,
+                     TransactionId, V2TransactionBuilderError};
 use crate::{DexFee, TransactionEnum};
 use common::executor::AbortedError;
 use mm2_number::BigDecimal;
@@ -92,10 +92,18 @@ pub enum SendRefundHltcError {
 pub enum ValidateFeeError {
     #[error("SiaCoin::new_validate_fee: failed to parse ValidateFeeArgs {0}")]
     ParseArgs(#[from] SiaValidateFeeArgsError),
-    #[error("SiaCoin::new_validate_fee: failed to fetch fee_tx event {0}")]
-    FetchEvent(#[from] SiaClientHelperError),
-    #[error("SiaCoin::new_validate_fee: tx confirmed before min_block_number:{min_block_number} event:{event:?}")]
-    MininumHeight { event: Event, min_block_number: u64 },
+    #[error("SiaCoin::new_validate_fee: failed to fetch mempool: {0}")]
+    FetchMempool(#[from] SiaClientHelperError),
+    #[error("SiaCoin::new_validate_fee: fee_tx:{0} not found on chain or in mempool")]
+    TxNotFound(TransactionId),
+    #[error("SiaCoin::new_validate_fee: unexpected event variant: {0:?}")]
+    EventVariant(Event),
+    #[error("SiaCoin::new_validate_fee: tx confirmed before min_block_number:{min_block_number} txid:{txid}")]
+    MininumConfirmedHeight { txid: TransactionId, min_block_number: u64 },
+    #[error("SiaCoin::new_validate_fee: failed to fetch current_height: {0}")]
+    FetchHeight(SiaApiClientError),
+    #[error("SiaCoin::new_validate_fee: tx in mempool before height:{min_block_number} txid:{txid}")]
+    MininumMempoolHeight { txid: TransactionId, min_block_number: u64 },
     #[error("SiaCoin::new_validate_fee: all inputs do not originate from taker address txid:{0}")]
     InputsOrigin(TransactionId),
     #[error("SiaCoin::new_validate_fee: fee_tx:{txid} has {outputs_length} outputs, expected 1 or 2")]
@@ -302,13 +310,35 @@ pub enum SiaValidatePaymentInputError {
 }
 
 #[derive(Debug, Error)]
-pub enum SiaValidateMakerPaymentError {
-    #[error("SiaCoin::sia_validate_maker_payment: failed to parse ValidatePaymentInput: {0}")]
+pub enum SiaValidateHtlcPaymentError {
+    #[error("SiaCoin::validate_htlc_payment: failed to parse ValidatePaymentInput: {0}")]
     ParseArgs(#[from] SiaValidatePaymentInputError),
+    #[error("SiaCoin::validate_htlc_payment: failed to fetch my_keypair {0}")]
+    MyKeypair(#[from] SiaCoinError),
+    #[error("SiaCoin::validate_htlc_payment: unexpected event variant, expected V2Transaction, found: {0:?}")]
+    EventVariant(Event),
+    #[error("SiaCoin::validate_htlc_payment: txid:{txid} has {actual} inputs, expected at least:{expected}")]
+    InvalidOutputLength {
+        expected: u32,
+        actual: u32,
+        txid: TransactionId,
+    },
+    #[error("SiaCoin::validate_htlc_payment: txid:{txid} has unexpected output:{actual:?}, expected:{expected:?}")]
+    InvalidOutput {
+        expected: SiacoinOutput,
+        actual: SiacoinOutput,
+        txid: TransactionId,
+    },
+}
+
+#[derive(Debug, Error)]
+pub enum SiaValidateMakerPaymentError {
+    #[error("SiaCoin::sia_validate_maker_payment: validation failed: {0}")]
+    ValidatePayment(#[from] SiaValidateHtlcPaymentError),
 }
 
 #[derive(Debug, Error)]
 pub enum SiaValidateTakerPaymentError {
-    #[error("SiaCoin::sia_validate_taker_payment: failed to parse ValidatePaymentInput: {0}")]
-    ParseArgs(#[from] SiaValidatePaymentInputError),
+    #[error("SiaCoin::sia_validate_taker_payment: validation failed: {0}")]
+    ValidatePayment(#[from] SiaValidateHtlcPaymentError),
 }
