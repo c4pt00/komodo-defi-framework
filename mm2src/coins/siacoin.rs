@@ -44,6 +44,7 @@ pub use sia_rust::types::{Address, Currency, Event, EventDataWrapper, EventPayou
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
+use std::fmt;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex};
@@ -1699,6 +1700,15 @@ impl MakerSwapTakerCoin for SiaCoin {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, From, Into)]
 #[serde(transparent)]
 pub struct SiaTransaction(pub V2Transaction);
+
+impl fmt::Display for SiaTransaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match serde_json::to_string(self) {
+            Ok(json) => write!(f, "{}", json),
+            Err(err) => write!(f, "Failed to serialize SiaTransaction:{:?} to JSON: {}", self, err),
+        }
+    }
+}
 
 impl SiaTransaction {
     pub fn txid(&self) -> Hash256 { self.0.txid() }
