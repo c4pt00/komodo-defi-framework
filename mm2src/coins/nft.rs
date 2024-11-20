@@ -179,6 +179,9 @@ async fn process_transfers_confirmations(
     chains: Vec<Chain>,
     history_list: &mut NftsTransferHistoryList,
 ) -> MmResult<(), TransferConfirmationsError> {
+    if history_list.transfer_history.is_empty() {
+        return Ok(());
+    }
     async fn current_block_impl<Coin: MarketCoinOps>(coin: Coin) -> MmResult<u64, TransferConfirmationsError> {
         coin.current_block()
             .compat()
