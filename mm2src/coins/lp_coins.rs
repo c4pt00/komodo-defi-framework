@@ -5283,8 +5283,11 @@ pub fn address_by_coin_conf_and_pubkey_str(
             ERR!("address_by_coin_conf_and_pubkey_str is not implemented for lightning protocol yet!")
         },
         CoinProtocol::ZHTLC { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for ZHTLC protocol!"),
+        // TODO Alright - generating a Sia address in this case requires including the ed25519 pubkey in the OrderbookItem
+        // this will require significant changes and this function is only called from "legacy" dispatcher's `orderbook` rpc
+        // so it's not a priority right now
         #[cfg(feature = "enable-sia")]
-        CoinProtocol::SIA { .. } => ERR!("address_by_coin_conf_and_pubkey_str is not supported for SIA protocol!"), // TODO Alright
+        CoinProtocol::SIA { .. } => Ok("sia-address".to_string()),
     }
 }
 
