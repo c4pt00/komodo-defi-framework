@@ -302,7 +302,7 @@ impl Qrc20Coin {
         let secret_hash = if secret_hash.len() == 32 {
             ripemd160(secret_hash)
         } else {
-            chain::hash::H160::from(secret_hash)
+            chain::hash::H160::from_slice(secret_hash)?
         };
 
         let spend_tx: UtxoTx = try_s!(deserialize(spend_tx).map_err(|e| ERRL!("{:?}", e)));
@@ -970,7 +970,7 @@ fn find_receiver_spend_with_swap_id_and_secret_hash(
     let expected_secret_hash = if expected_secret_hash.len() == 32 {
         ripemd160(expected_secret_hash)
     } else {
-        chain::hash::H160::from(expected_secret_hash)
+        chain::hash::H160::from_slice(expected_secret_hash).ok()?
     };
 
     for (output_idx, output) in tx.outputs.iter().enumerate() {

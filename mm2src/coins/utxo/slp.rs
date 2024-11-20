@@ -922,7 +922,7 @@ impl Deserializable for SlpTransaction {
                 let additional_token_quantity = u64::from_be_bytes(bytes.try_into().expect("length is 8 bytes"));
 
                 Ok(SlpTransaction::Mint {
-                    token_id: H256::from(maybe_id.as_slice()),
+                    token_id: H256::from_slice(maybe_id.as_slice()).map_err(|_| SerError::MalformedData)?,
                     mint_baton_vout,
                     additional_token_quantity,
                 })
@@ -936,7 +936,7 @@ impl Deserializable for SlpTransaction {
                     )));
                 }
 
-                let token_id = H256::from(maybe_id.as_slice());
+                let token_id = H256::from_slice(maybe_id.as_slice()).map_err(|_| SerError::MalformedData)?;
                 let mut amounts = Vec::with_capacity(1);
                 while !reader.is_finished() {
                     let bytes: Vec<u8> = reader.read_list()?;
