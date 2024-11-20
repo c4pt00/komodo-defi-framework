@@ -60,6 +60,7 @@ use serialization::{deserialize, serialize, serialize_with_flags, CoinVariant, C
                     SERIALIZE_TRANSACTION_WITNESS};
 use std::cmp::Ordering;
 use std::collections::hash_map::{Entry, HashMap};
+use std::convert::TryFrom;
 use std::str::FromStr;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use utxo_signer::with_key_pair::{calc_and_sign_sighash, p2sh_spend, signature_hash_to_sign, SIGHASH_ALL,
@@ -2644,7 +2645,8 @@ pub fn verify_message<T: UtxoCommonOps>(
     address: &str,
 ) -> VerificationResult<bool> {
     let message_hash = sign_message_hash(coin.as_ref(), message).ok_or(VerificationError::PrefixNotFound)?;
-    let signature = CompactSignature::from(STANDARD.decode(signature_base64)?);
+    let signature = CompactSignature::try_from(STANDARD.decode(signature_base64)?)
+        .map_to_mm(|err| VerificationError::SignatureDecodingError(err.to_string()))?;
     let recovered_pubkey = Public::recover_compact(&H256::from(message_hash), &signature)?;
     let received_address = checked_address_from_str(coin, address)?;
     Ok(AddressHashEnum::from(recovered_pubkey.address_hash()) == *received_address.hash())

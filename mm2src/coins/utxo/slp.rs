@@ -54,7 +54,7 @@ use script::{Builder as ScriptBuilder, Opcode, Script, TransactionInputSigner};
 use serde_json::Value as Json;
 use serialization::{deserialize, serialize, Deserializable, Error as SerError, Reader};
 use serialization_derive::Deserializable;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::num::TryFromIntError;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::sync::Arc;
@@ -1130,7 +1130,8 @@ impl MarketCoinOps for SlpToken {
         let message_hash = self
             .sign_message_hash(message)
             .ok_or(VerificationError::PrefixNotFound)?;
-        let signature = CompactSignature::from(STANDARD.decode(signature)?);
+        let signature = CompactSignature::try_from(STANDARD.decode(signature)?)
+            .map_to_mm(|err| VerificationError::SignatureDecodingError(err.to_string()))?;
         let pubkey = Public::recover_compact(&H256::from(message_hash), &signature)?;
         let address_from_pubkey = self.platform_coin.address_from_pubkey(&pubkey);
         let slp_address = self

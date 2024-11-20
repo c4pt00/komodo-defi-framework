@@ -5,7 +5,6 @@ use hex::{FromHex, FromHexError, ToHex};
 use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::{cmp, fmt, ops, str};
-use uint::core_::convert::TryFrom;
 
 macro_rules! impl_hash {
     ($name: ident, $size: expr) => {
@@ -43,6 +42,17 @@ macro_rules! impl_hash {
 
         impl<'a> From<&'a [u8; $size]> for $name {
             fn from(slc: &[u8; $size]) -> Self {
+                let mut inner = [0u8; $size];
+                inner.copy_from_slice(slc);
+                $name(inner)
+            }
+        }
+
+        // DANGEROUS: This will panic if slice length != $size
+        // Use from_slice() instead which safely checks the length and returns Result
+        impl<'a> From<&'a [u8]> for $name {
+            fn from(slc: &[u8]) -> Self {
+                assert_eq!(slc.len(), $size, "Input slice must be exactly {} bytes", $size);
                 let mut inner = [0u8; $size];
                 inner.copy_from_slice(slc);
                 $name(inner)

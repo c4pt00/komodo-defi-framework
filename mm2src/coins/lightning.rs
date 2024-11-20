@@ -73,7 +73,7 @@ use secp256k1v24::PublicKey;
 use serde::Deserialize;
 use serde_json::Value as Json;
 use std::collections::{HashMap, HashSet};
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::io::Cursor;
 use std::net::SocketAddr;
@@ -1058,10 +1058,11 @@ impl MarketCoinOps for LightningCoin {
         let message_hash = self
             .sign_message_hash(message)
             .ok_or(VerificationError::PrefixNotFound)?;
-        let signature = CompactSignature::from(
+        let signature = CompactSignature::try_from(
             zbase32::decode_full_bytes_str(signature)
                 .map_err(|e| VerificationError::SignatureDecodingError(e.to_string()))?,
-        );
+        )
+        .map_to_mm(|err| VerificationError::SignatureDecodingError(err.to_string()))?;
         let recovered_pubkey = Public::recover_compact(&H256::from(message_hash), &signature)?;
         Ok(recovered_pubkey.to_string() == pubkey)
     }
