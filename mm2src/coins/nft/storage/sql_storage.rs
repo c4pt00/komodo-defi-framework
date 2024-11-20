@@ -26,13 +26,13 @@ const CURRENT_SCHEMA_VERSION_TX_HISTORY: i32 = 2;
 
 impl Chain {
     fn nft_list_table_name(&self) -> SqlResult<SafeTableName> {
-        let name = self.to_ticker().to_owned() + "_nft_list";
+        let name = self.to_nft_ticker().to_owned() + "_nft_list";
         let safe_name = SafeTableName::new(&name)?;
         Ok(safe_name)
     }
 
     fn transfer_history_table_name(&self) -> SqlResult<SafeTableName> {
-        let name = self.to_ticker().to_owned() + "_nft_transfer_history";
+        let name = self.to_nft_ticker().to_owned() + "_nft_transfer_history";
         let safe_name = SafeTableName::new(&name)?;
         Ok(safe_name)
     }
@@ -716,7 +716,7 @@ impl NftListStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
                 ];
                 sql_transaction.execute(&insert_nft_in_list_sql(&chain)?, params)?;
             }
-            let scanned_block_params = [chain.to_ticker().to_string(), last_scanned_block.to_string()];
+            let scanned_block_params = [chain.to_nft_ticker().to_string(), last_scanned_block.to_string()];
             sql_transaction.execute(&upsert_last_scanned_block_sql()?, scanned_block_params)?;
             sql_transaction.commit()?;
             Ok(())
@@ -755,7 +755,7 @@ impl NftListStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
         let table_name = chain.nft_list_table_name()?;
         let sql = delete_nft_sql(table_name)?;
         let params = [token_address, token_id.to_string()];
-        let scanned_block_params = [chain.to_ticker().to_string(), scanned_block.to_string()];
+        let scanned_block_params = [chain.to_nft_ticker().to_string(), scanned_block.to_string()];
         self.call(move |conn| {
             let sql_transaction = conn.transaction()?;
             let rows_num = sql_transaction.execute(&sql, params)?;
@@ -844,7 +844,7 @@ impl NftListStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
 
     async fn get_last_scanned_block(&self, chain: &Chain) -> MmResult<Option<u64>, Self::Error> {
         let sql = select_last_scanned_block_sql()?;
-        let params = [chain.to_ticker()];
+        let params = [chain.to_nft_ticker()];
         self.call(move |conn| {
             let block_number = query_single_row(conn, &sql, params, block_number_from_row)?;
             Ok(block_number)
@@ -861,7 +861,7 @@ impl NftListStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
             "UPDATE {} SET amount = ?1 WHERE token_address = ?2 AND token_id = ?3;",
             table_name.inner()
         );
-        let scanned_block_params = [chain.to_ticker().to_string(), scanned_block.to_string()];
+        let scanned_block_params = [chain.to_nft_ticker().to_string(), scanned_block.to_string()];
         self.call(move |conn| {
             let sql_transaction = conn.transaction()?;
             let params = [
@@ -884,7 +884,7 @@ impl NftListStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
             "UPDATE {} SET amount = ?1, block_number = ?2 WHERE token_address = ?3 AND token_id = ?4;",
             table_name.inner()
         );
-        let scanned_block_params = [chain.to_ticker().to_string(), nft.block_number.to_string()];
+        let scanned_block_params = [chain.to_nft_ticker().to_string(), nft.block_number.to_string()];
         self.call(move |conn| {
             let sql_transaction = conn.transaction()?;
             let params = [
@@ -984,7 +984,7 @@ impl NftListStorageOps for AsyncMutexGuard<'_, AsyncConnection> {
         let sql_nft = format!("DROP TABLE IF EXISTS {};", table_nft_name.inner());
         let table_scanned_blocks = scanned_nft_blocks_table_name()?;
         let sql_scanned_block = format!("DELETE from {} where chain=?1", table_scanned_blocks.inner());
-        let scanned_block_param = [chain.to_ticker()];
+        let scanned_block_param = [chain.to_nft_ticker()];
         self.call(move |conn| {
             let sql_transaction = conn.transaction()?;
             sql_transaction.execute(&sql_nft, [])?;

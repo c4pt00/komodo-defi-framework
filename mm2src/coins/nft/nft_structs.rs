@@ -160,7 +160,7 @@ impl ConvertChain for Chain {
             Chain::Eth => "NFT_ETH",
             Chain::Fantom => "NFT_FTM",
             Chain::Polygon => "NFT_MATIC",
-            Chain::Arbitrum => "NFT_ETH-ARB20",
+            Chain::Arbitrum => "NFT_ETH_ARB20",
         }
     }
 
@@ -173,7 +173,7 @@ impl ConvertChain for Chain {
             "NFT_ETH" => Ok(Chain::Eth),
             "NFT_FTM" => Ok(Chain::Fantom),
             "NFT_MATIC" => Ok(Chain::Polygon),
-            "NFT_ETH-ARB20" => Ok(Chain::Arbitrum),
+            "NFT_ETH_ARB20" => Ok(Chain::Arbitrum),
             _ => Err(ParseChainTypeError::UnsupportedChainType),
         }
     }
