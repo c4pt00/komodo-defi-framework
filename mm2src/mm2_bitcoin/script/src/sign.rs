@@ -466,7 +466,7 @@ impl TransactionInputSigner {
             sig_hash_stream.append(&blake_2b_256_personal(
                 &prev_out_stream.out(),
                 ZCASH_PREVOUTS_HASH_PERSONALIZATION,
-            ));
+            )?);
         } else {
             sig_hash_stream.append(&H256::default());
         }
@@ -480,7 +480,7 @@ impl TransactionInputSigner {
             sig_hash_stream.append(&blake_2b_256_personal(
                 &sequence_stream.out(),
                 ZCASH_SEQUENCE_HASH_PERSONALIZATION,
-            ));
+            )?);
         } else {
             sig_hash_stream.append(&H256::default());
         }
@@ -494,7 +494,7 @@ impl TransactionInputSigner {
             sig_hash_stream.append(&blake_2b_256_personal(
                 &outputs_stream.out(),
                 ZCASH_OUTPUTS_HASH_PERSONALIZATION,
-            ));
+            )?);
         } else if sighash.base == SighashBase::Single && input_index < self.outputs.len() {
             let mut outputs_stream = Stream::new();
             outputs_stream.append(&self.outputs[input_index]);
@@ -502,7 +502,7 @@ impl TransactionInputSigner {
             sig_hash_stream.append(&blake_2b_256_personal(
                 &outputs_stream.out(),
                 ZCASH_OUTPUTS_HASH_PERSONALIZATION,
-            ));
+            )?);
         } else {
             sig_hash_stream.append(&H256::default());
         }
@@ -515,7 +515,7 @@ impl TransactionInputSigner {
             sig_hash_stream.append(&blake_2b_256_personal(
                 &join_splits_stream.out(),
                 ZCASH_JOIN_SPLITS_HASH_PERSONALIZATION,
-            ));
+            )?);
         } else {
             sig_hash_stream.append(&H256::default());
         }
@@ -533,7 +533,7 @@ impl TransactionInputSigner {
             sig_hash_stream.append(&blake_2b_256_personal(
                 &s_spends_stream.out(),
                 ZCASH_SHIELDED_SPENDS_HASH_PERSONALIZATION,
-            ));
+            )?);
         } else {
             sig_hash_stream.append(&H256::default());
         }
@@ -544,7 +544,7 @@ impl TransactionInputSigner {
                 s_outputs_stream.append(output);
             }
             let hash_shielded_outputs =
-                blake_2b_256_personal(&s_outputs_stream.out(), ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION);
+                blake_2b_256_personal(&s_outputs_stream.out(), ZCASH_SHIELDED_OUTPUTS_HASH_PERSONALIZATION)?;
             sig_hash_stream.append(&hash_shielded_outputs);
         } else {
             sig_hash_stream.append(&H256::default());
@@ -560,7 +560,7 @@ impl TransactionInputSigner {
         sig_hash_stream.append(&self.inputs[input_index].amount);
         sig_hash_stream.append(&self.inputs[input_index].sequence);
 
-        Ok(blake_2b_256_personal(&sig_hash_stream.out(), &personalization))
+        Ok(blake_2b_256_personal(&sig_hash_stream.out(), &personalization)?)
     }
 }
 
@@ -608,8 +608,8 @@ fn compute_hash_outputs(sighash: Sighash, input_index: usize, outputs: &[Transac
     }
 }
 
-fn blake_2b_256_personal(input: &[u8], personal: &[u8]) -> H256 {
-    H256::from(
+fn blake_2b_256_personal(input: &[u8], personal: &[u8]) -> Result<H256, &'static str> {
+    H256::from_slice(
         Blake2b::new()
             .hash_length(32)
             .personal(personal)
@@ -783,7 +783,7 @@ mod tests {
 
     #[test]
     fn test_blake_2b_personal() {
-        let hash = blake_2b_256_personal(b"", b"ZcashPrevoutHash");
+        let hash = blake_2b_256_personal(b"", b"ZcashPrevoutHash").unwrap();
         assert_eq!(
             H256::from("d53a633bbecf82fe9e9484d8a0e727c73bb9e68c96e72dec30144f6a84afa136"),
             hash
