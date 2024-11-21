@@ -970,7 +970,7 @@ fn find_receiver_spend_with_swap_id_and_secret_hash(
     let expected_secret_hash = if expected_secret_hash.len() == 32 {
         ripemd160(expected_secret_hash)
     } else {
-        chain::hash::H160::from_slice(expected_secret_hash).ok()?
+        chain::hash::H160::from_slice(expected_secret_hash).expect("this shouldn't fail")
     };
 
     for (output_idx, output) in tx.outputs.iter().enumerate() {
