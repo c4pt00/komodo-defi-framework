@@ -170,15 +170,15 @@ pub enum MakerSpendsTakerPaymentError {
 
 #[derive(Debug, Error)]
 pub enum SiaRefundPaymentArgsError {
-    #[error("SiaRefundPaymentArgs: failed to parse other_pubkey {0}")]
+    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse other_pubkey {0}")]
     ParseOtherPublicKey(#[from] PublicKeyError),
-    #[error("SiaRefundPaymentArgs: failed to parse payment_tx {0}")]
+    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
-    #[error("SiaRefundPaymentArgs: failed to parse secret_hash {0}")]
+    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] Hash256Error),
     // SwapTxTypeVariant uses String Debug trait representation to avoid explicit lifetime annotations
     // otherwise this should be SwapTxTypeVariant(SwapTxTypeWithSecretHash) and displayed via {0:?}
-    #[error("SiaRefundPaymentArgs: unexpected SwapTxTypeWithSecretHash variant {0}")]
+    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: unexpected SwapTxTypeWithSecretHash variant {0}")]
     SwapTxTypeVariant(String),
 }
 
