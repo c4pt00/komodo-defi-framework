@@ -1533,8 +1533,9 @@ impl TryFrom<RefundPaymentArgs<'_>> for SiaRefundPaymentArgs {
 
         let time_lock = args.time_lock;
 
+        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
         let success_public_key =
-            PublicKey::from_bytes(args.other_pubkey).map_err(SiaRefundPaymentArgsError::ParseOtherPublicKey)?;
+            PublicKey::from_bytes(&args.other_pubkey[..32]).map_err(SiaRefundPaymentArgsError::ParseOtherPublicKey)?;
 
         let secret_hash_slice = match args.tx_type_with_secret_hash {
             SwapTxTypeWithSecretHash::TakerOrMakerPayment { maker_secret_hash } => maker_secret_hash,
