@@ -314,7 +314,7 @@ impl MmCoin for SiaCoin {
                 Err(e) => return Err(e.into()),
             };
             let tx_hex = SiaTransaction(tx).tx_hex();
-            return Ok(RawTransactionRes { tx_hex: tx_hex.into() });
+            Ok(RawTransactionRes { tx_hex: tx_hex.into() })
         };
         Box::new(fut.boxed().compat())
     }
