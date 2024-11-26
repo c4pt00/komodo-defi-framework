@@ -916,7 +916,13 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(SendMakerPaymentError::MyKeypair)?;
 
         let maker_public_key = my_keypair.public();
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.other_pubkey.len() != 33 {
+            return Err(SendMakerPaymentError::InvalidTakerPublicKeyLength(
+                args.other_pubkey.to_vec(),
+            ));
+        }
         let taker_public_key =
             PublicKey::from_bytes(&args.other_pubkey[..32]).map_err(SendMakerPaymentError::InvalidTakerPublicKey)?;
 
@@ -963,7 +969,13 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(SendTakerPaymentError::MyKeypair)?;
 
         let taker_public_key = my_keypair.public();
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.other_pubkey.len() != 33 {
+            return Err(SendTakerPaymentError::InvalidMakerPublicKeyLength(
+                args.other_pubkey.to_vec(),
+            ));
+        }
         let maker_public_key =
             PublicKey::from_bytes(&args.other_pubkey[..32]).map_err(SendTakerPaymentError::InvalidMakerPublicKey)?;
 
@@ -1010,7 +1022,13 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(MakerSpendsTakerPaymentError::MyKeypair)?;
 
         let maker_public_key = my_keypair.public();
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.other_pubkey.len() != 33 {
+            return Err(MakerSpendsTakerPaymentError::InvalidTakerPublicKeyLength(
+                args.other_pubkey.to_vec(),
+            ));
+        }
         let taker_public_key = PublicKey::from_bytes(&args.other_pubkey[..32])
             .map_err(MakerSpendsTakerPaymentError::InvalidTakerPublicKey)?;
 
@@ -1067,7 +1085,13 @@ impl SiaCoin {
         let my_keypair = self.my_keypair().map_err(TakerSpendsMakerPaymentError::MyKeypair)?;
 
         let taker_public_key = my_keypair.public();
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.other_pubkey.len() != 33 {
+            return Err(TakerSpendsMakerPaymentError::InvalidMakerPublicKeyLength(
+                args.other_pubkey.to_vec(),
+            ));
+        };
         let maker_public_key = PublicKey::from_bytes(&args.other_pubkey[..32])
             .map_err(TakerSpendsMakerPaymentError::InvalidMakerPublicKey)?;
 
@@ -1497,7 +1521,7 @@ impl TryFrom<ValidatePaymentInput> for SiaValidatePaymentInput {
         let payment_tx =
             SiaTransaction::try_from(args.payment_tx.to_vec()).map_err(SiaValidatePaymentInputError::ParseTx)?;
 
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
         if args.other_pub.len() != 33 {
             return Err(SiaValidatePaymentInputError::InvalidOtherPublicKeyLength(
                 args.other_pub,
@@ -1534,7 +1558,12 @@ impl TryFrom<RefundPaymentArgs<'_>> for SiaRefundPaymentArgs {
 
         let time_lock = args.time_lock;
 
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.other_pubkey.len() != 33 {
+            return Err(SiaRefundPaymentArgsError::InvalidOtherPublicKeyLength(
+                args.other_pubkey.to_vec(),
+            ));
+        }
         let success_public_key =
             PublicKey::from_bytes(&args.other_pubkey[..32]).map_err(SiaRefundPaymentArgsError::ParseOtherPublicKey)?;
 
@@ -1586,7 +1615,13 @@ impl TryFrom<ValidateFeeArgs<'_>> for SiaValidateFeeArgs {
             wrong_variant => return Err(SiaValidateFeeArgsError::TxEnumVariant(wrong_variant.clone())),
         };
 
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.expected_sender.len() != 33 {
+            return Err(SiaValidateFeeArgsError::InvalidTakerPublicKeyLength(
+                args.expected_sender.to_vec(),
+            ));
+        }
+
         let expected_sender_public_key = PublicKey::from_bytes(&args.expected_sender[..32])
             .map_err(SiaValidateFeeArgsError::InvalidTakerPublicKey)?;
 
@@ -1662,7 +1697,13 @@ impl TryFrom<CheckIfMyPaymentSentArgs<'_>> for SiaCheckIfMyPaymentSentArgs {
 
     fn try_from(args: CheckIfMyPaymentSentArgs<'_>) -> Result<Self, Self::Error> {
         let time_lock = args.time_lock;
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if args.other_pub.len() != 33 {
+            return Err(SiaCheckIfMyPaymentSentArgsError::InvalidOtherPublicKeyLength(
+                args.other_pub.to_vec(),
+            ));
+        }
         let success_public_key = PublicKey::from_bytes(&args.other_pub[..32])
             .map_err(SiaCheckIfMyPaymentSentArgsError::ParseOtherPublicKey)?;
         let secret_hash =
@@ -1803,15 +1844,14 @@ impl SwapOps for SiaCoin {
 
     /// Return the iguana ed25519 public key
     /// This is the public key that will be used inside the HTLC SpendPolicy
-    // TODO Alright - method signature needs to change to use Result<>
+    // TODO Alright - MakerSwapData is badly designed and assumes this is a 33 byte array aka H264
+    // we pad it then drop the last byte when we use it for now
     fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> Vec<u8> {
         let my_keypair = self
             .my_keypair()
             .expect("SiaCoin::derive_htlc_pubkey: failed to get my_keypair");
 
         let mut ret = my_keypair.public().to_bytes().to_vec();
-        // FIXME Alright - MakerSwapData is badly designed and assumes this is a 33 byte array aka H264
-        // we will pad it then drop the last byte when we use it for now
         ret.push(0u8);
         ret
     }
@@ -1827,10 +1867,17 @@ impl SwapOps for SiaCoin {
     /// Validate the PublicKey the other party provided
     /// The other party generates this PublicKey via SwapOps::derive_htlc_pubkey
     fn validate_other_pubkey(&self, raw_pubkey: &[u8]) -> MmResult<(), ValidateOtherPubKeyErr> {
-        // FIXME Alright - pubkey padding hack, see SiaCoin::derive_htlc_pubkey
+        // TODO Alright - pubkey padding, see SiaCoin::derive_htlc_pubkey
+        if raw_pubkey.len() != 33 {
+            return Err(ValidateOtherPubKeyErr::InvalidPubKey(format!(
+                "SiaCoin::validate_other_pubkey: invalid raw_pubkey, expected 33 bytes found: {:?}",
+                raw_pubkey.to_vec()
+            ))
+            .into());
+        }
         let _public_key = PublicKey::from_bytes(&raw_pubkey[..32]).map_err(|e| {
             ValidateOtherPubKeyErr::InvalidPubKey(format!(
-                "SiaCoin::validate_other_pubkey validate pubkey:{:?} failed: {}",
+                "SiaCoin::validate_other_pubkey: validate pubkey:{:?} failed: {}",
                 raw_pubkey, e
             ))
         })?;

@@ -35,6 +35,8 @@ pub enum SendTakerFeeError {
 
 #[derive(Debug, Error)]
 pub enum SendMakerPaymentError {
+    #[error("SiaCoin::new_send_maker_payment: invalid taker pubkey, expected 33 bytes found: {0:?}")]
+    InvalidTakerPublicKeyLength(Vec<u8>),
     #[error("SiaCoin::new_send_maker_payment: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
     #[error("SiaCoin::new_send_maker_payment: failed to fetch my_keypair {0}")]
@@ -51,6 +53,8 @@ pub enum SendMakerPaymentError {
 
 #[derive(Debug, Error)]
 pub enum SendTakerPaymentError {
+    #[error("SiaCoin::new_send_taker_payment: invalid maker pubkey, expected 33 bytes found: {0:?}")]
+    InvalidMakerPublicKeyLength(Vec<u8>),
     #[error("SiaCoin::new_send_taker_payment: invalid maker pubkey {0}")]
     InvalidMakerPublicKey(#[from] PublicKeyError),
     #[error("SiaCoin::new_send_taker_payment: failed to fetch my_keypair {0}")]
@@ -132,6 +136,8 @@ pub enum ValidateFeeError {
 pub enum TakerSpendsMakerPaymentError {
     #[error("SiaCoin::new_send_taker_spends_maker_payment: failed to fetch my_keypair {0}")]
     MyKeypair(#[from] SiaCoinError),
+    #[error("SiaCoin::new_send_taker_spends_maker_payment: invalid maker pubkey, expected 33 bytes found: {0:?}")]
+    InvalidMakerPublicKeyLength(Vec<u8>),
     #[error("SiaCoin::new_send_taker_spends_maker_payment: invalid maker pubkey {0}")]
     InvalidMakerPublicKey(#[from] PublicKeyError),
     #[error("SiaCoin::new_send_taker_spends_maker_paymentt: failed to parse taker_payment_tx {0}")]
@@ -152,6 +158,8 @@ pub enum TakerSpendsMakerPaymentError {
 pub enum MakerSpendsTakerPaymentError {
     #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to fetch my_keypair {0}")]
     MyKeypair(#[from] SiaCoinError),
+    #[error("SiaCoin::new_send_maker_spends_taker_payment: invalid taker pubkey, expected 33 bytes found: {0:?}")]
+    InvalidTakerPublicKeyLength(Vec<u8>),
     #[error("SiaCoin::new_send_maker_spends_taker_payment: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
     #[error("SiaCoin::new_send_maker_spends_taker_payment: failed to parse taker_payment_tx {0}")]
@@ -170,10 +178,12 @@ pub enum MakerSpendsTakerPaymentError {
 
 #[derive(Debug, Error)]
 pub enum SiaRefundPaymentArgsError {
-    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse other_pubkey {0}")]
-    ParseOtherPublicKey(#[from] PublicKeyError),
     #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse payment_tx {0}")]
     ParseTx(#[from] SiaTransactionError),
+    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: invalid other_pubkey, expected 33 bytes found: {0:?}")]
+    InvalidOtherPublicKeyLength(Vec<u8>),
+    #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse other_pubkey {0}")]
+    ParseOtherPublicKey(#[from] PublicKeyError),
     #[error("SiaRefundPaymentArgs::TryFrom<RefundPaymentArgs>: failed to parse secret_hash {0}")]
     ParseSecretHash(#[from] Hash256Error),
     // SwapTxTypeVariant uses String Debug trait representation to avoid explicit lifetime annotations
@@ -188,6 +198,8 @@ pub enum SiaValidateFeeArgsError {
     ParseUuid(#[from] uuid::Error),
     #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: Unexpected Uuid version {0}")]
     UuidVersion(usize),
+    #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: invalid taker pubkey, expected 33 bytes found: {0:?}")]
+    InvalidTakerPublicKeyLength(Vec<u8>),
     #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: invalid taker pubkey {0}")]
     InvalidTakerPublicKey(#[from] PublicKeyError),
     #[error("SiaValidateFeeArgs::TryFrom<ValidateFeeArgs>: failed to convert trade_fee_amount to Currency {0}")]
@@ -235,6 +247,8 @@ pub enum SiaCoinError {
 
 #[derive(Debug, Error)]
 pub enum SiaCheckIfMyPaymentSentArgsError {
+    #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: invalid other_pub, expected 33 bytes found: {0:?}")]
+    InvalidOtherPublicKeyLength(Vec<u8>),
     #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to parse other_pub {0}")]
     ParseOtherPublicKey(#[from] PublicKeyError),
     #[error("SiaCheckIfMyPaymentSentArgs::TryFrom<CheckIfMyPaymentSentArgs>: failed to parse secret_hash {0}")]
