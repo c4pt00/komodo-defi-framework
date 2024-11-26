@@ -4,10 +4,10 @@ use super::{BalanceError, CoinBalance, CoinsContext, HistorySyncState, MarketCoi
 use crate::siacoin::sia_withdraw::SiaWithdrawBuilder;
 use crate::{coin_errors::MyAddressError, now_sec, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, DexFee, FeeApproxStage, FoundSwapTxSpend, MakerSwapTakerCoin,
-            NegotiateSwapContractAddrErr, PrivKeyBuildPolicy, PrivKeyPolicy, RefundPaymentArgs, RefundResult,
-            SearchForSwapTxSpendInput, SendPaymentArgs, SignatureResult, SpendPaymentArgs, TakerSwapMakerCoin,
-            TradePreimageFut, TradePreimageResult, TradePreimageValue, Transaction, TransactionResult,
-            TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
+            NegotiateSwapContractAddrErr, PrivKeyBuildPolicy, PrivKeyPolicy, RawTransactionRes, RefundPaymentArgs,
+            RefundResult, SearchForSwapTxSpendInput, SendPaymentArgs, SignatureResult, SpendPaymentArgs,
+            TakerSwapMakerCoin, TradePreimageFut, TradePreimageResult, TradePreimageValue, Transaction,
+            TransactionResult, TxMarshalingErr, UnexpectedDerivationMethod, ValidateAddressResult, ValidateFeeArgs,
             ValidateOtherPubKeyErr, ValidatePaymentError, ValidatePaymentInput, ValidatePaymentResult,
             VerificationResult, WaitForHTLCTxSpendArgs, WatcherOps, WithdrawFut, WithdrawRequest};
 use async_trait::async_trait;
@@ -28,9 +28,6 @@ use mm2_number::{BigDecimal, BigInt, MmNumber};
 use num_traits::ToPrimitive;
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
 use serde_json::Value as Json;
-// TODO Alright - remove this import; if we're forced to import this, it means sia-rust is lacking some functionality
-use ed25519_dalek::SecretKey;
-use hex::ToHex;
 // expose all of sia-rust so mm2_main can use it via coins::siacoin::sia_rust
 pub use sia_rust;
 pub use sia_rust::transport::client::{ApiClient as SiaApiClient, ApiClientError as SiaApiClientError,
@@ -292,16 +289,34 @@ pub struct SiaFeeDetails {
 impl MmCoin for SiaCoin {
     fn spawner(&self) -> CoinFutSpawner { CoinFutSpawner::new(&self.abortable_system) }
 
+    /*
+    TODO: refactor MmCoin to remove or better generalize this method
+    No Sia software ever presents the user with a hex representation of a transaction. Transactions
+    are always presented or taken as user input as JSON.
+    Ideally, we would use an associated type within the response to allow returning
+    the transaction as a JSON. For now, we encode JSON to hex and return this hex string.
+    */
     fn get_raw_transaction(&self, req: RawTransactionRequest) -> RawTransactionFut {
-        let tx_hash = match Hash256::from_str(&req.tx_hash) {
-            Ok(hash) => hash,
-            Err(e) => {
-                return Box::new(futures01::future::err(MmError::new(
-                    RawTransactionError::InvalidHashError(e.to_string()),
-                )))
-            },
+        let fut = async move {
+            let txid = match Hash256::from_str(&req.tx_hash).map_err(|e| {
+                RawTransactionError::InternalError(format!("SiaCoin::get_raw_transaction: failed to parse txid: {}", e))
+            }) {
+                Ok(tx_hash) => tx_hash,
+                Err(e) => return Err(e.into()),
+            };
+            let tx = match self.client.get_transaction(&txid).await.map_err(|e| {
+                RawTransactionError::InternalError(format!(
+                    "SiaCoin::get_raw_transaction: failed to fetch txid:{} :{}",
+                    txid, e
+                ))
+            }) {
+                Ok(tx) => tx,
+                Err(e) => return Err(e.into()),
+            };
+            let tx_hex = SiaTransaction(tx).tx_hex();
+            return Ok(RawTransactionRes { tx_hex: tx_hex.into() });
         };
-        self.get_tx_hex_by_hash(tx_hash.0.to_vec())
+        Box::new(fut.boxed().compat())
     }
 
     // TODO Alright - this is only applicable to Watcher logic and will be removed from MmCoin trait
@@ -754,6 +769,7 @@ impl MarketCoinOps for SiaCoin {
         self.send_raw_tx(&str_tx)
     }
 
+    // TODO Alright - match the standard convention of Tryfrom<ConfirmPaymentInput> for SiaConfirmPaymentInput
     fn wait_for_confirmations(&self, input: ConfirmPaymentInput) -> Box<dyn Future<Item = (), Error = String> + Send> {
         let tx: SiaTransaction = try_fus!(serde_json::from_slice(&input.payment_tx)
             .map_err(|e| format!("siacoin wait_for_confirmations payment_tx deser failed: {}", e)));
