@@ -86,16 +86,21 @@ pub(crate) mod session_storage_tests {
     cross_test!(save_and_get_session_test, {
         let mm_ctx = mm_ctx_with_custom_async_db().await;
         let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
-        wc_ctx.session.storage().init().await.unwrap();
+        wc_ctx.session_manager.storage().init().await.unwrap();
 
         let sample_session = sample_test_session(&wc_ctx);
 
         // try save session
-        wc_ctx.session.storage().save_session(&sample_session).await.unwrap();
+        wc_ctx
+            .session_manager
+            .storage()
+            .save_session(&sample_session)
+            .await
+            .unwrap();
 
         // try get session
         let db_session = wc_ctx
-            .session
+            .session_manager
             .storage()
             .get_session(&sample_session.topic)
             .await
@@ -106,16 +111,21 @@ pub(crate) mod session_storage_tests {
     cross_test!(delete_session_test, {
         let mm_ctx = mm_ctx_with_custom_async_db().await;
         let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
-        wc_ctx.session.storage().init().await.unwrap();
+        wc_ctx.session_manager.storage().init().await.unwrap();
 
         let sample_session = sample_test_session(&wc_ctx);
 
         // try save session
-        wc_ctx.session.storage().save_session(&sample_session).await.unwrap();
+        wc_ctx
+            .session_manager
+            .storage()
+            .save_session(&sample_session)
+            .await
+            .unwrap();
 
         // try get session
         let db_session = wc_ctx
-            .session
+            .session_manager
             .storage()
             .get_session(&sample_session.topic)
             .await
@@ -125,30 +135,35 @@ pub(crate) mod session_storage_tests {
 
         // try delete session
         wc_ctx
-            .session
+            .session_manager
             .storage()
             .delete_session(&db_session.topic)
             .await
             .unwrap();
 
         // try get_session deleted again
-        let db_session = wc_ctx.session.storage().get_session(&db_session.topic).await;
+        let db_session = wc_ctx.session_manager.storage().get_session(&db_session.topic).await;
         assert!(db_session.is_err());
     });
 
     cross_test!(update_session_test, {
         let mm_ctx = mm_ctx_with_custom_async_db().await;
         let wc_ctx = WalletConnectCtx::try_init(&mm_ctx).unwrap();
-        wc_ctx.session.storage().init().await.unwrap();
+        wc_ctx.session_manager.storage().init().await.unwrap();
 
         let sample_session = sample_test_session(&wc_ctx);
 
         // try save session
-        wc_ctx.session.storage().save_session(&sample_session).await.unwrap();
+        wc_ctx
+            .session_manager
+            .storage()
+            .save_session(&sample_session)
+            .await
+            .unwrap();
 
         // try get session
         let db_session = wc_ctx
-            .session
+            .session_manager
             .storage()
             .get_session(&sample_session.topic)
             .await
@@ -165,7 +180,7 @@ pub(crate) mod session_storage_tests {
 
         // try update session
         wc_ctx
-            .session
+            .session_manager
             .storage()
             .update_session(&modified_sample_session)
             .await
@@ -173,7 +188,7 @@ pub(crate) mod session_storage_tests {
 
         // try get_session again with new updated expiry
         let db_session = wc_ctx
-            .session
+            .session_manager
             .storage()
             .get_session(&sample_session.topic)
             .await

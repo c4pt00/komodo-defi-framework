@@ -19,12 +19,12 @@ pub async fn handle_session_event(
 
     match event_name {
         "chainChanged" => {
-            let session = ctx
-                .session
-                .get_session(topic)
-                .ok_or(MmError::new(WalletConnectError::SessionError(
-                    "No active WalletConnect session found".to_string(),
-                )))?;
+            let session =
+                ctx.session_manager
+                    .get_session(topic)
+                    .ok_or(MmError::new(WalletConnectError::SessionError(
+                        "No active WalletConnect session found".to_string(),
+                    )))?;
 
             if WcChain::Eip155 != chain_id.chain {
                 return Ok(());
@@ -55,7 +55,7 @@ pub async fn handle_session_event(
                 ctx.publish_response_err(topic, params, message_id).await?;
             } else {
                 {
-                    ctx.session
+                    ctx.session_manager
                         .get_session_mut(topic)
                         .ok_or(MmError::new(WalletConnectError::SessionError(
                             "No active WalletConnect session found".to_string(),

@@ -73,14 +73,14 @@ pub async fn reply_session_proposal_request(
 
     {
         // save session to storage
-        ctx.session
+        ctx.session_manager
             .storage()
             .save_session(&session)
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // Add session to session lists
-        ctx.session.add_session(session.clone()).await;
+        ctx.session_manager.add_session(session.clone()).await;
     }
 
     send_session_settle_request(ctx, &session).await?;
@@ -136,14 +136,14 @@ pub(crate) async fn process_session_propose_response(
     };
     {
         // save session to storage
-        ctx.session
+        ctx.session_manager
             .storage()
             .save_session(&session)
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // Add session to session lists
-        ctx.session.add_session(session.clone()).await;
+        ctx.session_manager.add_session(session.clone()).await;
     };
 
     // Activate pairing_topic

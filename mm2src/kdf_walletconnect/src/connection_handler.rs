@@ -91,7 +91,7 @@ pub(crate) async fn initialize_connection(wc: Arc<WalletConnectCtx>) {
     }
 
     // Initialize storage
-    if let Err(err) = wc.session.storage().init().await {
+    if let Err(err) = wc.session_manager.storage().init().await {
         error!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
     };
 

@@ -72,7 +72,7 @@ pub trait WalletConnectOps {
 pub struct WalletConnectCtx {
     pub(crate) client: Client,
     pub(crate) pairing: PairingClient,
-    pub session: SessionManager,
+    pub session_manager: SessionManager,
     pub(crate) key_pair: SymKeyPair,
     relay: Relay,
     metadata: Metadata,
@@ -105,7 +105,7 @@ impl WalletConnectCtx {
             relay,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
-            session: SessionManager::new(storage),
+            session_manager: SessionManager::new(storage),
             inbound_message_rx: Arc::new(inbound_message_rx.into()),
             connection_live_rx: Arc::new(conn_live_receiver.into()),
             message_rx: Arc::new(session_request_receiver.into()),
@@ -141,7 +141,7 @@ impl WalletConnectCtx {
         self.connect_client().await?;
         // Resubscribes to previously active session topics after reconnection.
         let sessions = self
-            .session
+            .session_manager
             .get_sessions()
             .flat_map(|s| vec![s.topic, s.pairing_topic])
             .collect::<Vec<_>>();
@@ -185,7 +185,7 @@ impl WalletConnectCtx {
 
     /// Retrieves the symmetric key associated with a given `topic`.
     fn sym_key(&self, topic: &Topic) -> MmResult<SymKey, WalletConnectError> {
-        if let Some(key) = self.session.sym_key(topic) {
+        if let Some(key) = self.session_manager.sym_key(topic) {
             return Ok(key);
         }
 
@@ -222,7 +222,7 @@ impl WalletConnectCtx {
         info!("Loading WalletConnect session from storage");
         let now = chrono::Utc::now().timestamp() as u64;
         let sessions = self
-            .session
+            .session_manager
             .storage()
             .get_all_sessions()
             .await
@@ -235,7 +235,7 @@ impl WalletConnectCtx {
             // delete expired session
             if now > session.expiry {
                 debug!("Session {} expired, trying to delete from storage", session.topic);
-                if let Err(err) = self.session.storage().delete_session(&session.topic).await {
+                if let Err(err) = self.session_manager.storage().delete_session(&session.topic).await {
                     error!("[{}] Unable to delete session from storage: {err:?}", session.topic);
                 }
                 continue;
@@ -244,7 +244,7 @@ impl WalletConnectCtx {
             let topic = session.topic.clone();
             let pairing_topic = session.pairing_topic.clone();
             debug!("[{topic}] Session found! activating");
-            self.session.add_session(session).await;
+            self.session_manager.add_session(session).await;
 
             valid_topics.push(topic);
             pairing_topics.push(pairing_topic);
@@ -365,7 +365,7 @@ impl WalletConnectCtx {
     /// Checks if the current session is connected to a Ledger device.
     /// NOTE: for COSMOS chains only.
     pub async fn is_ledger_connection(&self) -> bool {
-        self.session
+        self.session_manager
             .get_session_active()
             .await
             .and_then(|session| session.session_properties)
@@ -399,13 +399,13 @@ impl WalletConnectCtx {
     }
 
     pub async fn validate_update_active_chain_id(&self, chain_id: &WcChainId) -> MmResult<(), WalletConnectError> {
-        let session = self
-            .session
-            .get_session_active()
-            .await
-            .ok_or(MmError::new(WalletConnectError::SessionError(
-                "No active WalletConnect session found".to_string(),
-            )))?;
+        let session =
+            self.session_manager
+                .get_session_active()
+                .await
+                .ok_or(MmError::new(WalletConnectError::SessionError(
+                    "No active WalletConnect session found".to_string(),
+                )))?;
 
         self.validate_chain_id(&session, chain_id).await?;
 
@@ -457,7 +457,7 @@ impl WalletConnectCtx {
     /// Retrieves the available account for a given chain ID.
     pub async fn get_account_for_chain_id(&self, chain_id: &WcChainId) -> MmResult<String, WalletConnectError> {
         let namespaces = &self
-            .session
+            .session_manager
             .get_session_active()
             .await
             .ok_or(MmError::new(WalletConnectError::SessionError(
@@ -490,7 +490,7 @@ impl WalletConnectCtx {
         T: DeserializeOwned,
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
-        let active_topic = self.session.get_active_topic_or_err().await?;
+        let active_topic = self.session_manager.get_active_topic_or_err().await?;
         let request = SessionRequestRequest {
             chain_id: chain_id.to_string(),
             request: SessionRequest {

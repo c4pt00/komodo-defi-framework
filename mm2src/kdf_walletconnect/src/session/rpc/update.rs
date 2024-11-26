@@ -15,7 +15,7 @@ pub(crate) async fn reply_session_update_request(
     update: SessionUpdateRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        if let Some(mut session) = ctx.session.get_session_mut(topic) {
+        if let Some(mut session) = ctx.session_manager.get_session_mut(topic) {
             update
                 .namespaces
                 .caip2_validate()
@@ -23,7 +23,7 @@ pub(crate) async fn reply_session_update_request(
             //TODO: session.namespaces.supported(update.namespaces.0)
             session.namespaces = update.namespaces.0;
             //  Update storage session.
-            ctx.session
+            ctx.session_manager
                 .storage()
                 .update_session(&session)
                 .await

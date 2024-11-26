@@ -11,7 +11,7 @@ pub(crate) async fn reply_session_extend_request(
     message_id: &MessageId,
     extend: SessionExtendRequest,
 ) -> MmResult<(), WalletConnectError> {
-    ctx.session.extend_session(topic, extend.expiry);
+    ctx.session_manager.extend_session(topic, extend.expiry);
 
     let param = ResponseParamsSuccess::SessionExtend(true);
     ctx.publish_response_ok(topic, param, message_id).await?;

@@ -129,7 +129,7 @@ pub async fn cosmos_get_accounts_impl(
 
     let account = wc.get_account_for_chain_id(&chain_id).await?;
     let session = wc
-        .session
+        .session_manager
         .get_session_active()
         .await
         .ok_or(WalletConnectError::NotInitialized)?;

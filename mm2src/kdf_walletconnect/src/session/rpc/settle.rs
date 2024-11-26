@@ -40,7 +40,7 @@ pub(crate) async fn reply_session_settle_request(
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        let session = ctx.session.get_session_mut(topic);
+        let session = ctx.session_manager.get_session_mut(topic);
         if let Some(mut session) = session {
             session.namespaces = settle.namespaces.0;
             session.controller = settle.controller.clone();
@@ -53,7 +53,7 @@ pub(crate) async fn reply_session_settle_request(
             }
 
             // Update storage session.
-            ctx.session
+            ctx.session_manager
                 .storage()
                 .update_session(&session)
                 .await
@@ -64,19 +64,19 @@ pub(crate) async fn reply_session_settle_request(
 
     // Delete other sessions with same controller
     // TODO: we might not want to do this!
-    let all_sessions = ctx.session.get_sessions_full();
+    let all_sessions = ctx.session_manager.get_sessions_full();
     for session in all_sessions {
         if session.controller == settle.controller && session.topic.as_ref() != topic.as_ref() {
             ctx.client.unsubscribe(session.topic.clone()).await?;
             ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
-            ctx.session
+            ctx.session_manager
                 .storage()
                 .delete_session(&session.topic.clone())
                 .await
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
             // Optionally: Remove from active sessions in memory too
-            ctx.session.delete_session(&session.topic).await;
+            ctx.session_manager.delete_session(&session.topic).await;
             ctx.drop_session(&session.topic).await?;
             debug!("Deleted previous session with topic: {:?}", session.topic);
         }
