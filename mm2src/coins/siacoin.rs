@@ -304,20 +304,11 @@ impl MmCoin for SiaCoin {
         self.get_tx_hex_by_hash(tx_hash.0.to_vec())
     }
 
-    fn get_tx_hex_by_hash(&self, tx_hash: Vec<u8>) -> RawTransactionFut {
+    // TODO Alright - this is only applicable to Watcher logic and will be removed from MmCoin trait
+    fn get_tx_hex_by_hash(&self, _tx_hash: Vec<u8>) -> RawTransactionFut {
         let fut = async move {
-            let tx_req = GetEventRequest {
-                txid: Hash256::try_from(&tx_hash[..])
-                    .map_to_mm(|e| RawTransactionError::InvalidHashError(e.to_string()))?,
-            };
-            let _event = self
-                .client
-                .dispatcher(tx_req)
-                .await
-                .map_to_mm(|e| RawTransactionError::Transport(e.to_string()))?;
-            //Ok(RawTransactionRes { tx_hex: event }) // fixme: now what?
             Err(RawTransactionError::InternalError(
-                "we have no hex serialization for siacoin?!".to_string(),
+                "SiaCoin::get_tx_hex_by_hash: Unsupported".to_string(),
             ))?
         };
         Box::new(fut.boxed().compat())
@@ -335,7 +326,7 @@ impl MmCoin for SiaCoin {
     fn decimals(&self) -> u8 { 24 }
 
     fn convert_to_address(&self, _from: &str, _to_address_format: Json) -> Result<String, String> {
-        Err("convert_to_address is not supported".to_string())
+        Err("SiaCoin::convert_to_address: Unsupported".to_string())
     }
 
     fn validate_address(&self, address: &str) -> ValidateAddressResult {
@@ -563,9 +554,10 @@ impl MmCoin for SiaCoin {
 
     fn history_sync_status(&self) -> HistorySyncState { self.history_sync_state.lock().unwrap().clone() }
 
-    /// Legacy method and no need to implement it
+    // This is only utilized by the now deprecated get_trade_fee RPC method and should be removed
+    // from the MmCoin trait
     fn get_trade_fee(&self) -> Box<dyn Future<Item = TradeFee, Error = String> + Send> {
-        Box::new(futures01::future::err("Not implemented".into()))
+        Box::new(futures01::future::err("SiaCoin::get_trade_fee: Unsupported".into()))
     }
 
     // Todo: Modify this when not using `DEFAULT_FEE`
@@ -643,31 +635,31 @@ impl MmCoin for SiaCoin {
     fn on_token_deactivated(&self, _ticker: &str) {}
 }
 
-// TODO Alright - Dummy values for these functions allow minimal functionality to produce signatures
 #[async_trait]
 impl MarketCoinOps for SiaCoin {
     fn ticker(&self) -> &str { &self.conf.ticker }
 
-    // needs test coverage FIXME COME BACK
     fn my_address(&self) -> MmResult<String, MyAddressError> {
         let key_pair = match &*self.priv_key_policy {
             PrivKeyPolicy::Iguana(key_pair) => key_pair,
             PrivKeyPolicy::Trezor => {
                 return Err(MyAddressError::UnexpectedDerivationMethod(
-                    "Trezor not yet supported. Must use iguana seed.".to_string(),
+                    "SiaCoin::my_address: Unsupported Key Derivation Method, Trezor. Must use iguana seed.".to_string(),
                 )
                 .into());
             },
             PrivKeyPolicy::HDWallet { .. } => {
                 return Err(MyAddressError::UnexpectedDerivationMethod(
-                    "HDWallet not yet supported. Must use iguana seed.".to_string(),
+                    "SiaCoin::my_address: Unsupported Key Derivation Method, HDWallet. Must use iguana seed."
+                        .to_string(),
                 )
                 .into());
             },
             #[cfg(target_arch = "wasm32")]
             PrivKeyPolicy::Metamask(_) => {
                 return Err(MyAddressError::UnexpectedDerivationMethod(
-                    "Metamask not supported. Must use iguana seed.".to_string(),
+                    "SiaCoin::my_address: Unsupported Key Derivation Method, Metamask. Must use iguana seed."
+                        .to_string(),
                 )
                 .into());
             },
@@ -693,19 +685,19 @@ impl MarketCoinOps for SiaCoin {
         Ok(public_key.to_string())
     }
 
-    fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> {
-        // TODO: Implement message signing for SiaCoin.
-        None
-    }
+    // TODO Alright - Unsupported and will be removed - see dev comments in trait declaration
+    fn sign_message_hash(&self, _message: &str) -> Option<[u8; 32]> { None }
 
     fn sign_message(&self, _message: &str) -> SignatureResult<String> {
-        // TODO: Implement message signing for SiaCoin.
-        MmError::err(SignatureError::InternalError("Not implemented".to_string()))
+        MmError::err(SignatureError::InternalError(
+            "SiaCoin::sign_message: Unsupported".to_string(),
+        ))
     }
 
     fn verify_message(&self, _signature: &str, _message: &str, _address: &str) -> VerificationResult<bool> {
-        // TODO: Implement message verification (and signing) for SiaCoin.
-        MmError::err(VerificationError::InternalError("Not implemented".to_string()))
+        MmError::err(VerificationError::InternalError(
+            "SiaCoin::verify_message: Unsupported".to_string(),
+        ))
     }
 
     fn my_balance(&self) -> BalanceFut<CoinBalance> {
@@ -817,20 +809,13 @@ impl MarketCoinOps for SiaCoin {
         Box::new(height_fut)
     }
 
-    fn display_priv_key(&self) -> Result<String, String> {
-        let keypair = self.priv_key_policy.activated_key_or_err().map_err(|e| e.to_string())?;
-        // TODO: Let's not just return a raw bytes object here in `.private()`. We better return a proper object.
-        let private_bytes = keypair.private();
-        let private_key = SecretKey::from_bytes(&private_bytes).map_err(|e| e.to_string())?;
-        // TODO Alright - Firstly, this privkey is useless to a typical sia user because they only ever handle seed phrases.
-        // Second, Do not directly import ed25519-dalek, do this via sia-rust
-        Ok(private_key.encode_hex())
-    }
+    // This remains unimplemented because the response is meaningless to a typical sia user since
+    // all Sia software only ever presents or accepts seed phrases, never raw private keys.
+    // TODO Alright: provide useful import/export functionality prior to mainnet v2 activation
+    fn display_priv_key(&self) -> Result<String, String> { Err("SiaCoin::display_priv_key: Unsupported".to_string()) }
 
-    // Todo: revise this when working on swaps
     fn min_tx_amount(&self) -> BigDecimal { hastings_to_siacoin(1u64.into()) }
 
-    // TODO Alright: research a sensible value for this. It represents the minimum amount of coins that can be traded
     fn min_trading_vol(&self) -> MmNumber { hastings_to_siacoin(1u64.into()).into() }
 
     fn is_trezor(&self) -> bool { self.priv_key_policy.is_trezor() }
