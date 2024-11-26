@@ -227,6 +227,8 @@ impl WalletConnectCtx {
             .get_all_sessions()
             .await
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
+        let mut valid_topics = Vec::with_capacity(sessions.len());
+        let mut pairing_topics = Vec::with_capacity(sessions.len());
 
         // bring most recent active session to the back.
         for session in sessions.into_iter().rev() {
@@ -243,8 +245,13 @@ impl WalletConnectCtx {
             let pairing_topic = session.pairing_topic.clone();
             debug!("[{topic}] Session found! activating");
             self.session.add_session(session).await;
-            self.client.batch_subscribe(vec![topic, pairing_topic]).await?;
+
+            valid_topics.push(topic);
+            pairing_topics.push(pairing_topic);
         }
+
+        let all_topics: Vec<_> = valid_topics.into_iter().chain(pairing_topics.into_iter()).collect();
+        self.client.batch_subscribe(all_topics).await?;
 
         Ok(())
     }
