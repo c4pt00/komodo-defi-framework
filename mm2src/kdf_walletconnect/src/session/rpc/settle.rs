@@ -1,6 +1,6 @@
 use crate::session::{Session, SessionProperties};
 use crate::storage::WalletConnectStorageOps;
-use crate::{error::WalletConnectError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use common::log::{debug, info};
 use mm2_err_handle::prelude::{MapMmError, MmResult};
@@ -8,7 +8,7 @@ use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session_settle::SessionSettleRequest;
 
 pub(crate) async fn send_session_settle_request(
-    _ctx: &WalletConnectCtx,
+    _ctx: &WalletConnectCtxImpl,
     _session_info: &Session,
 ) -> MmResult<(), WalletConnectError> {
     // let mut settled_namespaces = BTreeMap::<String, Namespace>::new();
@@ -35,7 +35,7 @@ pub(crate) async fn send_session_settle_request(
 
 /// Process session settle request.
 pub(crate) async fn reply_session_settle_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectError> {

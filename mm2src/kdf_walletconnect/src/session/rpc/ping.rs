@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{error::WalletConnectError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use common::custom_futures::timeout::FutureTimerExt;
 use futures::StreamExt;
@@ -9,7 +9,7 @@ use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{RelayProtocolMetadata, RequestParams, ResponseParamsSuccess}};
 
 pub(crate) async fn reply_session_ping_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
 ) -> MmResult<(), WalletConnectError> {
@@ -19,7 +19,7 @@ pub(crate) async fn reply_session_ping_request(
     Ok(())
 }
 
-pub async fn send_session_ping_request(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
+pub async fn send_session_ping_request(ctx: &WalletConnectCtxImpl, topic: &Topic) -> MmResult<(), WalletConnectError> {
     let param = RequestParams::SessionPing(());
     let ttl = param.irn_metadata().ttl;
     ctx.publish_request(topic, param).await?;

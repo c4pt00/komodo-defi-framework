@@ -1,5 +1,5 @@
 use crate::storage::WalletConnectStorageOps;
-use crate::{error::WalletConnectError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use common::log::info;
 use mm2_err_handle::prelude::*;
@@ -9,7 +9,7 @@ use relay_rpc::rpc::params::{session_update::SessionUpdateRequest, ResponseParam
 // TODO: Handle properly when multi chain is supported.
 // Hanlding for only cosmos support.
 pub(crate) async fn reply_session_update_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
     update: SessionUpdateRequest,

@@ -60,8 +60,7 @@ pub async fn set_active_session(
     ctx: MmArc,
     req: GetSessionRequest,
 ) -> MmResult<SessionResponse, WalletConnectRpcError> {
-    let ctx =
-        WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
+    let ctx = WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     ctx.session_manager
         .set_active_session(&req.topic.into())
         .await

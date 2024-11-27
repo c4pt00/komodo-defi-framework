@@ -1,5 +1,5 @@
 use crate::session::{WcRequestResponseResult, THIRTY_DAYS};
-use crate::{error::WalletConnectError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use chrono::Utc;
 use mm2_err_handle::prelude::MmResult;
@@ -11,7 +11,7 @@ use relay_rpc::{domain::Topic,
                               ResponseParamsSuccess}};
 
 pub(crate) async fn reply_pairing_ping_response(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
 ) -> MmResult<(), WalletConnectError> {
@@ -22,7 +22,7 @@ pub(crate) async fn reply_pairing_ping_response(
 }
 
 pub(crate) async fn reply_pairing_extend_response(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
     extend: PairingExtendRequest,
@@ -41,7 +41,7 @@ pub(crate) async fn reply_pairing_extend_response(
 }
 
 pub(crate) async fn reply_pairing_delete_response(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
     _delete: PairingDeleteRequest,

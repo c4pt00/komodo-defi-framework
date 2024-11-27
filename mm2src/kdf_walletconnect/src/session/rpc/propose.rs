@@ -4,7 +4,7 @@ use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError,
             metadata::generate_metadata,
             session::{Session, SessionKey, SessionType, THIRTY_DAYS},
-            WalletConnectCtx};
+            WalletConnectCtxImpl};
 
 use chrono::Utc;
 use mm2_err_handle::map_to_mm::MapToMmResult;
@@ -16,7 +16,7 @@ use relay_rpc::{domain::{MessageId, Topic},
 
 /// Creates a new session proposal from topic and metadata.
 pub(crate) async fn send_proposal_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     namespaces: Option<ProposeNamespaces>,
 ) -> MmResult<(), WalletConnectError> {
@@ -38,7 +38,7 @@ pub(crate) async fn send_proposal_request(
 /// Process session proposal request
 /// https://specs.walletconnect.com/2.0/specs/clients/sign/session-proposal
 pub async fn reply_session_proposal_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     proposal: SessionProposeRequest,
     topic: &Topic,
     message_id: &MessageId,
@@ -98,7 +98,7 @@ pub async fn reply_session_proposal_request(
 
 /// Process session propose reponse.
 pub(crate) async fn process_session_propose_response(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     pairing_topic: &Topic,
     response: &SessionProposeResponse,
 ) -> MmResult<(), WalletConnectError> {

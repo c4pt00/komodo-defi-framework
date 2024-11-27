@@ -7,7 +7,7 @@ use crate::{error::WalletConnectError,
                            propose::{process_session_propose_response, reply_session_proposal_request},
                            settle::reply_session_settle_request,
                            update::reply_session_update_request},
-            WalletConnectCtx};
+            WalletConnectCtxImpl};
 
 use common::log::{info, LogOnError};
 use futures::sink::SinkExt;
@@ -24,7 +24,7 @@ pub struct SessionMessage {
 }
 
 pub(crate) async fn process_inbound_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     request: Request,
     topic: &Topic,
 ) -> MmResult<(), WalletConnectError> {
@@ -54,7 +54,7 @@ pub(crate) async fn process_inbound_request(
     Ok(())
 }
 
-pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtx, response: Response, topic: &Topic) {
+pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtxImpl, response: Response, topic: &Topic) {
     let message_id = response.id();
     let result = match response {
         Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {

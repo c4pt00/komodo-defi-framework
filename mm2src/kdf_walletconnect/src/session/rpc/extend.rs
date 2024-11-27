@@ -1,4 +1,4 @@
-use crate::{error::WalletConnectError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use mm2_err_handle::prelude::MmResult;
 use relay_rpc::{domain::{MessageId, Topic},
@@ -6,7 +6,7 @@ use relay_rpc::{domain::{MessageId, Topic},
 
 /// Process session extend request.
 pub(crate) async fn reply_session_extend_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
     extend: SessionExtendRequest,

@@ -12,10 +12,11 @@ use crate::session::rpc::propose::send_proposal_request;
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
 use chrono::Utc;
 use common::custom_futures::timeout::FutureTimerExt;
-use common::executor::{spawn_abortable, AbortOnDropHandle, Timer};
+use common::executor::abortable_queue::AbortableQueue;
+use common::executor::{AbortableSystem, Timer};
 use common::log::{debug, info};
 use common::{executor::SpawnFuture, log::error};
-use connection_handler::{initialize_connection, Handler};
+use connection_handler::{spawn_connection_initialization, Handler};
 use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
@@ -39,6 +40,7 @@ use session::rpc::delete::send_session_delete_request;
 use session::Session;
 use session::{key::SymKeyPair, SessionManager};
 use std::collections::BTreeSet;
+use std::ops::Deref;
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
@@ -69,49 +71,69 @@ pub trait WalletConnectOps {
     ) -> Result<Self::SendTxData, Self::Error>;
 }
 
-pub struct WalletConnectCtx {
+pub struct WalletConnectCtxImpl {
     pub(crate) client: Client,
     pub(crate) pairing: PairingClient,
     pub session_manager: SessionManager,
     pub(crate) key_pair: SymKeyPair,
     relay: Relay,
     metadata: Metadata,
-    inbound_message_rx: Arc<Mutex<UnboundedReceiver<PublishedMessage>>>,
-    connection_live_rx: Arc<Mutex<UnboundedReceiver<Option<String>>>>,
     message_tx: UnboundedSender<SessionMessageType>,
     message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
-    _abort_handle: AbortOnDropHandle,
+    pub abortable_system: AbortableQueue,
+}
+
+pub struct WalletConnectCtx(pub Arc<WalletConnectCtxImpl>);
+impl Deref for WalletConnectCtx {
+    type Target = WalletConnectCtxImpl;
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl WalletConnectCtx {
     pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
+        let abortable_system = ctx.abortable_system.create_subsystem::<AbortableQueue>().unwrap();
         let storage = SessionStorageDb::new(ctx)?;
         let pairing = PairingClient::new();
         let relay = Relay {
             protocol: SUPPORTED_PROTOCOL.to_string(),
             data: None,
         };
-        let (inbound_message_tx, inbound_message_rx) = unbounded();
+        let (inbound_message_tx, mut inbound_message_rx) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (message_tx, session_request_receiver) = unbounded();
-        let (client, _abort_handle) = Client::new_with_callback(
+        let (client, _) = Client::new_with_callback(
             Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
-            |r, h| spawn_abortable(client_event_loop(r, h)),
+            |r, h| abortable_system.weak_spawner().spawn(client_event_loop(r, h)),
         );
 
-        Ok(Self {
+        let inner = Arc::new(WalletConnectCtxImpl {
             client,
             pairing,
             relay,
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             session_manager: SessionManager::new(storage),
-            inbound_message_rx: Arc::new(inbound_message_rx.into()),
-            connection_live_rx: Arc::new(conn_live_receiver.into()),
             message_rx: Arc::new(session_request_receiver.into()),
             message_tx,
-            _abort_handle,
-        })
+            abortable_system,
+        });
+
+        // Connect to relayer client and spawn a watcher loop for disconnection.
+        inner
+            .abortable_system
+            .weak_spawner()
+            .spawn(spawn_connection_initialization(inner.clone(), conn_live_receiver));
+        // spawn message handler event loop
+        let inner_clone = inner.clone();
+        inner_clone.abortable_system.weak_spawner().spawn(async move {
+            while let Some(msg) = inbound_message_rx.next().await {
+                if let Err(e) = inner_clone.handle_published_message(msg).await {
+                    debug!("Error processing message: {:?}", e);
+                }
+            }
+        });
+
+        Ok(Self(inner))
     }
 
     pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectError> {
@@ -120,7 +142,9 @@ impl WalletConnectCtx {
         })
         .map_to_mm(WalletConnectError::InternalError)
     }
+}
 
+impl WalletConnectCtxImpl {
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectError> {
         let auth = {
             let key = SigningKey::generate(&mut rand::thread_rng());
@@ -146,7 +170,9 @@ impl WalletConnectCtx {
             .flat_map(|s| vec![s.topic, s.pairing_topic])
             .collect::<Vec<_>>();
 
-        self.client.batch_subscribe(sessions).await?;
+        if !sessions.is_empty() {
+            self.client.batch_subscribe(sessions).await?;
+        }
 
         Ok(())
     }
@@ -517,28 +543,6 @@ impl WalletConnectCtx {
     pub async fn drop_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
         send_session_delete_request(self, topic).await
     }
-}
-
-/// This function spwans related WalletConnect related tasks and needed initialization before
-/// WalletConnect can be usable in KDF.
-pub async fn initialize_walletconnect(ctx: &MmArc) -> MmResult<(), WalletConnectError> {
-    // Initialized WalletConnectCtx
-    let wallet_connect = WalletConnectCtx::from_ctx(ctx)?;
-    // WalletConnectCtx is initialized, now we can connect to relayer client and spawn a watcher
-    // loop for disconnection.
-    ctx.spawner().spawn(initialize_connection(wallet_connect.clone()));
-
-    // spawn message handler event loop
-    ctx.spawner().spawn(async move {
-        let mut recv = wallet_connect.inbound_message_rx.lock().await;
-        while let Some(msg) = recv.next().await {
-            if let Err(e) = wallet_connect.handle_published_message(msg).await {
-                debug!("Error processing message: {:?}", e);
-            }
-        }
-    });
-
-    Ok(())
 }
 
 fn find_account_in_namespace<'a>(accounts: &'a BTreeSet<String>, chain_id: &'a str) -> Option<String> {

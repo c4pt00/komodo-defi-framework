@@ -59,7 +59,7 @@ use common::executor::{abortable_queue::AbortableQueue, AbortOnDropHandle, Abort
                        AbortedError, SpawnAbortable, Timer};
 use common::log::{debug, error, info, warn};
 use common::number_type_casting::SafeTypeCastingNumbers;
-use common::{now_ms, wait_until_sec};
+use common::wait_until_sec;
 use common::{now_sec, small_rng, DEX_FEE_ADDR_RAW_PUBKEY};
 use crypto::privkey::key_pair_from_secret;
 use crypto::{Bip44Chain, CryptoCtx, CryptoCtxError, GlobalHDAccountArc, KeyPairPolicy};
@@ -5539,7 +5539,7 @@ impl EthCoin {
         check_every: f64,
     ) -> Web3RpcResult<Option<SignedEthTx>> {
         let wait_until = wait_until_sec(wait_rpc_timeout_s);
-        while now_ms() < wait_until {
+        while now_sec() < wait_until {
             let maybe_tx = self.transaction(TransactionId::Hash(tx_hash)).await?;
             if let Some(tx) = maybe_tx {
                 let signed_tx = signed_tx_from_web3_tx(tx).map_to_mm(Web3RpcError::InvalidResponse)?;

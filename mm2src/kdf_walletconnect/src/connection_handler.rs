@@ -1,9 +1,9 @@
 use crate::storage::WalletConnectStorageOps;
-use crate::WalletConnectCtx;
+use crate::WalletConnectCtxImpl;
 
 use common::executor::Timer;
 use common::log::{debug, error, info};
-use futures::channel::mpsc::UnboundedSender;
+use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use relay_client::error::ClientError;
 use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
@@ -75,7 +75,10 @@ impl ConnectionHandler for Handler {
 /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
 /// Uses increasing delay between retry attempts starting from INITIAL_RETRY_SECS.
 /// After successful connection, attempts to restore previous session state from storage.
-pub(crate) async fn initialize_connection(wc: Arc<WalletConnectCtx>) {
+pub(crate) async fn spawn_connection_initialization(
+    wc: Arc<WalletConnectCtxImpl>,
+    connection_live_rx: UnboundedReceiver<Option<String>>,
+) {
     info!("Initializing WalletConnect connection");
     let mut retry_count = 0;
     let mut retry_secs = INITIAL_RETRY_SECS;
@@ -101,17 +104,19 @@ pub(crate) async fn initialize_connection(wc: Arc<WalletConnectCtx>) {
     };
 
     // Spawn session disconnection watcher.
-    handle_disconnections(&wc).await;
+    handle_disconnections(&wc, connection_live_rx).await;
 }
 
 /// Handles unexpected disconnections from WalletConnect relay server.
 /// Implements exponential backoff retry mechanism for reconnection attempts.
 /// After successful reconnection, resubscribes to previous topics to restore full functionality.
-pub(crate) async fn handle_disconnections(this: &WalletConnectCtx) {
-    let mut recv = this.connection_live_rx.lock().await;
+pub(crate) async fn handle_disconnections(
+    this: &WalletConnectCtxImpl,
+    mut connection_live_rx: UnboundedReceiver<Option<String>>,
+) {
     let mut backoff = 1;
 
-    while let Some(msg) = recv.next().await {
+    while let Some(msg) = connection_live_rx.next().await {
         info!("WalletConnect disconnected with message: {msg:?}. Attempting to reconnect...");
 
         loop {

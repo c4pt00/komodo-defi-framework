@@ -1,6 +1,6 @@
 use crate::{error::{WalletConnectError, USER_REQUESTED},
             storage::WalletConnectStorageOps,
-            WalletConnectCtx};
+            WalletConnectCtxImpl};
 
 use common::log::debug;
 use mm2_err_handle::prelude::{MapMmError, MmResult};
@@ -8,7 +8,7 @@ use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::params::{session_delete::SessionDeleteRequest, RequestParams, ResponseParamsSuccess};
 
 pub(crate) async fn reply_session_delete_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
     _delete_params: SessionDeleteRequest,
@@ -20,7 +20,7 @@ pub(crate) async fn reply_session_delete_request(
 }
 
 pub(crate) async fn send_session_delete_request(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     session_topic: &Topic,
 ) -> MmResult<(), WalletConnectError> {
     let delete_request = SessionDeleteRequest {
@@ -34,7 +34,7 @@ pub(crate) async fn send_session_delete_request(
     session_delete_cleanup(ctx, session_topic).await
 }
 
-async fn session_delete_cleanup(ctx: &WalletConnectCtx, topic: &Topic) -> MmResult<(), WalletConnectError> {
+async fn session_delete_cleanup(ctx: &WalletConnectCtxImpl, topic: &Topic) -> MmResult<(), WalletConnectError> {
     {
         ctx.client.unsubscribe(topic.clone()).await?;
     };

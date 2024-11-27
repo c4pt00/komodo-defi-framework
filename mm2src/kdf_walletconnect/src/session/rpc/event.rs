@@ -1,6 +1,6 @@
 use crate::{chain::{WcChain, WcChainId},
             error::{WalletConnectError, UNSUPPORTED_CHAINS},
-            WalletConnectCtx};
+            WalletConnectCtxImpl};
 
 use common::log::{error, info};
 use mm2_err_handle::prelude::*;
@@ -9,7 +9,7 @@ use relay_rpc::{domain::{MessageId, Topic},
                       ErrorData}};
 
 pub async fn handle_session_event(
-    ctx: &WalletConnectCtx,
+    ctx: &WalletConnectCtxImpl,
     topic: &Topic,
     message_id: &MessageId,
     event: SessionEventRequest,

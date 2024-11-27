@@ -3,7 +3,7 @@ pub mod rpc;
 
 use crate::chain::WcChainId;
 use crate::storage::SessionStorageDb;
-use crate::{error::WalletConnectError, WalletConnectCtx};
+use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use chrono::Utc;
 use common::log::info;
@@ -130,7 +130,7 @@ pub struct Session {
 
 impl Session {
     pub fn new(
-        ctx: &WalletConnectCtx,
+        ctx: &WalletConnectCtxImpl,
         session_topic: Topic,
         subscription_id: SubscriptionId,
         session_key: SessionKey,

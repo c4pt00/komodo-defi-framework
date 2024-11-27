@@ -24,7 +24,7 @@ use web3::signing::hash_message;
 use super::EthCoin;
 
 // Wait for 30 seconds for the transaction to appear on the RPC node.
-const WAIT_RPC_TIMEOUT_SECS: u64 = 30;
+const WAIT_RPC_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Display, Debug, EnumFromStringify)]
 pub enum EthWalletConnectError {
