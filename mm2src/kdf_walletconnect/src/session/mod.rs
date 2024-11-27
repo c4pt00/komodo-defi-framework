@@ -23,8 +23,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use wc_common::SymKey;
 
 pub(crate) const FIVE_MINUTES: u64 = 5 * 60;
@@ -224,7 +223,7 @@ impl SessionManager {
         self.0
             .active_topic
             .lock()
-            .await
+            .unwrap()
             .clone()
             .ok_or(MmError::new(WalletConnectError::SessionError(
                 "No active session".to_owned(),
@@ -235,7 +234,7 @@ impl SessionManager {
     /// If a session with the same topic already exists, it will be overwritten.
     pub(crate) async fn add_session(&self, session: Session) {
         // set active session topic.
-        *self.0.active_topic.lock().await = Some(session.topic.clone());
+        *self.0.active_topic.lock().unwrap() = Some(session.topic.clone());
         // insert session
         self.0.sessions.insert(session.topic.clone(), session);
     }
@@ -244,7 +243,7 @@ impl SessionManager {
     /// If the session does not exist, this method does nothing.
     pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
         info!("[{topic}] Deleting session with topic");
-        let mut active_topic = self.0.active_topic.lock().await;
+        let mut active_topic = self.0.active_topic.lock().unwrap();
 
         // Remove the session and get the removed session (if any)
         let removed_session = self.0.sessions.remove(topic).map(|(_, session)| session);
@@ -263,7 +262,7 @@ impl SessionManager {
     }
 
     pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
-        let mut active_topic = self.0.active_topic.lock().await;
+        let mut active_topic = self.0.active_topic.lock().unwrap();
         let session = self
             .get_session(topic)
             .ok_or(MmError::new(WalletConnectError::SessionError(
@@ -288,7 +287,7 @@ impl SessionManager {
         self.0
             .active_topic
             .lock()
-            .await
+            .unwrap()
             .as_ref()
             .and_then(|topic| self.get_session(topic))
     }
