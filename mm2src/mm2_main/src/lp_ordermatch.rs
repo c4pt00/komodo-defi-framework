@@ -75,17 +75,18 @@ use crate::lp_network::{broadcast_p2p_msg, request_any_relay, request_one_peer, 
 use crate::lp_swap::maker_swap_v2::{self, MakerSwapStateMachine, MakerSwapStorage};
 use crate::lp_swap::taker_swap_v2::{self, TakerSwapStateMachine, TakerSwapStorage};
 use crate::lp_swap::{calc_max_maker_vol, check_balance_for_maker_swap, check_balance_for_taker_swap,
-                     check_other_coin_balance_for_swap, detect_secret_hash_algo, dex_fee_amount_from_taker_coin,
+                     check_other_coin_balance_for_swap, detect_secret_hash_algo_v2, dex_fee_amount_from_taker_coin,
                      generate_secret, get_max_maker_vol, insert_new_swap_to_db, is_pubkey_banned, lp_atomic_locktime,
                      p2p_keypair_and_peer_id_to_broadcast, p2p_private_and_peer_id_to_broadcast, run_maker_swap,
                      run_taker_swap, swap_v2_topic, AtomicLocktimeVersion, CheckBalanceError, CheckBalanceResult,
-                     CoinVolumeInfo, MakerSwap, RunMakerSwapInput, RunTakerSwapInput, SecretHashAlgo,
-                     SwapConfirmationsSettings, TakerSwap, LEGACY_SWAP_TYPE};
+                     CoinVolumeInfo, MakerSwap, RunMakerSwapInput, RunTakerSwapInput, SwapConfirmationsSettings,
+                     TakerSwap, LEGACY_SWAP_TYPE};
 
 #[cfg(any(test, feature = "run-docker-tests"))]
 use crate::lp_swap::taker_swap::FailAt;
 
 pub use best_orders::{best_orders_rpc, best_orders_rpc_v2};
+use crypto::secret_hash_algo::SecretHashAlgo;
 pub use orderbook_depth::orderbook_depth_rpc;
 pub use orderbook_rpc::{orderbook_rpc, orderbook_rpc_v2};
 
@@ -3046,7 +3047,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
         }
 
         let params = StateMachineParams {
-            secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
+            secret_hash_algo: &detect_secret_hash_algo_v2(&maker_coin, &taker_coin),
             uuid: &uuid,
             my_conf_settings: &my_conf_settings,
             locktime: &lock_time,
@@ -3285,7 +3286,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
             },
         };
         let params = StateMachineParams {
-            secret_hash_algo: &detect_secret_hash_algo(&maker_coin, &taker_coin),
+            secret_hash_algo: &detect_secret_hash_algo_v2(&maker_coin, &taker_coin),
             uuid: &uuid,
             my_conf_settings: &my_conf_settings,
             locktime: &locktime,

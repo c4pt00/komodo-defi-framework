@@ -212,6 +212,7 @@ pub mod watcher_common;
 
 pub mod coin_errors;
 use coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentFut, ValidatePaymentResult};
+use crypto::secret_hash_algo::SecretHashAlgo;
 
 #[doc(hidden)]
 #[cfg(test)]
@@ -3563,6 +3564,20 @@ impl MmCoinEnum {
     pub fn is_eth(&self) -> bool { matches!(self, MmCoinEnum::EthCoin(_)) }
 
     fn is_platform_coin(&self) -> bool { self.ticker() == self.platform_ticker() }
+
+    pub fn maker_secret_hash_algo_v2(&self) -> SecretHashAlgo {
+        match self {
+            MmCoinEnum::EthCoin(_) => SecretHashAlgo::SHA256,
+            _ => SecretHashAlgo::DHASH160,
+        }
+    }
+
+    pub fn taker_secret_hash_algo_v2(&self) -> SecretHashAlgo {
+        match self {
+            MmCoinEnum::EthCoin(_) => SecretHashAlgo::SHA256,
+            _ => SecretHashAlgo::DHASH160,
+        }
+    }
 }
 
 #[async_trait]
