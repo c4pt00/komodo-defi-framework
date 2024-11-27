@@ -1,5 +1,4 @@
 use super::settle::send_session_settle_request;
-use crate::chain::{build_default_required_namespaces, build_optional_namespaces};
 use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError,
             metadata::generate_metadata,
@@ -18,7 +17,8 @@ use relay_rpc::{domain::{MessageId, Topic},
 pub(crate) async fn send_proposal_request(
     ctx: &WalletConnectCtxImpl,
     topic: &Topic,
-    namespaces: Option<ProposeNamespaces>,
+    required_namespaces: ProposeNamespaces,
+    optional_namespaces: Option<ProposeNamespaces>,
 ) -> MmResult<(), WalletConnectError> {
     let proposer = Proposer {
         metadata: ctx.metadata.clone(),
@@ -27,8 +27,8 @@ pub(crate) async fn send_proposal_request(
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
         relays: vec![ctx.relay.clone()],
         proposer,
-        required_namespaces: namespaces.unwrap_or_else(build_default_required_namespaces),
-        optional_namespaces: Some(build_optional_namespaces()),
+        required_namespaces,
+        optional_namespaces,
     });
     ctx.publish_request(topic, session_proposal).await?;
 

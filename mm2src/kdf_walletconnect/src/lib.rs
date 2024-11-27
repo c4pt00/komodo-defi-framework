@@ -80,7 +80,7 @@ pub struct WalletConnectCtxImpl {
     metadata: Metadata,
     message_tx: UnboundedSender<SessionMessageType>,
     message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
-    pub abortable_system: AbortableQueue,
+    abortable_system: AbortableQueue,
 }
 
 pub struct WalletConnectCtx(pub Arc<WalletConnectCtxImpl>);
@@ -178,8 +178,13 @@ impl WalletConnectCtxImpl {
     }
 
     /// Create a WalletConnect pairing connection url.
-    pub async fn new_connection(&self, namespaces: Option<serde_json::Value>) -> MmResult<String, WalletConnectError> {
-        let namespaces = match namespaces {
+    pub async fn new_connection(
+        &self,
+        required_namespaces: serde_json::Value,
+        optional_namespaces: Option<serde_json::Value>,
+    ) -> MmResult<String, WalletConnectError> {
+        let required_namespaces = serde_json::from_value(required_namespaces)?;
+        let optional_namespaces = match optional_namespaces {
             Some(value) => Some(serde_json::from_value(value)?),
             None => None,
         };
@@ -196,7 +201,7 @@ impl WalletConnectCtxImpl {
             {
                 Ok(Ok(_)) => {
                     info!("[topic] Subscribed to topic");
-                    send_proposal_request(self, &topic, namespaces).await?;
+                    send_proposal_request(self, &topic, required_namespaces, optional_namespaces).await?;
                     return Ok(url);
                 },
                 Ok(Err(err)) => return MmError::err(err.into()),

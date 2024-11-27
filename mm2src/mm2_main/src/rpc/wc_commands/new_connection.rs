@@ -12,7 +12,8 @@ pub struct CreateConnectionResponse {
 
 #[derive(Deserialize)]
 pub struct NewConnectionRequest {
-    namespaces: Option<serde_json::Value>,
+    required_namespaces: serde_json::Value,
+    optional_namespaces: Option<serde_json::Value>,
 }
 
 /// `new_connection` RPC command implementation.
@@ -23,7 +24,7 @@ pub async fn new_connection(
     let ctx =
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     let url = ctx
-        .new_connection(req.namespaces)
+        .new_connection(req.required_namespaces, req.optional_namespaces)
         .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 

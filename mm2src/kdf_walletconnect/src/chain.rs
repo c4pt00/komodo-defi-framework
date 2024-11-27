@@ -1,19 +1,10 @@
 use mm2_err_handle::prelude::{MmError, MmResult};
-use relay_rpc::rpc::params::session::{ProposeNamespace, ProposeNamespaces};
 use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, BTreeSet},
-          str::FromStr};
+use std::str::FromStr;
 
 use crate::error::WalletConnectError;
 
 pub(crate) const SUPPORTED_PROTOCOL: &str = "irn";
-
-pub(crate) const COSMOS_SUPPORTED_METHODS: &[&str] = &["cosmos_getAccounts", "cosmos_signDirect", "cosmos_signAmino"];
-pub(crate) const COSMOS_SUPPORTED_CHAINS: &[&str] = &["cosmos:cosmoshub-4"];
-
-pub(crate) const ETH_SUPPORTED_METHODS: &[&str] = &["eth_signTransaction", "personal_sign", "eth_sendTransaction"];
-pub(crate) const ETH_SUPPORTED_CHAINS: &[&str] = &["eip155:1", "eip155:137"];
-pub(crate) const ETH_SUPPORTED_EVENTS: &[&str] = &["accountsChanged", "chainChanged"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WcChain {
@@ -113,24 +104,4 @@ impl AsRef<str> for WcRequestMethods {
             Self::PersonalSign => "personal_sign",
         }
     }
-}
-
-pub(crate) fn build_default_required_namespaces() -> ProposeNamespaces {
-    let required = BTreeMap::from([(WcChain::Eip155.as_ref().to_string(), ProposeNamespace {
-        events: ETH_SUPPORTED_EVENTS.iter().map(|m| m.to_string()).collect(),
-        chains: ETH_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-        methods: ETH_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-    })]);
-
-    ProposeNamespaces(required)
-}
-
-pub(crate) fn build_optional_namespaces() -> ProposeNamespaces {
-    let optional = BTreeMap::from([(WcChain::Cosmos.as_ref().to_string(), ProposeNamespace {
-        methods: COSMOS_SUPPORTED_METHODS.iter().map(|m| m.to_string()).collect(),
-        chains: COSMOS_SUPPORTED_CHAINS.iter().map(|c| c.to_string()).collect(),
-        events: BTreeSet::default(),
-    })]);
-
-    ProposeNamespaces(optional)
 }
