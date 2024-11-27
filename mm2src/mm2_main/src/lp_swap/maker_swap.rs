@@ -794,32 +794,52 @@ impl MakerSwap {
     }
 
     async fn maker_payment(&self) -> Result<(Option<MakerSwapCommand>, Vec<MakerSwapEvent>), String> {
+        // Extract values from lock before async operations
         let lock_duration = self.r().data.lock_duration;
-        let timeout = self.r().data.started_at + lock_duration / 3;
-        let now = now_sec();
-        if now > timeout {
-            return Ok((Some(MakerSwapCommand::Finish), vec![
-                MakerSwapEvent::MakerPaymentTransactionFailed(ERRL!("Timeout {} > {}", now, timeout).into()),
-            ]));
-        }
-
         let maker_payment_lock = self.r().data.maker_payment_lock;
         let other_maker_coin_htlc_pub = self.r().other_maker_coin_htlc_pub;
         let secret_hash = self.secret_hash();
         let maker_coin_swap_contract_address = self.r().data.maker_coin_swap_contract_address.clone();
         let unique_data = self.unique_swap_data();
         let payment_instructions = self.r().payment_instructions.clone();
-        let transaction_f = self.maker_coin.check_if_my_payment_sent(CheckIfMyPaymentSentArgs {
-            time_lock: maker_payment_lock,
-            other_pub: &*other_maker_coin_htlc_pub,
-            secret_hash: secret_hash.as_slice(),
-            search_from_block: self.r().data.maker_coin_start_block,
-            swap_contract_address: &maker_coin_swap_contract_address,
-            swap_unique_data: &unique_data,
-            amount: &self.maker_amount,
-            payment_instructions: &payment_instructions,
-        });
+        let maker_coin_start_block = self.r().data.maker_coin_start_block;
 
+        // Look for previously sent maker payment in case of restart
+        let maybe_existing_payment = match self
+            .maker_coin
+            .check_if_my_payment_sent(CheckIfMyPaymentSentArgs {
+                time_lock: maker_payment_lock,
+                other_pub: &*other_maker_coin_htlc_pub,
+                secret_hash: secret_hash.as_slice(),
+                search_from_block: maker_coin_start_block,
+                swap_contract_address: &maker_coin_swap_contract_address,
+                swap_unique_data: &unique_data,
+                amount: &self.maker_amount,
+                payment_instructions: &payment_instructions,
+            })
+            .await
+        {
+            Ok(Some(tx)) => Some(tx),
+            Ok(None) => None,
+            Err(e) => {
+                return Ok((Some(MakerSwapCommand::Finish), vec![
+                    MakerSwapEvent::MakerPaymentTransactionFailed(ERRL!("{}", e).into()),
+                ]))
+            },
+        };
+
+        // Skip timeout check if payment was already sent
+        if maybe_existing_payment.is_none() {
+            let timeout = self.r().data.started_at + lock_duration / 3;
+            let now = now_sec();
+            if now > timeout {
+                return Ok((Some(MakerSwapCommand::Finish), vec![
+                    MakerSwapEvent::MakerPaymentTransactionFailed(ERRL!("Timeout {} > {}", now, timeout).into()),
+                ]));
+            }
+        }
+
+        // Set up watcher reward if enabled
         let wait_maker_payment_until = wait_for_maker_payment_conf_until(self.r().data.started_at, lock_duration);
         let watcher_reward = if self.r().watcher_reward {
             match self
@@ -838,45 +858,39 @@ impl MakerSwap {
             None
         };
 
-        let transaction = match transaction_f.await {
-            Ok(res) => match res {
-                Some(tx) => tx,
-                None => {
-                    let payment = self
-                        .maker_coin
-                        .send_maker_payment(SendPaymentArgs {
-                            time_lock_duration: lock_duration,
-                            time_lock: maker_payment_lock,
-                            other_pubkey: &*other_maker_coin_htlc_pub,
-                            secret_hash: secret_hash.as_slice(),
-                            amount: self.maker_amount.clone(),
-                            swap_contract_address: &maker_coin_swap_contract_address,
-                            swap_unique_data: &unique_data,
-                            payment_instructions: &payment_instructions,
-                            watcher_reward,
-                            wait_for_confirmation_until: wait_maker_payment_until,
-                        })
-                        .await;
-
-                    match payment {
-                        Ok(t) => t,
-                        Err(err) => {
-                            return Ok((Some(MakerSwapCommand::Finish), vec![
-                                MakerSwapEvent::MakerPaymentTransactionFailed(
-                                    ERRL!("{}", err.get_plain_text_format()).into(),
-                                ),
-                            ]));
-                        },
-                    }
-                },
-            },
-            Err(e) => {
-                return Ok((Some(MakerSwapCommand::Finish), vec![
-                    MakerSwapEvent::MakerPaymentTransactionFailed(ERRL!("{}", e).into()),
-                ]))
+        // Use existing payment or create new one
+        let transaction = match maybe_existing_payment {
+            Some(tx) => tx,
+            None => {
+                match self
+                    .maker_coin
+                    .send_maker_payment(SendPaymentArgs {
+                        time_lock_duration: lock_duration,
+                        time_lock: maker_payment_lock,
+                        other_pubkey: &*other_maker_coin_htlc_pub,
+                        secret_hash: secret_hash.as_slice(),
+                        amount: self.maker_amount.clone(),
+                        swap_contract_address: &maker_coin_swap_contract_address,
+                        swap_unique_data: &unique_data,
+                        payment_instructions: &payment_instructions,
+                        watcher_reward,
+                        wait_for_confirmation_until: wait_maker_payment_until,
+                    })
+                    .await
+                {
+                    Ok(t) => t,
+                    Err(err) => {
+                        return Ok((Some(MakerSwapCommand::Finish), vec![
+                            MakerSwapEvent::MakerPaymentTransactionFailed(
+                                ERRL!("{}", err.get_plain_text_format()).into(),
+                            ),
+                        ]));
+                    },
+                }
             },
         };
 
+        // Build transaction identifier and prepare events
         let tx_hash = transaction.tx_hash_as_bytes();
         info!("{}: Maker payment tx {:02x}", MAKER_PAYMENT_SENT_LOG, tx_hash);
 
