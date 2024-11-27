@@ -65,7 +65,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
     async fn is_initialized(&self) -> MmResult<bool, Self::Error> {
         let lock = self.lock_db().await;
         validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
-
         lock.call(move |conn| {
             let initialized = query_single_row(conn, CHECK_TABLE_EXISTS_SQL, [SESSION_TABLE_NAME], string_from_row)?;
             Ok(initialized.is_some())
@@ -76,7 +75,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn save_session(&self, session: &Session) -> MmResult<(), Self::Error> {
         debug!("[{}] Saving WalletConnect session to storage", session.topic);
-        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
         let lock = self.lock_db().await;
 
         let session = session.clone();
@@ -102,7 +100,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn get_session(&self, topic: &Topic) -> MmResult<Option<Session>, Self::Error> {
         debug!("[{topic}] Retrieving WalletConnect session from storage");
-        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
         let lock = self.lock_db().await;
         let topic = topic.clone();
         let session_str = lock
@@ -121,7 +118,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn get_all_sessions(&self) -> MmResult<Vec<Session>, Self::Error> {
         debug!("Loading WalletConnect sessions from storage");
-        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
         let lock = self.lock_db().await;
         let sessions_str = lock
             .call(move |conn| {
@@ -145,7 +141,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn delete_session(&self, topic: &Topic) -> MmResult<(), Self::Error> {
         debug!("[{topic}] Deleting WalletConnect session from storage");
-        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
         let topic = topic.clone();
         let lock = self.lock_db().await;
         lock.call(move |conn| {
@@ -161,7 +156,6 @@ impl WalletConnectStorageOps for SqliteSessionStorage {
 
     async fn update_session(&self, session: &Session) -> MmResult<(), Self::Error> {
         debug!("[{}] Updating WalletConnect session in storage", session.topic);
-        validate_table_name(SESSION_TABLE_NAME).map_err(AsyncConnError::from)?;
         let session = session.clone();
         let lock = self.lock_db().await;
         lock.call(move |conn| {
