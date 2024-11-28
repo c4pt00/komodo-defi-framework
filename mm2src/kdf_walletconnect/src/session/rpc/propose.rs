@@ -80,7 +80,7 @@ pub async fn reply_session_proposal_request(
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // Add session to session lists
-        ctx.session_manager.add_session(session.clone()).await;
+        ctx.session_manager.add_session(session.clone());
     }
 
     send_session_settle_request(ctx, &session).await?;
@@ -143,7 +143,7 @@ pub(crate) async fn process_session_propose_response(
             .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
         // Add session to session lists
-        ctx.session_manager.add_session(session.clone()).await;
+        ctx.session_manager.add_session(session.clone());
     };
 
     // Activate pairing_topic

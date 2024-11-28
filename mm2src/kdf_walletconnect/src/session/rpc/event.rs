@@ -30,21 +30,16 @@ pub async fn handle_session_event(
                 return Ok(());
             };
 
-            ctx.validate_chain_id(&session, &chain_id).await?;
+            ctx.validate_chain_id(&session, &chain_id)?;
 
-            if session
-                .get_active_chain_id()
-                .await
-                .as_ref()
-                .map_or(false, |c| c == &chain_id)
-            {
+            if session.get_active_chain_id().as_ref().map_or(false, |c| c == &chain_id) {
                 return Ok(());
             };
 
             // check if if new chain_id is supported.
             let new_id = serde_json::from_value::<u32>(event.event.data)?;
             let new_chain = chain_id.chain.derive_chain_id(new_id.to_string());
-            if let Err(err) = ctx.validate_chain_id(&session, &new_chain).await {
+            if let Err(err) = ctx.validate_chain_id(&session, &new_chain) {
                 error!("[{topic}] {err:?}");
                 let error_data = ErrorData {
                     code: UNSUPPORTED_CHAINS,
@@ -60,8 +55,7 @@ pub async fn handle_session_event(
                         .ok_or(MmError::new(WalletConnectError::SessionError(
                             "No active WalletConnect session found".to_string(),
                         )))?
-                        .set_active_chain_id(chain_id)
-                        .await;
+                        .set_active_chain_id(chain_id);
                 }
             };
         },

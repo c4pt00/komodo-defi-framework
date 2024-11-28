@@ -78,8 +78,7 @@ pub struct WalletConnectCtxImpl {
     pub(crate) key_pair: SymKeyPair,
     relay: Relay,
     metadata: Metadata,
-    message_tx: UnboundedSender<SessionMessageType>,
-    message_rx: Arc<Mutex<UnboundedReceiver<SessionMessageType>>>,
+    message_rx: Mutex<UnboundedReceiver<SessionMessageType>>,
     abortable_system: AbortableQueue,
 }
 
@@ -91,7 +90,10 @@ impl Deref for WalletConnectCtx {
 
 impl WalletConnectCtx {
     pub fn try_init(ctx: &MmArc) -> MmResult<Self, WalletConnectError> {
-        let abortable_system = ctx.abortable_system.create_subsystem::<AbortableQueue>().unwrap();
+        let abortable_system = ctx
+            .abortable_system
+            .create_subsystem::<AbortableQueue>()
+            .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?;
         let storage = SessionStorageDb::new(ctx)?;
         let pairing = PairingClient::new();
         let relay = Relay {
@@ -100,7 +102,7 @@ impl WalletConnectCtx {
         };
         let (inbound_message_tx, mut inbound_message_rx) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
-        let (message_tx, session_request_receiver) = unbounded();
+        let (message_tx, message_rx) = unbounded();
         let (client, _) = Client::new_with_callback(
             Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
             |r, h| abortable_system.weak_spawner().spawn(client_event_loop(r, h)),
@@ -113,8 +115,7 @@ impl WalletConnectCtx {
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             session_manager: SessionManager::new(storage),
-            message_rx: Arc::new(session_request_receiver.into()),
-            message_tx,
+            message_rx: message_rx.into(),
             abortable_system,
         });
 
@@ -127,7 +128,7 @@ impl WalletConnectCtx {
         let inner_clone = inner.clone();
         inner_clone.abortable_system.weak_spawner().spawn(async move {
             while let Some(msg) = inbound_message_rx.next().await {
-                if let Err(e) = inner_clone.handle_published_message(msg).await {
+                if let Err(e) = inner_clone.handle_published_message(msg, message_tx.clone()).await {
                     debug!("Error processing message: {:?}", e);
                 }
             }
@@ -190,7 +191,7 @@ impl WalletConnectCtxImpl {
         };
         let (topic, url) = self.pairing.create(self.metadata.clone(), None)?;
 
-        info!("[topic] Subscribing to topic");
+        info!("[{topic}] Subscribing to topic");
 
         for attempt in 0..MAX_RETRIES {
             match self
@@ -200,7 +201,7 @@ impl WalletConnectCtxImpl {
                 .await
             {
                 Ok(Ok(_)) => {
-                    info!("[topic] Subscribed to topic");
+                    info!("[{topic}] Subscribed to topic");
                     send_proposal_request(self, &topic, required_namespaces, optional_namespaces).await?;
                     return Ok(url);
                 },
@@ -230,7 +231,11 @@ impl WalletConnectCtxImpl {
     }
 
     /// Handles an inbound published message by decrypting, decoding, and processing it.
-    async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectError> {
+    async fn handle_published_message(
+        &self,
+        msg: PublishedMessage,
+        message_tx: UnboundedSender<SessionMessageType>,
+    ) -> MmResult<(), WalletConnectError> {
         let message = {
             let key = self.sym_key(&msg.topic)?;
             decode_and_decrypt_type0(msg.message.as_bytes(), &key)?
@@ -240,7 +245,7 @@ impl WalletConnectCtxImpl {
 
         match serde_json::from_str(&message)? {
             Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
-            Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await,
+            Payload::Response(response) => process_inbound_response(self, response, &msg.topic, message_tx).await,
         }
 
         info!("[{}] Inbound message was handled successfully", msg.topic);
@@ -275,7 +280,7 @@ impl WalletConnectCtxImpl {
             let topic = session.topic.clone();
             let pairing_topic = session.pairing_topic.clone();
             debug!("[{topic}] Session found! activating");
-            self.session_manager.add_session(session).await;
+            self.session_manager.add_session(session);
 
             valid_topics.push(topic);
             pairing_topics.push(pairing_topic);
@@ -395,10 +400,9 @@ impl WalletConnectCtxImpl {
 
     /// Checks if the current session is connected to a Ledger device.
     /// NOTE: for COSMOS chains only.
-    pub async fn is_ledger_connection(&self) -> bool {
+    pub fn is_ledger_connection(&self) -> bool {
         self.session_manager
             .get_session_active()
-            .await
             .and_then(|session| session.session_properties)
             .and_then(|props| props.keys.as_ref().cloned())
             .and_then(|keys| keys.first().cloned())
@@ -407,7 +411,7 @@ impl WalletConnectCtxImpl {
     }
 
     /// Checks if a given chain ID is supported.
-    pub(crate) async fn validate_chain_id(
+    pub(crate) fn validate_chain_id(
         &self,
         session: &Session,
         chain_id: &WcChainId,
@@ -433,12 +437,11 @@ impl WalletConnectCtxImpl {
         let session =
             self.session_manager
                 .get_session_active()
-                .await
                 .ok_or(MmError::new(WalletConnectError::SessionError(
                     "No active WalletConnect session found".to_string(),
                 )))?;
 
-        self.validate_chain_id(&session, chain_id).await?;
+        self.validate_chain_id(&session, chain_id)?;
 
         // TODO: uncomment when WalletConnect wallets start listening to chainChanged event
         // if WcChain::Eip155 != chain_id.chain {
@@ -486,11 +489,10 @@ impl WalletConnectCtxImpl {
 
     /// TODO: accept WcChainId
     /// Retrieves the available account for a given chain ID.
-    pub async fn get_account_for_chain_id(&self, chain_id: &WcChainId) -> MmResult<String, WalletConnectError> {
+    pub fn get_account_for_chain_id(&self, chain_id: &WcChainId) -> MmResult<String, WalletConnectError> {
         let namespaces = &self
             .session_manager
             .get_session_active()
-            .await
             .ok_or(MmError::new(WalletConnectError::SessionError(
                 "No active WalletConnect session found".to_string(),
             )))?
@@ -521,7 +523,7 @@ impl WalletConnectCtxImpl {
         T: DeserializeOwned,
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
-        let active_topic = self.session_manager.get_active_topic_or_err().await?;
+        let active_topic = self.session_manager.get_active_topic_or_err()?;
         let request = SessionRequestRequest {
             chain_id: chain_id.to_string(),
             request: SessionRequest {

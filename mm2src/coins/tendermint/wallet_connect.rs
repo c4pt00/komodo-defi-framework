@@ -91,7 +91,7 @@ impl WalletConnectOps for TendermintCoin {
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error> {
         let chain_id = self.wc_chain_id(wc).await?;
-        let method = if wc.is_ledger_connection().await {
+        let method = if wc.is_ledger_connection() {
             WcRequestMethods::CosmosSignAmino
         } else {
             WcRequestMethods::CosmosSignDirect
@@ -127,11 +127,10 @@ pub async fn cosmos_get_accounts_impl(
     let chain_id = WcChainId::new_cosmos(chain_id.to_string());
     wc.validate_update_active_chain_id(&chain_id).await?;
 
-    let account = wc.get_account_for_chain_id(&chain_id).await?;
+    let account = wc.get_account_for_chain_id(&chain_id)?;
     let session = wc
         .session_manager
         .get_session_active()
-        .await
         .ok_or(WalletConnectError::NotInitialized)?;
 
     // Check iexisting session has session_properties and return wallet account;

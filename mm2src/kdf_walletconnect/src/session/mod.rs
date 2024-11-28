@@ -171,10 +171,10 @@ impl Session {
     pub(crate) fn extend(&mut self, till: u64) { self.expiry = till; }
 
     /// Get the active chain ID for the current session.
-    pub async fn get_active_chain_id(&self) -> &Option<WcChainId> { &self.active_chain_id }
+    pub fn get_active_chain_id(&self) -> &Option<WcChainId> { &self.active_chain_id }
 
     /// Sets the active chain ID for the current session.
-    pub async fn set_active_chain_id(&mut self, chain_id: WcChainId) { self.active_chain_id = Some(chain_id); }
+    pub fn set_active_chain_id(&mut self, chain_id: WcChainId) { self.active_chain_id = Some(chain_id); }
 }
 
 /// Internal implementation of session management.
@@ -219,7 +219,7 @@ impl SessionManager {
     pub(crate) fn storage(&self) -> &SessionStorageDb { &self.0.storage }
 
     /// Get active session topic or return error if no session has been activated.
-    pub async fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
+    pub fn get_active_topic_or_err(&self) -> MmResult<Topic, WalletConnectError> {
         self.0
             .active_topic
             .lock()
@@ -232,7 +232,7 @@ impl SessionManager {
 
     /// Inserts `Session` into the session store, associated with the specified topic.
     /// If a session with the same topic already exists, it will be overwritten.
-    pub(crate) async fn add_session(&self, session: Session) {
+    pub(crate) fn add_session(&self, session: Session) {
         // set active session topic.
         *self.0.active_topic.lock().unwrap() = Some(session.topic.clone());
         // insert session
@@ -241,7 +241,7 @@ impl SessionManager {
 
     /// Removes session corresponding to the specified topic from the session store.
     /// If the session does not exist, this method does nothing.
-    pub(crate) async fn delete_session(&self, topic: &Topic) -> Option<Session> {
+    pub(crate) fn delete_session(&self, topic: &Topic) -> Option<Session> {
         info!("[{topic}] Deleting session with topic");
         let mut active_topic = self.0.active_topic.lock().unwrap();
 
@@ -261,7 +261,7 @@ impl SessionManager {
         removed_session
     }
 
-    pub async fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
+    pub fn set_active_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
         let mut active_topic = self.0.active_topic.lock().unwrap();
         let session = self
             .get_session(topic)
@@ -283,7 +283,7 @@ impl SessionManager {
     }
 
     /// returns an `option<session>` containing the active session if it exists; otherwise, returns `none`.
-    pub async fn get_session_active(&self) -> Option<Session> {
+    pub fn get_session_active(&self) -> Option<Session> {
         self.0
             .active_topic
             .lock()
@@ -298,6 +298,7 @@ impl SessionManager {
     }
 
     pub(crate) fn get_sessions_full(&self) -> impl Iterator<Item = RefMulti<Topic, Session>> { self.0.sessions.iter() }
+
     /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
     /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {

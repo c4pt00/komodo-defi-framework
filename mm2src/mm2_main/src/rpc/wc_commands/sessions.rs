@@ -64,7 +64,6 @@ pub async fn set_active_session(
         WalletConnectCtx::from_ctx(&ctx).mm_err(|err| WalletConnectRpcError::InitializationError(err.to_string()))?;
     ctx.session_manager
         .set_active_session(&req.topic.into())
-        .await
         .mm_err(|err| WalletConnectRpcError::SessionRequestError(err.to_string()))?;
 
     Ok(SessionResponse {

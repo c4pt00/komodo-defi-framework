@@ -34,7 +34,7 @@ pub(crate) async fn reply_pairing_extend_response(
         };
     }
 
-    let param = ResponseParamsSuccess::PairingPing(true);
+    let param = ResponseParamsSuccess::PairingExtend(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
 
     Ok(())

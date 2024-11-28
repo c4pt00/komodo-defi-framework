@@ -41,7 +41,7 @@ impl ConnectionHandler for Handler {
     fn disconnected(&mut self, frame: Option<CloseFrame<'static>>) {
         debug!("[{}] connection closed: frame={frame:?}", self.name);
 
-        if let Err(e) = self.conn_live_sender.start_send(frame.map(|f| f.to_string())) {
+        if let Err(e) = self.conn_live_sender.unbounded_send(frame.map(|f| f.to_string())) {
             error!("[{}] failed to send to the receiver: {e}", self.name);
         }
     }
@@ -52,21 +52,21 @@ impl ConnectionHandler for Handler {
             self.name, message.message_id, message.topic, message.tag, message.message,
         );
 
-        if let Err(e) = self.msg_sender.start_send(message) {
+        if let Err(e) = self.msg_sender.unbounded_send(message) {
             error!("[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 
     fn inbound_error(&mut self, error: ClientError) {
         debug!("[{}] inbound error: {error}", self.name);
-        if let Err(e) = self.conn_live_sender.start_send(Some(error.to_string())) {
+        if let Err(e) = self.conn_live_sender.unbounded_send(Some(error.to_string())) {
             error!("[{}] failed to send to the receiver: {e}", self.name);
         }
     }
 
     fn outbound_error(&mut self, error: ClientError) {
         debug!("[{}] outbound error: {error}", self.name);
-        if let Err(e) = self.conn_live_sender.start_send(Some(error.to_string())) {
+        if let Err(e) = self.conn_live_sender.unbounded_send(Some(error.to_string())) {
             error!("[{}] failed to send to the receiver: {e}", self.name);
         }
     }

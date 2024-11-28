@@ -10,7 +10,7 @@ use crate::{error::WalletConnectError,
             WalletConnectCtxImpl};
 
 use common::log::{info, LogOnError};
-use futures::sink::SinkExt;
+use futures::{channel::mpsc::UnboundedSender, sink::SinkExt};
 use mm2_err_handle::prelude::{MmError, MmResult};
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
@@ -54,7 +54,12 @@ pub(crate) async fn process_inbound_request(
     Ok(())
 }
 
-pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtxImpl, response: Response, topic: &Topic) {
+pub(crate) async fn process_inbound_response(
+    ctx: &WalletConnectCtxImpl,
+    response: Response,
+    topic: &Topic,
+    mut message_tx: UnboundedSender<SessionMessageType>,
+) {
     let message_id = response.id();
     let result = match response {
         Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
@@ -75,6 +80,5 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtxImpl, respons
         Response::Error(err) => MmError::err(format!("{err:?}")),
     };
 
-    let mut sender = ctx.message_tx.clone();
-    sender.send(result).await.error_log();
+    message_tx.send(result).await.error_log();
 }

@@ -241,7 +241,7 @@ async fn activate_with_walletconnect(
             ticker: ticker.to_string(),
             kind: TendermintInitErrorKind::UnableToFetchChainAccount(err.to_string()),
         })?;
-    let wallet_type = if wc.is_ledger_connection().await {
+    let wallet_type = if wc.is_ledger_connection() {
         TendermintWalletConnectionType::WcLedger
     } else {
         TendermintWalletConnectionType::Wc

@@ -39,7 +39,7 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtxImpl, topic: &Topic) -> Mm
         ctx.client.unsubscribe(topic.clone()).await?;
     };
 
-    if let Some(session) = ctx.session_manager.delete_session(topic).await {
+    if let Some(session) = ctx.session_manager.delete_session(topic) {
         debug!(
             "[{}] No active sessions for pairing disconnecting",
             session.pairing_topic

@@ -76,7 +76,7 @@ pub(crate) async fn reply_session_settle_request(
                 .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
             // Optionally: Remove from active sessions in memory too
-            ctx.session_manager.delete_session(&session.topic).await;
+            ctx.session_manager.delete_session(&session.topic);
             ctx.drop_session(&session.topic).await?;
             debug!("Deleted previous session with topic: {:?}", session.topic);
         }
