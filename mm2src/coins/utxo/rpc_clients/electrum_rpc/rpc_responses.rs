@@ -1,3 +1,4 @@
+use bitcrypto::dhash256;
 use chain::{BlockHeader, BlockHeaderBits, BlockHeaderNonce, Transaction as UtxoTx};
 use mm2_number::{BigDecimal, BigInt};
 use rpc::v1::types::{Bytes as BytesJson, H256 as H256Json};
@@ -99,11 +100,11 @@ impl ElectrumBlockHeaderV12 {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ElectrumBlockHeaderV14 {
     pub height: u64,
-    pub hex: H256Json,
+    pub hex: BytesJson,
 }
 
 impl ElectrumBlockHeaderV14 {
-    pub fn hash(&self) -> H256Json { self.hex }
+    pub fn hash(&self) -> H256Json { dhash256(&self.hex.clone().into_vec()).into() }
 }
 
 #[derive(Clone, Debug, Deserialize)]
