@@ -13,9 +13,9 @@ use crate::rpc_command::init_scan_for_new_addresses::{InitScanAddressesRpcOps, S
 use crate::utxo::qtum::{qtum_coin_with_priv_key, QtumCoin, QtumDelegationOps, QtumDelegationRequest};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::utxo::rpc_clients::{BlockHashOrHeight, NativeUnspent};
-use crate::utxo::rpc_clients::{ElectrumBalance, ElectrumClient, ElectrumClientImpl, ElectrumClientSettings,
-                               GetAddressInfoRes, ListSinceBlockRes, NativeClient, NativeClientImpl, NetworkInfo,
-                               UtxoRpcClientOps, ValidateAddressRes, VerboseBlock};
+use crate::utxo::rpc_clients::{ElectrumBalance, ElectrumBlockHeader, ElectrumClient, ElectrumClientImpl,
+                               ElectrumClientSettings, GetAddressInfoRes, ListSinceBlockRes, NativeClient,
+                               NativeClientImpl, NetworkInfo, UtxoRpcClientOps, ValidateAddressRes, VerboseBlock};
 use crate::utxo::spv::SimplePaymentVerification;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::utxo::utxo_block_header_storage::{BlockHeaderStorage, SqliteBlockHeadersStorage};
@@ -49,7 +49,7 @@ use mm2_test_helpers::for_tests::{electrum_servers_rpc, mm_ctx_with_custom_db, D
                                   MARTY_ELECTRUM_ADDRS, T_BCH_ELECTRUMS};
 use mocktopus::mocking::*;
 use rpc::v1::types::H256 as H256Json;
-use serialization::{deserialize, CoinVariant};
+use serialization::{deserialize, CoinVariant, CompactInteger, Reader};
 use spv_validation::conf::{BlockHeaderValidationParams, SPVBlockHeader};
 use spv_validation::storage::BlockHeaderStorageOps;
 use spv_validation::work::DifficultyAlgorithm;
@@ -4926,4 +4926,58 @@ fn test_block_header_utxo_loop_with_reorg() {
     if let Either::Left(_) = block_on(futures::future::select(loop_fut.boxed(), test_fut.boxed())) {
         panic!("Loop shouldn't stop")
     };
+}
+
+#[test]
+fn test_electrum_v14_block_hash() {
+    let client = electrum_client_for_test(DOC_ELECTRUM_ADDRS);
+
+    // First verify BlockHeader hash implementation works correctly with a known reference block
+    let headers =
+        block_on_f01(client.blockchain_block_headers(841548, NonZeroU64::new(1).expect("Failed to create NonZeroU64")))
+            .expect("Failed to fetch block headers");
+
+    // Deserialize the reference block header
+    let serialized = serialize(&CompactInteger::from(headers.count))
+        .take()
+        .into_iter()
+        .chain(headers.hex.0)
+        .collect::<Vec<_>>();
+    let headers = Reader::new_with_coin_variant(&serialized, CoinVariant::RICK)
+        .read_list::<BlockHeader>()
+        .expect("Failed to deserialize headers");
+
+    // Confirm BlockHeader hash matches the known hash value
+    assert_eq!(
+        headers[0].hash().reversed().to_string(),
+        "0f0a6ce253b0536000636f85491db8030659064de8c27423b46ceef824d4ad28"
+    );
+
+    // Now get the latest block via V14 subscription to test its hash implementation
+    let header =
+        block_on_f01(client.blockchain_headers_subscribe()).expect("Failed to subscribe to blockchain headers");
+
+    // Extract hash and height from V14 header
+    let (hash, height) = match header {
+        ElectrumBlockHeader::V14(header) => (header.hash(), header.height),
+        _ => panic!("Expected ElectrumBlockHeader::V14"),
+    };
+
+    // Get the same block data to create a BlockHeader for comparison
+    let headers =
+        block_on_f01(client.blockchain_block_headers(height, NonZeroU64::new(1).expect("Failed to create NonZeroU64")))
+            .expect("Failed to fetch block headers");
+
+    // Create BlockHeader from the same block (using the implementation we just verified)
+    let serialized = serialize(&CompactInteger::from(headers.count))
+        .take()
+        .into_iter()
+        .chain(headers.hex.0)
+        .collect::<Vec<_>>();
+    let headers = Reader::new_with_coin_variant(&serialized, CoinVariant::RICK)
+        .read_list::<BlockHeader>()
+        .expect("Failed to deserialize headers");
+
+    // Verify V14 header produces the same hash as our verified BlockHeader implementation
+    assert_eq!(hash, headers[0].hash().into());
 }
