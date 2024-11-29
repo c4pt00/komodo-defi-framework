@@ -48,17 +48,6 @@ macro_rules! impl_hash {
             }
         }
 
-        // DANGEROUS: This will panic if slice length != $size
-        // Use from_slice() instead which safely checks the length and returns Result
-        impl<'a> From<&'a [u8]> for $name {
-            fn from(slc: &[u8]) -> Self {
-                assert_eq!(slc.len(), $size, "Input slice must be exactly {} bytes", $size);
-                let mut inner = [0u8; $size];
-                inner.copy_from_slice(slc);
-                $name(inner)
-            }
-        }
-
         impl From<&'static str> for $name {
             fn from(s: &'static str) -> Self { s.parse().unwrap() }
         }

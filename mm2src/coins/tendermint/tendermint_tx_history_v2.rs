@@ -23,7 +23,7 @@ use mm2_state_machine::state_machine::StateMachineTrait;
 use primitives::hash::H256;
 use rpc::v1::types::Bytes as BytesJson;
 use std::cmp;
-use std::convert::Infallible;
+use std::convert::{Infallible, TryInto};
 
 const TX_PAGE_SIZE: u8 = 50;
 
@@ -131,7 +131,7 @@ impl CoinWithTxHistoryV2 for TendermintToken {
         _target: MyTxHistoryTarget,
     ) -> MmResult<GetTxHistoryFilters, MyTxHistoryErrorV2> {
         let denom_hash = sha256(self.denom.to_string().as_bytes());
-        let id = H256::from(denom_hash.as_slice());
+        let id = H256::from(denom_hash.take());
 
         Ok(GetTxHistoryFilters::for_address(self.platform_coin.account_id.to_string()).with_token_id(id.to_string()))
     }
@@ -703,8 +703,21 @@ where
                         let mut internal_id_hash = index.to_le_bytes().to_vec();
                         internal_id_hash.extend_from_slice(tx_hash.as_bytes());
                         drop_mutability!(internal_id_hash);
+                        let len = internal_id_hash.len();
+                        let internal_id_hash: [u8; 32] = match internal_id_hash.try_into() {
+                            Ok(hash) => hash,
+                            Err(_) => {
+                                log::debug!(
+                                    "Invalid internal_id_hash length for tx '{}' at index {}: expected 32 bytes, got {} bytes.",
+                                    tx_hash,
+                                    index,
+                                    len
+                                );
+                                continue;
+                            },
+                        };
 
-                        let internal_id = H256::from(internal_id_hash.as_slice()).reversed().to_vec().into();
+                        let internal_id = H256::from(internal_id_hash).reversed().to_vec().into();
 
                         if let Ok(Some(_)) = storage
                             .get_tx_from_history(&coin.history_wallet_id(), &internal_id)
@@ -744,7 +757,7 @@ where
                         let token_id: Option<BytesJson> = match !is_platform_coin_tx {
                             true => {
                                 let denom_hash = sha256(transfer_details.denom.clone().as_bytes());
-                                Some(H256::from(denom_hash.as_slice()).to_vec().into())
+                                Some(H256::from(denom_hash.take()).to_vec().into())
                             },
                             false => None,
                         };
@@ -786,7 +799,7 @@ where
                             fee_tx_details.my_balance_change = BigDecimal::default() - &fee_details.amount;
                             fee_tx_details.coin = coin.platform_ticker().to_string();
                             // Non-reversed version of original internal id
-                            fee_tx_details.internal_id = H256::from(internal_id_hash.as_slice()).to_vec().into();
+                            fee_tx_details.internal_id = H256::from(internal_id_hash).to_vec().into();
                             fee_tx_details.transaction_type = TransactionType::FeeForTokenTx;
 
                             tx_details.push(fee_tx_details);

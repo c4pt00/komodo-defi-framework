@@ -793,13 +793,13 @@ impl SwapOps for LightningCoin {
         _secret_hash: &[u8],
         spend_tx: &[u8],
         _watcher_reward: bool,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<[u8; 32], String> {
         let payment_hash = payment_hash_from_slice(spend_tx).map_err(|e| e.to_string())?;
         let payment_hex = hex::encode(payment_hash.0);
 
         match self.db.get_payment_from_db(payment_hash).await {
             Ok(Some(payment)) => match payment.preimage {
-                Some(preimage) => Ok(preimage.0.to_vec()),
+                Some(preimage) => Ok(preimage.0),
                 None => ERR!("Preimage for payment {} should be found on the database", payment_hex),
             },
             Ok(None) => ERR!("Payment {} is not in the database when it should be!", payment_hex),
@@ -857,8 +857,8 @@ impl SwapOps for LightningCoin {
     }
 
     #[inline]
-    fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> Vec<u8> {
-        self.channel_manager.get_our_node_id().serialize().to_vec()
+    fn derive_htlc_pubkey(&self, _swap_unique_data: &[u8]) -> [u8; 33] {
+        self.channel_manager.get_our_node_id().serialize()
     }
 
     #[inline]

@@ -1416,7 +1416,7 @@ impl SwapOps for SlpToken {
         secret_hash: &[u8],
         spend_tx: &[u8],
         _watcher_reward: bool,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<[u8; 32], String> {
         utxo_common::extract_secret(secret_hash, spend_tx)
     }
 
@@ -1440,7 +1440,7 @@ impl SwapOps for SlpToken {
         utxo_common::derive_htlc_key_pair(self.platform_coin.as_ref(), swap_unique_data)
     }
 
-    fn derive_htlc_pubkey(&self, swap_unique_data: &[u8]) -> Vec<u8> {
+    fn derive_htlc_pubkey(&self, swap_unique_data: &[u8]) -> [u8; 33] {
         utxo_common::derive_htlc_pubkey(self, swap_unique_data)
     }
 
@@ -1645,17 +1645,19 @@ impl MmCoin for SlpToken {
                 sat_from_big_decimal(&req.amount, coin.decimals())?
             };
 
-            if address.hash.len() != 20 {
-                return MmError::err(WithdrawError::InvalidAddress(format!(
-                    "Expected 20 address hash len, not {}",
-                    address.hash.len()
-                )));
-            }
+            let address_hash = address.hash.clone();
+            let address_hash = {
+                let address_hash_len = address_hash.len();
+                let address_hash: [u8; 20] = address_hash.try_into().map_err(|_| {
+                    WithdrawError::InvalidAddress(format!("Expected 20 address hash len, not {}", address_hash_len))
+                })?;
+                address_hash.into()
+            };
 
             // TODO clarify with community whether we should support withdrawal to SLP P2SH addresses
             let script_pubkey = match address.address_type {
                 CashAddrType::P2PKH => {
-                    ScriptBuilder::build_p2pkh(&AddressHashEnum::AddressHash(address.hash.as_slice().into())).to_bytes()
+                    ScriptBuilder::build_p2pkh(&AddressHashEnum::AddressHash(address_hash)).to_bytes()
                 },
                 CashAddrType::P2SH => {
                     return MmError::err(WithdrawError::InvalidAddress(

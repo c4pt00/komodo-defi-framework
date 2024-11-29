@@ -26,7 +26,7 @@ pub struct Erc20PaymentDetails {
 pub struct ReceiverSpendDetails {
     pub swap_id: Vec<u8>,
     pub value: U256,
-    pub secret: Vec<u8>,
+    pub secret: [u8; 32],
     pub token_address: H160,
     pub sender: H160,
 }
@@ -298,7 +298,7 @@ impl Qrc20Coin {
         Ok(found)
     }
 
-    pub fn extract_secret_impl(&self, secret_hash: &[u8], spend_tx: &[u8]) -> Result<Vec<u8>, String> {
+    pub fn extract_secret_impl(&self, secret_hash: &[u8], spend_tx: &[u8]) -> Result<[u8; 32], String> {
         let secret_hash = if secret_hash.len() == 32 {
             ripemd160(secret_hash)
         } else {
@@ -936,7 +936,7 @@ pub fn receiver_spend_call_details_from_script_pubkey(script_pubkey: &Script) ->
     };
 
     let secret = match decoded.next() {
-        Some(Token::FixedBytes(hash)) => hash,
+        Some(Token::FixedBytes(hash)) => try_s!(hash.as_slice().try_into()),
         Some(token) => return ERR!("Payment tx 'secret_hash' arg is invalid, found {:?}", token),
         None => return ERR!("Couldn't find 'secret_hash' in erc20Payment call"),
     };

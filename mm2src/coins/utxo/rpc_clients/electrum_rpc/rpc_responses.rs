@@ -99,11 +99,11 @@ impl ElectrumBlockHeaderV12 {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ElectrumBlockHeaderV14 {
     pub height: u64,
-    pub hex: BytesJson,
+    pub hex: H256Json,
 }
 
 impl ElectrumBlockHeaderV14 {
-    pub fn hash(&self) -> H256Json { self.hex.clone().into_vec()[..].into() }
+    pub fn hash(&self) -> H256Json { self.hex }
 }
 
 #[derive(Clone, Debug, Deserialize)]
