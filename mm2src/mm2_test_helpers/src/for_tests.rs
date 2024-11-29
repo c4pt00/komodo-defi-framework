@@ -223,7 +223,7 @@ pub const PIRATE_ELECTRUMS: &[&str] = &[
 #[cfg(not(target_arch = "wasm32"))]
 pub const PIRATE_LIGHTWALLETD_URLS: &[&str] = &["http://node1.chainkeeper.pro:443"];
 #[cfg(target_arch = "wasm32")]
-pub const PIRATE_LIGHTWALLETD_URLS: &[&str] = &["https://pirate.battlefield.earth:8581"];
+pub const PIRATE_LIGHTWALLETD_URLS: &[&str] = &["https://pirate.battlefield.earth:8581", "https://pirate.spyglass.quest:9447", "https://pirate.battlefield.earth:8582"];
 pub const DEFAULT_RPC_PASSWORD: &str = "pass";
 pub const QRC20_ELECTRUMS: &[&str] = &[
     "electrum1.cipig.net:10071",
