@@ -1,8 +1,8 @@
 //! Serialized script, used inside transaction inputs and outputs.
 
 use bytes::Bytes;
-use chain::hash::{H160, H256};
 use keys::{self, AddressHashEnum, Public};
+use std::convert::TryFrom;
 use std::{fmt, ops};
 use {Error, Opcode};
 
@@ -351,7 +351,7 @@ impl Script {
             ScriptType::WitnessKey
         } else if self.is_pay_to_witness_script_hash() {
             ScriptType::WitnessScript
-        // TODO add Call
+            // TODO add Call
         } else {
             ScriptType::NonStandard
         }
@@ -426,14 +426,16 @@ impl Script {
                     ))]
                 })
             },
-            ScriptType::PubKeyHash => {
-                let hash = H160::from_slice(&self.data[3..32]).map_err(|_| keys::Error::InvalidAddress)?;
-                Ok(vec![ScriptAddress::new_p2pkh(AddressHashEnum::AddressHash(hash))])
-            },
-            ScriptType::ScriptHash => {
-                let hash = H160::from_slice(&self.data[2..22]).map_err(|_| keys::Error::InvalidAddress)?;
-                Ok(vec![ScriptAddress::new_p2sh(AddressHashEnum::AddressHash(hash))])
-            },
+            ScriptType::PubKeyHash => Ok(vec![ScriptAddress::new_p2pkh(AddressHashEnum::AddressHash(
+                <[u8; 20]>::try_from(self.data.get(3..23).ok_or(keys::Error::InvalidAddress)?)
+                    .map_err(|_| keys::Error::InvalidAddress)?
+                    .into(),
+            ))]),
+            ScriptType::ScriptHash => Ok(vec![ScriptAddress::new_p2sh(AddressHashEnum::AddressHash(
+                <[u8; 20]>::try_from(self.data.get(2..22).ok_or(keys::Error::InvalidAddress)?)
+                    .map_err(|_| keys::Error::InvalidAddress)?
+                    .into(),
+            ))]),
             ScriptType::Multisig => {
                 let mut addresses: Vec<ScriptAddress> = Vec::new();
                 let mut pc = 1;
@@ -451,14 +453,16 @@ impl Script {
                 Ok(addresses)
             },
             ScriptType::NullData => Ok(vec![]),
-            ScriptType::WitnessScript => {
-                let hash = H256::from_slice(&self.data[2..34]).map_err(|_| keys::Error::WitnessHashMismatched)?;
-                Ok(vec![ScriptAddress::new_p2wsh(AddressHashEnum::WitnessScriptHash(hash))])
-            },
-            ScriptType::WitnessKey => {
-                let hash = H160::from_slice(&self.data[2..22]).map_err(|_| keys::Error::InvalidAddress)?;
-                Ok(vec![ScriptAddress::new_p2wpkh(AddressHashEnum::AddressHash(hash))])
-            },
+            ScriptType::WitnessScript => Ok(vec![ScriptAddress::new_p2wsh(AddressHashEnum::WitnessScriptHash(
+                <[u8; 32]>::try_from(self.data.get(2..34).ok_or(keys::Error::InvalidAddress)?)
+                    .map_err(|_| keys::Error::InvalidAddress)?
+                    .into(),
+            ))]),
+            ScriptType::WitnessKey => Ok(vec![ScriptAddress::new_p2wpkh(AddressHashEnum::AddressHash(
+                <[u8; 20]>::try_from(self.data.get(2..22).ok_or(keys::Error::InvalidAddress)?)
+                    .map_err(|_| keys::Error::InvalidAddress)?
+                    .into(),
+            ))]),
             ScriptType::CallSender => {
                 Ok(vec![]) // TODO
             },
