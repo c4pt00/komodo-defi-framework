@@ -7041,7 +7041,10 @@ impl ParseCoinAssocTypes for EthCoin {
         }
     }
 
+    fn addr_to_string(&self, address: &Self::Address) -> String { eth_addr_to_hex(address) }
+
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> {
+        // crate `Address::from_str` supports both address variants with and without `0x` prefix
         Address::from_str(address).map_to_mm(|e| EthAssocTypesError::InvalidHexString(e.to_string()))
     }
 
