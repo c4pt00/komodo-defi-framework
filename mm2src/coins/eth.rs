@@ -4568,7 +4568,9 @@ impl EthCoin {
                     let function = ERC20_CONTRACT.function("balanceOf")?;
                     let data = function.encode_input(&[Token::Address(address)])?;
 
-                    let res = coin.call_request(address, *token_addr, None, Some(data.into())).await?;
+                    let res = coin
+                        .call_request(address, *token_addr, None, Some(data.into()), BlockNumber::Latest)
+                        .await?;
                     let decoded = function.decode_output(&res.0)?;
                     match decoded[0] {
                         Token::Uint(number) => Ok(number),
@@ -4632,7 +4634,7 @@ impl EthCoin {
         let function = ERC20_CONTRACT.function("balanceOf")?;
         let data = function.encode_input(&[Token::Address(address)])?;
         let res = self
-            .call_request(address, token_address, None, Some(data.into()))
+            .call_request(address, token_address, None, Some(data.into()), BlockNumber::Latest)
             .await?;
         let decoded = function.decode_output(&res.0)?;
 
@@ -4659,7 +4661,7 @@ impl EthCoin {
                 let my_address = self.derivation_method.single_addr_or_err().await?;
                 let data = function.encode_input(&[Token::Address(my_address), Token::Uint(token_id_u256)])?;
                 let result = self
-                    .call_request(my_address, token_addr, None, Some(data.into()))
+                    .call_request(my_address, token_addr, None, Some(data.into()), BlockNumber::Latest)
                     .await?;
                 let decoded = function.decode_output(&result.0)?;
                 match decoded[0] {
@@ -4690,7 +4692,7 @@ impl EthCoin {
                 let data = function.encode_input(&[Token::Uint(token_id_u256)])?;
                 let my_address = self.derivation_method.single_addr_or_err().await?;
                 let result = self
-                    .call_request(my_address, token_addr, None, Some(data.into()))
+                    .call_request(my_address, token_addr, None, Some(data.into()), BlockNumber::Latest)
                     .await?;
                 let decoded = function.decode_output(&result.0)?;
                 match decoded[0] {
@@ -4768,6 +4770,7 @@ impl EthCoin {
         to: Address,
         value: Option<U256>,
         data: Option<Bytes>,
+        block_number: BlockNumber,
     ) -> Result<Bytes, web3::Error> {
         let request = CallRequest {
             from: Some(from),
@@ -4779,7 +4782,7 @@ impl EthCoin {
             ..CallRequest::default()
         };
 
-        self.call(request, Some(BlockId::Number(BlockNumber::Latest))).await
+        self.call(request, Some(BlockId::Number(block_number))).await
     }
 
     fn allowance(&self, spender: Address) -> Web3RpcFut<U256> {
@@ -4795,7 +4798,7 @@ impl EthCoin {
                     let data = function.encode_input(&[Token::Address(my_address), Token::Address(spender)])?;
 
                     let res = coin
-                        .call_request(my_address, *token_addr, None, Some(data.into()))
+                        .call_request(my_address, *token_addr, None, Some(data.into()), BlockNumber::Latest)
                         .await?;
                     let decoded = function.decode_output(&res.0)?;
 
@@ -5228,9 +5231,16 @@ impl EthCoin {
                 .single_addr_or_err()
                 .await
                 .map_err(|e| ERRL!("{}", e))?;
-            coin.call_request(my_address, swap_contract_address, None, Some(data.into()))
-                .await
-                .map_err(|e| ERRL!("{}", e))
+            coin.call_request(
+                my_address,
+                swap_contract_address,
+                None,
+                Some(data.into()),
+                // TODO worth changing this to BlockNumber::Pending
+                BlockNumber::Latest,
+            )
+            .await
+            .map_err(|e| ERRL!("{}", e))
         };
 
         Box::new(fut.boxed().compat().and_then(move |bytes| {
