@@ -1755,7 +1755,7 @@ fn taker_send_approve_and_spend_eth() {
 
     let dex_fee_pub = sepolia_taker_swap_v2();
     let spend_args = GenTakerPaymentSpendArgs {
-        taker_tx: &taker_approve_tx,
+        taker_tx: &funding_tx,
         time_lock: payment_time_lock,
         maker_secret_hash: &maker_secret_hash,
         maker_pub,
@@ -1871,7 +1871,7 @@ fn taker_send_approve_and_spend_erc20() {
 
     let dex_fee_pub = sepolia_taker_swap_v2();
     let spend_args = GenTakerPaymentSpendArgs {
-        taker_tx: &taker_approve_tx,
+        taker_tx: &funding_tx,
         time_lock: payment_time_lock,
         maker_secret_hash: &maker_secret_hash,
         maker_pub,
