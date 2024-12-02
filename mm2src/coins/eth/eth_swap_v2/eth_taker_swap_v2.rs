@@ -384,14 +384,14 @@ impl EthCoin {
         .await
     }
 
-    /// Checks that taker payment state is `TakerApproved`.
-    /// Accepts a taker-approved payment transaction and returns it if the state is correct.
+    /// Checks that taker payment state is `TakerApproved`. Called by maker.
+    /// Accepts a taker payment transaction and returns it if the state is correct.
     pub(crate) async fn search_for_taker_funding_spend_impl(
         &self,
         tx: &SignedEthTx,
     ) -> Result<Option<FundingTxSpend<Self>>, SearchForFundingSpendErr> {
         let (decoded, taker_swap_v2_contract) = self
-            .get_decoded_and_swap_contract(tx, TAKER_PAYMENT_APPROVE)
+            .get_funding_decoded_and_swap_contract(tx)
             .await
             .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("{}", e)))?;
         let taker_status = self
@@ -738,14 +738,14 @@ impl EthCoin {
         Ok((taker_swap_v2_contract, func, token_address))
     }
 
-    async fn get_decoded_and_swap_contract(
+    async fn get_funding_decoded_and_swap_contract(
         &self,
         tx: &SignedEthTx,
-        function_name: &str,
     ) -> Result<(Vec<Token>, Address), PrepareTxDataError> {
         let decoded = {
             let func = match self.coin_type {
-                EthCoinType::Eth | EthCoinType::Erc20 { .. } => TAKER_SWAP_V2.function(function_name)?,
+                EthCoinType::Eth => TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)?,
+                EthCoinType::Erc20 { .. } => TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)?,
                 EthCoinType::Nft { .. } => {
                     return Err(PrepareTxDataError::Internal(
                         "NFT protocol is not supported for ETH and ERC20 Swaps".to_string(),

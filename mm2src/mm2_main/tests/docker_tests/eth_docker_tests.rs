@@ -1741,12 +1741,12 @@ fn taker_send_approve_and_spend_eth() {
     wait_for_confirmations(&taker_coin, &taker_approve_tx, 100);
 
     wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
-    let check_taker_approved_tx = block_on(maker_coin.search_for_taker_funding_spend(&taker_approve_tx, 0u64, &[]))
+    let check_taker_approved_tx = block_on(maker_coin.search_for_taker_funding_spend(&funding_tx, 0u64, &[]))
         .unwrap()
         .unwrap();
     match check_taker_approved_tx {
         FundingTxSpend::TransferredToTakerPayment(tx) => {
-            assert_eq!(tx, taker_approve_tx);
+            assert_eq!(tx, funding_tx);
         },
         FundingTxSpend::RefundedTimelock(_) | FundingTxSpend::RefundedSecret { .. } => {
             panic!("Wrong FundingTxSpend variant, expected TransferredToTakerPayment")
@@ -1857,12 +1857,12 @@ fn taker_send_approve_and_spend_erc20() {
     wait_for_confirmations(&taker_coin, &taker_approve_tx, 100);
 
     wait_pending_transactions(Address::from_slice(maker_address.as_bytes()));
-    let check_taker_approved_tx = block_on(maker_coin.search_for_taker_funding_spend(&taker_approve_tx, 0u64, &[]))
+    let check_taker_approved_tx = block_on(maker_coin.search_for_taker_funding_spend(&funding_tx, 0u64, &[]))
         .unwrap()
         .unwrap();
     match check_taker_approved_tx {
         FundingTxSpend::TransferredToTakerPayment(tx) => {
-            assert_eq!(tx, taker_approve_tx);
+            assert_eq!(tx, funding_tx);
         },
         FundingTxSpend::RefundedTimelock(_) | FundingTxSpend::RefundedSecret { .. } => {
             panic!("Wrong FundingTxSpend variant, expected TransferredToTakerPayment")
