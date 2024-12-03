@@ -20,7 +20,7 @@ use coins::lp_price::fetch_swap_coins_price;
 use coins::{lp_coinfind, CanRefundHtlc, CheckIfMyPaymentSentArgs, ConfirmPaymentInput, FeeApproxStage,
             FoundSwapTxSpend, MmCoin, MmCoinEnum, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
             RefundPaymentArgs, SearchForSwapTxSpendInput, SendPaymentArgs, SpendPaymentArgs, SwapTxTypeWithSecretHash,
-            TradeFee, TradePreimageValue, ValidatePaymentInput, WaitForHTLCTxSpendArgs};
+            TradeFee, TradePreimageValue, ValidatePaymentInput, WaitForHTLCTxSpendArgs, WatcherReward};
 use common::executor::Timer;
 use common::log::{debug, error, info, warn};
 use common::{bits256, now_ms, now_sec, wait_until_sec, DEX_FEE_ADDR_RAW_PUBKEY};
@@ -1506,6 +1506,25 @@ impl TakerSwap {
         }
     }
 
+    async fn setup_watcher_reward(&self, taker_payment_lock: u64) -> Result<Option<WatcherReward>, String> {
+        if !self.r().watcher_reward {
+            return Ok(None);
+        }
+
+        let reward_amount = self.r().reward_amount.clone();
+        self.taker_coin
+            .get_taker_watcher_reward(
+                &self.maker_coin,
+                Some(self.taker_amount.clone().into()),
+                Some(self.maker_amount.clone().into()),
+                reward_amount,
+                taker_payment_lock,
+            )
+            .await
+            .map(Some)
+            .map_err(|err| ERRL!("Watcher reward error: {}", err.to_string()))
+    }
+
     async fn send_taker_payment(&self) -> Result<(Option<TakerSwapCommand>, Vec<TakerSwapEvent>), String> {
         #[cfg(test)]
         if self.fail_at == Some(FailAt::TakerPayment) {
@@ -1559,31 +1578,14 @@ impl TakerSwap {
             }
         }
 
-        // Set up watcher reward if enabled
-        let reward_amount = self.r().reward_amount.clone();
-        let watcher_reward = if self.r().watcher_reward {
-            match self
-                .taker_coin
-                .get_taker_watcher_reward(
-                    &self.maker_coin,
-                    Some(self.taker_amount.clone().into()),
-                    Some(self.maker_amount.clone().into()),
-                    reward_amount,
-                    taker_payment_lock,
-                )
-                .await
-            {
-                Ok(reward) => Some(reward),
-                Err(err) => {
-                    return Ok((Some(TakerSwapCommand::Finish), vec![
-                        TakerSwapEvent::TakerPaymentTransactionFailed(
-                            ERRL!("Watcher reward error: {}", err.to_string()).into(),
-                        ),
-                    ]))
-                },
-            }
-        } else {
-            None
+        // Set up watcher reward
+        let watcher_reward = match self.setup_watcher_reward(taker_payment_lock).await {
+            Ok(reward) => reward,
+            Err(err) => {
+                return Ok((Some(TakerSwapCommand::Finish), vec![
+                    TakerSwapEvent::TakerPaymentTransactionFailed(err.into()),
+                ]));
+            },
         };
 
         // Use existing payment or create new one
