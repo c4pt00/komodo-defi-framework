@@ -5236,7 +5236,7 @@ impl EthCoin {
                 swap_contract_address,
                 None,
                 Some(data.into()),
-                // TODO worth changing this to BlockNumber::Pending
+                // TODO worth reviewing places where we could use BlockNumber::Pending
                 BlockNumber::Latest,
             )
             .await

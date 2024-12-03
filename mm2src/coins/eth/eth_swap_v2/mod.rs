@@ -77,6 +77,7 @@ impl EthCoin {
         contract_abi: &Contract,
         payment_type: EthPaymentType,
         state_index: usize,
+        block_number: BlockNumber,
     ) -> Result<U256, PaymentStatusErr> {
         let function_name = payment_type.as_str();
         let function = contract_abi.function(function_name)?;
@@ -87,7 +88,7 @@ impl EthCoin {
                 swap_address,
                 None,
                 Some(data.into()),
-                BlockNumber::Pending,
+                block_number,
             )
             .await?;
         let decoded_tokens = function.decode_output(&bytes.0)?;

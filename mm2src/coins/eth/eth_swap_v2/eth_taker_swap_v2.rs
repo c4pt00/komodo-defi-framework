@@ -16,7 +16,7 @@ use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use std::convert::TryInto;
-use web3::types::{TransactionId, H256};
+use web3::types::{BlockNumber, TransactionId, H256};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
@@ -166,6 +166,7 @@ impl EthCoin {
                 &TAKER_SWAP_V2,
                 EthPaymentType::TakerPayments,
                 TAKER_PAYMENT_STATE_INDEX,
+                BlockNumber::Latest,
             )
             .await?;
 
@@ -244,6 +245,7 @@ impl EthCoin {
                 &TAKER_SWAP_V2,
                 EthPaymentType::TakerPayments,
                 TAKER_PAYMENT_STATE_INDEX,
+                BlockNumber::Latest,
             )
             .await
         );
@@ -401,6 +403,7 @@ impl EthCoin {
                 &TAKER_SWAP_V2,
                 EthPaymentType::TakerPayments,
                 TAKER_PAYMENT_STATE_INDEX,
+                BlockNumber::Latest,
             )
             .await
             .map_err(|e| SearchForFundingSpendErr::Internal(ERRL!("{}", e)))?;
@@ -433,6 +436,7 @@ impl EthCoin {
                 &TAKER_SWAP_V2,
                 EthPaymentType::TakerPayments,
                 TAKER_PAYMENT_STATE_INDEX,
+                BlockNumber::Latest
             )
             .await
         );

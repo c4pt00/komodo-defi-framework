@@ -13,7 +13,7 @@ use futures::compat::Future01CompatExt;
 use mm2_err_handle::mm_error::MmError;
 use mm2_err_handle::prelude::MapToMmResult;
 use std::convert::TryInto;
-use web3::types::TransactionId;
+use web3::types::{BlockNumber, TransactionId};
 
 const ETH_MAKER_PAYMENT: &str = "ethMakerPayment";
 const ERC20_MAKER_PAYMENT: &str = "erc20MakerPayment";
@@ -143,6 +143,7 @@ impl EthCoin {
                 &MAKER_SWAP_V2,
                 EthPaymentType::MakerPayments,
                 MAKER_PAYMENT_STATE_INDEX,
+                BlockNumber::Latest,
             )
             .await?;
 
