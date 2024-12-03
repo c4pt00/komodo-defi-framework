@@ -20,7 +20,7 @@ use coins::lp_price::fetch_swap_coins_price;
 use coins::{CanRefundHtlc, CheckIfMyPaymentSentArgs, ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, MmCoin,
             MmCoinEnum, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr, RefundPaymentArgs,
             SearchForSwapTxSpendInput, SendPaymentArgs, SpendPaymentArgs, SwapTxTypeWithSecretHash, TradeFee,
-            TradePreimageValue, TransactionEnum, ValidateFeeArgs, ValidatePaymentInput};
+            TradePreimageValue, TransactionEnum, ValidateFeeArgs, ValidatePaymentInput, WatcherReward};
 use common::log::{debug, error, info, warn};
 use common::{bits256, executor::Timer, now_ms, DEX_FEE_ADDR_RAW_PUBKEY};
 use common::{now_sec, wait_until_sec};
@@ -793,6 +793,17 @@ impl MakerSwap {
         Ok((Some(MakerSwapCommand::SendPayment), swap_events))
     }
 
+    async fn setup_maker_watcher_reward(&self, wait_maker_payment_until: u64) -> Result<Option<WatcherReward>, String> {
+        if !self.r().watcher_reward {
+            return Ok(None);
+        }
+
+        self.maker_coin
+            .get_maker_watcher_reward(&self.taker_coin, self.watcher_reward_amount(), wait_maker_payment_until)
+            .await
+            .map_err(|err| err.into_inner().to_string())
+    }
+
     async fn maker_payment(&self) -> Result<(Option<MakerSwapCommand>, Vec<MakerSwapEvent>), String> {
         // Extract values from lock before async operations
         let lock_duration = self.r().data.lock_duration;
@@ -841,21 +852,13 @@ impl MakerSwap {
         }
 
         // Set up watcher reward if enabled
-        let watcher_reward = if self.r().watcher_reward {
-            match self
-                .maker_coin
-                .get_maker_watcher_reward(&self.taker_coin, self.watcher_reward_amount(), wait_maker_payment_until)
-                .await
-            {
-                Ok(reward) => reward,
-                Err(err) => {
-                    return Ok((Some(MakerSwapCommand::Finish), vec![
-                        MakerSwapEvent::MakerPaymentTransactionFailed(err.into_inner().to_string().into()),
-                    ]))
-                },
-            }
-        } else {
-            None
+        let watcher_reward = match self.setup_maker_watcher_reward(wait_maker_payment_until).await {
+            Ok(reward) => reward,
+            Err(err) => {
+                return Ok((Some(MakerSwapCommand::Finish), vec![
+                    MakerSwapEvent::MakerPaymentTransactionFailed(err.into()),
+                ]))
+            },
         };
 
         // Use existing payment or create new one

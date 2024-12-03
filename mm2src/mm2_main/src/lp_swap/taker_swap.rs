@@ -1578,7 +1578,7 @@ impl TakerSwap {
             }
         }
 
-        // Set up watcher reward
+        // Set up watcher reward if enable
         let watcher_reward = match self.setup_watcher_reward(taker_payment_lock).await {
             Ok(reward) => reward,
             Err(err) => {
