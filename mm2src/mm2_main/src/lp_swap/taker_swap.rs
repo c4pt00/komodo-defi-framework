@@ -1526,10 +1526,11 @@ impl TakerSwap {
     }
 
     async fn process_watcher_logic(&self, transaction: &TransactionEnum) -> Option<TakerSwapEvent> {
-        if !(self.ctx.use_watchers()
+        let watchers_enabled_and_supported = self.ctx.use_watchers()
             && self.taker_coin.is_supported_by_watchers()
-            && self.maker_coin.is_supported_by_watchers())
-        {
+            && self.maker_coin.is_supported_by_watchers();
+
+        if !watchers_enabled_and_supported {
             return None;
         }
 
