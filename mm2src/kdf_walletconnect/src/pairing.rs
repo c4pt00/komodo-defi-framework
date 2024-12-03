@@ -28,12 +28,8 @@ pub(crate) async fn reply_pairing_extend_response(
     extend: PairingExtendRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        if let Some(mut pairing) = ctx.pairing.pairings.get_mut(topic) {
-            pairing.pairing.expiry = extend.expiry;
-            pairing.pairing.active = true;
-        };
+        ctx.pairing.activate(topic)?;
     }
-
     let param = ResponseParamsSuccess::PairingExtend(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
 
