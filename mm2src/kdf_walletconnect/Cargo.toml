@@ -24,13 +24,13 @@ mm2_core = { path = "../mm2_core" }
 mm2_db = { path = "../mm2_db" }
 mm2_err_handle = { path = "../mm2_err_handle" }
 parking_lot = { version = "0.12.0", features = ["nightly"] }
-pairing_api = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
+pairing_api = { git = "https://github.com/komodoplatform/walletconnectrust", tag = "k-0.1.0" }
 rand = "0.8"
-relay_client = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
-relay_rpc = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
+relay_client = { git = "https://github.com/komodoplatform/walletconnectrust", tag = "k-0.1.0" }
+relay_rpc = { git = "https://github.com/komodoplatform/walletconnectrust", tag = "k-0.1.0" }
 thiserror = "1.0.40"
 tokio = { version = "1.20" }
-wc_common = { git = "https://github.com/komodoplatform/walletconnectrust", branch = "pairing-api" }
+wc_common = { git = "https://github.com/komodoplatform/walletconnectrust", tag = "k-0.1.0" }
 secp256k1 = { version = "0.20" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
