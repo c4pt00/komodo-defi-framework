@@ -1548,7 +1548,7 @@ impl TakerSwap {
             },
         };
 
-        // Skip timeout check if payment was already sent
+        // If the payment is not yet sent, make sure we didn't miss the deadline for sending it.
         if maybe_existing_payment.is_none() {
             let timeout = self.r().data.maker_payment_wait;
             let now = now_sec();

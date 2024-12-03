@@ -803,6 +803,7 @@ impl MakerSwap {
         let unique_data = self.unique_swap_data();
         let payment_instructions = self.r().payment_instructions.clone();
         let maker_coin_start_block = self.r().data.maker_coin_start_block;
+        let wait_maker_payment_until = wait_for_maker_payment_conf_until(self.r().data.started_at, lock_duration);
 
         // Look for previously sent maker payment in case of restart
         let maybe_existing_payment = match self
@@ -828,7 +829,7 @@ impl MakerSwap {
             },
         };
 
-        // Skip timeout check if payment was already sent
+        // If the payment is not yet sent, make sure we didn't miss the deadline for sending it.
         if maybe_existing_payment.is_none() {
             let timeout = self.r().data.started_at + lock_duration / 3;
             let now = now_sec();
@@ -840,7 +841,6 @@ impl MakerSwap {
         }
 
         // Set up watcher reward if enabled
-        let wait_maker_payment_until = wait_for_maker_payment_conf_until(self.r().data.started_at, lock_duration);
         let watcher_reward = if self.r().watcher_reward {
             match self
                 .maker_coin
