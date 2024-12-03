@@ -20,7 +20,7 @@ use coins::lp_price::fetch_swap_coins_price;
 use coins::{lp_coinfind, CanRefundHtlc, CheckIfMyPaymentSentArgs, ConfirmPaymentInput, FeeApproxStage,
             FoundSwapTxSpend, MmCoin, MmCoinEnum, PaymentInstructionArgs, PaymentInstructions, PaymentInstructionsErr,
             RefundPaymentArgs, SearchForSwapTxSpendInput, SendPaymentArgs, SpendPaymentArgs, SwapTxTypeWithSecretHash,
-            TradeFee, TradePreimageValue, ValidatePaymentInput, WaitForHTLCTxSpendArgs, WatcherReward};
+            TradeFee, TradePreimageValue, TransactionEnum, ValidatePaymentInput, WaitForHTLCTxSpendArgs, WatcherReward};
 use common::executor::Timer;
 use common::log::{debug, error, info, warn};
 use common::{bits256, now_ms, now_sec, wait_until_sec, DEX_FEE_ADDR_RAW_PUBKEY};
@@ -1525,6 +1525,74 @@ impl TakerSwap {
             .map_err(|err| ERRL!("Watcher reward error: {}", err.to_string()))
     }
 
+    async fn process_watcher_logic(&self, transaction: &TransactionEnum) -> Option<TakerSwapEvent> {
+        if !(self.ctx.use_watchers()
+            && self.taker_coin.is_supported_by_watchers()
+            && self.maker_coin.is_supported_by_watchers())
+        {
+            return None;
+        }
+
+        let maker_payment_spend_preimage_fut = self.maker_coin.create_maker_payment_spend_preimage(
+            &self.r().maker_payment.as_ref().unwrap().tx_hex,
+            self.maker_payment_lock.load(Ordering::Relaxed),
+            self.r().other_maker_coin_htlc_pub.as_slice(),
+            &self.r().secret_hash.0,
+            &self.unique_swap_data()[..],
+        );
+
+        let time_lock = match std::env::var("USE_TEST_LOCKTIME") {
+            Ok(_) => self.r().data.started_at,
+            Err(_) => self.r().data.taker_payment_lock,
+        };
+
+        let taker_payment_refund_preimage_fut = self.taker_coin.create_taker_payment_refund_preimage(
+            &transaction.tx_hex(),
+            time_lock,
+            &*self.r().other_taker_coin_htlc_pub,
+            &self.r().secret_hash.0,
+            &self.r().data.taker_coin_swap_contract_address,
+            &self.unique_swap_data(),
+        );
+
+        match try_join(
+            maker_payment_spend_preimage_fut.compat(),
+            taker_payment_refund_preimage_fut.compat(),
+        )
+        .await
+        {
+            Ok((maker_payment_spend, taker_payment_refund)) => {
+                let watcher_data = self.create_watcher_data(
+                    transaction.tx_hash_as_bytes().into_vec(),
+                    maker_payment_spend.tx_hex(),
+                    taker_payment_refund.tx_hex(),
+                );
+                let swpmsg_watcher = SwapWatcherMsg::TakerSwapWatcherMsg(watcher_data);
+
+                let htlc_keypair = self.taker_coin.derive_htlc_key_pair(&self.unique_swap_data());
+                broadcast_swap_message(
+                    &self.ctx,
+                    watcher_topic(&self.r().data.taker_coin),
+                    swpmsg_watcher,
+                    &Some(htlc_keypair),
+                );
+
+                info!("{}", WATCHER_MESSAGE_SENT_LOG);
+                Some(TakerSwapEvent::WatcherMessageSent(
+                    Some(maker_payment_spend.tx_hex()),
+                    Some(taker_payment_refund.tx_hex()),
+                ))
+            },
+            Err(e) => {
+                error!(
+                    "The watcher message could not be sent, error creating at least one of the preimages: {}",
+                    e.get_plain_text_format()
+                );
+                None
+            },
+        }
+    }
+
     async fn send_taker_payment(&self) -> Result<(Option<TakerSwapCommand>, Vec<TakerSwapEvent>), String> {
         #[cfg(test)]
         if self.fail_at == Some(FailAt::TakerPayment) {
@@ -1637,66 +1705,8 @@ impl TakerSwap {
         let mut swap_events = vec![TakerSwapEvent::TakerPaymentSent(tx_ident)];
 
         // Process watcher logic if enabled and supported by both coins
-        if self.ctx.use_watchers()
-            && self.taker_coin.is_supported_by_watchers()
-            && self.maker_coin.is_supported_by_watchers()
-        {
-            let maker_payment_spend_preimage_fut = self.maker_coin.create_maker_payment_spend_preimage(
-                &self.r().maker_payment.as_ref().unwrap().tx_hex,
-                self.maker_payment_lock.load(Ordering::Relaxed),
-                self.r().other_maker_coin_htlc_pub.as_slice(),
-                &self.r().secret_hash.0,
-                &self.unique_swap_data()[..],
-            );
-
-            let time_lock = match std::env::var("USE_TEST_LOCKTIME") {
-                Ok(_) => self.r().data.started_at,
-                Err(_) => self.r().data.taker_payment_lock,
-            };
-
-            let taker_payment_refund_preimage_fut = self.taker_coin.create_taker_payment_refund_preimage(
-                &transaction.tx_hex(),
-                time_lock,
-                &*self.r().other_taker_coin_htlc_pub,
-                &self.r().secret_hash.0,
-                &self.r().data.taker_coin_swap_contract_address,
-                &self.unique_swap_data(),
-            );
-
-            match try_join(
-                maker_payment_spend_preimage_fut.compat(),
-                taker_payment_refund_preimage_fut.compat(),
-            )
-            .await
-            {
-                Ok((maker_payment_spend, taker_payment_refund)) => {
-                    // Prepare and broadcast watcher message
-                    let watcher_data = self.create_watcher_data(
-                        transaction.tx_hash_as_bytes().into_vec(),
-                        maker_payment_spend.tx_hex(),
-                        taker_payment_refund.tx_hex(),
-                    );
-                    let swpmsg_watcher = SwapWatcherMsg::TakerSwapWatcherMsg(watcher_data);
-
-                    let htlc_keypair = self.taker_coin.derive_htlc_key_pair(&self.unique_swap_data());
-                    broadcast_swap_message(
-                        &self.ctx,
-                        watcher_topic(&self.r().data.taker_coin),
-                        swpmsg_watcher,
-                        &Some(htlc_keypair),
-                    );
-
-                    swap_events.push(TakerSwapEvent::WatcherMessageSent(
-                        Some(maker_payment_spend.tx_hex()),
-                        Some(taker_payment_refund.tx_hex()),
-                    ));
-                    info!("{}", WATCHER_MESSAGE_SENT_LOG);
-                },
-                Err(e) => error!(
-                    "The watcher message could not be sent, error creating at least one of the preimages: {}",
-                    e.get_plain_text_format()
-                ),
-            }
+        if let Some(watcher_event) = self.process_watcher_logic(&transaction).await {
+            swap_events.push(watcher_event);
         }
 
         Ok((Some(TakerSwapCommand::WaitForTakerPaymentSpend), swap_events))
