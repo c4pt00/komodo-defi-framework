@@ -5015,7 +5015,7 @@ pub async fn spend_maker_payment_v2<T: UtxoCommonOps + SwapOps>(
 
     let key_pair = coin.derive_htlc_key_pair(args.swap_unique_data);
     let script_data = Builder::default()
-        .push_data(args.maker_secret)
+        .push_data(&args.maker_secret)
         .push_opcode(Opcode::OP_1)
         .push_opcode(Opcode::OP_0)
         .into_script();
