@@ -559,10 +559,10 @@ fn send_and_refund_maker_payment_timelock() {
 #[test]
 fn send_and_refund_maker_payment_taker_secret() {
     let (_mm_arc, coin, _privkey) = generate_utxo_coin_with_random_privkey(MYCOIN, 1000.into());
-    let taker_secret = &[1; 32];
+    let taker_secret = [1; 32];
 
     let time_lock = now_sec() + 1000;
-    let taker_secret_hash_owned = dhash160(taker_secret);
+    let taker_secret_hash_owned = dhash160(&taker_secret);
     let taker_secret_hash = taker_secret_hash_owned.as_slice();
     let maker_secret_hash = &[1; 20];
     let taker_pub = coin.my_public_key().unwrap();
