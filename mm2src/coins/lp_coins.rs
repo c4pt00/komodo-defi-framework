@@ -1286,7 +1286,7 @@ pub struct RefundFundingSecretArgs<'a, Coin: ParseCoinAssocTypes + ?Sized> {
     pub funding_time_lock: u64,
     pub payment_time_lock: u64,
     pub maker_pubkey: &'a Coin::Pubkey,
-    pub taker_secret: &'a [u8],
+    pub taker_secret: [u8; 32],
     pub taker_secret_hash: &'a [u8],
     pub maker_secret_hash: &'a [u8],
     pub dex_fee: &'a DexFee,

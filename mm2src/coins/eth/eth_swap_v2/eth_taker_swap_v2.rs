@@ -351,7 +351,6 @@ impl EthCoin {
             )
             .map_err(|e| TransactionErr::Plain(ERRL!("{}", e)))?;
 
-        let taker_secret = try_tx_s!(args.taker_secret.try_into());
         let maker_secret_hash = try_tx_s!(args.maker_secret_hash.try_into());
         let dex_fee = try_tx_s!(wei_from_big_decimal(
             &args.dex_fee.fee_amount().to_decimal(),
@@ -368,7 +367,7 @@ impl EthCoin {
                 dex_fee,
                 payment_amount,
                 maker_address,
-                taker_secret,
+                taker_secret: args.taker_secret,
                 maker_secret_hash,
                 payment_time_lock: args.payment_time_lock,
                 token_address,

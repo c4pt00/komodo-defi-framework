@@ -158,7 +158,7 @@ fn send_and_refund_taker_funding_secret() {
         funding_time_lock,
         payment_time_lock: 0,
         maker_pubkey: maker_pub,
-        taker_secret: &taker_secret,
+        taker_secret,
         taker_secret_hash,
         maker_secret_hash: &[],
         dex_fee,
