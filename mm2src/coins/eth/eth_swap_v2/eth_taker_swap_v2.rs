@@ -792,7 +792,7 @@ impl EthCoin {
     ///         bytes32 makerSecret,
     ///         address tokenAddress
     ///     )
-    pub(crate) async fn extract_secret_v2_impl(&self, spend_tx: &SignedEthTx) -> Result<Vec<u8>, String> {
+    pub(crate) async fn extract_secret_v2_impl(&self, spend_tx: &SignedEthTx) -> Result<[u8; 32], String> {
         let function = try_s!(TAKER_SWAP_V2.function("spendTakerPayment"));
         // should be 0xcc90c199
         let expected_signature = function.short_signature();
@@ -809,7 +809,7 @@ impl EthCoin {
             return ERR!("Invalid arguments in 'spendTakerPayment' call: {:?}", decoded);
         }
         match &decoded[5] {
-            Token::FixedBytes(secret) => Ok(secret.to_vec()),
+            Token::FixedBytes(secret) => Ok(try_s!(secret.as_slice().try_into())),
             _ => ERR!(
                 "Expected secret to be fixed bytes, but decoded function data is {:?}",
                 decoded

@@ -2584,12 +2584,12 @@ pub async fn get_taker_watcher_reward<T: UtxoCommonOps + SwapOps + MarketCoinOps
 /// Note spender could generate the spend with several inputs where the only one input is the p2sh script.
 pub fn extract_secret(secret_hash: &[u8], spend_tx: &[u8]) -> Result<Vec<u8>, String> {
     let spend_tx: UtxoTx = try_s!(deserialize(spend_tx).map_err(|e| ERRL!("{:?}", e)));
-    extract_secret_v2(secret_hash, &spend_tx)
+    extract_secret_v2(secret_hash, &spend_tx).map(|secret_array| secret_array.to_vec())
 }
 
 /// Extract a secret from the `spend_tx`.
 /// Note spender could generate the spend with several inputs where the only one input is the p2sh script.
-pub fn extract_secret_v2(secret_hash: &[u8], spend_tx: &UtxoTx) -> Result<Vec<u8>, String> {
+pub fn extract_secret_v2(secret_hash: &[u8], spend_tx: &UtxoTx) -> Result<[u8; 32], String> {
     let expected_secret_hash = if secret_hash.len() == 32 {
         ripemd160(secret_hash)
     } else {
@@ -2602,7 +2602,7 @@ pub fn extract_secret_v2(secret_hash: &[u8], spend_tx: &UtxoTx) -> Result<Vec<u8
                 if let Some(secret) = instruction.data {
                     let actual_secret_hash = dhash160(secret);
                     if actual_secret_hash == expected_secret_hash {
-                        return Ok(secret.to_vec());
+                        return Ok(try_s!(secret.try_into()));
                     }
                 }
             }
