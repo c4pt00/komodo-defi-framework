@@ -15,7 +15,6 @@ use crate::z_coin::{ZOutput, DEX_FEE_OVK};
 use crate::NumConversError;
 use crate::{PrivKeyPolicyNotAllowed, TransactionEnum};
 use bitcrypto::dhash160;
-use common::log::LogOnError;
 use derive_more::Display;
 use futures::compat::Future01CompatExt;
 use keys::{AddressBuilder, KeyPair, Public};
@@ -196,7 +195,7 @@ pub async fn z_p2sh_spend(
     // and saving them to the wallet database for future spends
     store_change_output(coin.consensus_params_ref(), &coin.z_fields.light_wallet_db, &zcash_tx)
         .await
-        .error_log();
+        .mm_err(|err| ZP2SHSpendError::GenTxError(GenTxError::Internal(err)))?;
 
     coin.utxo_rpc_client()
         .send_raw_transaction(tx_buffer.into())
