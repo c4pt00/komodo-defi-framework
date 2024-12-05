@@ -140,13 +140,13 @@ impl Session {
         let (proposer, controller) = match session_type {
             SessionType::Proposer => (
                 Proposer {
-                    public_key: const_hex::encode(session_key.diffie_public_key()),
+                    public_key: hex::encode(session_key.diffie_public_key()),
                     metadata,
                 },
                 Controller::default(),
             ),
             SessionType::Controller => (Proposer::default(), Controller {
-                public_key: const_hex::encode(session_key.diffie_public_key()),
+                public_key: hex::encode(session_key.diffie_public_key()),
                 metadata,
             }),
         };

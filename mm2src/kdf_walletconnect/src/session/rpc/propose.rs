@@ -22,7 +22,7 @@ pub(crate) async fn send_proposal_request(
 ) -> MmResult<(), WalletConnectError> {
     let proposer = Proposer {
         metadata: ctx.metadata.clone(),
-        public_key: const_hex::encode(ctx.key_pair.public_key.as_bytes()),
+        public_key: hex::encode(ctx.key_pair.public_key.as_bytes()),
     };
     let session_proposal = RequestParams::SessionPropose(SessionProposeRequest {
         relays: vec![ctx.relay.clone()],
@@ -44,7 +44,7 @@ pub async fn reply_session_proposal_request(
     message_id: &MessageId,
 ) -> MmResult<(), WalletConnectError> {
     let session = {
-        let sender_public_key = const_hex::decode(&proposal.proposer.public_key)?
+        let sender_public_key = hex::decode(&proposal.proposer.public_key)?
             .as_slice()
             .try_into()
             .map_to_mm(|_| WalletConnectError::InternalError("Invalid sender_public_key".to_owned()))?;
@@ -103,7 +103,7 @@ pub(crate) async fn process_session_propose_response(
     response: &SessionProposeResponse,
 ) -> MmResult<(), WalletConnectError> {
     let session_key = {
-        let other_public_key = const_hex::decode(&response.responder_public_key)?
+        let other_public_key = hex::decode(&response.responder_public_key)?
             .as_slice()
             .try_into()
             .unwrap();

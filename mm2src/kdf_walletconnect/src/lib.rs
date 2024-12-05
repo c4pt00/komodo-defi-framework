@@ -487,7 +487,6 @@ impl WalletConnectCtxImpl {
         Ok(())
     }
 
-    /// TODO: accept WcChainId
     /// Retrieves the available account for a given chain ID.
     pub fn get_account_for_chain_id(&self, chain_id: &WcChainId) -> MmResult<String, WalletConnectError> {
         let namespaces = &self

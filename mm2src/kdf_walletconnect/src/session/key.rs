@@ -97,7 +97,7 @@ impl SessionKey {
     pub fn generate_topic(&self) -> String {
         let mut hasher = Sha256::new();
         hasher.update(self.sym_key);
-        const_hex::encode(hasher.finalize())
+        hex::encode(hasher.finalize())
     }
 }
 

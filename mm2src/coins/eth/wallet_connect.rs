@@ -59,7 +59,7 @@ impl<'a> WcEthTxParams<'a> {
 
         let mut tx_json = json!({
             "nonce": u256_to_hex(self.nonce),
-            "from": format!("0x{}", hex::encode(self.my_address.as_bytes())),
+            "from": self.my_address.to_string(),
             "gas": u256_to_hex(self.gas),
             "value": u256_to_hex(self.value),
             "data": format!("0x{}", hex::encode(self.data))

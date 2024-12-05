@@ -67,7 +67,7 @@ pub enum WalletConnectError {
     #[error("Request is not yet implemented")]
     NotImplemented,
     #[error("Hex Error: {0}")]
-    #[from_stringify("const_hex::FromHexError")]
+    #[from_stringify("hex::FromHexError")]
     HexError(String),
     #[error("Payload Error: {0}")]
     #[from_stringify("wc_common::PayloadError")]
