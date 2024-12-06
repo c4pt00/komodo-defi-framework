@@ -848,9 +848,9 @@ dependencies = [
  "ed25519-dalek 1.0.1",
  "enum_derives",
  "ethabi",
- "ethcore-transaction 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethcore-transaction",
  "ethereum-types",
- "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethkey",
  "ff 0.8.0",
  "futures 0.1.29",
  "futures 0.3.28",
@@ -1927,27 +1927,14 @@ dependencies = [
 [[package]]
 name = "ethcore-transaction"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
-dependencies = [
- "ethereum-types",
- "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
- "keccak-hash",
- "rlp",
- "rustc-hex",
- "unexpected 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
-]
-
-[[package]]
-name = "ethcore-transaction"
-version = "0.1.0"
 source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
 dependencies = [
  "ethereum-types",
- "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethkey",
  "keccak-hash",
  "rlp",
  "rustc-hex",
- "unexpected 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "unexpected",
 ]
 
 [[package]]
@@ -1967,31 +1954,13 @@ dependencies = [
 [[package]]
 name = "ethkey"
 version = "0.3.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
-dependencies = [
- "byteorder",
- "edit-distance",
- "ethereum-types",
- "log",
- "mem 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
- "rand 0.6.5",
- "rustc-hex",
- "secp256k1 0.20.3",
- "serde",
- "serde_derive",
- "tiny-keccak 1.4.4",
-]
-
-[[package]]
-name = "ethkey"
-version = "0.3.0"
 source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
 dependencies = [
  "byteorder",
  "edit-distance",
  "ethereum-types",
  "log",
- "mem 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "mem",
  "rand 0.6.5",
  "rustc-hex",
  "secp256k1 0.20.3",
@@ -3842,11 +3811,6 @@ checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 [[package]]
 name = "mem"
 version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
-
-[[package]]
-name = "mem"
-version = "0.1.0"
 source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1#d5524212230c4773d01b2527e9b3c422a251e0dc"
 
 [[package]]
@@ -4082,7 +4046,7 @@ name = "mm2_eth"
 version = "0.1.0"
 dependencies = [
  "ethabi",
- "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethkey",
  "hex",
  "indexmap 1.9.3",
  "itertools",
@@ -4182,7 +4146,7 @@ dependencies = [
  "enum-primitive-derive",
  "enum_derives",
  "ethabi",
- "ethcore-transaction 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig)",
+ "ethcore-transaction",
  "ethereum-types",
  "futures 0.1.29",
  "futures 0.3.28",
@@ -4313,7 +4277,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "common",
  "derive_more",
- "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethkey",
  "futures 0.3.28",
  "futures-util",
  "gstuff",
@@ -4866,7 +4830,7 @@ checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
 dependencies = [
  "cfg-if 1.0.0",
  "libc",
- "redox_syscall 0.5.7",
+ "redox_syscall 0.5.6",
  "smallvec 1.6.1",
  "windows-targets 0.52.6",
 ]
@@ -5554,9 +5518,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.7"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b6dfecf2c74bce2466cabf93f6664d6998a69eb21e39f4207930065b27b771f"
+checksum = "355ae415ccd3a04315d3f8246e86d67689ea74d88d915576e1589a351062a13b"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -7549,9 +7513,9 @@ dependencies = [
  "byteorder",
  "common",
  "derive_more",
- "ethcore-transaction 0.1.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethcore-transaction",
  "ethereum-types",
- "ethkey 0.3.0 (git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?rev=mm2-v2.1.1)",
+ "ethkey",
  "futures 0.3.28",
  "hw_common",
  "js-sys",
@@ -7688,11 +7652,6 @@ dependencies = [
  "hex",
  "static_assertions",
 ]
-
-[[package]]
-name = "unexpected"
-version = "0.1.0"
-source = "git+https://github.com/KomodoPlatform/mm2-parity-ethereum.git?branch=fix-pubkey-recover-from-sig#676351596f590a08751eca8ddea5120f513b57a6"
 
 [[package]]
 name = "unexpected"
