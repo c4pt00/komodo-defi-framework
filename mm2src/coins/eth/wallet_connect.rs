@@ -133,6 +133,8 @@ impl WalletConnectOps for EthCoin {
             wc.send_session_request_and_wait(&chain_id, WcRequestMethods::EthSendTransaction, tx_json, Ok)
                 .await?
         };
+
+        println!("TX_JSON: {tx_hash:?}");
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
         let maybe_signed_tx = {
             self.wait_for_tx_appears_on_rpc(H256::from_slice(&hex::decode(tx_hash)?), WAIT_RPC_TIMEOUT_SECS, 1.)

@@ -51,7 +51,8 @@ pub async fn handle_session_event(
             } else {
                 {
                     ctx.session_manager
-                        .get_session_mut(topic)
+                        .write()
+                        .get_mut(topic)
                         .ok_or(MmError::new(WalletConnectError::SessionError(
                             "No active WalletConnect session found".to_string(),
                         )))?

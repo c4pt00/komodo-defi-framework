@@ -7,9 +7,6 @@ use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use chrono::Utc;
 use common::log::info;
-use dashmap::mapref::multiple::RefMulti;
-use dashmap::mapref::one::RefMut;
-use dashmap::DashMap;
 use derive_more::Display;
 use key::SessionKey;
 use mm2_err_handle::prelude::{MmError, MmResult};
@@ -21,9 +18,9 @@ use relay_rpc::{domain::SubscriptionId,
                 rpc::params::{session::ProposeNamespaces, session_settle::Controller, Metadata, Relay}};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use wc_common::SymKey;
 
 pub(crate) const FIVE_MINUTES: u64 = 5 * 60;
@@ -182,7 +179,7 @@ struct SessionManagerImpl {
     /// The currently active session topic.
     active_topic: Mutex<Option<Topic>>,
     /// A thread-safe map of sessions indexed by topic.
-    sessions: DashMap<Topic, Session>,
+    sessions: Arc<RwLock<HashMap<Topic, Session>>>,
     pub(crate) storage: SessionStorageDb,
 }
 
@@ -216,6 +213,14 @@ impl SessionManager {
         )
     }
 
+    pub(crate) fn read(&self) -> RwLockReadGuard<HashMap<Topic, Session>> {
+        self.0.sessions.read().expect("read shouldn't fail")
+    }
+
+    pub(crate) fn write(&self) -> RwLockWriteGuard<HashMap<Topic, Session>> {
+        self.0.sessions.write().expect("read shouldn't fail")
+    }
+
     pub(crate) fn storage(&self) -> &SessionStorageDb { &self.0.storage }
 
     /// Get active session topic or return error if no session has been activated.
@@ -236,7 +241,7 @@ impl SessionManager {
         // set active session topic.
         *self.0.active_topic.lock().unwrap() = Some(session.topic.clone());
         // insert session
-        self.0.sessions.insert(session.topic.clone(), session);
+        self.write().insert(session.topic.clone(), session);
     }
 
     /// Removes session corresponding to the specified topic from the session store.
@@ -246,12 +251,12 @@ impl SessionManager {
         let mut active_topic = self.0.active_topic.lock().unwrap();
 
         // Remove the session and get the removed session (if any)
-        let removed_session = self.0.sessions.remove(topic).map(|(_, session)| session);
+        let removed_session = self.write().remove(topic);
 
         // Update active topic if necessary
         if active_topic.as_ref() == Some(topic) {
             // If the deleted session was the active one, find a new active session
-            *active_topic = self.0.sessions.iter().next().map(|session| session.topic.clone());
+            *active_topic = self.read().iter().next().map(|(topic, session)| topic.clone());
 
             if let Some(new_active_topic) = active_topic.as_ref() {
                 info!("[{new_active_topic}] New session with topic activated!");
@@ -275,12 +280,7 @@ impl SessionManager {
     }
 
     /// Retrieves a cloned session associated with a given topic.
-    pub fn get_session(&self, topic: &Topic) -> Option<Session> { self.0.sessions.get(topic).map(|s| s.clone()) }
-
-    /// Retrieves a mutable reference to the session associated with a given topic.
-    pub(crate) fn get_session_mut(&self, topic: &Topic) -> Option<RefMut<'_, Topic, Session>> {
-        self.0.sessions.get_mut(topic)
-    }
+    pub fn get_session(&self, topic: &Topic) -> Option<Session> { self.read().get(topic).cloned() }
 
     /// returns an `option<session>` containing the active session if it exists; otherwise, returns `none`.
     pub fn get_session_active(&self) -> Option<Session> {
@@ -294,16 +294,16 @@ impl SessionManager {
 
     /// Retrieves all sessions(active and inactive)
     pub fn get_sessions(&self) -> impl Iterator<Item = SessionRpcInfo> {
-        self.0.sessions.clone().into_iter().map(|(_, session)| session.into())
+        self.read().clone().into_values().map(|session| session.into())
     }
 
-    pub(crate) fn get_sessions_full(&self) -> impl Iterator<Item = RefMulti<Topic, Session>> { self.0.sessions.iter() }
+    pub(crate) fn get_sessions_full(&self) -> impl Iterator<Item = Session> { self.read().clone().into_values() }
 
     /// Updates the expiry time of the session associated with the given topic to the specified timestamp.
     /// If the session does not exist, this method does nothing.
     pub(crate) fn extend_session(&self, topic: &Topic, till: u64) {
         info!("[{topic}] Extending session with topic");
-        if let Some(mut session) = self.0.sessions.get_mut(topic) {
+        if let Some(mut session) = self.write().get_mut(topic) {
             session.extend(till);
         }
     }

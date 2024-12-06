@@ -3,7 +3,7 @@ use crate::storage::WalletConnectStorageOps;
 use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 
 use common::log::{debug, info};
-use mm2_err_handle::prelude::{MapMmError, MmResult};
+use mm2_err_handle::prelude::{MapMmError, MmError, MmResult};
 use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session_settle::SessionSettleRequest;
 
@@ -40,27 +40,35 @@ pub(crate) async fn reply_session_settle_request(
     settle: SessionSettleRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        let session = ctx.session_manager.get_session_mut(topic);
-        if let Some(mut session) = session {
-            session.namespaces = settle.namespaces.0;
-            session.controller = settle.controller.clone();
-            session.relay = settle.relay;
-            session.expiry = settle.expiry;
-
-            if let Some(value) = settle.session_properties {
-                let session_properties = serde_json::from_str::<SessionProperties>(&value.to_string())?;
-                session.session_properties = Some(session_properties);
-            }
-
-            // Update storage session.
-            ctx.session_manager
-                .storage()
-                .update_session(&session)
-                .await
-                .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
+        let mut session = ctx.session_manager.write();
+        let Some(session) = session.get_mut(topic) else {
+            return MmError::err(WalletConnectError::SessionError(format!("No session found for topic: {topic}")));
         };
-    }
-    info!("Session successfully settled for topic: {:?}", topic);
+        session.namespaces = settle.namespaces.0;
+        session.controller = settle.controller.clone();
+        session.relay = settle.relay;
+        session.expiry = settle.expiry;
+
+        if let Some(value) = settle.session_properties {
+            let session_properties = serde_json::from_str::<SessionProperties>(&value.to_string())?;
+            session.session_properties = Some(session_properties);
+        };
+    };
+
+    //  Update storage session.
+    let session = ctx
+        .session_manager
+        .get_session(topic)
+        .ok_or(MmError::new(WalletConnectError::SessionError(format!(
+            "session not foun topic: {topic}"
+        ))))?;
+    ctx.session_manager
+        .storage()
+        .update_session(&session)
+        .await
+        .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
+
+    info!("[{topic}] Session successfully settled for topic");
 
     // Delete other sessions with same controller
     // TODO: we might not want to do this!

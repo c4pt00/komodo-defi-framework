@@ -15,23 +15,32 @@ pub(crate) async fn reply_session_update_request(
     update: SessionUpdateRequest,
 ) -> MmResult<(), WalletConnectError> {
     {
-        if let Some(mut session) = ctx.session_manager.get_session_mut(topic) {
-            update
-                .namespaces
-                .caip2_validate()
-                .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?;
-            //TODO: session.namespaces.supported(update.namespaces.0)
-            session.namespaces = update.namespaces.0;
-            //  Update storage session.
-            ctx.session_manager
-                .storage()
-                .update_session(&session)
-                .await
-                .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
-
-            info!("Updated extended, info: {:?}", session.topic);
+        let mut session = ctx.session_manager.write();
+        let Some(session) = session.get_mut(topic) else {
+            return MmError::err(WalletConnectError::SessionError(format!("No session found for topic: {topic}")));
         };
+        update
+            .namespaces
+            .caip2_validate()
+            .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?;
+        //TODO: session.namespaces.supported(update.namespaces.0)
+        session.namespaces = update.namespaces.0;
+        let session = session;
+        info!("Updated extended, info: {:?}", session.topic);
     }
+
+    //  Update storage session.
+    let session = ctx
+        .session_manager
+        .get_session(topic)
+        .ok_or(MmError::new(WalletConnectError::SessionError(format!(
+            "session not foun topic: {topic}"
+        ))))?;
+    ctx.session_manager
+        .storage()
+        .update_session(&session)
+        .await
+        .mm_err(|err| WalletConnectError::StorageError(err.to_string()))?;
 
     let param = ResponseParamsSuccess::SessionUpdate(true);
     ctx.publish_response_ok(topic, param, message_id).await?;

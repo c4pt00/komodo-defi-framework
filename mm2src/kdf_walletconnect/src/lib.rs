@@ -44,6 +44,7 @@ use std::ops::Deref;
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
+use tokio::time::timeout;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType, SymKey};
 
 const PUBLISH_TIMEOUT_SECS: f64 = 6.;
@@ -286,8 +287,14 @@ impl WalletConnectCtxImpl {
             pairing_topics.push(pairing_topic);
         }
 
-        let all_topics: Vec<_> = valid_topics.into_iter().chain(pairing_topics.into_iter()).collect();
-        self.client.batch_subscribe(all_topics).await?;
+        let all_topics = valid_topics
+            .into_iter()
+            .chain(pairing_topics.into_iter())
+            .collect::<Vec<_>>();
+
+        if !all_topics.is_empty() {
+            self.client.batch_subscribe(all_topics).await?;
+        }
 
         Ok(())
     }
@@ -535,7 +542,11 @@ impl WalletConnectCtxImpl {
         let ttl = request.irn_metadata().ttl;
         self.publish_request(&active_topic, request).await?;
 
-        if let Ok(Some(resp)) = self.message_rx.lock().await.next().timeout_secs(ttl as f64).await {
+        if let Ok(Some(resp)) = timeout(Duration::from_secs(ttl), async {
+            self.message_rx.lock().await.next().await
+        })
+        .await
+        {
             let result = resp.mm_err(WalletConnectError::InternalError)?;
             if let ResponseParamsSuccess::Arbitrary(data) = result.data {
                 let data = serde_json::from_value::<T>(data)?;
