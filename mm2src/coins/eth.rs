@@ -2916,7 +2916,8 @@ async fn sign_raw_eth_tx(coin: &EthCoin, args: &SignEthTransactionParams) -> Raw
             // e.g Metamask
             let wc = {
                 let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
-                WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!")
+                WalletConnectCtx::from_ctx(&ctx)
+                    .expect("TODO: handle error when enable kdf initialization without key.")
             };
             let my_address = coin
                 .derivation_method
@@ -3913,7 +3914,8 @@ impl EthCoin {
                 EthPrivKeyPolicy::WalletConnect { .. } => {
                     let wc = {
                         let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
-                        WalletConnectCtx::from_ctx(&ctx).expect("WalletConnectCtx should be initialized by now!")
+                        WalletConnectCtx::from_ctx(&ctx)
+                            .expect("TODO: handle error when enable kdf initialization without key.")
                     };
                     let address = coin
                         .derivation_method

@@ -234,7 +234,7 @@ async fn activate_with_walletconnect(
     chain_id: &str,
     ticker: &str,
 ) -> MmResult<(TendermintActivationPolicy, TendermintWalletConnectionType), TendermintInitError> {
-    let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
+    let wc = WalletConnectCtx::from_ctx(ctx).expect("TODO: handle error when enable kdf initialization without key.");
     let account = cosmos_get_accounts_impl(&wc, chain_id)
         .await
         .mm_err(|err| TendermintInitError {

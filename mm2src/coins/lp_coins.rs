@@ -3870,7 +3870,7 @@ impl PrivKeyActivationPolicy {
 /// a hardware device like Trezor, or even external sources like Metamask.
 #[derive(Clone, Debug)]
 pub enum PrivKeyPolicy<T> {
-    /// The legacy private key policy.
+    /// Legacy private key policy.
     ///
     /// This policy corresponds to a one-to-one mapping of private keys to addresses.
     /// In this scheme, only a single key and corresponding address is activated per coin,
@@ -3898,13 +3898,19 @@ pub enum PrivKeyPolicy<T> {
     /// Details about how the keys are managed with the Trezor device
     /// are abstracted away and are not directly managed by this policy.
     Trezor,
-    /// The Metamask private key policy, specific to the WASM target architecture.
+    /// Metamask private key policy, specific to the WASM target architecture.
     ///
     /// This variant encapsulates details about how keys are managed when interfacing
     /// with the Metamask extension, especially within web-based contexts.
     #[cfg(target_arch = "wasm32")]
     Metamask(EthMetamaskPolicy),
-
+    /// WalletConnect private key policy.
+    ///
+    /// This variant represents the key management details for connections
+    /// established via WalletConnect. It includes both compressed and uncompressed
+    /// public keys.
+    /// - `public_key`: Compressed public key, represented as [H264].
+    /// - `public_key_uncompressed`: Uncompressed public key, represented as [H520].
     WalletConnect {
         public_key: H264,
         public_key_uncompressed: H520,

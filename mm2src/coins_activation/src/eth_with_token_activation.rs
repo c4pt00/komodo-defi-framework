@@ -488,7 +488,8 @@ async fn eth_priv_key_build_policy(
         },
         EthPrivKeyActivationPolicy::Trezor => Ok(EthPrivKeyBuildPolicy::Trezor),
         EthPrivKeyActivationPolicy::WalletConnect => {
-            let wc = WalletConnectCtx::from_ctx(ctx).expect("WalletConnectCtx should be initialized by now!");
+            let wc = WalletConnectCtx::from_ctx(ctx)
+                .expect("TODO: handle error when enable kdf initialization without key.");
             let chain_id = conf["chain_id"].as_u64().ok_or(EthActivationV2Error::ChainIdNotSet)?;
             let (public_key_uncompressed, address) = eth_request_wc_personal_sign(&wc, chain_id)
                 .await
