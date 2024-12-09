@@ -46,7 +46,7 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtxImpl, topic: &Topic) -> Mm
         );
         //Attempt to unsubscribe from topic
         ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
-        // Attempt to disconnect the pairing
+        // Attempt to delete/disconnect the pairing
         ctx.pairing.delete(&session.pairing_topic);
 
         // delete session from storage as well.

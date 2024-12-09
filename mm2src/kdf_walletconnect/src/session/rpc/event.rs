@@ -68,6 +68,6 @@ pub async fn handle_session_event(
         },
     };
 
-    info!("[{topic}] chainChanged event handled successfully");
+    info!("[{topic}] {event_name} event handled successfully");
     Ok(())
 }

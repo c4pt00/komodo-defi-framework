@@ -98,7 +98,7 @@ pub(crate) async fn spawn_connection_initialization(
 
     // load session from storage
     if let Err(err) = wc.load_session_from_storage().await {
-        error!("Unable to load session from storage: {err:?}");
+        panic!("Unable to load session from storage: {err:?}");
     };
 
     // Spawn session disconnection watcher.
