@@ -7,6 +7,7 @@ use mm2_err_handle::prelude::{MapMmError, MmError, MmResult};
 use relay_rpc::domain::Topic;
 use relay_rpc::rpc::params::session_settle::SessionSettleRequest;
 
+/// TODO: Finish when implementing KDF as a Wallet.
 pub(crate) async fn send_session_settle_request(
     _ctx: &WalletConnectCtxImpl,
     _session_info: &Session,
@@ -60,7 +61,7 @@ pub(crate) async fn reply_session_settle_request(
         .session_manager
         .get_session(topic)
         .ok_or(MmError::new(WalletConnectError::SessionError(format!(
-            "session not foun topic: {topic}"
+            "session not found topic: {topic}"
         ))))?;
     ctx.session_manager
         .storage()

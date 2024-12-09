@@ -9,7 +9,6 @@ use relay_client::error::ClientError;
 use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
 use std::sync::Arc;
 
-const RETRY_SECS: f64 = 5.0;
 const MAX_BACKOFF: u64 = 60;
 
 pub struct Handler {
@@ -80,7 +79,7 @@ pub(crate) async fn spawn_connection_initialization(
 ) {
     info!("Initializing WalletConnect connection");
     let mut retry_count = 0;
-    let mut retry_secs = RETRY_SECS;
+    let mut retry_secs = 10;
 
     while let Err(err) = wc.connect_client().await {
         retry_count += 1;
@@ -88,8 +87,8 @@ pub(crate) async fn spawn_connection_initialization(
             "Error during initial connection attempt {}: {:?}. Retrying in {retry_secs} seconds...",
             retry_count, err
         );
-        Timer::sleep(retry_secs).await;
-        retry_secs += RETRY_SECS;
+        Timer::sleep(retry_secs as f64).await;
+        retry_secs = std::cmp::min(retry_secs * 2, MAX_BACKOFF);
     }
 
     // Initialize storage
