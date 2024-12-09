@@ -10,7 +10,6 @@ mod storage;
 use crate::session::rpc::propose::send_proposal_request;
 
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
-use chrono::Utc;
 use common::custom_futures::timeout::FutureTimerExt;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, Timer};

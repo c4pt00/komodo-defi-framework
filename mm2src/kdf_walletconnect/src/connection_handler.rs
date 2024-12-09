@@ -72,7 +72,7 @@ impl ConnectionHandler for Handler {
 }
 
 /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
-/// Uses increasing delay between retry attempts starting from INITIAL_RETRY_SECS.
+/// Uses increasing delay between retry attempts starting from [RETRY_SECS].
 /// After successful connection, attempts to restore previous session state from storage.
 pub(crate) async fn spawn_connection_initialization(
     wc: Arc<WalletConnectCtxImpl>,
@@ -80,7 +80,7 @@ pub(crate) async fn spawn_connection_initialization(
 ) {
     info!("Initializing WalletConnect connection");
     let mut retry_count = 0;
-    let mut retry_secs = INITIAL_RETRY_SECS;
+    let mut retry_secs = RETRY_SECS;
 
     while let Err(err) = wc.connect_client().await {
         retry_count += 1;
@@ -124,7 +124,6 @@ pub(crate) async fn handle_disconnections(
                     backoff = 1;
                     break;
                 },
-
                 Err(e) => {
                     error!("Reconnection attempt failed: {:?}. Retrying in {:?}...", e, backoff);
                     Timer::sleep(backoff as f64).await;
