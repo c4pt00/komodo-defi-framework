@@ -518,6 +518,7 @@ impl WalletConnectCtxImpl {
     }
 
     /// Waits for and handles a WalletConnect session response with arbitrary data.
+    /// https://specs.walletconnect.com/2.0/specs/clients/sign/session-events#session_request
     pub async fn send_session_request_and_wait<T, R, F>(
         &self,
         chain_id: &WcChainId,
@@ -534,7 +535,7 @@ impl WalletConnectCtxImpl {
             chain_id: chain_id.to_string(),
             request: SessionRequest {
                 method: method.as_ref().to_string(),
-                expiry: Some(Utc::now().timestamp() as u64 + 60),
+                expiry: None,
                 params,
             },
         };

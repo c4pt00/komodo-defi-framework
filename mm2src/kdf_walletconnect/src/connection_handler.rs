@@ -9,9 +9,8 @@ use relay_client::error::ClientError;
 use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
 use std::sync::Arc;
 
-const INITIAL_RETRY_SECS: f64 = 5.0;
+const RETRY_SECS: f64 = 5.0;
 const MAX_BACKOFF: u64 = 60;
-const RETRY_INCREMENT: f64 = 5.0;
 
 pub struct Handler {
     name: &'static str,
@@ -90,7 +89,7 @@ pub(crate) async fn spawn_connection_initialization(
             retry_count, err
         );
         Timer::sleep(retry_secs).await;
-        retry_secs += RETRY_INCREMENT;
+        retry_secs += RETRY_SECS;
     }
 
     // Initialize storage
@@ -118,17 +117,18 @@ pub(crate) async fn handle_disconnections(
 
     while let Some(msg) = connection_live_rx.next().await {
         info!("WalletConnect disconnected with message: {msg:?}. Attempting to reconnect...");
-
         loop {
             match this.reconnect_and_subscribe().await {
                 Ok(_) => {
-                    info!("Reconnection process complete.");
+                    error!("Reconnection process complete.");
                     backoff = 1;
                     break;
                 },
+
                 Err(e) => {
-                    info!("Reconnection attempt failed: {:?}. Retrying in {:?}...", e, backoff);
+                    error!("Reconnection attempt failed: {:?}. Retrying in {:?}...", e, backoff);
                     Timer::sleep(backoff as f64).await;
+                    // Exponentially increase backoff, but cap it at MAX_BACKOFF
                     backoff = std::cmp::min(backoff * 2, MAX_BACKOFF);
                 },
             }

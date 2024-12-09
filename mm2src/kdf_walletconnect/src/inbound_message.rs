@@ -16,6 +16,7 @@ use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
 
 pub(crate) type SessionMessageType = MmResult<SessionMessage, String>;
+
 #[derive(Debug)]
 pub struct SessionMessage {
     pub message_id: MessageId,
@@ -23,6 +24,9 @@ pub struct SessionMessage {
     pub data: ResponseParamsSuccess,
 }
 
+/// Processes an inbound WalletConnect request and performs the appropriate action based on the request type.
+///
+/// Handles various session and pairing requests, routing them to their corresponding handlers.
 pub(crate) async fn process_inbound_request(
     ctx: &WalletConnectCtxImpl,
     request: Request,
@@ -54,6 +58,9 @@ pub(crate) async fn process_inbound_request(
     Ok(())
 }
 
+/// Processes an inbound WalletConnect response and sends the result to the provided message channel.
+///
+/// Handles successful responses, errors, and specific session proposal processing.
 pub(crate) async fn process_inbound_response(
     ctx: &WalletConnectCtxImpl,
     response: Response,
@@ -64,7 +71,7 @@ pub(crate) async fn process_inbound_response(
     let result = match response {
         Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
             Ok(data) => {
-                // TODO: move to session::proposal mod and spawn in a different thread to avoid
+                // TODO: maybe move to [send_proposal_request] and spawn in a different thread
                 if let ResponseParamsSuccess::SessionPropose(propose) = &data {
                     process_session_propose_response(ctx, topic, propose).await.error_log();
                 }
