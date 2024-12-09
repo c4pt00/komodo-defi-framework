@@ -445,12 +445,12 @@ dependencies = [
 
 [[package]]
 name = "bip39"
-version = "2.1.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33415e24172c1b7d6066f6d999545375ab8e1d95421d6784bdfff9496f292387"
+checksum = "93f2635620bf0b9d4576eb7bb9a38a55df78bd1205d26fa994b25911a69f212f"
 dependencies = [
- "bitcoin_hashes 0.13.0",
- "rand_core 0.5.1",
+ "bitcoin_hashes",
+ "rand_core 0.6.4",
  "zeroize",
 ]
 
@@ -461,31 +461,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0694ea59225b0c5f3cb405ff3f670e4828358ed26aec49dc352f730f0cb1a8a3"
 dependencies = [
  "bech32",
- "bitcoin_hashes 0.11.0",
+ "bitcoin_hashes",
  "secp256k1 0.24.3",
 ]
-
-[[package]]
-name = "bitcoin-internals"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9425c3bf7089c983facbae04de54513cce73b41c7f9ff8c845b54e7bc64ebbfb"
 
 [[package]]
 name = "bitcoin_hashes"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90064b8dee6815a6470d60bad07bbbaee885c0e12d04177138fa3291a01b7bc4"
-
-[[package]]
-name = "bitcoin_hashes"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1930a4dabfebb8d7d9992db18ebe3ae2876f0a305fab206fd168df931ede293b"
-dependencies = [
- "bitcoin-internals",
- "hex-conservative",
-]
 
 [[package]]
 name = "bitcrypto"
@@ -824,7 +808,7 @@ dependencies = [
  "base64 0.21.7",
  "bip32",
  "bitcoin",
- "bitcoin_hashes 0.11.0",
+ "bitcoin_hashes",
  "bitcrypto",
  "blake2b_simd",
  "byteorder",
@@ -1325,6 +1309,7 @@ dependencies = [
  "num-traits",
  "parking_lot",
  "primitives",
+ "rand 0.8.5",
  "rpc",
  "rpc_task",
  "rustc-hex",
@@ -2530,12 +2515,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hex-conservative"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "212ab92002354b4819390025006c897e8140934349e8635c9b077f47b4dcbd20"
-
-[[package]]
 name = "hex_fmt"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3668,7 +3647,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9680857590c3529cf8c7d32b04501f215f2bf1e029fdfa22f4112f66c1741e4"
 dependencies = [
  "bech32",
- "bitcoin_hashes 0.11.0",
+ "bitcoin_hashes",
  "lightning",
  "num-traits",
  "secp256k1 0.24.3",
@@ -4705,7 +4684,7 @@ dependencies = [
 [[package]]
 name = "pairing_api"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.0#0a5a4f76c6e6626a1148f2db130d424761c9db84"
+source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.1#6ee014db747c16d12920cf594999ba2a0820531f"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5030,7 +5009,7 @@ dependencies = [
 name = "primitives"
 version = "0.1.0"
 dependencies = [
- "bitcoin_hashes 0.11.0",
+ "bitcoin_hashes",
  "byteorder",
  "rustc-hex",
  "uint",
@@ -5106,7 +5085,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes 1.4.0",
- "heck 0.4.0",
+ "heck 0.5.0",
  "itertools",
  "log",
  "multimap",
@@ -5570,7 +5549,7 @@ checksum = "436b050e76ed2903236f032a59761c1eb99e1b0aead2c257922771dab1fc8c78"
 [[package]]
 name = "relay_client"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.0#0a5a4f76c6e6626a1148f2db130d424761c9db84"
+source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.1#6ee014db747c16d12920cf594999ba2a0820531f"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -5598,7 +5577,7 @@ dependencies = [
 [[package]]
 name = "relay_rpc"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.0#0a5a4f76c6e6626a1148f2db130d424761c9db84"
+source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.1#6ee014db747c16d12920cf594999ba2a0820531f"
 dependencies = [
  "anyhow",
  "bs58 0.4.0",
@@ -6125,7 +6104,7 @@ version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b1629c9c557ef9b293568b338dddfc8208c98a18c59d722a9d53f859d9c9b62"
 dependencies = [
- "bitcoin_hashes 0.11.0",
+ "bitcoin_hashes",
  "secp256k1-sys 0.6.1",
 ]
 
@@ -7966,7 +7945,7 @@ dependencies = [
 [[package]]
 name = "wc_common"
 version = "0.1.0"
-source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.0#0a5a4f76c6e6626a1148f2db130d424761c9db84"
+source = "git+https://github.com/komodoplatform/walletconnectrust?tag=k-0.1.1#6ee014db747c16d12920cf594999ba2a0820531f"
 dependencies = [
  "base64 0.21.7",
  "chacha20poly1305",
