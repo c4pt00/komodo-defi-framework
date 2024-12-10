@@ -1,14 +1,11 @@
 use super::{check_decoded_length, extract_id_from_tx_data, validate_amount, validate_from_to_and_status,
-            validate_payment_state, EthPaymentType, PaymentMethod, PrepareTxDataError, ZERO_VALUE};
-use crate::eth::{decode_contract_call, get_function_input_data, signed_tx_from_web3_tx, wei_from_big_decimal, EthCoin,
-                 EthCoinType, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs,
-                 SendTakerFundingArgs, SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr,
-                 ValidateSwapV2TxError, ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};
-use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs, MarketCoinOps,
+            validate_payment_state, EthPaymentType, PaymentMethod, PrepareTxDataError, SpendTxSearchParams, ZERO_VALUE};
+use crate::eth::{decode_contract_call, get_function_input_data, wei_from_big_decimal, EthCoin, EthCoinType,
+                 ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs, SendTakerFundingArgs,
+                 SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr, ValidateSwapV2TxError,
+                 ValidateSwapV2TxResult, ValidateTakerFundingArgs, TAKER_SWAP_V2};
+use crate::{FindPaymentSpendError, FundingTxSpend, GenTakerFundingSpendArgs, GenTakerPaymentSpendArgs,
             SearchForFundingSpendErr};
-use common::executor::Timer;
-use common::log::{error, info};
-use common::now_sec;
 use ethabi::{Function, Token};
 use ethcore_transaction::Action;
 use ethereum_types::{Address, Public, U256};
@@ -16,7 +13,7 @@ use ethkey::public_to_address;
 use futures::compat::Future01CompatExt;
 use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use std::convert::TryInto;
-use web3::types::{BlockNumber, TransactionId, H256};
+use web3::types::{BlockNumber, TransactionId};
 
 const ETH_TAKER_PAYMENT: &str = "ethTakerPayment";
 const ERC20_TAKER_PAYMENT: &str = "erc20TakerPayment";
@@ -476,82 +473,22 @@ impl EthCoin {
             .taker_swap_v2_contract;
         let id =
             extract_id_from_tx_data(taker_payment.unsigned().data(), &TAKER_SWAP_V2, TAKER_PAYMENT_APPROVE).await?;
-        let mut tx_hash: Option<H256> = None;
-        // loop to find maker's spendTakerPayment transaction
-        loop {
-            let now = now_sec();
-            if now > wait_until {
-                return MmError::err(FindPaymentSpendError::Timeout { wait_until, now });
-            }
 
-            let current_block = match self.current_block().compat().await {
-                Ok(b) => b,
-                Err(e) => {
-                    error!("Error getting block number: {}", e);
-                    Timer::sleep(check_every).await;
-                    continue;
-                },
-            };
+        let params = SpendTxSearchParams {
+            swap_contract_address: taker_swap_v2_contract,
+            event_name: "TakerPaymentSpent",
+            abi_contract: &TAKER_SWAP_V2,
+            swap_id: &id,
+            from_block,
+            wait_until,
+            check_every,
+        };
+        let tx_hash = self.find_transaction_hash_by_event(params).await?;
 
-            // Skip retrieving events if tx_hash is already found
-            if tx_hash.is_none() {
-                let mut next_from_block = from_block;
-
-                while next_from_block <= current_block {
-                    let to_block = std::cmp::min(next_from_block + self.logs_block_range - 1, current_block);
-
-                    // Fetch TakerPaymentSpent events for the current block range
-                    let events = match self
-                        .events_from_block(
-                            taker_swap_v2_contract,
-                            "TakerPaymentSpent",
-                            next_from_block,
-                            Some(to_block),
-                            &TAKER_SWAP_V2,
-                        )
-                        .await
-                    {
-                        Ok(events) => events,
-                        Err(e) => {
-                            error!(
-                                "Error getting TakerPaymentSpent events from {} to {} block: {}",
-                                next_from_block, to_block, e
-                            );
-                            Timer::sleep(check_every).await;
-                            // Move to next window if there was an error
-                            next_from_block += self.logs_block_range;
-                            continue;
-                        },
-                    };
-
-                    // This is how spent event looks like in EtomicSwapTakerV2: event TakerPaymentSpent(bytes32 id, bytes32 secret).
-                    // Check if any event matches the ID.
-                    if let Some(found_event) = events.into_iter().find(|event| &event.data.0[..32] == id.as_slice()) {
-                        if let Some(hash) = found_event.transaction_hash {
-                            // Store tx_hash to skip fetching events in the next iteration if "eth_getTransactionByHash" is unsuccessful
-                            tx_hash = Some(hash);
-                            break;
-                        }
-                    }
-
-                    next_from_block += self.logs_block_range;
-                }
-            }
-
-            // Proceed to check transaction if we have a tx_hash
-            if let Some(tx_hash) = tx_hash {
-                match self.transaction(TransactionId::Hash(tx_hash)).await {
-                    Ok(Some(t)) => {
-                        let transaction = signed_tx_from_web3_tx(t).map_err(FindPaymentSpendError::Internal)?;
-                        return Ok(transaction);
-                    },
-                    Ok(None) => info!("spendTakerPayment transaction {} not found yet", tx_hash),
-                    Err(e) => error!("Get spendTakerPayment transaction {} error: {}", tx_hash, e),
-                };
-                Timer::sleep(check_every).await;
-                continue;
-            }
-        }
+        let spend_tx = self
+            .wait_for_spend_transaction(tx_hash, wait_until, check_every)
+            .await?;
+        Ok(spend_tx)
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract [ethTakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L44) method

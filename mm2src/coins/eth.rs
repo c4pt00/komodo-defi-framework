@@ -162,7 +162,7 @@ pub mod erc20;
 use erc20::get_token_decimals;
 
 pub(crate) mod eth_swap_v2;
-use eth_swap_v2::{extract_id_from_tx_data, EthPaymentType, PaymentMethod};
+use eth_swap_v2::{extract_id_from_tx_data, EthPaymentType, PaymentMethod, SpendTxSearchParams};
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852
@@ -2589,81 +2589,25 @@ impl MarketCoinOps for EthCoin {
 
         let id = try_tx_s!(extract_id_from_tx_data(tx.unsigned().data(), &SWAP_CONTRACT, &func_name).await);
 
-        let mut tx_hash: Option<H256> = None;
-        loop {
-            if now_sec() > args.wait_until {
-                return TX_PLAIN_ERR!(
-                    "Waited too long until {} for transaction {:?} to be spent ",
-                    args.wait_until,
-                    tx,
-                );
-            }
+        let find_params = SpendTxSearchParams {
+            swap_contract_address,
+            event_name: "ReceiverSpent",
+            abi_contract: &SWAP_CONTRACT,
+            swap_id: &id,
+            from_block: args.from_block,
+            wait_until: args.wait_until,
+            check_every: args.check_every,
+        };
+        let tx_hash = self
+            .find_transaction_hash_by_event(find_params)
+            .await
+            .map_err(|e| TransactionErr::Plain(e.get_inner().to_string()))?;
 
-            let current_block = match self.current_block().compat().await {
-                Ok(b) => b,
-                Err(e) => {
-                    error!("Error getting block number: {}", e);
-                    Timer::sleep(5.).await;
-                    continue;
-                },
-            };
-
-            if tx_hash.is_none() {
-                let mut next_from_block = args.from_block;
-
-                // Split the range into windows of size logs_block_range
-                while next_from_block <= current_block {
-                    let to_block = std::cmp::min(next_from_block + self.logs_block_range - 1, current_block);
-
-                    let events = match self
-                        .events_from_block(
-                            swap_contract_address,
-                            "ReceiverSpent",
-                            next_from_block,
-                            Some(to_block),
-                            &SWAP_CONTRACT,
-                        )
-                        .await
-                    {
-                        Ok(ev) => ev,
-                        Err(e) => {
-                            error!(
-                                "Error getting spend events from {} to {} block: {}",
-                                next_from_block, to_block, e
-                            );
-                            Timer::sleep(5.).await;
-                            next_from_block += self.logs_block_range;
-                            continue;
-                        },
-                    };
-
-                    // Check if any event matches the SWAP ID
-                    if let Some(found_event) = events.iter().find(|event| &event.data.0[..32] == id.as_slice()) {
-                        if let Some(hash) = found_event.transaction_hash {
-                            // Store tx_hash to skip fetching events in the next iteration if "eth_getTransactionByHash" is unsuccessful
-                            tx_hash = Some(hash);
-                            break;
-                        }
-                    }
-
-                    // Move to the next block range window
-                    next_from_block += self.logs_block_range;
-                }
-            }
-
-            // Proceed getting spend transaction if we have a tx_hash
-            if let Some(tx_hash) = tx_hash {
-                match self.transaction(TransactionId::Hash(tx_hash)).await {
-                    Ok(Some(t)) => {
-                        return Ok(TransactionEnum::from(try_tx_s!(signed_tx_from_web3_tx(t))));
-                    },
-                    Ok(None) => info!("Tx {} not found yet", tx_hash),
-                    Err(e) => error!("Get tx {} error: {}", tx_hash, e),
-                };
-                Timer::sleep(args.check_every).await;
-                continue;
-            }
-        }
+        let spend_tx = self
+            .wait_for_spend_transaction(tx_hash, args.wait_until, args.check_every)
+            .await
+            .map_err(|e| TransactionErr::Plain(e.get_inner().to_string()))?;
+        Ok(TransactionEnum::from(spend_tx))
     }
 
     fn tx_enum_from_bytes(&self, bytes: &[u8]) -> Result<TransactionEnum, MmError<TxMarshalingErr>> {

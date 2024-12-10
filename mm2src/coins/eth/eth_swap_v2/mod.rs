@@ -1,14 +1,18 @@
-use crate::eth::{decode_contract_call, EthCoin, EthCoinType, ParseCoinAssocTypes, Transaction, TransactionErr};
-use crate::FindPaymentSpendError;
+use crate::eth::{decode_contract_call, signed_tx_from_web3_tx, EthCoin, EthCoinType, ParseCoinAssocTypes, Transaction,
+                 TransactionErr};
+use crate::{FindPaymentSpendError, MarketCoinOps};
+use common::executor::Timer;
+use common::log::{error, info};
+use common::now_sec;
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Token};
 use ethcore_transaction::SignedTransaction as SignedEthTx;
-use ethereum_types::{Address, U256};
+use ethereum_types::{Address, H256, U256};
 use futures::compat::Future01CompatExt;
-use mm2_err_handle::mm_error::MmError;
+use mm2_err_handle::prelude::{MmError, MmResult};
 use mm2_number::BigDecimal;
 use num_traits::Signed;
-use web3::types::{BlockNumber, Transaction as Web3Tx};
+use web3::types::{BlockNumber, Transaction as Web3Tx, TransactionId};
 
 pub(crate) mod eth_maker_swap_v2;
 pub(crate) mod eth_taker_swap_v2;
@@ -116,6 +120,112 @@ impl EthCoin {
             EthCoinType::Nft { .. } => Err("NFT protocol is not supported for ETH and ERC20 Swaps".to_string()),
         }
     }
+
+    /// A helper function that scans blocks for a specific event containing the given `swap_id`,
+    /// returning transaction hash of spend transaction once found.
+    /// **NOTE:** The current function implementation assumes that `swap_id` is the first 32 bytes of the transaction input data.
+    pub(crate) async fn find_transaction_hash_by_event(
+        &self,
+        params: SpendTxSearchParams<'_>,
+    ) -> MmResult<H256, FindPaymentSpendError> {
+        loop {
+            let now = now_sec();
+            if now > params.wait_until {
+                return MmError::err(FindPaymentSpendError::Timeout {
+                    wait_until: params.wait_until,
+                    now,
+                });
+            }
+
+            let current_block = match self.current_block().compat().await {
+                Ok(b) => b,
+                Err(e) => {
+                    error!("Error getting block number: {}", e);
+                    Timer::sleep(params.check_every).await;
+                    continue;
+                },
+            };
+
+            let mut next_from_block = params.from_block;
+            while next_from_block <= current_block {
+                let to_block = std::cmp::min(next_from_block + self.logs_block_range - 1, current_block);
+
+                // Fetch events for the current block range
+                let events = match self
+                    .events_from_block(
+                        params.swap_contract_address,
+                        params.event_name,
+                        next_from_block,
+                        Some(to_block),
+                        params.abi_contract,
+                    )
+                    .await
+                {
+                    Ok(events) => events,
+                    Err(e) => {
+                        error!(
+                            "Error getting {} events from {} to {} block: {}",
+                            params.event_name, next_from_block, to_block, e
+                        );
+                        Timer::sleep(params.check_every).await;
+                        // Move to next window if there was an error
+                        next_from_block += self.logs_block_range;
+                        continue;
+                    },
+                };
+
+                // Check if any event matches the SWAP ID
+                if let Some(found_event) = events
+                    .into_iter()
+                    .find(|event| event.data.0.len() >= 32 && &event.data.0[..32] == params.swap_id)
+                {
+                    if let Some(hash) = found_event.transaction_hash {
+                        return Ok(hash);
+                    }
+                }
+
+                next_from_block += self.logs_block_range;
+            }
+
+            Timer::sleep(params.check_every).await;
+        }
+    }
+
+    /// Waits until the specified transaction is found by its hash or the given timeout is reached
+    pub(crate) async fn wait_for_spend_transaction(
+        &self,
+        tx_hash: H256,
+        wait_until: u64,
+        check_every: f64,
+    ) -> MmResult<SignedEthTx, FindPaymentSpendError> {
+        loop {
+            let now = now_sec();
+            if now > wait_until {
+                return MmError::err(FindPaymentSpendError::Timeout { wait_until, now });
+            }
+
+            match self.transaction(TransactionId::Hash(tx_hash)).await {
+                Ok(Some(t)) => {
+                    let transaction = signed_tx_from_web3_tx(t).map_err(FindPaymentSpendError::Internal)?;
+                    return Ok(transaction);
+                },
+                Ok(None) => info!("Transaction {} not found yet", tx_hash),
+                Err(e) => error!("Get transaction {} error: {}", tx_hash, e),
+            };
+
+            Timer::sleep(check_every).await;
+        }
+    }
+}
+
+pub(crate) struct SpendTxSearchParams<'a> {
+    pub(crate) swap_contract_address: Address,
+    pub(crate) event_name: &'a str,
+    pub(crate) abi_contract: &'a Contract,
+    pub(crate) swap_id: &'a [u8],
+    pub(crate) from_block: u64,
+    pub(crate) wait_until: u64,
+    pub(crate) check_every: f64,
 }
 
 pub(crate) fn validate_payment_state(
@@ -210,7 +320,7 @@ impl EthCoin {
     }
 }
 
-pub async fn extract_id_from_tx_data(
+pub(crate) async fn extract_id_from_tx_data(
     tx_data: &[u8],
     abi_contract: &Contract,
     func_name: &str,
