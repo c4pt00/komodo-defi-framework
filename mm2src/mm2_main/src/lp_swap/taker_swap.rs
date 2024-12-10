@@ -1506,6 +1506,14 @@ impl TakerSwap {
         }
     }
 
+    /// Sets up the watcher reward for the taker's payment in the swap.
+    ///
+    /// The reward mainly serves as compensation to watchers for the mining fees
+    /// paid to execute the transactions.
+    ///
+    /// The reward configuration depends on the specific requirements of the coins
+    /// involved in the swap.
+    /// Some coins may not support watcher rewards at all.
     async fn setup_watcher_reward(&self, taker_payment_lock: u64) -> Result<Option<WatcherReward>, String> {
         if !self.r().watcher_reward {
             return Ok(None);
@@ -1525,6 +1533,13 @@ impl TakerSwap {
             .map_err(|err| ERRL!("Watcher reward error: {}", err.to_string()))
     }
 
+    /// Processes watcher-related logic for the swap by preparing and broadcasting necessary data.
+    ///
+    /// This function creates spend/refund preimages and broadcasts them to watchers if both coins
+    /// support watcher functionality and watchers are enabled.
+    ///
+    /// The preimages allow watchers to either complete the swap by spending the maker payment
+    /// or refund the taker payment if needed.
     async fn process_watcher_logic(&self, transaction: &TransactionEnum) -> Option<TakerSwapEvent> {
         let watchers_enabled_and_supported = self.ctx.use_watchers()
             && self.taker_coin.is_supported_by_watchers()

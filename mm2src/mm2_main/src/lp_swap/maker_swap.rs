@@ -793,6 +793,14 @@ impl MakerSwap {
         Ok((Some(MakerSwapCommand::SendPayment), swap_events))
     }
 
+    /// Sets up the watcher reward for the maker's payment in the swap.
+    ///
+    /// The reward mainly serves as compensation to watchers for the mining fees
+    /// paid to execute the transactions.
+    ///
+    /// The reward configuration depends on the specific requirements of the coins
+    /// involved in the swap.
+    /// Some coins may not support watcher rewards at all.
     async fn setup_maker_watcher_reward(&self, wait_maker_payment_until: u64) -> Result<Option<WatcherReward>, String> {
         if !self.r().watcher_reward {
             return Ok(None);
