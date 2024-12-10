@@ -1,5 +1,5 @@
-use super::{check_decoded_length, validate_amount, validate_from_to_and_status, validate_payment_state,
-            EthPaymentType, PaymentMethod, PrepareTxDataError, ZERO_VALUE};
+use super::{check_decoded_length, extract_id_from_tx_data, validate_amount, validate_from_to_and_status,
+            validate_payment_state, EthPaymentType, PaymentMethod, PrepareTxDataError, ZERO_VALUE};
 use crate::eth::{decode_contract_call, get_function_input_data, signed_tx_from_web3_tx, wei_from_big_decimal, EthCoin,
                  EthCoinType, ParseCoinAssocTypes, RefundFundingSecretArgs, RefundTakerPaymentArgs,
                  SendTakerFundingArgs, SignedEthTx, SwapTxTypeWithSecretHash, TakerPaymentStateV2, TransactionErr,
@@ -474,17 +474,8 @@ impl EthCoin {
                 FindPaymentSpendError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
             })?
             .taker_swap_v2_contract;
-        let approve_func = TAKER_SWAP_V2.function(TAKER_PAYMENT_APPROVE)?;
-        let decoded = decode_contract_call(approve_func, taker_payment.unsigned().data())?;
-        let id = match decoded.first() {
-            Some(Token::FixedBytes(bytes)) => bytes,
-            invalid_token => {
-                return MmError::err(FindPaymentSpendError::InvalidData(format!(
-                    "Expected Token::FixedBytes, got {:?}",
-                    invalid_token
-                )))
-            },
-        };
+        let id =
+            extract_id_from_tx_data(taker_payment.unsigned().data(), &TAKER_SWAP_V2, TAKER_PAYMENT_APPROVE).await?;
         let mut tx_hash: Option<H256> = None;
         // loop to find maker's spendTakerPayment transaction
         loop {

@@ -162,7 +162,7 @@ pub mod erc20;
 use erc20::get_token_decimals;
 
 pub(crate) mod eth_swap_v2;
-use eth_swap_v2::{EthPaymentType, PaymentMethod};
+use eth_swap_v2::{extract_id_from_tx_data, EthPaymentType, PaymentMethod};
 
 /// https://github.com/artemii235/etomic-swap/blob/master/contracts/EtomicSwap.sol
 /// Dev chain (195.201.137.5:8565) contract address: 0x83965C539899cC0F918552e5A26915de40ee8852
@@ -2587,17 +2587,7 @@ impl MarketCoinOps for EthCoin {
             },
         };
 
-        let payment_func = try_tx_s!(SWAP_CONTRACT.function(&func_name));
-        let decoded = try_tx_s!(decode_contract_call(payment_func, tx.unsigned().data()));
-        let id = match decoded.first() {
-            Some(Token::FixedBytes(bytes)) => bytes.clone(),
-            invalid_token => {
-                return Err(TransactionErr::Plain(ERRL!(
-                    "Expected Token::FixedBytes, got {:?}",
-                    invalid_token
-                )))
-            },
-        };
+        let id = try_tx_s!(extract_id_from_tx_data(tx.unsigned().data(), &SWAP_CONTRACT, &func_name).await);
 
         let mut tx_hash: Option<H256> = None;
         loop {

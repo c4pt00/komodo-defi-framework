@@ -1,4 +1,5 @@
-use crate::eth::{EthCoin, EthCoinType, ParseCoinAssocTypes, Transaction, TransactionErr};
+use crate::eth::{decode_contract_call, EthCoin, EthCoinType, ParseCoinAssocTypes, Transaction, TransactionErr};
+use crate::FindPaymentSpendError;
 use enum_derives::EnumFromStringify;
 use ethabi::{Contract, Token};
 use ethcore_transaction::SignedTransaction as SignedEthTx;
@@ -206,5 +207,21 @@ impl EthCoin {
                 })?;
         }
         Ok(())
+    }
+}
+
+pub async fn extract_id_from_tx_data(
+    tx_data: &[u8],
+    abi_contract: &Contract,
+    func_name: &str,
+) -> Result<Vec<u8>, FindPaymentSpendError> {
+    let func = abi_contract.function(func_name)?;
+    let decoded = decode_contract_call(func, tx_data)?;
+    match decoded.first() {
+        Some(Token::FixedBytes(bytes)) => Ok(bytes.clone()),
+        invalid_token => Err(FindPaymentSpendError::InvalidData(format!(
+            "Expected Token::FixedBytes, got {:?}",
+            invalid_token
+        ))),
     }
 }
