@@ -3576,14 +3576,7 @@ impl MmCoinEnum {
 
     fn is_platform_coin(&self) -> bool { self.ticker() == self.platform_ticker() }
 
-    pub fn maker_secret_hash_algo_v2(&self) -> SecretHashAlgo {
-        match self {
-            MmCoinEnum::EthCoin(_) => SecretHashAlgo::SHA256,
-            _ => SecretHashAlgo::DHASH160,
-        }
-    }
-
-    pub fn taker_secret_hash_algo_v2(&self) -> SecretHashAlgo {
+    pub fn secret_hash_algo_v2(&self) -> SecretHashAlgo {
         match self {
             MmCoinEnum::EthCoin(_) => SecretHashAlgo::SHA256,
             _ => SecretHashAlgo::DHASH160,

@@ -3,7 +3,7 @@ use derive_more::Display;
 use std::convert::TryFrom;
 
 /// Algorithm used to hash swap secret.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub enum SecretHashAlgo {
     /// ripemd160(sha256(secret))
     #[default]

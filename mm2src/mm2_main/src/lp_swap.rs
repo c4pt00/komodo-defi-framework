@@ -1648,13 +1648,11 @@ pub fn detect_secret_hash_algo(maker_coin: &MmCoinEnum, taker_coin: &MmCoinEnum)
     }
 }
 
+/// Determines the secret hash algorithm for TPU, prioritizing SHA256 if either coin supports it.
 pub fn detect_secret_hash_algo_v2(maker_coin: &MmCoinEnum, taker_coin: &MmCoinEnum) -> SecretHashAlgo {
-    let maker_algo = maker_coin.maker_secret_hash_algo_v2();
-    let taker_algo = taker_coin.taker_secret_hash_algo_v2();
-    if matches!(
-        (maker_algo, taker_algo),
-        (SecretHashAlgo::SHA256, _) | (_, SecretHashAlgo::SHA256)
-    ) {
+    let maker_algo = maker_coin.secret_hash_algo_v2();
+    let taker_algo = taker_coin.secret_hash_algo_v2();
+    if maker_algo == SecretHashAlgo::SHA256 || taker_algo == SecretHashAlgo::SHA256 {
         SecretHashAlgo::SHA256
     } else {
         SecretHashAlgo::DHASH160
