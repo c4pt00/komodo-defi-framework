@@ -195,7 +195,7 @@ pub async fn z_p2sh_spend(
     // and saving them to the wallet database for future spends
     store_change_output(coin.consensus_params_ref(), &coin.z_fields.light_wallet_db, &zcash_tx)
         .await
-        .mm_err(|err| ZP2SHSpendError::GenTxError(GenTxError::Internal(err)))?;
+        .mm_err(|err| ZP2SHSpendError::GenTxError(GenTxError::SaveChangeNotesError(err)))?;
 
     coin.utxo_rpc_client()
         .send_raw_transaction(tx_buffer.into())
