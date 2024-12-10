@@ -480,7 +480,7 @@ impl ZCoin {
         // and saving them to the wallet database for future spends
         store_change_output(self.consensus_params_ref(), &self.z_fields.light_wallet_db, &tx)
             .await
-            .mm_err(GenTxError::SaveChangeNotesError)?;
+            .map_to_mm(GenTxError::SaveChangeNotesError)?;
 
         let additional_data = AdditionalTxData {
             received_by_me,

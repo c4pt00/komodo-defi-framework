@@ -5,7 +5,6 @@ pub use blockdb::*;
 
 pub mod walletdb;
 #[cfg(target_arch = "wasm32")] mod z_params;
-use mm2_err_handle::prelude::MapToMmResult;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use z_params::ZcashParamsWasmImpl;
 
@@ -202,11 +201,9 @@ pub(crate) async fn store_change_output(
     params: &ZcoinConsensusParams,
     shared_db: &WalletDbShared,
     tx: &Transaction,
-) -> MmResult<(), String> {
-    let mut data = shared_db.db.get_update_ops().map_to_mm(|err| err.to_string())?;
-    decrypt_and_store_transaction(params, &mut data, tx)
-        .await
-        .map_to_mm(|err| err.to_string())?;
+) -> Result<(), String> {
+    let mut data = try_s!(shared_db.db.get_update_ops());
+    try_s!(decrypt_and_store_transaction(params, &mut data, tx).await);
 
     Ok(())
 }
