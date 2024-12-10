@@ -7,15 +7,16 @@ mod metadata;
 pub mod session;
 mod storage;
 
+use crate::connection_handler::{handle_disconnections, MAX_BACKOFF};
 use crate::session::rpc::propose::send_proposal_request;
 
 use chain::{WcChainId, WcRequestMethods, SUPPORTED_PROTOCOL};
 use common::custom_futures::timeout::FutureTimerExt;
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{AbortableSystem, Timer};
-use common::log::{debug, info};
+use common::log::{debug, info, LogOnError};
 use common::{executor::SpawnFuture, log::error};
-use connection_handler::{spawn_connection_initialization, Handler};
+use connection_handler::Handler;
 use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
@@ -120,10 +121,11 @@ impl WalletConnectCtx {
         });
 
         // Connect to relayer client and spawn a watcher loop for disconnection.
+        let inner_clone = inner.clone();
         inner
             .abortable_system
             .weak_spawner()
-            .spawn(spawn_connection_initialization(inner.clone(), conn_live_receiver));
+            .spawn(inner_clone.spawn_connection_initialization(conn_live_receiver));
         // spawn message handler event loop
         let inner_clone = inner.clone();
         inner_clone.abortable_system.weak_spawner().spawn(async move {
@@ -146,6 +148,43 @@ impl WalletConnectCtx {
 }
 
 impl WalletConnectCtxImpl {
+    /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
+    /// Uses increasing delay between retry attempts starting from 1sec.
+    /// After successful connection, attempts to restore previous session state from storage.
+    pub(crate) async fn spawn_connection_initialization(
+        self: Arc<Self>,
+        connection_live_rx: UnboundedReceiver<Option<String>>,
+    ) {
+        info!("Initializing WalletConnect connection");
+        let mut retry_count = 0;
+        let mut retry_secs = 1;
+
+        while let Err(err) = self.connect_client().await {
+            retry_count += 1;
+            error!(
+                "Error during initial connection attempt {}: {:?}. Retrying in {retry_secs} seconds...",
+                retry_count, err
+            );
+            Timer::sleep(retry_secs as f64).await;
+            retry_secs = std::cmp::min(retry_secs * 2, MAX_BACKOFF);
+        }
+
+        // Initialize storage
+        if let Err(err) = self.session_manager.storage().init().await {
+            error!("Failed to initialize WalletConnect storage, shutting down: {err:?}");
+            self.abortable_system.abort_all().error_log();
+        };
+
+        // load session from storage
+        if let Err(err) = self.load_session_from_storage().await {
+            error!("Failed to load sessions from storage, shutting down: {err:?}");
+            self.abortable_system.abort_all().error_log();
+        };
+
+        // Spawn session disconnection watcher.
+        handle_disconnections(&self, connection_live_rx).await;
+    }
+
     pub async fn connect_client(&self) -> MmResult<(), WalletConnectError> {
         let auth = {
             let key = SigningKey::generate(&mut rand::thread_rng());

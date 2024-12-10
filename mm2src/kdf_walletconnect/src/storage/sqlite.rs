@@ -21,7 +21,7 @@ fn create_sessions_table() -> SqlResult<String> {
     validate_table_name(SESSION_TABLE_NAME)?;
     Ok(format!(
         "CREATE TABLE IF NOT EXISTS {SESSION_TABLE_NAME} (
-        topic VARCHAR(255) PRIMARY KEY,
+        topic char(32) PRIMARY KEY,
         data TEXT NOT NULL,
         expiry BIGINT NOT NULL
     );"

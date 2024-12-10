@@ -1,4 +1,3 @@
-use crate::storage::WalletConnectStorageOps;
 use crate::WalletConnectCtxImpl;
 
 use common::executor::Timer;
@@ -7,9 +6,8 @@ use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures::StreamExt;
 use relay_client::error::ClientError;
 use relay_client::websocket::{CloseFrame, ConnectionHandler, PublishedMessage};
-use std::sync::Arc;
 
-const MAX_BACKOFF: u64 = 60;
+pub(crate) const MAX_BACKOFF: u64 = 60;
 
 pub struct Handler {
     name: &'static str,
@@ -68,41 +66,6 @@ impl ConnectionHandler for Handler {
             error!("[{}] failed to send to the receiver: {e}", self.name);
         }
     }
-}
-
-/// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
-/// Uses increasing delay between retry attempts starting from [RETRY_SECS].
-/// After successful connection, attempts to restore previous session state from storage.
-pub(crate) async fn spawn_connection_initialization(
-    wc: Arc<WalletConnectCtxImpl>,
-    connection_live_rx: UnboundedReceiver<Option<String>>,
-) {
-    info!("Initializing WalletConnect connection");
-    let mut retry_count = 0;
-    let mut retry_secs = 10;
-
-    while let Err(err) = wc.connect_client().await {
-        retry_count += 1;
-        error!(
-            "Error during initial connection attempt {}: {:?}. Retrying in {retry_secs} seconds...",
-            retry_count, err
-        );
-        Timer::sleep(retry_secs as f64).await;
-        retry_secs = std::cmp::min(retry_secs * 2, MAX_BACKOFF);
-    }
-
-    // Initialize storage
-    if let Err(err) = wc.session_manager.storage().init().await {
-        error!("Unable to initialize WalletConnect persistent storage: {err:?}. Only inmemory storage will be utilized for this Session.");
-    };
-
-    // load session from storage
-    if let Err(err) = wc.load_session_from_storage().await {
-        panic!("Unable to load session from storage: {err:?}");
-    };
-
-    // Spawn session disconnection watcher.
-    handle_disconnections(&wc, connection_live_rx).await;
 }
 
 /// Handles unexpected disconnections from WalletConnect relay server.

@@ -27,9 +27,7 @@ pub(crate) async fn reply_pairing_extend_response(
     message_id: &MessageId,
     extend: PairingExtendRequest,
 ) -> MmResult<(), WalletConnectError> {
-    {
-        ctx.pairing.activate(topic)?;
-    }
+    ctx.pairing.activate(topic)?;
     let param = ResponseParamsSuccess::PairingExtend(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
 
@@ -42,10 +40,7 @@ pub(crate) async fn reply_pairing_delete_response(
     message_id: &MessageId,
     _delete: PairingDeleteRequest,
 ) -> MmResult<(), WalletConnectError> {
-    {
-        ctx.pairing.disconnect_rpc(topic, &ctx.client).await?;
-    }
-
+    ctx.pairing.disconnect_rpc(topic, &ctx.client).await?;
     let param = ResponseParamsSuccess::PairingDelete(true);
     ctx.publish_response_ok(topic, param, message_id).await?;
 
