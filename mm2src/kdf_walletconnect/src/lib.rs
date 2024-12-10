@@ -22,7 +22,7 @@ use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use inbound_message::{process_inbound_request, process_inbound_response, SessionMessageType};
-use metadata::{generate_metadata, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
+use metadata::{generate_metadata, AUTH_TOKEN_DURATION, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
@@ -109,7 +109,7 @@ impl WalletConnectCtx {
             |r, h| abortable_system.weak_spawner().spawn(client_event_loop(r, h)),
         );
 
-        let inner = Arc::new(WalletConnectCtxImpl {
+        let context = Arc::new(WalletConnectCtxImpl {
             client,
             pairing,
             relay,
@@ -121,22 +121,23 @@ impl WalletConnectCtx {
         });
 
         // Connect to relayer client and spawn a watcher loop for disconnection.
-        let inner_clone = inner.clone();
-        inner
+        context
             .abortable_system
             .weak_spawner()
-            .spawn(inner_clone.spawn_connection_initialization(conn_live_receiver));
+            .spawn(context.clone().spawn_connection_initialization(conn_live_receiver));
         // spawn message handler event loop
-        let inner_clone = inner.clone();
-        inner_clone.abortable_system.weak_spawner().spawn(async move {
-            while let Some(msg) = inbound_message_rx.next().await {
-                if let Err(e) = inner_clone.handle_published_message(msg, message_tx.clone()).await {
-                    debug!("Error processing message: {:?}", e);
+        context.abortable_system.weak_spawner().spawn({
+            let context = context.clone();
+            async move {
+                while let Some(msg) = inbound_message_rx.next().await {
+                    if let Err(e) = context.handle_published_message(msg, message_tx.clone()).await {
+                        error!("Error processing message: {:?}", e);
+                    }
                 }
             }
         });
 
-        Ok(Self(inner))
+        Ok(Self(context))
     }
 
     pub fn from_ctx(ctx: &MmArc) -> MmResult<Arc<WalletConnectCtx>, WalletConnectError> {
@@ -149,7 +150,7 @@ impl WalletConnectCtx {
 
 impl WalletConnectCtxImpl {
     /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
-    /// Uses increasing delay between retry attempts starting from 1sec.
+    /// Uses increasing delay between retry attempts starting from 1sec and increase exponentially.
     /// After successful connection, attempts to restore previous session state from storage.
     pub(crate) async fn spawn_connection_initialization(
         self: Arc<Self>,
@@ -159,6 +160,7 @@ impl WalletConnectCtxImpl {
         let mut retry_count = 0;
         let mut retry_secs = 1;
 
+        // Connect to WalletConnect relay client(retry until successful) before proceeeding with other initializations.
         while let Err(err) = self.connect_client().await {
             retry_count += 1;
             error!(
@@ -190,7 +192,7 @@ impl WalletConnectCtxImpl {
             let key = SigningKey::generate(&mut rand::thread_rng());
             AuthToken::new(AUTH_TOKEN_SUB)
                 .aud(RELAY_ADDRESS)
-                .ttl(Duration::from_secs(5 * 60 * 60))
+                .ttl(AUTH_TOKEN_DURATION)
                 .as_jwt(&key)
                 .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?
         };
