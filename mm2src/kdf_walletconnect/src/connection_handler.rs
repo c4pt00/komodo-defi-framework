@@ -82,7 +82,7 @@ pub(crate) async fn handle_disconnections(
         loop {
             match this.reconnect_and_subscribe().await {
                 Ok(_) => {
-                    error!("Reconnection process complete.");
+                    info!("Reconnection process complete.");
                     backoff = 1;
                     break;
                 },

@@ -90,6 +90,8 @@ pub enum WalletConnectError {
     InvalidChainId(String),
     #[error("ChainId not supported: {0}")]
     ChainIdNotSupported(String),
+    #[error("Request timeout error")]
+    TimeoutError,
 }
 
 impl From<Error<PublishError>> for WalletConnectError {

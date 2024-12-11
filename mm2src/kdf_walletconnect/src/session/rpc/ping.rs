@@ -5,6 +5,7 @@ use crate::{error::WalletConnectError, WalletConnectCtxImpl};
 use common::custom_futures::timeout::FutureTimerExt;
 use futures::StreamExt;
 use mm2_err_handle::prelude::*;
+use relay_client::MessageIdGenerator;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{RelayProtocolMetadata, RequestParams, ResponseParamsSuccess}};
 
@@ -22,7 +23,8 @@ pub(crate) async fn reply_session_ping_request(
 pub async fn send_session_ping_request(ctx: &WalletConnectCtxImpl, topic: &Topic) -> MmResult<(), WalletConnectError> {
     let param = RequestParams::SessionPing(());
     let ttl = param.irn_metadata().ttl;
-    ctx.publish_request(topic, param).await?;
+    let message_id = MessageIdGenerator::new().next();
+    ctx.publish_request(topic, param, message_id).await?;
 
     let wait_duration = Duration::from_secs(ttl);
     if let Ok(Some(resp)) = ctx.message_rx.lock().await.next().timeout(wait_duration).await {

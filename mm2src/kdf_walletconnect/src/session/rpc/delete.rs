@@ -4,6 +4,7 @@ use crate::{error::{WalletConnectError, USER_REQUESTED},
 
 use common::log::debug;
 use mm2_err_handle::prelude::{MapMmError, MmResult};
+use relay_client::MessageIdGenerator;
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::params::{session_delete::SessionDeleteRequest, RequestParams, ResponseParamsSuccess};
 
@@ -28,8 +29,9 @@ pub(crate) async fn send_session_delete_request(
         message: "User Disconnected".to_owned(),
     };
     let param = RequestParams::SessionDelete(delete_request);
+    let message_id = MessageIdGenerator::new().next();
 
-    ctx.publish_request(session_topic, param).await?;
+    ctx.publish_request(session_topic, param, message_id).await?;
 
     session_delete_cleanup(ctx, session_topic).await
 }

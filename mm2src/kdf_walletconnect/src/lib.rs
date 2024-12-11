@@ -344,9 +344,9 @@ impl WalletConnectCtxImpl {
         &self,
         topic: &Topic,
         param: RequestParams,
+        message_id: MessageId,
     ) -> MmResult<(), WalletConnectError> {
         let irn_metadata = param.irn_metadata();
-        let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
 
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
@@ -463,6 +463,7 @@ impl WalletConnectCtxImpl {
         session: &Session,
         chain_id: &WcChainId,
     ) -> MmResult<(), WalletConnectError> {
+        println!("{:?}", session.namespaces.get(chain_id.chain.as_ref()));
         if let Some(Namespace {
             chains: Some(chains), ..
         }) = session.namespaces.get(chain_id.chain.as_ref())
@@ -581,21 +582,41 @@ impl WalletConnectCtxImpl {
         };
         let request = RequestParams::SessionRequest(request);
         let ttl = request.irn_metadata().ttl;
-        self.publish_request(&active_topic, request).await?;
+        let message_id = MessageIdGenerator::new().next();
+        self.publish_request(&active_topic, request, message_id).await?;
 
-        if let Ok(Some(resp)) = timeout(Duration::from_secs(ttl), async {
-            self.message_rx.lock().await.next().await
+        match timeout(Duration::from_secs(ttl), async {
+            // Check if the message exists and matches the expected message ID and
+            // wait till we get a message with expected id or timeout.
+            loop {
+                let next_message = {
+                    let mut lock = self.message_rx.lock().await;
+                    lock.next().await
+                };
+
+                if let Some(Ok(message)) = &next_message {
+                    if message.message_id == message_id {
+                        return next_message;
+                    }
+                }
+            }
         })
         .await
         {
-            let result = resp.mm_err(WalletConnectError::InternalError)?;
-            if let ResponseParamsSuccess::Arbitrary(data) = result.data {
-                let data = serde_json::from_value::<T>(data)?;
-                return callback(data);
-            }
+            Ok(Some(result)) => {
+                let result = result.mm_err(WalletConnectError::InternalError);
+                match result?.data {
+                    ResponseParamsSuccess::Arbitrary(data) => {
+                        let data = serde_json::from_value::<T>(data)
+                            .map_err(|e| WalletConnectError::SerdeError(e.to_string()))?;
+                        callback(data)
+                    },
+                    _ => MmError::err(WalletConnectError::PayloadError("Unexpected response type".to_string())),
+                }
+            },
+            Ok(None) => MmError::err(WalletConnectError::NoWalletFeedback),
+            Err(_) => MmError::err(WalletConnectError::TimeoutError),
         }
-
-        MmError::err(WalletConnectError::NoWalletFeedback)
     }
 
     pub async fn drop_session(&self, topic: &Topic) -> MmResult<(), WalletConnectError> {
