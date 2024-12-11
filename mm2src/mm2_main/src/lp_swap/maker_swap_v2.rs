@@ -404,7 +404,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
     fn maker_payment_locktime(&self) -> u64 { self.started_at + 2 * self.lock_duration }
 
     #[inline]
-    fn spend_taker_payment_conf_timeout(&self) -> u64 { self.started_at + 3 * self.lock_duration }
+    fn taker_payment_spend_conf_timeout(&self) -> u64 { self.started_at + 3 * self.lock_duration }
 
     /// Returns secret hash generated using selected [SecretHashAlgo].
     fn secret_hash(&self) -> Vec<u8> {
@@ -1780,7 +1780,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 payment_tx: self.taker_payment_spend.tx_hex(),
                 confirmations: state_machine.conf_settings.taker_coin_confs,
                 requires_nota: state_machine.conf_settings.taker_coin_nota,
-                wait_until: state_machine.spend_taker_payment_conf_timeout(),
+                wait_until: state_machine.taker_payment_spend_conf_timeout(),
                 check_every: 10,
             };
 
