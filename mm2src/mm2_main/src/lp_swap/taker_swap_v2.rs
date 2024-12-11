@@ -1585,7 +1585,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             };
 
             info!(
-                "Sent taker funding spend (taker payment spend) {} tx {:02x} during swap {}",
+                "Sent taker payment {} tx {:02x} during swap {}",
                 state_machine.taker_coin.ticker(),
                 taker_payment.tx_hash_as_bytes(),
                 state_machine.uuid
@@ -2021,7 +2021,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
         };
 
         info!(
-            "Sent taker funding spend (taker payment spend) {} tx {:02x} during swap {}",
+            "Sent taker payment {} tx {:02x} during swap {}",
             state_machine.taker_coin.ticker(),
             taker_payment.tx_hash_as_bytes(),
             state_machine.uuid
