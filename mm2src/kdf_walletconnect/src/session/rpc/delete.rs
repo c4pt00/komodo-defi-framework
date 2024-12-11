@@ -2,9 +2,9 @@ use crate::{error::{WalletConnectError, USER_REQUESTED},
             storage::WalletConnectStorageOps,
             WalletConnectCtxImpl};
 
-use common::log::debug;
+use common::{custom_futures::timeout::FutureTimerExt, log::debug};
+use mm2_err_handle::map_to_mm::MapToMmResult;
 use mm2_err_handle::prelude::{MapMmError, MmResult};
-use relay_client::MessageIdGenerator;
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::params::{session_delete::SessionDeleteRequest, RequestParams, ResponseParamsSuccess};
 
@@ -29,9 +29,12 @@ pub(crate) async fn send_session_delete_request(
         message: "User Disconnected".to_owned(),
     };
     let param = RequestParams::SessionDelete(delete_request);
-    let message_id = MessageIdGenerator::new().next();
+    let (rx, ttl) = ctx.publish_request(session_topic, param).await?;
 
-    ctx.publish_request(session_topic, param, message_id).await?;
+    rx.timeout(ttl)
+        .await
+        .map_to_mm(|_| WalletConnectError::TimeoutError)?
+        .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))??;
 
     session_delete_cleanup(ctx, session_topic).await
 }

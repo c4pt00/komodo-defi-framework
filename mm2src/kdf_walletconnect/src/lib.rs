@@ -18,7 +18,7 @@ use common::log::{debug, info, LogOnError};
 use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
 use error::WalletConnectError;
-use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::lock::Mutex;
 use futures::StreamExt;
 use inbound_message::{process_inbound_request, process_inbound_response, SessionMessageType};
@@ -39,12 +39,12 @@ use serde::de::DeserializeOwned;
 use session::rpc::delete::send_session_delete_request;
 use session::Session;
 use session::{key::SymKeyPair, SessionManager};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::Deref;
 use std::{sync::Arc, time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
-use tokio::time::timeout;
+use tokio::sync::oneshot;
 use wc_common::{decode_and_decrypt_type0, encrypt_and_encode, EnvelopeType, SymKey};
 
 const PUBLISH_TIMEOUT_SECS: f64 = 6.;
@@ -79,7 +79,7 @@ pub struct WalletConnectCtxImpl {
     pub(crate) key_pair: SymKeyPair,
     relay: Relay,
     metadata: Metadata,
-    message_rx: Mutex<UnboundedReceiver<SessionMessageType>>,
+    pending_requests: Mutex<HashMap<MessageId, oneshot::Sender<SessionMessageType>>>,
     abortable_system: AbortableQueue,
 }
 
@@ -103,7 +103,6 @@ impl WalletConnectCtx {
         };
         let (inbound_message_tx, mut inbound_message_rx) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
-        let (message_tx, message_rx) = unbounded();
         let (client, _) = Client::new_with_callback(
             Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
             |r, h| abortable_system.weak_spawner().spawn(client_event_loop(r, h)),
@@ -116,7 +115,7 @@ impl WalletConnectCtx {
             metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             session_manager: SessionManager::new(storage),
-            message_rx: message_rx.into(),
+            pending_requests: Default::default(),
             abortable_system,
         });
 
@@ -130,7 +129,7 @@ impl WalletConnectCtx {
             let context = context.clone();
             async move {
                 while let Some(msg) = inbound_message_rx.next().await {
-                    if let Err(e) = context.handle_published_message(msg, message_tx.clone()).await {
+                    if let Err(e) = context.handle_published_message(msg).await {
                         error!("Error processing message: {:?}", e);
                     }
                 }
@@ -272,11 +271,7 @@ impl WalletConnectCtxImpl {
     }
 
     /// Handles an inbound published message by decrypting, decoding, and processing it.
-    async fn handle_published_message(
-        &self,
-        msg: PublishedMessage,
-        message_tx: UnboundedSender<SessionMessageType>,
-    ) -> MmResult<(), WalletConnectError> {
+    async fn handle_published_message(&self, msg: PublishedMessage) -> MmResult<(), WalletConnectError> {
         let message = {
             let key = self.sym_key(&msg.topic)?;
             decode_and_decrypt_type0(msg.message.as_bytes(), &key)?
@@ -286,7 +281,7 @@ impl WalletConnectCtxImpl {
 
         match serde_json::from_str(&message)? {
             Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
-            Payload::Response(response) => process_inbound_response(self, response, &msg.topic, message_tx).await,
+            Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await,
         }
 
         info!("[{}] Inbound message was handled successfully", msg.topic);
@@ -333,6 +328,7 @@ impl WalletConnectCtxImpl {
             .collect::<Vec<_>>();
 
         if !all_topics.is_empty() {
+            println!("SUBBING: {all_topics:?}");
             self.client.batch_subscribe(all_topics).await?;
         }
 
@@ -344,13 +340,20 @@ impl WalletConnectCtxImpl {
         &self,
         topic: &Topic,
         param: RequestParams,
-        message_id: MessageId,
-    ) -> MmResult<(), WalletConnectError> {
+    ) -> MmResult<(oneshot::Receiver<SessionMessageType>, Duration), WalletConnectError> {
         let irn_metadata = param.irn_metadata();
+        let ttl = irn_metadata.ttl;
+        let message_id = MessageIdGenerator::new().next();
         let request = Request::new(message_id, param.into());
 
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
-            .await
+            .await?;
+
+        let (tx, rx) = oneshot::channel();
+        let mut pending_requests = self.pending_requests.lock().await;
+        pending_requests.insert(message_id, tx);
+
+        Ok((rx, Duration::from_secs(ttl)))
     }
 
     /// Private function to publish a success request response.
@@ -581,41 +584,16 @@ impl WalletConnectCtxImpl {
             },
         };
         let request = RequestParams::SessionRequest(request);
-        let ttl = request.irn_metadata().ttl;
-        let message_id = MessageIdGenerator::new().next();
-        self.publish_request(&active_topic, request, message_id).await?;
+        let (rx, ttl) = self.publish_request(&active_topic, request).await?;
 
-        match timeout(Duration::from_secs(ttl), async {
-            // Check if the message exists and matches the expected message ID and
-            // wait till we get a message with expected id or timeout.
-            loop {
-                let next_message = {
-                    let mut lock = self.message_rx.lock().await;
-                    lock.next().await
-                };
-
-                if let Some(Ok(message)) = &next_message {
-                    if message.message_id == message_id {
-                        return next_message;
-                    }
-                }
-            }
-        })
-        .await
-        {
-            Ok(Some(result)) => {
-                let result = result.mm_err(WalletConnectError::InternalError);
-                match result?.data {
-                    ResponseParamsSuccess::Arbitrary(data) => {
-                        let data = serde_json::from_value::<T>(data)
-                            .map_err(|e| WalletConnectError::SerdeError(e.to_string()))?;
-                        callback(data)
-                    },
-                    _ => MmError::err(WalletConnectError::PayloadError("Unexpected response type".to_string())),
-                }
-            },
-            Ok(None) => MmError::err(WalletConnectError::NoWalletFeedback),
-            Err(_) => MmError::err(WalletConnectError::TimeoutError),
+        let maybe_response = rx
+            .timeout(ttl)
+            .await
+            .map_to_mm(|_| WalletConnectError::TimeoutError)?
+            .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))??;
+        match maybe_response.data {
+            ResponseParamsSuccess::Arbitrary(data) => callback(serde_json::from_value::<T>(data)?),
+            _ => MmError::err(WalletConnectError::PayloadError("Unexpected response type".to_string())),
         }
     }
 

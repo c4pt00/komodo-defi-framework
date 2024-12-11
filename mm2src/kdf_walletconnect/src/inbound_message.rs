@@ -9,13 +9,12 @@ use crate::{error::WalletConnectError,
                            update::reply_session_update_request},
             WalletConnectCtxImpl};
 
-use common::log::{info, LogOnError};
-use futures::{channel::mpsc::UnboundedSender, sink::SinkExt};
-use mm2_err_handle::prelude::{MmError, MmResult};
+use common::log::info;
+use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
 
-pub(crate) type SessionMessageType = MmResult<SessionMessage, String>;
+pub(crate) type SessionMessageType = MmResult<SessionMessage, WalletConnectError>;
 
 #[derive(Debug)]
 pub struct SessionMessage {
@@ -61,31 +60,31 @@ pub(crate) async fn process_inbound_request(
 /// Processes an inbound WalletConnect response and sends the result to the provided message channel.
 ///
 /// Handles successful responses, errors, and specific session proposal processing.
-pub(crate) async fn process_inbound_response(
-    ctx: &WalletConnectCtxImpl,
-    response: Response,
-    topic: &Topic,
-    mut message_tx: UnboundedSender<SessionMessageType>,
-) {
+pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtxImpl, response: Response, topic: &Topic) {
     let message_id = response.id();
-    let result = match response {
-        Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result) {
-            Ok(data) => {
-                // TODO: maybe move to [send_proposal_request] and spawn in a different thread
-                if let ResponseParamsSuccess::SessionPropose(propose) = &data {
-                    process_session_propose_response(ctx, topic, propose).await.error_log();
-                }
-
-                Ok(SessionMessage {
+    let result = match &response {
+        Response::Success(value) => {
+            let data = serde_json::from_value::<ResponseParamsSuccess>(value.result.clone());
+            if let Ok(ResponseParamsSuccess::SessionPropose(propose)) = &data {
+                let mut pending_requests = ctx.pending_requests.lock().await;
+                pending_requests.remove(&message_id);
+                let _ = process_session_propose_response(ctx, topic, propose).await;
+                return;
+            };
+            data.map_to_mm(|err| WalletConnectError::SerdeError(err.to_string()))
+                .map(|data| SessionMessage {
                     message_id,
                     topic: topic.clone(),
                     data,
                 })
-            },
-            Err(e) => MmError::err(e.to_string()),
         },
-        Response::Error(err) => MmError::err(format!("{err:?}")),
+        Response::Error(err) => MmError::err(WalletConnectError::UnSuccessfulResponse(format!("{err:?}"))),
     };
 
-    message_tx.send(result).await.error_log();
+    let mut pending_requests = ctx.pending_requests.lock().await;
+    if let Some(tx) = pending_requests.remove(&message_id) {
+        tx.send(result).ok();
+    } else {
+        common::log::error!("[{topic}] unrecognized inbound response/message: {response:?}");
+    };
 }

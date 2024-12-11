@@ -8,7 +8,6 @@ use crate::{error::WalletConnectError,
 use chrono::Utc;
 use mm2_err_handle::map_to_mm::MapToMmResult;
 use mm2_err_handle::prelude::*;
-use relay_client::MessageIdGenerator;
 use relay_rpc::rpc::params::session::ProposeNamespaces;
 use relay_rpc::{domain::{MessageId, Topic},
                 rpc::params::{session_propose::{Proposer, SessionProposeRequest, SessionProposeResponse},
@@ -31,8 +30,7 @@ pub(crate) async fn send_proposal_request(
         required_namespaces,
         optional_namespaces,
     });
-    let message_id = MessageIdGenerator::new().next();
-    ctx.publish_request(topic, session_proposal, message_id).await?;
+    let _ = ctx.publish_request(topic, session_proposal).await?;
 
     Ok(())
 }
