@@ -27,10 +27,10 @@ const ERC20_MAKER_PAYMENT: &str = "erc20MakerPayment";
 ///     }
 const MAKER_PAYMENT_STATE_INDEX: usize = 2;
 
-struct MakerPaymentArgs {
+struct MakerPaymentArgs<'a> {
     taker_address: Address,
-    taker_secret_hash: [u8; 32],
-    maker_secret_hash: [u8; 32],
+    taker_secret_hash: &'a [u8; 32],
+    maker_secret_hash: &'a [u8; 32],
     payment_time_lock: u64,
 }
 
@@ -43,20 +43,20 @@ struct MakerValidationArgs<'a> {
     payment_time_lock: u64,
 }
 
-struct MakerRefundTimelockArgs {
+struct MakerRefundTimelockArgs<'a> {
     payment_amount: U256,
     taker_address: Address,
-    taker_secret_hash: [u8; 32],
-    maker_secret_hash: [u8; 32],
+    taker_secret_hash: &'a [u8; 32],
+    maker_secret_hash: &'a [u8; 32],
     payment_time_lock: u64,
     token_address: Address,
 }
 
-struct MakerRefundSecretArgs {
+struct MakerRefundSecretArgs<'a> {
     payment_amount: U256,
     taker_address: Address,
-    taker_secret: [u8; 32],
-    maker_secret_hash: [u8; 32],
+    taker_secret: &'a [u8; 32],
+    maker_secret_hash: &'a [u8; 32],
     payment_time_lock: u64,
     token_address: Address,
 }
@@ -326,9 +326,9 @@ impl EthCoin {
     }
 
     /// Prepares data for EtomicSwapMakerV2 contract [ethMakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapMakerV2.sol#L30) method
-    async fn prepare_maker_eth_payment_data(&self, args: &MakerPaymentArgs) -> Result<Vec<u8>, PrepareTxDataError> {
+    async fn prepare_maker_eth_payment_data(&self, args: &MakerPaymentArgs<'_>) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = MAKER_SWAP_V2.function(ETH_MAKER_PAYMENT)?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Address(args.taker_address),
@@ -342,12 +342,12 @@ impl EthCoin {
     /// Prepares data for EtomicSwapMakerV2 contract [erc20MakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapMakerV2.sol#L64) method
     async fn prepare_maker_erc20_payment_data(
         &self,
-        args: &MakerPaymentArgs,
+        args: &MakerPaymentArgs<'_>,
         payment_amount: U256,
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = MAKER_SWAP_V2.function(ERC20_MAKER_PAYMENT)?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(payment_amount),
@@ -363,10 +363,10 @@ impl EthCoin {
     /// Prepares data for EtomicSwapMakerV2 contract [refundMakerPaymentTimelock](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapMakerV2.sol#L144) method
     async fn prepare_refund_maker_payment_timelock_data(
         &self,
-        args: MakerRefundTimelockArgs,
+        args: MakerRefundTimelockArgs<'_>,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = MAKER_SWAP_V2.function("refundMakerPaymentTimelock")?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -381,10 +381,10 @@ impl EthCoin {
     /// Prepares data for EtomicSwapMakerV2 contract [refundMakerPaymentSecret](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapMakerV2.sol#L190) method
     async fn prepare_refund_maker_payment_secret_data(
         &self,
-        args: MakerRefundSecretArgs,
+        args: MakerRefundSecretArgs<'_>,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = MAKER_SWAP_V2.function("refundMakerPaymentSecret")?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -422,7 +422,7 @@ impl EthCoin {
 /// Validation function for ETH maker payment data
 fn validate_eth_maker_payment_data(
     decoded: &[Token],
-    args: &MakerValidationArgs,
+    args: &MakerValidationArgs<'_>,
     func: &Function,
     tx_value: U256,
 ) -> Result<(), MmError<ValidatePaymentError>> {

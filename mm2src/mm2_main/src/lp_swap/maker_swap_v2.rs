@@ -1476,7 +1476,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 time_lock: state_machine.maker_payment_locktime(),
                 taker_secret_hash: &self.negotiation_data.taker_secret_hash,
                 maker_secret_hash: &state_machine.secret_hash(),
-                taker_secret: secret.0,
+                taker_secret: &secret.0,
                 taker_pub: &self.negotiation_data.maker_coin_htlc_pub_from_taker,
                 swap_unique_data: &state_machine.unique_data(),
                 amount: state_machine.maker_volume.to_decimal(),

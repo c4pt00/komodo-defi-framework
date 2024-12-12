@@ -1811,7 +1811,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             funding_time_lock: state_machine.taker_funding_locktime(),
             payment_time_lock: state_machine.taker_payment_locktime(),
             maker_pubkey: &self.negotiation_data.taker_coin_htlc_pub_from_maker,
-            taker_secret: state_machine.taker_secret.take(),
+            taker_secret: &state_machine.taker_secret.take(),
             taker_secret_hash: &secret_hash,
             maker_secret_hash: &self.negotiation_data.maker_secret_hash,
             dex_fee: &state_machine.dex_fee,

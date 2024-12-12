@@ -1484,10 +1484,10 @@ fn send_and_refund_taker_funding_by_secret_eth() {
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
-    let taker_secret = [0; 32];
+    let taker_secret = &[0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
-    let maker_secret = [1; 32];
-    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    let maker_secret = &[1; 32];
+    let maker_secret_hash = sha256(maker_secret).to_vec();
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 1000;
 
@@ -1547,7 +1547,7 @@ fn send_and_refund_taker_funding_by_secret_erc20() {
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ERC20, erc20_conf, true);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_MAKER_PRIV, ERC20, erc20_conf, true);
 
-    let taker_secret = [0; 32];
+    let taker_secret = &[0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
     let maker_secret = [1; 32];
     let maker_secret_hash = sha256(&maker_secret).to_vec();
@@ -1674,10 +1674,10 @@ fn taker_send_approve_and_spend_eth() {
     let taker_coin = get_or_create_sepolia_coin(&MM_CTX1, SEPOLIA_TAKER_PRIV, ETH, &eth_sepolia_conf(), false);
     let maker_coin = get_or_create_sepolia_coin(&MM_CTX, SEPOLIA_MAKER_PRIV, ETH, &eth_sepolia_conf(), false);
 
-    let taker_secret = [0; 32];
+    let taker_secret = &[0; 32];
     let taker_secret_hash = sha256(&taker_secret).to_vec();
-    let maker_secret = [1; 32];
-    let maker_secret_hash = sha256(&maker_secret).to_vec();
+    let maker_secret = &[1; 32];
+    let maker_secret_hash = sha256(maker_secret).to_vec();
     let funding_time_lock = now_sec() + 3000;
     let payment_time_lock = now_sec() + 600;
 

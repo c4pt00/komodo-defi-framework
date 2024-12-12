@@ -29,32 +29,32 @@ const TAKER_PAYMENT_APPROVE: &str = "takerPaymentApprove";
 ///     }
 const TAKER_PAYMENT_STATE_INDEX: usize = 3;
 
-struct TakerFundingArgs {
+struct TakerFundingArgs<'a> {
     dex_fee: U256,
     payment_amount: U256,
     maker_address: Address,
-    taker_secret_hash: [u8; 32],
-    maker_secret_hash: [u8; 32],
+    taker_secret_hash: &'a [u8; 32],
+    maker_secret_hash: &'a [u8; 32],
     funding_time_lock: u64,
     payment_time_lock: u64,
 }
 
-struct TakerRefundTimelockArgs {
+struct TakerRefundTimelockArgs<'a> {
     dex_fee: U256,
     payment_amount: U256,
     maker_address: Address,
-    taker_secret_hash: [u8; 32],
-    maker_secret_hash: [u8; 32],
+    taker_secret_hash: &'a [u8; 32],
+    maker_secret_hash: &'a [u8; 32],
     payment_time_lock: u64,
     token_address: Address,
 }
 
-struct TakerRefundSecretArgs {
+struct TakerRefundSecretArgs<'a> {
     dex_fee: U256,
     payment_amount: U256,
     maker_address: Address,
-    taker_secret: [u8; 32],
-    maker_secret_hash: [u8; 32],
+    taker_secret: &'a [u8; 32],
+    maker_secret_hash: &'a [u8; 32],
     payment_time_lock: u64,
     token_address: Address,
 }
@@ -492,9 +492,9 @@ impl EthCoin {
     }
 
     /// Prepares data for EtomicSwapTakerV2 contract [ethTakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L44) method
-    async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs) -> Result<Vec<u8>, PrepareTxDataError> {
+    async fn prepare_taker_eth_funding_data(&self, args: &TakerFundingArgs<'_>) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function(ETH_TAKER_PAYMENT)?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.dex_fee),
@@ -510,11 +510,11 @@ impl EthCoin {
     /// Prepares data for EtomicSwapTakerV2 contract [erc20TakerPayment](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L83) method
     async fn prepare_taker_erc20_funding_data(
         &self,
-        args: &TakerFundingArgs,
+        args: &TakerFundingArgs<'_>,
         token_address: Address,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function(ERC20_TAKER_PAYMENT)?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -532,10 +532,10 @@ impl EthCoin {
     /// Prepares data for EtomicSwapTakerV2 contract [refundTakerPaymentTimelock](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L208) method
     async fn prepare_taker_refund_payment_timelock_data(
         &self,
-        args: TakerRefundTimelockArgs,
+        args: TakerRefundTimelockArgs<'_>,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentTimelock")?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
@@ -551,10 +551,10 @@ impl EthCoin {
     /// Prepares data for EtomicSwapTakerV2 contract [refundTakerPaymentSecret](https://github.com/KomodoPlatform/etomic-swap/blob/5e15641cbf41766cd5b37b4d71842c270773f788/contracts/EtomicSwapTakerV2.sol#L267) method
     async fn prepare_taker_refund_payment_secret_data(
         &self,
-        args: &TakerRefundSecretArgs,
+        args: &TakerRefundSecretArgs<'_>,
     ) -> Result<Vec<u8>, PrepareTxDataError> {
         let function = TAKER_SWAP_V2.function("refundTakerPaymentSecret")?;
-        let id = self.etomic_swap_id_v2(args.payment_time_lock, &args.maker_secret_hash);
+        let id = self.etomic_swap_id_v2(args.payment_time_lock, args.maker_secret_hash);
         let data = function.encode_input(&[
             Token::FixedBytes(id),
             Token::Uint(args.payment_amount),
