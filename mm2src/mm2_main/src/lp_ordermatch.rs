@@ -2946,6 +2946,25 @@ impl MakerOrdersContext {
     fn balance_loop_exists(&mut self, ticker: &str) -> bool { self.balance_loops.lock().contains(ticker).unwrap() }
 }
 
+struct LegacySwapParams<'a> {
+    maker_coin: &'a MmCoinEnum,
+    taker_coin: &'a MmCoinEnum,
+    uuid: &'a Uuid,
+    my_conf_settings: &'a SwapConfirmationsSettings,
+    my_persistent_pub: &'a H264,
+    maker_amount: &'a MmNumber,
+    taker_amount: &'a MmNumber,
+    locktime: &'a u64,
+}
+struct StateMachineParams<'a> {
+    secret_hash_algo: &'a SecretHashAlgo,
+    uuid: &'a Uuid,
+    my_conf_settings: &'a SwapConfirmationsSettings,
+    locktime: &'a u64,
+    maker_amount: &'a MmNumber,
+    taker_amount: &'a MmNumber,
+}
+
 #[cfg_attr(test, mockable)]
 fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerOrder, taker_p2p_pubkey: PublicKey) {
     let spawner = ctx.spawner();
@@ -3090,17 +3109,6 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
 
     let settings = AbortSettings::info_on_abort(format!("swap {uuid} stopped!"));
     spawner.spawn_with_settings(fut, settings);
-}
-
-struct LegacySwapParams<'a> {
-    maker_coin: &'a MmCoinEnum,
-    taker_coin: &'a MmCoinEnum,
-    uuid: &'a Uuid,
-    my_conf_settings: &'a SwapConfirmationsSettings,
-    my_persistent_pub: &'a H264,
-    maker_amount: &'a MmNumber,
-    taker_amount: &'a MmNumber,
-    locktime: &'a u64,
 }
 
 async fn start_maker_legacy_swap(
@@ -3369,15 +3377,6 @@ async fn start_taker_legacy_swap(ctx: &MmArc, taker_order: TakerOrder, maker: bi
         fail_at,
     );
     run_taker_swap(RunTakerSwapInput::StartNew(taker_swap), ctx.clone()).await
-}
-
-struct StateMachineParams<'a> {
-    secret_hash_algo: &'a SecretHashAlgo,
-    uuid: &'a Uuid,
-    my_conf_settings: &'a SwapConfirmationsSettings,
-    locktime: &'a u64,
-    maker_amount: &'a MmNumber,
-    taker_amount: &'a MmNumber,
 }
 
 async fn start_taker_swap_state_machine<
