@@ -1557,14 +1557,9 @@ impl TakerSwap {
             &self.unique_swap_data()[..],
         );
 
-        let time_lock = match std::env::var("USE_TEST_LOCKTIME") {
-            Ok(_) => self.r().data.started_at,
-            Err(_) => self.r().data.taker_payment_lock,
-        };
-
         let taker_payment_refund_preimage_fut = self.taker_coin.create_taker_payment_refund_preimage(
             &transaction.tx_hex(),
-            time_lock,
+            self.r().data.taker_payment_lock,
             &*self.r().other_taker_coin_htlc_pub,
             &self.r().secret_hash.0,
             &self.r().data.taker_coin_swap_contract_address,
@@ -1676,17 +1671,12 @@ impl TakerSwap {
         let transaction = match maybe_existing_payment {
             Some(tx) => tx,
             None => {
-                let time_lock = match std::env::var("USE_TEST_LOCKTIME") {
-                    Ok(_) => self.r().data.started_at,
-                    Err(_) => taker_payment_lock,
-                };
-
                 let lock_duration = self.r().data.lock_duration;
                 match self
                     .taker_coin
                     .send_taker_payment(SendPaymentArgs {
                         time_lock_duration: lock_duration,
-                        time_lock,
+                        time_lock: taker_payment_lock,
                         other_pubkey: &*other_taker_coin_htlc_pub,
                         secret_hash: &secret_hash.0,
                         amount: taker_amount_decimal,
@@ -1779,11 +1769,7 @@ impl TakerSwap {
 
         info!("Waiting for maker to spend taker payment!");
 
-        let wait_until = match std::env::var("USE_TEST_LOCKTIME") {
-            Ok(_) => self.r().data.started_at,
-            Err(_) => self.r().data.taker_payment_lock,
-        };
-
+        let wait_until = self.r().data.taker_payment_lock;
         let secret_hash = self.r().secret_hash.clone();
         let taker_coin_start_block = self.r().data.taker_coin_start_block;
         let taker_coin_swap_contract_address = self.r().data.taker_coin_swap_contract_address.clone();
