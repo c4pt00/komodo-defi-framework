@@ -1819,7 +1819,7 @@ impl MakerSavedSwap {
                 event: MakerSwapEvent::Started(MakerSwapData {
                     taker_coin: "".to_string(),
                     maker_coin: "".to_string(),
-                    taker: Default::default(),
+                    taker_pubkey: Default::default(),
                     secret: Default::default(),
                     secret_hash: None,
                     my_persistent_pub: Default::default(),
