@@ -328,7 +328,6 @@ impl WalletConnectCtxImpl {
             .collect::<Vec<_>>();
 
         if !all_topics.is_empty() {
-            println!("SUBBING: {all_topics:?}");
             self.client.batch_subscribe(all_topics).await?;
         }
 
