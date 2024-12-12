@@ -2995,7 +2995,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
                 return;
             },
         };
-        let alice = bits256::from(maker_match.request.sender_pubkey.0);
+        let taker_pubkey = bits256::from(maker_match.request.sender_pubkey.0);
         let maker_amount = maker_match.reserved.get_base_amount().clone();
         let taker_amount = maker_match.reserved.get_rel_amount().clone();
 
@@ -3061,7 +3061,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
                 taker_amount: &taker_amount,
                 locktime: &lock_time,
             };
-            start_maker_legacy_swap(&ctx, maker_order, alice, secret, params).await;
+            start_maker_legacy_swap(&ctx, maker_order, taker_pubkey, secret, params).await;
             return;
         }
 
@@ -3102,7 +3102,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
                     taker_amount: &taker_amount,
                     locktime: &lock_time,
                 };
-                start_maker_legacy_swap(&ctx, maker_order, alice, secret, params).await
+                start_maker_legacy_swap(&ctx, maker_order, taker_pubkey, secret, params).await
             },
         }
     };
@@ -3114,7 +3114,7 @@ fn lp_connect_start_bob(ctx: MmArc, maker_match: MakerMatch, maker_order: MakerO
 async fn start_maker_legacy_swap(
     ctx: &MmArc,
     maker_order: MakerOrder,
-    alice: bits256,
+    taker_pubkey: bits256,
     secret: H256,
     params: LegacySwapParams<'_>,
 ) {
@@ -3133,7 +3133,7 @@ async fn start_maker_legacy_swap(
 
     let maker_swap = MakerSwap::new(
         ctx.clone(),
-        alice,
+        taker_pubkey,
         params.maker_amount.to_decimal(),
         params.taker_amount.to_decimal(),
         *params.my_persistent_pub,
@@ -3198,7 +3198,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
 
     let fut = async move {
         // aka "taker_loop"
-        let maker = bits256::from(taker_match.reserved.sender_pubkey.0);
+        let maker_pubkey = bits256::from(taker_match.reserved.sender_pubkey.0);
         let taker_coin_ticker = taker_order.taker_coin_ticker();
         let taker_coin = match lp_coinfind(&ctx, taker_coin_ticker).await {
             Ok(Some(c)) => c,
@@ -3282,7 +3282,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
                 taker_amount: &taker_amount,
                 locktime: &locktime,
             };
-            start_taker_legacy_swap(&ctx, taker_order, maker, params).await;
+            start_taker_legacy_swap(&ctx, taker_order, maker_pubkey, params).await;
             return;
         }
 
@@ -3334,7 +3334,7 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
                     taker_amount: &taker_amount,
                     locktime: &locktime,
                 };
-                start_taker_legacy_swap(&ctx, taker_order, maker, params).await;
+                start_taker_legacy_swap(&ctx, taker_order, maker_pubkey, params).await;
             },
         }
     };
@@ -3343,7 +3343,12 @@ fn lp_connected_alice(ctx: MmArc, taker_order: TakerOrder, taker_match: TakerMat
     spawner.spawn_with_settings(fut, settings)
 }
 
-async fn start_taker_legacy_swap(ctx: &MmArc, taker_order: TakerOrder, maker: bits256, params: LegacySwapParams<'_>) {
+async fn start_taker_legacy_swap(
+    ctx: &MmArc,
+    taker_order: TakerOrder,
+    maker_pubkey: bits256,
+    params: LegacySwapParams<'_>,
+) {
     #[cfg(any(test, feature = "run-docker-tests"))]
     let fail_at = std::env::var("TAKER_FAIL_AT").map(FailAt::from).ok();
 
@@ -3362,7 +3367,7 @@ async fn start_taker_legacy_swap(ctx: &MmArc, taker_order: TakerOrder, maker: bi
 
     let taker_swap = TakerSwap::new(
         ctx.clone(),
-        maker,
+        maker_pubkey,
         params.maker_amount.clone(),
         params.taker_amount.clone(),
         *params.my_persistent_pub,
