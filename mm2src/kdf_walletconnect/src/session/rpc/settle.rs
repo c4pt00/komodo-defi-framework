@@ -51,8 +51,8 @@ pub(crate) async fn reply_session_settle_request(
         session.expiry = settle.expiry;
 
         if let Some(value) = settle.session_properties {
-            let session_properties = serde_json::from_str::<Option<SessionProperties>>(&value.to_string())?;
-            session.session_properties = session_properties;
+            let session_properties = serde_json::from_value::<SessionProperties>(value)?;
+            session.session_properties = Some(session_properties);
         };
     };
 
