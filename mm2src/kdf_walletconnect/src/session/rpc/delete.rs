@@ -40,9 +40,7 @@ pub(crate) async fn send_session_delete_request(
 }
 
 async fn session_delete_cleanup(ctx: &WalletConnectCtxImpl, topic: &Topic) -> MmResult<(), WalletConnectError> {
-    {
-        ctx.client.unsubscribe(topic.clone()).await?;
-    };
+    ctx.client.unsubscribe(topic.clone()).await?;
 
     if let Some(session) = ctx.session_manager.delete_session(topic) {
         debug!(
@@ -53,7 +51,6 @@ async fn session_delete_cleanup(ctx: &WalletConnectCtxImpl, topic: &Topic) -> Mm
         ctx.client.unsubscribe(session.pairing_topic.clone()).await?;
         // Attempt to delete/disconnect the pairing
         ctx.pairing.delete(&session.pairing_topic);
-
         // delete session from storage as well.
         ctx.session_manager
             .storage()

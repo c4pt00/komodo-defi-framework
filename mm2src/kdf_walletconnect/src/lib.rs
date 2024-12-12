@@ -19,7 +19,6 @@ use common::{executor::SpawnFuture, log::error};
 use connection_handler::Handler;
 use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver};
-use futures::lock::Mutex;
 use futures::StreamExt;
 use inbound_message::{process_inbound_request, process_inbound_response, SessionMessageType};
 use metadata::{generate_metadata, AUTH_TOKEN_DURATION, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
@@ -41,7 +40,8 @@ use session::Session;
 use session::{key::SymKeyPair, SessionManager};
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Deref;
-use std::{sync::Arc, time::Duration};
+use std::{sync::{Arc, Mutex as SyncMutex},
+          time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
 use tokio::sync::oneshot;
@@ -75,11 +75,12 @@ pub trait WalletConnectOps {
 pub struct WalletConnectCtxImpl {
     pub(crate) client: Client,
     pub(crate) pairing: PairingClient,
-    pub session_manager: SessionManager,
     pub(crate) key_pair: SymKeyPair,
+    pub session_manager: SessionManager,
     relay: Relay,
     metadata: Metadata,
-    pending_requests: Mutex<HashMap<MessageId, oneshot::Sender<SessionMessageType>>>,
+    message_id_generator: MessageIdGenerator,
+    pending_requests: SyncMutex<HashMap<MessageId, oneshot::Sender<SessionMessageType>>>,
     abortable_system: AbortableQueue,
 }
 
@@ -108,6 +109,7 @@ impl WalletConnectCtx {
             |r, h| abortable_system.weak_spawner().spawn(client_event_loop(r, h)),
         );
 
+        let message_id_generator = MessageIdGenerator::new();
         let context = Arc::new(WalletConnectCtxImpl {
             client,
             pairing,
@@ -116,6 +118,7 @@ impl WalletConnectCtx {
             key_pair: SymKeyPair::new(),
             session_manager: SessionManager::new(storage),
             pending_requests: Default::default(),
+            message_id_generator,
             abortable_system,
         });
 
@@ -342,14 +345,17 @@ impl WalletConnectCtxImpl {
     ) -> MmResult<(oneshot::Receiver<SessionMessageType>, Duration), WalletConnectError> {
         let irn_metadata = param.irn_metadata();
         let ttl = irn_metadata.ttl;
-        let message_id = MessageIdGenerator::new().next();
+        let message_id = self.message_id_generator.next();
         let request = Request::new(message_id, param.into());
 
         self.publish_payload(topic, irn_metadata, Payload::Request(request))
             .await?;
 
         let (tx, rx) = oneshot::channel();
-        let mut pending_requests = self.pending_requests.lock().await;
+        let mut pending_requests = self
+            .pending_requests
+            .lock()
+            .expect("pending request lock shouldn't fail!");
         pending_requests.insert(message_id, tx);
 
         Ok((rx, Duration::from_secs(ttl)))
@@ -585,12 +591,12 @@ impl WalletConnectCtxImpl {
         let request = RequestParams::SessionRequest(request);
         let (rx, ttl) = self.publish_request(&active_topic, request).await?;
 
-        let maybe_response = rx
+        let response = rx
             .timeout(ttl)
             .await
             .map_to_mm(|_| WalletConnectError::TimeoutError)?
             .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))??;
-        match maybe_response.data {
+        match response.data {
             ResponseParamsSuccess::Arbitrary(data) => callback(serde_json::from_value::<T>(data)?),
             _ => MmError::err(WalletConnectError::PayloadError("Unexpected response type".to_string())),
         }

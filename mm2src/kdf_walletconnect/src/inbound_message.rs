@@ -10,7 +10,7 @@ use crate::{error::WalletConnectError,
             WalletConnectCtxImpl};
 
 use common::log::info;
-use mm2_err_handle::prelude::{MapToMmResult, MmError, MmResult};
+use mm2_err_handle::prelude::*;
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
 
@@ -63,25 +63,34 @@ pub(crate) async fn process_inbound_request(
 pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtxImpl, response: Response, topic: &Topic) {
     let message_id = response.id();
     let result = match &response {
-        Response::Success(value) => {
-            let data = serde_json::from_value::<ResponseParamsSuccess>(value.result.clone());
-            if let Ok(ResponseParamsSuccess::SessionPropose(propose)) = &data {
-                let mut pending_requests = ctx.pending_requests.lock().await;
-                pending_requests.remove(&message_id);
-                let _ = process_session_propose_response(ctx, topic, propose).await;
+        Response::Success(value) => match serde_json::from_value::<ResponseParamsSuccess>(value.result.clone()) {
+            Ok(ResponseParamsSuccess::SessionPropose(propose)) => {
+                // If this is a session propose response, process it right away and return.
+                // Session proposal responses are not waited for since it might take a long time
+                // for the proposal to be accepted (user interaction). So they are handled in async fashion.
+                ctx.pending_requests
+                    .lock()
+                    .expect("pending request lock shouldn't fail!")
+                    .remove(&message_id);
+                if let Err(err) = process_session_propose_response(ctx, topic, &propose).await {
+                    common::log::error!("Failed to process session propose response: {err:?}");
+                }
                 return;
-            };
-            data.map_to_mm(|err| WalletConnectError::SerdeError(err.to_string()))
-                .map(|data| SessionMessage {
-                    message_id,
-                    topic: topic.clone(),
-                    data,
-                })
+            },
+            Ok(data) => Ok(SessionMessage {
+                message_id,
+                topic: topic.clone(),
+                data,
+            }),
+            Err(err) => MmError::err(WalletConnectError::SerdeError(err.to_string())),
         },
         Response::Error(err) => MmError::err(WalletConnectError::UnSuccessfulResponse(format!("{err:?}"))),
     };
 
-    let mut pending_requests = ctx.pending_requests.lock().await;
+    let mut pending_requests = ctx
+        .pending_requests
+        .lock()
+        .expect("pending request lock shouldn't fail!");
     if let Some(tx) = pending_requests.remove(&message_id) {
         tx.send(result).ok();
     } else {
