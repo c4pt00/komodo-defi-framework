@@ -422,6 +422,7 @@ pub struct TakerSwapStateMachine<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCo
     pub maker_p2p_pubkey: PublicKey,
     /// Whether to require maker payment confirmation before transferring funding tx to payment
     pub require_maker_payment_confirm_before_funding_spend: bool,
+    /// Determines if the maker payment spend transaction must be confirmed before marking swap as Completed.
     pub require_maker_payment_spend_confirm: bool,
 }
 

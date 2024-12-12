@@ -389,6 +389,7 @@ pub struct MakerSwapStateMachine<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCo
     pub abortable_system: AbortableQueue,
     /// Taker's P2P pubkey
     pub taker_p2p_pubkey: PublicKey,
+    /// Determines if the taker payment spend transaction must be confirmed before marking swap as Completed.
     pub require_taker_payment_spend_confirm: bool,
 }
 
