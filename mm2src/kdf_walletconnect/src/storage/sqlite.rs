@@ -37,6 +37,7 @@ impl SqliteSessionStorage {
     pub(crate) fn new(ctx: &MmArc) -> MmResult<Self, AsyncConnError> {
         let conn = ctx
             .async_sqlite_connection
+            .get()
             .ok_or(AsyncConnError::Internal(InternalError(
                 "async_sqlite_connection is not initialized".to_owned(),
             )))?;
