@@ -3,10 +3,9 @@ use super::htlc::{ClaimHtlcMsg, ClaimHtlcProto, CreateHtlcMsg, CreateHtlcProto, 
                   QueryHtlcResponse, TendermintHtlc, HTLC_STATE_COMPLETED, HTLC_STATE_OPEN, HTLC_STATE_REFUNDED};
 use super::ibc::transfer_v1::MsgTransfer;
 use super::ibc::IBC_GAS_LIMIT_DEFAULT;
-use super::{rpc::*, TENDERMINT_COIN_PROTOCOL_TYPE};
+use super::rpc::*;
 use crate::coin_errors::{MyAddressError, ValidatePaymentError, ValidatePaymentResult};
 use crate::hd_wallet::{HDPathAccountToAddressId, WithdrawFrom};
-use crate::tendermint::ibc::IBC_OUT_SOURCE_PORT;
 use crate::utxo::sat_from_big_decimal;
 use crate::utxo::utxo_common::big_decimal_from_sat;
 use crate::{big_decimal_from_sat_unsigned, BalanceError, BalanceFut, BigDecimal, CheckIfMyPaymentSentArgs,
@@ -703,12 +702,16 @@ impl TendermintCoin {
         })))
     }
 
-    /// TODO
-    pub(crate) async fn detect_channel_id_for_ibc_transfer(
+    pub(crate) async fn get_ibc_channel_for_target_address(
         &self,
-        to_address: &AccountId,
+        target_address: &AccountId,
     ) -> Result<String, MmError<WithdrawError>> {
-        todo!()
+        let id = self
+            .ibc_channels
+            .get(target_address.prefix())
+            .ok_or(WithdrawError::IBCChannelCouldNotFound(target_address.to_string()))?;
+
+        Ok(format!("channel-{id}"))
     }
 
     #[inline(always)]
@@ -2148,7 +2151,7 @@ impl MmCoin for TendermintCoin {
             let channel_id = if is_ibc_transfer {
                 match &req.ibc_source_channel {
                     Some(_) => req.ibc_source_channel,
-                    None => Some(coin.detect_channel_id_for_ibc_transfer(&to_address).await?),
+                    None => Some(coin.get_ibc_channel_for_target_address(&to_address).await?),
                 }
             } else {
                 None
