@@ -181,6 +181,7 @@ pub struct TendermintProtocolInfo {
     chain_id: String,
     gas_price: Option<f64>,
     chain_registry_name: Option<String>,
+    ibc_channels: HashMap<String, u16>,
 }
 
 #[derive(Clone)]
@@ -375,6 +376,9 @@ pub struct TendermintCoinImpl {
     pub(crate) chain_registry_name: Option<String>,
     pub(crate) ctx: MmWeak,
     pub(crate) is_keplr_from_ledger: bool,
+    /// Key represents the account prefix of the target chain and
+    /// the value is the channel ID used for sending transactions.
+    ibc_channels: HashMap<String, u16>,
 }
 
 #[derive(Clone)]
@@ -701,6 +705,7 @@ impl TendermintCoin {
             history_sync_state: Mutex::new(history_sync_state),
             client: TendermintRpcClient(AsyncMutex::new(client_impl)),
             chain_registry_name: protocol_info.chain_registry_name,
+            ibc_channels: protocol_info.ibc_channels,
             ctx: ctx.weak(),
             is_keplr_from_ledger,
         })))
@@ -3371,6 +3376,7 @@ pub mod tendermint_coin_tests {
             chain_id: String::from("nyancat-9"),
             gas_price: None,
             chain_registry_name: None,
+            ibc_channels: HashMap::new(),
         }
     }
 
@@ -3382,6 +3388,7 @@ pub mod tendermint_coin_tests {
             chain_id: String::from("nyancat-9"),
             gas_price: None,
             chain_registry_name: None,
+            ibc_channels: HashMap::new(),
         }
     }
 
