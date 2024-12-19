@@ -337,6 +337,7 @@ pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
 
     let dbdir = ctx.dbdir();
 
+    // Make sure SWAPS/ and sub-directories are writable.
     if !ensure_dir_is_writable(&dbdir.join("SWAPS")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("SWAPS"));
     }
@@ -352,15 +353,11 @@ pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
     if !ensure_dir_is_writable(&dbdir.join("SWAPS").join("STATS").join("TAKER")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("SWAPS/STATS/TAKER"));
     }
+    // Make sure TRANSACTIONS/ is writable.
     if !ensure_dir_is_writable(&dbdir.join("TRANSACTIONS")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("TRANSACTIONS"));
     }
-    if !ensure_dir_is_writable(&dbdir.join("PRICES")) {
-        return MmError::err(MmInitError::db_directory_is_not_writable("PRICES"));
-    }
-    if !ensure_dir_is_writable(&dbdir.join("UNSPENTS")) {
-        return MmError::err(MmInitError::db_directory_is_not_writable("UNSPENTS"));
-    }
+    // Make sure ORDERS/ and sub-directories are writable.
     if !ensure_dir_is_writable(&dbdir.join("ORDERS")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("ORDERS"));
     }
@@ -376,6 +373,7 @@ pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
     if !ensure_dir_is_writable(&dbdir.join("ORDERS").join("MY").join("HISTORY")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("ORDERS/MY/HISTORY"));
     }
+    // Make sure TX_CACHE/ is writable.
     if !ensure_dir_is_writable(&dbdir.join("TX_CACHE")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("TX_CACHE"));
     }
