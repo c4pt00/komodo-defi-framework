@@ -58,7 +58,7 @@ use crate::rpc::spawn_rpc;
 
 cfg_native! {
     use db_common::sqlite::rusqlite::Error as SqlError;
-    use mm2_io::fs::{ensure_dir_is_writable, ensure_file_is_writable};
+    use mm2_io::fs::ensure_dir_is_writable;
     use mm2_net::ip_addr::myipaddr;
     use rustls_pemfile as pemfile;
 }
@@ -355,9 +355,6 @@ pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
     if !ensure_dir_is_writable(&dbdir.join("TRANSACTIONS")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("TRANSACTIONS"));
     }
-    if !ensure_dir_is_writable(&dbdir.join("GTC")) {
-        return MmError::err(MmInitError::db_directory_is_not_writable("GTC"));
-    }
     if !ensure_dir_is_writable(&dbdir.join("PRICES")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("PRICES"));
     }
@@ -382,9 +379,6 @@ pub fn fix_directories(ctx: &MmCtx) -> MmInitResult<()> {
     if !ensure_dir_is_writable(&dbdir.join("TX_CACHE")) {
         return MmError::err(MmInitError::db_directory_is_not_writable("TX_CACHE"));
     }
-    ensure_file_is_writable(&dbdir.join("GTC").join("orders")).map_to_mm(|_| MmInitError::DbFileIsNotWritable {
-        path: "GTC/orders".to_owned(),
-    })?;
     Ok(())
 }
 

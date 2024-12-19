@@ -3361,7 +3361,7 @@ pub async fn clean_memory_loop(ctx_weak: MmWeak) {
     }
 }
 
-/// Transforms the timed out and unmatched GTC taker orders to maker.
+/// Transforms the timed out and unmatched [`OrderType::GoodTillCancelled`] taker orders to maker.
 ///
 /// # Safety
 ///

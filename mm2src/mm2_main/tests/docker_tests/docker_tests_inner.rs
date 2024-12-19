@@ -4309,7 +4309,7 @@ fn test_fill_or_kill_taker_order_should_not_transform_to_maker() {
 }
 
 #[test]
-fn test_gtc_taker_order_should_transform_to_maker() {
+fn test_good_till_canceled_taker_order_should_transform_to_maker() {
     let privkey = random_secp256k1_secret();
     generate_utxo_coin_with_privkey("MYCOIN", 1000.into(), privkey);
 
