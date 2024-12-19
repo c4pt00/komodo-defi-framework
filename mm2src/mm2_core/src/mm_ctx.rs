@@ -125,7 +125,9 @@ pub struct MmCtx {
     /// Deprecated, please use `async_sqlite_connection` for new implementations.
     #[cfg(not(target_arch = "wasm32"))]
     pub sqlite_connection: OnceLock<Arc<Mutex<Connection>>>,
-    /// Deprecated, please create `shared_async_sqlite_conn` for new implementations and call db `KOMODEFI-shared.db`.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async_sqlite_connection: OnceLock<Arc<AsyncMutex<AsyncConnection>>>,
+    /// Shared SQLite connection for all accounts belonging to an HD wallet.
     #[cfg(not(target_arch = "wasm32"))]
     pub shared_sqlite_conn: OnceLock<Arc<Mutex<Connection>>>,
     pub mm_version: String,
@@ -143,8 +145,6 @@ pub struct MmCtx {
     /// The context belonging to the `nft` mod: `NftCtx`.
     pub nft_ctx: Mutex<Option<Arc<dyn Any + 'static + Send + Sync>>>,
     /// asynchronous handle for rusqlite connection.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async_sqlite_connection: OnceLock<Arc<AsyncMutex<AsyncConnection>>>,
     /// Links the RPC context to the P2P context to handle health check responses.
     pub healthcheck_response_handler: AsyncMutex<ExpirableMap<PeerId, oneshot::Sender<()>>>,
 }
