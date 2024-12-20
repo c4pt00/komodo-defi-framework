@@ -131,10 +131,17 @@ pub enum StandardHDIndex {
     AddressId = 4,
 }
 
+/// The chain value in the BIP44 path. `m/purpose'/coin_type'/account'/chain/address_index`
+///
+/// This is used to differentiate between external (sharable/receiving) address space and internal (change outputs) address space.
+/// Possible values are `0` for external chain and `1` for internal chain.
 #[derive(Debug, Copy, Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[repr(u32)]
 pub enum Bip44Chain {
+    /// External chain is used for addresses that are meant to be visible outside the wallet.
+    /// i.e. addresses that are meant to be shared with others to receive funds.
     External = 0,
+    /// Internal chain is used for change addresses that aren't supposed to be shared with others.
     Internal = 1,
 }
 
