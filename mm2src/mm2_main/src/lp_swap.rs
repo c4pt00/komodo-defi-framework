@@ -59,8 +59,8 @@
 
 use super::lp_network::P2PRequestResult;
 use crate::lp_network::{broadcast_p2p_msg, Libp2pPeerId, P2PProcessError, P2PProcessResult, P2PRequestError};
-use crate::lp_swap::maker_swap_v2::{MakerSwapStateMachine, MakerSwapStorage};
-use crate::lp_swap::taker_swap_v2::{TakerSwapStateMachine, TakerSwapStorage};
+use crate::lp_swap::maker_swap_v2::{MakerSwapDbRepr, MakerSwapStateMachine, MakerSwapStorage};
+use crate::lp_swap::taker_swap_v2::{TakerSwapDbRepr, TakerSwapStateMachine, TakerSwapStorage};
 use bitcrypto::sha256;
 use coins::{lp_coinfind, lp_coinfind_or_err, CoinFindError, DexFee, MmCoin, MmCoinEnum, TradeFee, TransactionEnum};
 use common::log::{debug, warn};
@@ -115,7 +115,9 @@ mod trade_preimage;
 
 #[cfg(target_arch = "wasm32")] mod swap_wasm_db;
 
+use crate::lp_swap::swap_v2_common::{swap_kickstart_handler, GetSwapCoins};
 pub use check_balance::{check_other_coin_balance_for_swap, CheckBalanceError, CheckBalanceResult};
+use coins::eth::EthCoin;
 use coins::utxo::utxo_standard::UtxoStandardCoin;
 use crypto::secret_hash_algo::SecretHashAlgo;
 use crypto::CryptoCtx;
@@ -130,7 +132,7 @@ use pubkey_banning::BanReason;
 pub use pubkey_banning::{ban_pubkey_rpc, is_pubkey_banned, list_banned_pubkeys_rpc, unban_pubkeys_rpc};
 pub use recreate_swap_data::recreate_swap_data;
 pub use saved_swap::{SavedSwap, SavedSwapError, SavedSwapIo, SavedSwapResult};
-use swap_v2_common::{get_unfinished_swaps_uuids, swap_kickstart_handler, ActiveSwapV2Info};
+use swap_v2_common::{get_unfinished_swaps_uuids, swap_kickstart_coins, ActiveSwapV2Info};
 use swap_v2_pb::*;
 use swap_v2_rpcs::{get_maker_swap_data_for_rpc, get_swap_type, get_taker_swap_data_for_rpc};
 pub use swap_watcher::{process_watcher_msg, watcher_topic, TakerSwapWatcherData, MAKER_PAYMENT_SPEND_FOUND_LOG,
@@ -1358,9 +1360,20 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
     try_s!(migrate_swaps_data(&ctx).await);
 
     let mut coins = HashSet::new();
+
+    kickstart_legacy_swaps(&ctx, &mut coins).await?;
+
+    kickstart_maker_swaps(&ctx, &mut coins).await?;
+
+    kickstart_taker_swaps(&ctx, &mut coins).await?;
+
+    Ok(coins)
+}
+
+async fn kickstart_legacy_swaps(ctx: &MmArc, coins: &mut HashSet<String>) -> Result<(), String> {
     let legacy_unfinished_uuids = try_s!(get_unfinished_swaps_uuids(ctx.clone(), LEGACY_SWAP_TYPE).await);
     for uuid in legacy_unfinished_uuids {
-        let swap = match SavedSwap::load_my_swap_from_db(&ctx, uuid).await {
+        let swap = match SavedSwap::load_my_swap_from_db(ctx, uuid).await {
             Ok(Some(s)) => s,
             Ok(None) => {
                 warn!("Swap {} is indexed, but doesn't exist in DB", uuid);
@@ -1372,6 +1385,7 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
             },
         };
         info!("Kick starting the swap {}", swap.uuid());
+
         let maker_coin_ticker = match swap.maker_coin_ticker() {
             Ok(t) => t,
             Err(e) => {
@@ -1379,6 +1393,7 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
                 continue;
             },
         };
+
         let taker_coin_ticker = match swap.taker_coin_ticker() {
             Ok(t) => t,
             Err(e) => {
@@ -1386,15 +1401,20 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
                 continue;
             },
         };
+
         coins.insert(maker_coin_ticker.clone());
         coins.insert(taker_coin_ticker.clone());
 
         let fut = kickstart_thread_handler(ctx.clone(), swap, maker_coin_ticker, taker_coin_ticker);
         ctx.spawner().spawn(fut);
     }
+    Ok(())
+}
 
+async fn kickstart_maker_swaps(ctx: &MmArc, coins: &mut HashSet<String>) -> Result<(), String> {
     let maker_swap_storage = MakerSwapStorage::new(ctx.clone());
     let unfinished_maker_uuids = try_s!(maker_swap_storage.get_unfinished().await);
+
     for maker_uuid in unfinished_maker_uuids {
         info!("Trying to kickstart maker swap {}", maker_uuid);
         let maker_swap_repr = match maker_swap_storage.get_repr(maker_uuid).await {
@@ -1409,17 +1429,25 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
         coins.insert(maker_swap_repr.maker_coin.clone());
         coins.insert(maker_swap_repr.taker_coin.clone());
 
-        let fut = swap_kickstart_handler::<MakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>>(
-            ctx.clone(),
-            maker_swap_repr,
-            maker_swap_storage.clone(),
-            maker_uuid,
-        );
-        ctx.spawner().spawn(fut);
+        if let Some((maker_coin, taker_coin)) = swap_kickstart_coins(ctx, &maker_swap_repr, &maker_uuid).await {
+            spawn_swap_kickstart_handler_for_maker(
+                ctx,
+                maker_swap_repr,
+                maker_swap_storage.clone(),
+                maker_uuid,
+                maker_coin,
+                taker_coin,
+            )
+            .await;
+        }
     }
+    Ok(())
+}
 
+async fn kickstart_taker_swaps(ctx: &MmArc, coins: &mut HashSet<String>) -> Result<(), String> {
     let taker_swap_storage = TakerSwapStorage::new(ctx.clone());
     let unfinished_taker_uuids = try_s!(taker_swap_storage.get_unfinished().await);
+
     for taker_uuid in unfinished_taker_uuids {
         info!("Trying to kickstart taker swap {}", taker_uuid);
         let taker_swap_repr = match taker_swap_storage.get_repr(taker_uuid).await {
@@ -1434,15 +1462,125 @@ pub async fn swap_kick_starts(ctx: MmArc) -> Result<HashSet<String>, String> {
         coins.insert(taker_swap_repr.maker_coin.clone());
         coins.insert(taker_swap_repr.taker_coin.clone());
 
-        let fut = swap_kickstart_handler::<TakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>>(
-            ctx.clone(),
-            taker_swap_repr,
-            taker_swap_storage.clone(),
-            taker_uuid,
-        );
-        ctx.spawner().spawn(fut);
+        if let Some((maker_coin, taker_coin)) = swap_kickstart_coins(ctx, &taker_swap_repr, &taker_uuid).await {
+            spawn_swap_kickstart_handler_for_taker(
+                ctx,
+                taker_swap_repr,
+                taker_swap_storage.clone(),
+                taker_uuid,
+                maker_coin,
+                taker_coin,
+            )
+            .await;
+        }
     }
-    Ok(coins)
+    Ok(())
+}
+
+async fn spawn_swap_kickstart_handler_for_maker(
+    ctx: &MmArc,
+    maker_swap_repr: MakerSwapDbRepr,
+    maker_swap_storage: MakerSwapStorage,
+    maker_uuid: Uuid,
+    maker_coin: MmCoinEnum,
+    taker_coin: MmCoinEnum,
+) {
+    match (maker_coin, taker_coin) {
+        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+            let fut = swap_kickstart_handler::<
+                MakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>,
+                UtxoStandardCoin,
+                UtxoStandardCoin,
+            >(maker_swap_repr, maker_swap_storage, maker_uuid, m, t);
+            ctx.spawner().spawn(fut);
+        },
+        (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
+            let fut = swap_kickstart_handler::<MakerSwapStateMachine<EthCoin, EthCoin>, EthCoin, EthCoin>(
+                maker_swap_repr,
+                maker_swap_storage,
+                maker_uuid,
+                m,
+                t,
+            );
+            ctx.spawner().spawn(fut);
+        },
+        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
+            let fut = swap_kickstart_handler::<
+                MakerSwapStateMachine<UtxoStandardCoin, EthCoin>,
+                UtxoStandardCoin,
+                EthCoin,
+            >(maker_swap_repr, maker_swap_storage, maker_uuid, m, t);
+            ctx.spawner().spawn(fut);
+        },
+        (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+            let fut = swap_kickstart_handler::<
+                MakerSwapStateMachine<EthCoin, UtxoStandardCoin>,
+                EthCoin,
+                UtxoStandardCoin,
+            >(maker_swap_repr, maker_swap_storage, maker_uuid, m, t);
+            ctx.spawner().spawn(fut);
+        },
+        _ => {
+            error!(
+                "V2 swaps are not currently supported for {}/{} pair",
+                maker_swap_repr.maker_coin(),
+                maker_swap_repr.taker_coin()
+            );
+        },
+    };
+}
+
+async fn spawn_swap_kickstart_handler_for_taker(
+    ctx: &MmArc,
+    taker_swap_repr: TakerSwapDbRepr,
+    taker_swap_storage: TakerSwapStorage,
+    taker_uuid: Uuid,
+    maker_coin: MmCoinEnum,
+    taker_coin: MmCoinEnum,
+) {
+    match (maker_coin, taker_coin) {
+        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+            let fut = swap_kickstart_handler::<
+                TakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>,
+                UtxoStandardCoin,
+                UtxoStandardCoin,
+            >(taker_swap_repr, taker_swap_storage, taker_uuid, m, t);
+            ctx.spawner().spawn(fut);
+        },
+        (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
+            let fut = swap_kickstart_handler::<TakerSwapStateMachine<EthCoin, EthCoin>, EthCoin, EthCoin>(
+                taker_swap_repr,
+                taker_swap_storage,
+                taker_uuid,
+                m,
+                t,
+            );
+            ctx.spawner().spawn(fut);
+        },
+        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
+            let fut = swap_kickstart_handler::<
+                TakerSwapStateMachine<UtxoStandardCoin, EthCoin>,
+                UtxoStandardCoin,
+                EthCoin,
+            >(taker_swap_repr, taker_swap_storage, taker_uuid, m, t);
+            ctx.spawner().spawn(fut);
+        },
+        (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+            let fut = swap_kickstart_handler::<
+                TakerSwapStateMachine<EthCoin, UtxoStandardCoin>,
+                EthCoin,
+                UtxoStandardCoin,
+            >(taker_swap_repr, taker_swap_storage, taker_uuid, m, t);
+            ctx.spawner().spawn(fut);
+        },
+        _ => {
+            error!(
+                "V2 swaps are not currently supported for {}/{} pair",
+                taker_swap_repr.maker_coin(),
+                taker_swap_repr.taker_coin()
+            );
+        },
+    };
 }
 
 async fn kickstart_thread_handler(ctx: MmArc, swap: SavedSwap, maker_coin_ticker: String, taker_coin_ticker: String) {

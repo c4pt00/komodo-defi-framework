@@ -1,8 +1,7 @@
 use crate::lp_network::{subscribe_to_topic, unsubscribe_from_topic};
 use crate::lp_swap::swap_lock::{SwapLock, SwapLockError, SwapLockOps};
 use crate::lp_swap::{swap_v2_topic, SwapsContext};
-use coins::utxo::utxo_standard::UtxoStandardCoin;
-use coins::{lp_coinfind, MmCoinEnum};
+use coins::{lp_coinfind, MakerCoinSwapOpsV2, MmCoin, MmCoinEnum, TakerCoinSwapOpsV2};
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{SpawnFuture, Timer};
 use common::log::{error, info, warn};
@@ -292,25 +291,17 @@ pub(super) trait GetSwapCoins {
     fn taker_coin(&self) -> &str;
 }
 
-/// Generic function for upgraded swaps kickstart handling.
-/// It is implemented only for UtxoStandardCoin/UtxoStandardCoin case temporary.
-pub(super) async fn swap_kickstart_handler<
-    T: StorableStateMachine<RecreateCtx = SwapRecreateCtx<UtxoStandardCoin, UtxoStandardCoin>>,
->(
-    ctx: MmArc,
-    swap_repr: <T::Storage as StateMachineStorage>::DbRepr,
-    storage: T::Storage,
-    uuid: <T::Storage as StateMachineStorage>::MachineId,
-) where
-    <T::Storage as StateMachineStorage>::MachineId: Copy + std::fmt::Display,
-    <T::Storage as StateMachineStorage>::DbRepr: GetSwapCoins,
-    T::Error: std::fmt::Display,
-    T::RecreateError: std::fmt::Display,
-{
+/// Attempts to find and return the maker and taker coins required for the swap to proceed.
+/// If a coin is not activated, it logs the information and retries until the coin is found or an error occurs.
+pub(super) async fn swap_kickstart_coins<T: GetSwapCoins>(
+    ctx: &MmArc,
+    swap_repr: &T,
+    uuid: &Uuid,
+) -> Option<(MmCoinEnum, MmCoinEnum)> {
     let taker_coin_ticker = swap_repr.taker_coin();
 
     let taker_coin = loop {
-        match lp_coinfind(&ctx, taker_coin_ticker).await {
+        match lp_coinfind(ctx, taker_coin_ticker).await {
             Ok(Some(c)) => break c,
             Ok(None) => {
                 info!(
@@ -321,7 +312,7 @@ pub(super) async fn swap_kickstart_handler<
             },
             Err(e) => {
                 error!("Error {} on {} find attempt", e, taker_coin_ticker);
-                return;
+                return None;
             },
         };
     };
@@ -329,7 +320,7 @@ pub(super) async fn swap_kickstart_handler<
     let maker_coin_ticker = swap_repr.maker_coin();
 
     let maker_coin = loop {
-        match lp_coinfind(&ctx, maker_coin_ticker).await {
+        match lp_coinfind(ctx, maker_coin_ticker).await {
             Ok(Some(c)) => break c,
             Ok(None) => {
                 info!(
@@ -340,23 +331,30 @@ pub(super) async fn swap_kickstart_handler<
             },
             Err(e) => {
                 error!("Error {} on {} find attempt", e, maker_coin_ticker);
-                return;
+                return None;
             },
         };
     };
 
-    // TODO add ETH support
-    let (maker_coin, taker_coin) = match (maker_coin, taker_coin) {
-        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => (m, t),
-        _ => {
-            error!(
-                "V2 swaps are not currently supported for {}/{} pair",
-                maker_coin_ticker, taker_coin_ticker
-            );
-            return;
-        },
-    };
+    Some((maker_coin, taker_coin))
+}
 
+/// Handles the recreation and kickstart of a swap state machine.
+pub(super) async fn swap_kickstart_handler<
+    T: StorableStateMachine<RecreateCtx = SwapRecreateCtx<MakerCoin, TakerCoin>>,
+    MakerCoin: MmCoin + MakerCoinSwapOpsV2,
+    TakerCoin: MmCoin + TakerCoinSwapOpsV2,
+>(
+    swap_repr: <T::Storage as StateMachineStorage>::DbRepr,
+    storage: T::Storage,
+    uuid: <T::Storage as StateMachineStorage>::MachineId,
+    maker_coin: MakerCoin,
+    taker_coin: TakerCoin,
+) where
+    <T::Storage as StateMachineStorage>::MachineId: Copy + std::fmt::Display,
+    T::Error: std::fmt::Display,
+    T::RecreateError: std::fmt::Display,
+{
     let recreate_context = SwapRecreateCtx { maker_coin, taker_coin };
 
     let (mut state_machine, state) = match T::recreate_machine(uuid, storage, swap_repr, recreate_context).await {
