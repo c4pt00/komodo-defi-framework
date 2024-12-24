@@ -296,7 +296,8 @@ pub(super) trait GetSwapCoins {
 }
 
 /// Attempts to find and return the maker and taker coins required for the swap to proceed.
-/// If a coin is not activated, it logs the information and retries until the coin is found or an error occurs.
+/// If a coin is not activated, it logs the information and retries until the coin is found.
+/// If an unexpected issue occurs, function logs the error and returns `None`.
 pub(super) async fn swap_kickstart_coins<T: GetSwapCoins>(
     ctx: &MmArc,
     swap_repr: &T,
