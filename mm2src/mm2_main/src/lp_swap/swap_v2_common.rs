@@ -3,8 +3,6 @@ use crate::lp_swap::maker_swap_v2::{MakerSwapDbRepr, MakerSwapStateMachine, Make
 use crate::lp_swap::swap_lock::{SwapLock, SwapLockError, SwapLockOps};
 use crate::lp_swap::taker_swap_v2::{TakerSwapDbRepr, TakerSwapStateMachine, TakerSwapStorage};
 use crate::lp_swap::{swap_v2_topic, SwapsContext};
-use coins::eth::EthCoin;
-use coins::utxo::utxo_standard::UtxoStandardCoin;
 use coins::{lp_coinfind, MakerCoinSwapOpsV2, MmCoin, MmCoinEnum, TakerCoinSwapOpsV2};
 use common::executor::abortable_queue::AbortableQueue;
 use common::executor::{SpawnFuture, Timer};
@@ -388,30 +386,16 @@ pub(super) async fn swap_kickstart_handler_for_maker(
 
     match (maker_coin, taker_coin) {
         (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<
-                MakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>,
-                UtxoStandardCoin,
-                UtxoStandardCoin,
-            >(swap_repr, storage, uuid, m, t)
-            .await
+            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<EthCoin, EthCoin>, EthCoin, EthCoin>(
-                swap_repr, storage, uuid, m, t,
-            )
-            .await
+            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<UtxoStandardCoin, EthCoin>, UtxoStandardCoin, EthCoin>(
-                swap_repr, storage, uuid, m, t,
-            )
-            .await
+            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<EthCoin, UtxoStandardCoin>, EthCoin, UtxoStandardCoin>(
-                swap_repr, storage, uuid, m, t,
-            )
-            .await
+            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         _ => {
             error!(
@@ -436,30 +420,16 @@ pub(super) async fn swap_kickstart_handler_for_taker(
 
     match (maker_coin, taker_coin) {
         (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<
-                TakerSwapStateMachine<UtxoStandardCoin, UtxoStandardCoin>,
-                UtxoStandardCoin,
-                UtxoStandardCoin,
-            >(swap_repr, storage, uuid, m, t)
-            .await
+            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<EthCoin, EthCoin>, EthCoin, EthCoin>(
-                swap_repr, storage, uuid, m, t,
-            )
-            .await
+            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<UtxoStandardCoin, EthCoin>, UtxoStandardCoin, EthCoin>(
-                swap_repr, storage, uuid, m, t,
-            )
-            .await
+            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<EthCoin, UtxoStandardCoin>, EthCoin, UtxoStandardCoin>(
-                swap_repr, storage, uuid, m, t,
-            )
-            .await
+            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
         },
         _ => {
             error!(
