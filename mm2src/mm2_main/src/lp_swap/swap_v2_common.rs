@@ -379,32 +379,29 @@ pub(super) async fn swap_kickstart_handler_for_maker(
     storage: MakerSwapStorage,
     uuid: Uuid,
 ) {
-    let (maker_coin, taker_coin) = match swap_kickstart_coins(&ctx, &swap_repr, &uuid).await {
-        Some(coins) => coins,
-        None => return,
-    };
-
-    match (maker_coin, taker_coin) {
-        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        _ => {
-            error!(
-                "V2 swaps are not currently supported for {}/{} pair",
-                swap_repr.maker_coin(),
-                swap_repr.taker_coin()
-            );
-        },
-    };
+    if let Some((maker_coin, taker_coin)) = swap_kickstart_coins(&ctx, &swap_repr, &uuid).await {
+        match (maker_coin, taker_coin) {
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
+                swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
+                swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                swap_kickstart_handler::<MakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            _ => {
+                error!(
+                    "V2 swaps are not currently supported for {}/{} pair",
+                    swap_repr.maker_coin(),
+                    swap_repr.taker_coin()
+                );
+            },
+        }
+    }
 }
 
 pub(super) async fn swap_kickstart_handler_for_taker(
@@ -413,30 +410,27 @@ pub(super) async fn swap_kickstart_handler_for_taker(
     storage: TakerSwapStorage,
     uuid: Uuid,
 ) {
-    let (maker_coin, taker_coin) = match swap_kickstart_coins(&ctx, &swap_repr, &uuid).await {
-        Some(coins) => coins,
-        None => return,
-    };
-
-    match (maker_coin, taker_coin) {
-        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
-            swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
-        },
-        _ => {
-            error!(
-                "V2 swaps are not currently supported for {}/{} pair",
-                swap_repr.maker_coin(),
-                swap_repr.taker_coin()
-            );
-        },
-    };
+    if let Some((maker_coin, taker_coin)) = swap_kickstart_coins(&ctx, &swap_repr, &uuid).await {
+        match (maker_coin, taker_coin) {
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::EthCoin(t)) => {
+                swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            (MmCoinEnum::UtxoCoin(m), MmCoinEnum::EthCoin(t)) => {
+                swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            (MmCoinEnum::EthCoin(m), MmCoinEnum::UtxoCoin(t)) => {
+                swap_kickstart_handler::<TakerSwapStateMachine<_, _>, _, _>(swap_repr, storage, uuid, m, t).await
+            },
+            _ => {
+                error!(
+                    "V2 swaps are not currently supported for {}/{} pair",
+                    swap_repr.maker_coin(),
+                    swap_repr.taker_coin()
+                );
+            },
+        }
+    }
 }
