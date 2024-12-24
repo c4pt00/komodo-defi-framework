@@ -232,7 +232,7 @@ pub(crate) async fn send_transaction_with_walletconnect(
     data: &[u8],
     gas: U256,
 ) -> Result<SignedTransaction, TransactionErr> {
-    info!(target: "sign-and-send", "get_gas_price…");
+    info!(target: "WalletConnect: sign-and-send", "get_gas_price…");
     let pay_for_gas_option = try_tx_s!(
         coin.get_swap_pay_for_gas_option(coin.get_swap_transaction_fee_policy())
             .await
@@ -249,7 +249,7 @@ pub(crate) async fn send_transaction_with_walletconnect(
     };
     // Please note that this method may take a long time
     // due to `eth_sendTransaction` requests.
-    info!(target: "sign-and-send", "WalletConnect signing and sending tx…");
+    info!(target: "WalletConnect: sign-and-send", "signing and sending tx…");
     let (signed_tx, _) = try_tx_s!(coin.wc_send_tx(wc, params).await);
 
     Ok(signed_tx)

@@ -102,7 +102,7 @@ impl WalletConnectCtx {
             protocol: SUPPORTED_PROTOCOL.to_string(),
             data: None,
         };
-        let (inbound_message_tx, mut inbound_message_rx) = unbounded();
+        let (inbound_message_tx, inbound_message_rx) = unbounded();
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (client, _) = Client::new_with_callback(
             Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
@@ -126,18 +126,13 @@ impl WalletConnectCtx {
         context
             .abortable_system
             .weak_spawner()
-            .spawn(context.clone().spawn_connection_initialization(conn_live_receiver));
+            .spawn(context.clone().spawn_connection_initialization_fut(conn_live_receiver));
+
         // spawn message handler event loop
-        context.abortable_system.weak_spawner().spawn({
-            let context = context.clone();
-            async move {
-                while let Some(msg) = inbound_message_rx.next().await {
-                    if let Err(e) = context.handle_published_message(msg).await {
-                        error!("Error processing message: {:?}", e);
-                    }
-                }
-            }
-        });
+        context
+            .abortable_system
+            .weak_spawner()
+            .spawn(context.clone().spawn_published_message_fut(inbound_message_rx));
 
         Ok(Self(context))
     }
@@ -154,7 +149,7 @@ impl WalletConnectCtxImpl {
     /// Establishes initial connection to WalletConnect relay server with linear retry mechanism.
     /// Uses increasing delay between retry attempts starting from 1sec and increase exponentially.
     /// After successful connection, attempts to restore previous session state from storage.
-    pub(crate) async fn spawn_connection_initialization(
+    pub(crate) async fn spawn_connection_initialization_fut(
         self: Arc<Self>,
         connection_live_rx: UnboundedReceiver<Option<String>>,
     ) {
@@ -243,12 +238,12 @@ impl WalletConnectCtxImpl {
                 .timeout_secs(PUBLISH_TIMEOUT_SECS)
                 .await
             {
-                Ok(Ok(_)) => {
+                Ok(res) => {
+                    res.map_to_mm(|err| err.into())?;
                     info!("[{topic}] Subscribed to topic");
                     send_proposal_request(self, &topic, required_namespaces, optional_namespaces).await?;
                     return Ok(url);
                 },
-                Ok(Err(err)) => return MmError::err(err.into()),
                 Err(_) => self.wait_until_client_is_online_loop(attempt).await,
             }
         }
@@ -260,17 +255,15 @@ impl WalletConnectCtxImpl {
 
     /// Retrieves the symmetric key associated with a given `topic`.
     fn sym_key(&self, topic: &Topic) -> MmResult<SymKey, WalletConnectError> {
-        if let Some(key) = self.session_manager.sym_key(topic) {
-            return Ok(key);
-        }
-
-        if let Ok(key) = self.pairing.sym_key(topic) {
-            return Ok(key);
-        }
-
-        MmError::err(WalletConnectError::InternalError(format!(
-            "topic sym_key not found:{topic}"
-        )))
+        self.session_manager
+            .sym_key(topic)
+            .or_else(|| self.pairing.sym_key(topic).ok())
+            .ok_or_else(|| {
+                error!("Failed to find sym_key for topic: {topic}");
+                MmError::new(WalletConnectError::InternalError(format!(
+                    "topic sym_key not found: {topic}"
+                )))
+            })
     }
 
     /// Handles an inbound published message by decrypting, decoding, and processing it.
@@ -292,6 +285,15 @@ impl WalletConnectCtxImpl {
         Ok(())
     }
 
+    // Spawns a task that continuously processes published messages from inbound message channel.
+    async fn spawn_published_message_fut(self: Arc<Self>, mut recv: UnboundedReceiver<PublishedMessage>) {
+        while let Some(msg) = recv.next().await {
+            self.handle_published_message(msg)
+                .await
+                .error_log_with_msg("Error processing message");
+        }
+    }
+
     /// Loads sessions from storage, activates valid ones, and deletes expired ones.
     async fn load_session_from_storage(&self) -> MmResult<(), WalletConnectError> {
         info!("Loading WalletConnect session from storage");
@@ -310,9 +312,11 @@ impl WalletConnectCtxImpl {
             // delete expired session
             if now > session.expiry {
                 debug!("Session {} expired, trying to delete from storage", session.topic);
-                if let Err(err) = self.session_manager.storage().delete_session(&session.topic).await {
-                    error!("[{}] Unable to delete session from storage: {err:?}", session.topic);
-                }
+                self.session_manager
+                    .storage()
+                    .delete_session(&session.topic)
+                    .await
+                    .error_log_with_msg(&format!("[{}] Unable to delete session from storage", session.topic));
                 continue;
             };
 
@@ -471,7 +475,6 @@ impl WalletConnectCtxImpl {
         session: &Session,
         chain_id: &WcChainId,
     ) -> MmResult<(), WalletConnectError> {
-        println!("{:?}", session.namespaces.get(chain_id.chain.as_ref()));
         if let Some(Namespace {
             chains: Some(chains), ..
         }) = session.namespaces.get(chain_id.chain.as_ref())

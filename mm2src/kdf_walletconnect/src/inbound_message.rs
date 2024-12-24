@@ -9,7 +9,7 @@ use crate::{error::WalletConnectError,
                            update::reply_session_update_request},
             WalletConnectCtxImpl};
 
-use common::log::info;
+use common::log::{info, LogOnError};
 use mm2_err_handle::prelude::*;
 use relay_rpc::domain::{MessageId, Topic};
 use relay_rpc::rpc::{params::ResponseParamsSuccess, Params, Request, Response};
@@ -72,10 +72,9 @@ pub(crate) async fn process_inbound_response(ctx: &WalletConnectCtxImpl, respons
                     .lock()
                     .expect("pending request lock shouldn't fail!")
                     .remove(&message_id);
-                if let Err(err) = process_session_propose_response(ctx, topic, &propose).await {
-                    common::log::error!("Failed to process session propose response: {err:?}");
-                }
-                return;
+                return process_session_propose_response(ctx, topic, &propose)
+                    .await
+                    .error_log_with_msg("Failed to process session propose response");
             },
             Ok(data) => Ok(SessionMessage {
                 message_id,
