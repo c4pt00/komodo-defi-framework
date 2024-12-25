@@ -40,7 +40,7 @@ use session::Session;
 use session::{key::SymKeyPair, SessionManager};
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Deref;
-use std::{sync::{Arc, Mutex as SyncMutex},
+use std::{sync::{Arc, Mutex},
           time::Duration};
 use storage::SessionStorageDb;
 use storage::WalletConnectStorageOps;
@@ -80,7 +80,7 @@ pub struct WalletConnectCtxImpl {
     relay: Relay,
     metadata: Metadata,
     message_id_generator: MessageIdGenerator,
-    pending_requests: SyncMutex<HashMap<MessageId, oneshot::Sender<SessionMessageType>>>,
+    pending_requests: Mutex<HashMap<MessageId, oneshot::Sender<SessionMessageType>>>,
     abortable_system: AbortableQueue,
 }
 
@@ -273,14 +273,14 @@ impl WalletConnectCtxImpl {
             decode_and_decrypt_type0(msg.message.as_bytes(), &key)?
         };
 
-        info!("[{}] Inbound message payload={message}", msg.topic);
+        debug!("[{}] Inbound message payload={message}", msg.topic);
 
         match serde_json::from_str(&message)? {
             Payload::Request(request) => process_inbound_request(self, request, &msg.topic).await?,
             Payload::Response(response) => process_inbound_response(self, response, &msg.topic).await,
         }
 
-        info!("[{}] Inbound message was handled successfully", msg.topic);
+        debug!("[{}] Inbound message was handled successfully", msg.topic);
 
         Ok(())
     }
