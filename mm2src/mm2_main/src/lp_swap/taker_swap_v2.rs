@@ -2227,7 +2227,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
                 let next_state = TakerPaymentRefundRequired {
                     taker_payment: self.taker_payment,
                     negotiation_data: self.negotiation_data,
-                    reason: TakerPaymentRefundReason::MakerPaymentSpendNotConfirmedInTime(format!("{}", e)),
+                    reason: TakerPaymentRefundReason::MakerPaymentSpendNotConfirmedInTime(e.to_string()),
                 };
                 return Self::change_state(next_state, state_machine).await;
             }
