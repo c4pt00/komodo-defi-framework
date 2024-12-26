@@ -222,7 +222,7 @@ pub(crate) struct SpendTxSearchParams<'a> {
     pub(crate) swap_contract_address: Address,
     pub(crate) event_name: &'a str,
     pub(crate) abi_contract: &'a Contract,
-    pub(crate) swap_id: &'a [u8],
+    pub(crate) swap_id: &'a [u8; 32],
     pub(crate) from_block: u64,
     pub(crate) wait_until: u64,
     pub(crate) check_every: f64,

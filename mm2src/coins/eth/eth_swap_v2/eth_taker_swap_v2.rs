@@ -471,14 +471,16 @@ impl EthCoin {
                 FindPaymentSpendError::Internal("Expected swap_v2_contracts to be Some, but found None".to_string())
             })?
             .taker_swap_v2_contract;
-        let id =
-            extract_id_from_tx_data(taker_payment.unsigned().data(), &TAKER_SWAP_V2, TAKER_PAYMENT_APPROVE).await?;
+        let id_array = extract_id_from_tx_data(taker_payment.unsigned().data(), &TAKER_SWAP_V2, TAKER_PAYMENT_APPROVE)
+            .await?
+            .as_slice()
+            .try_into()?;
 
         let params = SpendTxSearchParams {
             swap_contract_address: taker_swap_v2_contract,
             event_name: "TakerPaymentSpent",
             abi_contract: &TAKER_SWAP_V2,
-            swap_id: &id,
+            swap_id: &id_array,
             from_block,
             wait_until,
             check_every,
