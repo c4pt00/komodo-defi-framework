@@ -168,8 +168,6 @@ impl EthCoin {
                             params.event_name, next_from_block, to_block, e
                         );
                         Timer::sleep(params.check_every).await;
-                        // Move to next window if there was an error
-                        next_from_block += self.logs_block_range;
                         continue;
                     },
                 };
