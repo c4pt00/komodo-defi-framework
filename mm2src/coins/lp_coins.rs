@@ -1810,6 +1810,7 @@ pub enum FindPaymentSpendError {
     },
     /// Invalid input transaction error variant, containing additional information about the error.
     InvalidInputTx(String),
+    #[from_stringify("TryFromSliceError")]
     Internal(String),
     #[from_stringify("ethabi::Error")]
     #[display(fmt = "ABI error: {}", _0)]

@@ -46,8 +46,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -110,8 +110,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -165,8 +165,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -219,8 +219,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $Env:GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -275,8 +275,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -334,7 +334,7 @@ jobs:
           rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | bash -s -- -y
+        run: CARGO_HOME=/root/.cargo cargo install wasm-pack --version 0.10.3
 
       - name: Calculate commit hash for PR commit
         if: github.event_name == 'pull_request'
@@ -344,8 +344,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -393,8 +393,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -462,8 +462,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |
@@ -533,8 +533,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "COMMIT_HASH=$(git rev-parse --short=7 HEAD)" >> $GITHUB_ENV
 
-      - name: Cargo cache
-        uses: ./.github/actions/cargo-cache
+      - name: Build cache
+        uses: ./.github/actions/build-cache
 
       - name: Build
         run: |

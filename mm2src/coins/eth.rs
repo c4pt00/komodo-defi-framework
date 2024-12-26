@@ -2593,7 +2593,7 @@ impl MarketCoinOps for EthCoin {
             swap_contract_address,
             event_name: "ReceiverSpent",
             abi_contract: &SWAP_CONTRACT,
-            swap_id: &id,
+            swap_id: &try_tx_s!(id.as_slice().try_into()),
             from_block: args.from_block,
             wait_until: args.wait_until,
             check_every: args.check_every,
