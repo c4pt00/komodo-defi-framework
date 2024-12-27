@@ -73,6 +73,16 @@ pub(crate) enum PrepareTxDataError {
     Internal(String),
 }
 
+pub(crate) struct SpendTxSearchParams<'a> {
+    pub(crate) swap_contract_address: Address,
+    pub(crate) event_name: &'a str,
+    pub(crate) abi_contract: &'a Contract,
+    pub(crate) swap_id: &'a [u8; 32],
+    pub(crate) from_block: u64,
+    pub(crate) wait_until: u64,
+    pub(crate) check_every: f64,
+}
+
 impl EthCoin {
     /// Retrieves the payment status from a given smart contract address based on the swap ID and state type.
     pub(crate) async fn payment_status_v2(
@@ -214,16 +224,6 @@ impl EthCoin {
             Timer::sleep(check_every).await;
         }
     }
-}
-
-pub(crate) struct SpendTxSearchParams<'a> {
-    pub(crate) swap_contract_address: Address,
-    pub(crate) event_name: &'a str,
-    pub(crate) abi_contract: &'a Contract,
-    pub(crate) swap_id: &'a [u8; 32],
-    pub(crate) from_block: u64,
-    pub(crate) wait_until: u64,
-    pub(crate) check_every: f64,
 }
 
 pub(crate) fn validate_payment_state(
