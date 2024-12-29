@@ -456,7 +456,7 @@ impl ParseCoinAssocTypes for TestCoin {
 
     async fn my_addr(&self) -> Self::Address { todo!() }
 
-    fn addr_to_string(&self, address: &Self::Address) -> String { unimplemented!() }
+    async fn my_addr_as_string(&self) -> String { unimplemented!() }
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> { todo!() }
 
