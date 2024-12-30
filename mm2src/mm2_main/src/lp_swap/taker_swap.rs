@@ -3281,7 +3281,6 @@ mod taker_swap_tests {
         .unwrap();
         let swaps_ctx = SwapsContext::from_ctx(&ctx).unwrap();
         let arc = Arc::new(swap);
-        // Create a dummy abort handle as if it was a running swap.
         swaps_ctx.running_swaps.lock().unwrap().insert(arc.uuid, arc);
 
         let actual = get_locked_amount(&ctx, "RICK");
