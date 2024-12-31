@@ -792,6 +792,7 @@ pub enum EthPrivKeyBuildPolicy {
     WalletConnect {
         address: Address,
         public_key_uncompressed: H520,
+        session_topic: String,
     },
 }
 

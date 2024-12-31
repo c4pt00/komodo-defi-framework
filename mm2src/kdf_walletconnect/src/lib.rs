@@ -61,15 +61,17 @@ pub trait WalletConnectOps {
 
     async fn wc_sign_tx<'a>(
         &self,
-        ctx: &WalletConnectCtx,
+        wc: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SignTxData, Self::Error>;
 
     async fn wc_send_tx<'a>(
         &self,
-        ctx: &WalletConnectCtx,
+        wc: &WalletConnectCtx,
         params: Self::Params<'a>,
     ) -> Result<Self::SendTxData, Self::Error>;
+
+    async fn session_topic(&self, wc: &WalletConnectCtx) -> Result<&str, Self::Error>;
 }
 
 pub struct WalletConnectCtxImpl {
@@ -492,10 +494,15 @@ impl WalletConnectCtxImpl {
         MmError::err(WalletConnectError::ChainIdNotSupported(chain_id.to_string()))
     }
 
-    pub async fn validate_update_active_chain_id(&self, chain_id: &WcChainId) -> MmResult<(), WalletConnectError> {
+    pub async fn validate_update_active_chain_id(
+        &self,
+        session_topic: &str,
+        chain_id: &WcChainId,
+    ) -> MmResult<(), WalletConnectError> {
+        let session_topic = session_topic.into();
         let session =
             self.session_manager
-                .get_session_active()
+                .get_session(&session_topic)
                 .ok_or(MmError::new(WalletConnectError::SessionError(
                     "No active WalletConnect session found".to_string(),
                 )))?;
@@ -547,10 +554,15 @@ impl WalletConnectCtxImpl {
     }
 
     /// Retrieves the available account for a given chain ID.
-    pub fn get_account_for_chain_id(&self, chain_id: &WcChainId) -> MmResult<String, WalletConnectError> {
+    pub fn get_account_for_chain_id(
+        &self,
+        session_topic: &str,
+        chain_id: &WcChainId,
+    ) -> MmResult<String, WalletConnectError> {
+        let session_topic = session_topic.into();
         let namespaces = &self
             .session_manager
-            .get_session_active()
+            .get_session(&session_topic)
             .ok_or(MmError::new(WalletConnectError::SessionError(
                 "No active WalletConnect session found".to_string(),
             )))?
@@ -573,6 +585,7 @@ impl WalletConnectCtxImpl {
     /// https://specs.walletconnect.com/2.0/specs/clients/sign/session-events#session_request
     pub async fn send_session_request_and_wait<T, R, F>(
         &self,
+        session_topic: &str,
         chain_id: &WcChainId,
         method: WcRequestMethods,
         params: serde_json::Value,
@@ -582,7 +595,7 @@ impl WalletConnectCtxImpl {
         T: DeserializeOwned,
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
-        let active_topic = self.session_manager.get_active_topic_or_err()?;
+        let session_topic = session_topic.into();
         let request = SessionRequestRequest {
             chain_id: chain_id.to_string(),
             request: SessionRequest {
@@ -592,7 +605,7 @@ impl WalletConnectCtxImpl {
             },
         };
         let request = RequestParams::SessionRequest(request);
-        let (rx, ttl) = self.publish_request(&active_topic, request).await?;
+        let (rx, ttl) = self.publish_request(&session_topic, request).await?;
 
         let response = rx
             .timeout(ttl)

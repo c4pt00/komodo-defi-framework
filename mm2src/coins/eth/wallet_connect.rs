@@ -1,7 +1,7 @@
 /// https://docs.reown.com/advanced/multichain/rpc-reference/ethereum-rpc
 use crate::common::Future01CompatExt;
 use crate::Eip1559Ops;
-use crate::{BytesJson, TransactionErr};
+use crate::{BytesJson, MarketCoinOps, TransactionErr};
 
 use common::log::info;
 use derive_more::Display;
@@ -21,7 +21,7 @@ use secp256k1::{recovery::{RecoverableSignature, RecoveryId},
 use std::str::FromStr;
 use web3::signing::hash_message;
 
-use super::EthCoin;
+use super::{EthCoin, EthPrivKeyPolicy};
 
 // Wait for 60 seconds for the transaction to appear on the RPC node.
 const WAIT_RPC_TIMEOUT_SECS: u64 = 60;
@@ -90,13 +90,14 @@ impl<'a> WcEthTxParams<'a> {
 #[async_trait::async_trait]
 impl WalletConnectOps for EthCoin {
     type Error = MmError<EthWalletConnectError>;
+    type Params<'a> = WcEthTxParams<'a>;
     type SignTxData = (SignedTransaction, BytesJson);
     type SendTxData = (SignedTransaction, BytesJson);
-    type Params<'a> = WcEthTxParams<'a>;
 
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
         let chain_id = WcChainId::new_eip155(self.chain_id.to_string());
-        wc.validate_update_active_chain_id(&chain_id).await?;
+        let session_topic = self.session_topic(wc).await?;
+        wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
         Ok(chain_id)
     }
@@ -109,8 +110,15 @@ impl WalletConnectOps for EthCoin {
         let bytes = {
             let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
+            let session_topic = self.session_topic(wc).await?;
             let tx_hex: String = wc
-                .send_session_request_and_wait(&chain_id, WcRequestMethods::EthSignTransaction, tx_json, Ok)
+                .send_session_request_and_wait(
+                    session_topic,
+                    &chain_id,
+                    WcRequestMethods::EthSignTransaction,
+                    tx_json,
+                    Ok,
+                )
                 .await?;
             // First 4 bytes from WalletConnect represents Protoc info
             hex::decode(&tx_hex[4..])?
@@ -130,8 +138,15 @@ impl WalletConnectOps for EthCoin {
         let tx_hash: String = {
             let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            wc.send_session_request_and_wait(&chain_id, WcRequestMethods::EthSendTransaction, tx_json, Ok)
-                .await?
+            let session_topic = self.session_topic(wc).await?;
+            wc.send_session_request_and_wait(
+                session_topic,
+                &chain_id,
+                WcRequestMethods::EthSendTransaction,
+                tx_json,
+                Ok,
+            )
+            .await?
         };
 
         let tx_hash = tx_hash.strip_prefix("0x").unwrap_or(&tx_hash);
@@ -153,26 +168,52 @@ impl WalletConnectOps for EthCoin {
 
         Ok((signed_tx, tx_hex))
     }
+
+    async fn session_topic(&self, wc: &WalletConnectCtx) -> Result<&str, Self::Error> {
+        if let EthPrivKeyPolicy::WalletConnect { ref session_topic, .. } = &self.priv_key_policy {
+            let topic = session_topic.as_str().into();
+            if wc.session_manager.get_session(&topic).is_some() {
+                return Ok(session_topic);
+            }
+
+            return MmError::err(EthWalletConnectError::InternalError(format!(
+                "session topic:{session_topic} for {}, is not activated or has expired",
+                self.ticker()
+            )));
+        }
+
+        MmError::err(EthWalletConnectError::InternalError(format!(
+            "{} is not activated via WalletConnect",
+            self.ticker()
+        )))
+    }
 }
 
 pub async fn eth_request_wc_personal_sign(
     wc: &WalletConnectCtx,
+    session_topic: &str,
     chain_id: u64,
 ) -> MmResult<(H520, Address), EthWalletConnectError> {
     let chain_id = WcChainId::new_eip155(chain_id.to_string());
-    wc.validate_update_active_chain_id(&chain_id).await?;
+    wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
-    let account_str = wc.get_account_for_chain_id(&chain_id)?;
+    let account_str = wc.get_account_for_chain_id(session_topic, &chain_id)?;
     let message = "Authenticate with Komodefi";
     let params = {
         let message_hex = format!("0x{}", hex::encode(message));
         json!(&[&message_hex, &account_str])
     };
     let data = wc
-        .send_session_request_and_wait(&chain_id, WcRequestMethods::PersonalSign, params, |data: String| {
-            extract_pubkey_from_signature(&data, message, &account_str)
-                .mm_err(|err| WalletConnectError::SessionError(err.to_string()))
-        })
+        .send_session_request_and_wait(
+            session_topic,
+            &chain_id,
+            WcRequestMethods::PersonalSign,
+            params,
+            |data: String| {
+                extract_pubkey_from_signature(&data, message, &account_str)
+                    .mm_err(|err| WalletConnectError::SessionError(err.to_string()))
+            },
+        )
         .await?;
 
     Ok(data)

@@ -231,11 +231,12 @@ impl From<TendermintInitError> for EnablePlatformCoinWithTokensError {
 
 async fn activate_with_walletconnect(
     ctx: &MmArc,
+    session_topic: &str,
     chain_id: &str,
     ticker: &str,
 ) -> MmResult<(TendermintActivationPolicy, TendermintWalletConnectionType), TendermintInitError> {
     let wc = WalletConnectCtx::from_ctx(ctx).expect("TODO: handle error when enable kdf initialization without key.");
-    let account = cosmos_get_accounts_impl(&wc, chain_id)
+    let account = cosmos_get_accounts_impl(&wc, session_topic, chain_id)
         .await
         .mm_err(|err| TendermintInitError {
             ticker: ticker.to_string(),
@@ -304,7 +305,9 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                     )
                 },
                 TendermintPubkeyActivationParams::WalletConnect => {
-                    activate_with_walletconnect(&ctx, protocol_conf.chain_id.as_ref(), &ticker).await?
+                    //TODO: uncomment when dynamic session topic is implemented for tendermint.
+                    let session_topic = "TOPIC".to_owned();
+                    activate_with_walletconnect(&ctx, &session_topic, protocol_conf.chain_id.as_ref(), &ticker).await?
                 },
             }
         } else {

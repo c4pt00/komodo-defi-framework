@@ -3914,9 +3914,11 @@ pub enum PrivKeyPolicy<T> {
     /// public keys.
     /// - `public_key`: Compressed public key, represented as [H264].
     /// - `public_key_uncompressed`: Uncompressed public key, represented as [H520].
+    /// - `session_topic`: WalletConnect session that was used to activate this coin.
     WalletConnect {
         public_key: H264,
         public_key_uncompressed: H520,
+        session_topic: String,
     },
 }
 

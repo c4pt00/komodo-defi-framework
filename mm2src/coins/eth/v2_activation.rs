@@ -168,7 +168,9 @@ pub enum EthPrivKeyActivationPolicy {
     Trezor,
     #[cfg(target_arch = "wasm32")]
     Metamask,
-    WalletConnect,
+    WalletConnect {
+        session_topic: String,
+    },
 }
 
 impl EthPrivKeyActivationPolicy {
@@ -825,12 +827,14 @@ pub(crate) async fn build_address_and_priv_key_policy(
         EthPrivKeyBuildPolicy::WalletConnect {
             address,
             public_key_uncompressed,
+            session_topic,
         } => {
             let public_key = compress_public_key(public_key_uncompressed)?;
             Ok((
                 EthPrivKeyPolicy::WalletConnect {
                     public_key,
                     public_key_uncompressed,
+                    session_topic,
                 },
                 DerivationMethod::SingleAddress(address),
             ))

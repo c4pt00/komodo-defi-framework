@@ -487,17 +487,19 @@ async fn eth_priv_key_build_policy(
             Ok(EthPrivKeyBuildPolicy::Metamask(metamask_ctx))
         },
         EthPrivKeyActivationPolicy::Trezor => Ok(EthPrivKeyBuildPolicy::Trezor),
-        EthPrivKeyActivationPolicy::WalletConnect => {
+        EthPrivKeyActivationPolicy::WalletConnect { session_topic } => {
             let wc = WalletConnectCtx::from_ctx(ctx)
                 .expect("TODO: handle error when enable kdf initialization without key.");
             let chain_id = conf["chain_id"].as_u64().ok_or(EthActivationV2Error::ChainIdNotSet)?;
-            let (public_key_uncompressed, address) = eth_request_wc_personal_sign(&wc, chain_id)
-                .await
-                .mm_err(|err| EthActivationV2Error::WalletConnectError(err.to_string()))?;
+            let (public_key_uncompressed, address) =
+                eth_request_wc_personal_sign(&wc, session_topic, chain_id)
+                    .await
+                    .mm_err(|err| EthActivationV2Error::WalletConnectError(err.to_string()))?;
 
             Ok(EthPrivKeyBuildPolicy::WalletConnect {
                 address,
                 public_key_uncompressed,
+                session_topic: session_topic.clone(),
             })
         },
     }

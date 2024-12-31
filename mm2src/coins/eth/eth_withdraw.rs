@@ -302,9 +302,9 @@ where
             },
             EthPrivKeyPolicy::WalletConnect { .. } => {
                 let ctx = MmArc::from_weak(&coin.ctx).expect("No context");
-
                 let wc = WalletConnectCtx::from_ctx(&ctx)
                     .expect("TODO: handle error when enable kdf initialization without key.");
+
                 let gas_price = pay_for_gas_option.get_gas_price();
                 let (nonce, _) = coin
                     .clone()

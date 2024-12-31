@@ -64,7 +64,7 @@ pub async fn handle_session_event(
             // TODO: Handle accountsChanged event logic.
         },
         _ => {
-            // TODO: Handle other event logic.},
+            // TODO: Handle other event logic.,
         },
     };
 

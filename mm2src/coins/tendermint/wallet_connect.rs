@@ -81,7 +81,8 @@ impl WalletConnectOps for TendermintCoin {
 
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
         let chain_id = WcChainId::new_cosmos(self.chain_id.to_string());
-        wc.validate_update_active_chain_id(&chain_id).await?;
+        let session_topic = self.session_topic(wc).await?;
+        wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
         Ok(chain_id)
     }
 
@@ -97,7 +98,11 @@ impl WalletConnectOps for TendermintCoin {
             WcRequestMethods::CosmosSignDirect
         };
 
-        wc.send_session_request_and_wait(&chain_id, method, params, |data: CosmosTxSignedData| {
+        let session_topic = self
+            .session_topic(wc)
+            .await
+            .expect("TODO: handle after updating tendermint coin init");
+        wc.send_session_request_and_wait(session_topic, &chain_id, method, params, |data: CosmosTxSignedData| {
             let signature = general_purpose::STANDARD
                 .decode(data.signature.signature)
                 .map_to_mm(|err| WalletConnectError::PayloadError(err.to_string()))?;
@@ -118,16 +123,36 @@ impl WalletConnectOps for TendermintCoin {
     ) -> Result<Self::SendTxData, Self::Error> {
         todo!()
     }
+
+    async fn session_topic(&self, _wc: &WalletConnectCtx) -> Result<&str, Self::Error> {
+        //     if let EthPrivKeyPolicy::WalletConnect { ref session_topic, .. } = &self.priv_key_policy {
+        //         if wc.session_manager.get_session(&(session_topic.into())).is_some() {
+        //             return Ok(session_topic);
+        //         }
+        //
+        //         return MmError::err(EthWalletConnectError::InternalError(format!(
+        //             "session topic:{session_topic} for {}, is not activated or has expired",
+        //             self.ticker()
+        //         )));
+        //     }
+        //
+        //     MmError::err(EthWalletConnectError::InternalError(format!(
+        //         "{} is not activated via WalletConnect",
+        //         self.ticker()
+        //     )))
+        todo!()
+    }
 }
 
 pub async fn cosmos_get_accounts_impl(
     wc: &WalletConnectCtx,
+    session_topic: &str,
     chain_id: &str,
 ) -> MmResult<CosmosAccount, WalletConnectError> {
     let chain_id = WcChainId::new_cosmos(chain_id.to_string());
-    wc.validate_update_active_chain_id(&chain_id).await?;
+    wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
-    let account = wc.get_account_for_chain_id(&chain_id)?;
+    let account = wc.get_account_for_chain_id(session_topic, &chain_id)?;
     let session = wc
         .session_manager
         .get_session_active()
@@ -160,6 +185,7 @@ pub async fn cosmos_get_accounts_impl(
 
     let params = serde_json::to_value(&account).unwrap();
     wc.send_session_request_and_wait(
+        session_topic,
         &chain_id,
         WcRequestMethods::CosmosGetAccounts,
         params,
