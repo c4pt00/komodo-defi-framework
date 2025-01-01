@@ -12,6 +12,7 @@ use serde_json::Value;
 use std::str::FromStr;
 
 use super::{CosmosTransaction, TendermintCoin};
+use crate::MarketCoinOps;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) struct CosmosTxSignedData {
@@ -81,7 +82,7 @@ impl WalletConnectOps for TendermintCoin {
 
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
         let chain_id = WcChainId::new_cosmos(self.chain_id.to_string());
-        let session_topic = self.session_topic(wc).await?;
+        let session_topic = self.session_topic().await?;
         wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
         Ok(chain_id)
     }
@@ -99,7 +100,7 @@ impl WalletConnectOps for TendermintCoin {
         };
 
         let session_topic = self
-            .session_topic(wc)
+            .session_topic()
             .await
             .expect("TODO: handle after updating tendermint coin init");
         wc.send_session_request_and_wait(session_topic, &chain_id, method, params, |data: CosmosTxSignedData| {
@@ -124,23 +125,12 @@ impl WalletConnectOps for TendermintCoin {
         todo!()
     }
 
-    async fn session_topic(&self, _wc: &WalletConnectCtx) -> Result<&str, Self::Error> {
-        //     if let EthPrivKeyPolicy::WalletConnect { ref session_topic, .. } = &self.priv_key_policy {
-        //         if wc.session_manager.get_session(&(session_topic.into())).is_some() {
-        //             return Ok(session_topic);
-        //         }
-        //
-        //         return MmError::err(EthWalletConnectError::InternalError(format!(
-        //             "session topic:{session_topic} for {}, is not activated or has expired",
-        //             self.ticker()
-        //         )));
-        //     }
-        //
-        //     MmError::err(EthWalletConnectError::InternalError(format!(
-        //         "{} is not activated via WalletConnect",
-        //         self.ticker()
-        //     )))
-        todo!()
+    async fn session_topic(&self) -> Result<&str, Self::Error> {
+        self.try_wallet_connect_session()
+            .ok_or(MmError::new(WalletConnectError::SessionError(format!(
+                "{} is not activated via WalletConnect",
+                self.ticker()
+            ))))
     }
 }
 

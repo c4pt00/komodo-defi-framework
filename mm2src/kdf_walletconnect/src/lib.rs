@@ -71,7 +71,7 @@ pub trait WalletConnectOps {
         params: Self::Params<'a>,
     ) -> Result<Self::SendTxData, Self::Error>;
 
-    async fn session_topic(&self, wc: &WalletConnectCtx) -> Result<&str, Self::Error>;
+    async fn session_topic(&self) -> Result<&str, Self::Error>;
 }
 
 pub struct WalletConnectCtxImpl {
@@ -596,6 +596,8 @@ impl WalletConnectCtxImpl {
         F: Fn(T) -> MmResult<R, WalletConnectError>,
     {
         let session_topic = session_topic.into();
+        self.session_manager.validate_session_exists(&session_topic)?;
+
         let request = SessionRequestRequest {
             chain_id: chain_id.to_string(),
             request: SessionRequest {

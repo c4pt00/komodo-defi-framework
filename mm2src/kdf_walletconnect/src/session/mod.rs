@@ -312,6 +312,17 @@ impl SessionManager {
     pub(crate) fn sym_key(&self, topic: &Topic) -> Option<SymKey> {
         self.get_session(topic).map(|sess| sess.session_key.symmetric_key())
     }
+
+    /// Check if a session exists.
+    pub(crate) fn validate_session_exists(&self, topic: &Topic) -> Result<(), MmError<WalletConnectError>> {
+        if self.read().contains_key(topic) {
+            return Ok(());
+        };
+
+        MmError::err(WalletConnectError::SessionError(
+            "No active WalletConnect session found".to_string(),
+        ))
+    }
 }
 
 #[cfg(test)]

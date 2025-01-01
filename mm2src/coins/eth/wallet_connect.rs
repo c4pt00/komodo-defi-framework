@@ -36,6 +36,7 @@ pub enum EthWalletConnectError {
     #[from_stringify("ethkey::Error")]
     InternalError(String),
     InvalidTxData(String),
+    SessionError(String),
     WalletConnectError(WalletConnectError),
 }
 
@@ -96,7 +97,7 @@ impl WalletConnectOps for EthCoin {
 
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
         let chain_id = WcChainId::new_eip155(self.chain_id.to_string());
-        let session_topic = self.session_topic(wc).await?;
+        let session_topic = self.session_topic().await?;
         wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
         Ok(chain_id)
@@ -110,7 +111,7 @@ impl WalletConnectOps for EthCoin {
         let bytes = {
             let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            let session_topic = self.session_topic(wc).await?;
+            let session_topic = self.session_topic().await?;
             let tx_hex: String = wc
                 .send_session_request_and_wait(
                     session_topic,
@@ -138,7 +139,7 @@ impl WalletConnectOps for EthCoin {
         let tx_hash: String = {
             let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            let session_topic = self.session_topic(wc).await?;
+            let session_topic = self.session_topic().await?;
             wc.send_session_request_and_wait(
                 session_topic,
                 &chain_id,
@@ -169,20 +170,12 @@ impl WalletConnectOps for EthCoin {
         Ok((signed_tx, tx_hex))
     }
 
-    async fn session_topic(&self, wc: &WalletConnectCtx) -> Result<&str, Self::Error> {
+    async fn session_topic(&self) -> Result<&str, Self::Error> {
         if let EthPrivKeyPolicy::WalletConnect { ref session_topic, .. } = &self.priv_key_policy {
-            let topic = session_topic.as_str().into();
-            if wc.session_manager.get_session(&topic).is_some() {
-                return Ok(session_topic);
-            }
-
-            return MmError::err(EthWalletConnectError::InternalError(format!(
-                "session topic:{session_topic} for {}, is not activated or has expired",
-                self.ticker()
-            )));
+            return Ok(session_topic);
         }
 
-        MmError::err(EthWalletConnectError::InternalError(format!(
+        MmError::err(EthWalletConnectError::SessionError(format!(
             "{} is not activated via WalletConnect",
             self.ticker()
         )))

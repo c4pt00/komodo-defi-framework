@@ -50,7 +50,7 @@ pub enum TendermintPubkeyActivationParams {
         is_ledger_connection: bool,
     },
     /// Activation via WalletConnect
-    WalletConnect,
+    WalletConnect { session_topic: String },
 }
 
 #[derive(Clone, Deserialize)]
@@ -231,21 +231,21 @@ impl From<TendermintInitError> for EnablePlatformCoinWithTokensError {
 
 async fn activate_with_walletconnect(
     ctx: &MmArc,
-    session_topic: &str,
+    session_topic: String,
     chain_id: &str,
     ticker: &str,
 ) -> MmResult<(TendermintActivationPolicy, TendermintWalletConnectionType), TendermintInitError> {
     let wc = WalletConnectCtx::from_ctx(ctx).expect("TODO: handle error when enable kdf initialization without key.");
-    let account = cosmos_get_accounts_impl(&wc, session_topic, chain_id)
+    let account = cosmos_get_accounts_impl(&wc, &session_topic, chain_id)
         .await
         .mm_err(|err| TendermintInitError {
             ticker: ticker.to_string(),
             kind: TendermintInitErrorKind::UnableToFetchChainAccount(err.to_string()),
         })?;
     let wallet_type = if wc.is_ledger_connection() {
-        TendermintWalletConnectionType::WcLedger
+        TendermintWalletConnectionType::WcLedger(session_topic)
     } else {
-        TendermintWalletConnectionType::Wc
+        TendermintWalletConnectionType::Wc(session_topic)
     };
 
     let pubkey = match account.algo {
@@ -304,10 +304,8 @@ impl PlatformCoinWithTokensActivationOps for TendermintCoin {
                         wallet_connection_type,
                     )
                 },
-                TendermintPubkeyActivationParams::WalletConnect => {
-                    //TODO: uncomment when dynamic session topic is implemented for tendermint.
-                    let session_topic = "TOPIC".to_owned();
-                    activate_with_walletconnect(&ctx, &session_topic, protocol_conf.chain_id.as_ref(), &ticker).await?
+                TendermintPubkeyActivationParams::WalletConnect { session_topic } => {
+                    activate_with_walletconnect(&ctx, session_topic, protocol_conf.chain_id.as_ref(), &ticker).await?
                 },
             }
         } else {

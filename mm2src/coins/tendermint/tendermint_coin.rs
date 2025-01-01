@@ -356,8 +356,8 @@ impl RpcCommonOps for TendermintCoin {
 
 #[derive(PartialEq)]
 pub enum TendermintWalletConnectionType {
-    Wc,
-    WcLedger,
+    Wc(String),
+    WcLedger(String),
     KeplrLedger,
     Keplr,
     Native,
@@ -1468,7 +1468,7 @@ impl TendermintCoin {
             .collect();
 
         let (tx_json, body_bytes) = match self.wallet_type {
-            TendermintWalletConnectionType::WcLedger => {
+            TendermintWalletConnectionType::WcLedger(_) => {
                 let signer_address = self.my_address().unwrap();
                 let body_bytes = tx::Body::new(vec![tx_payload], &memo, timeout_height).into_bytes()?;
                 let json = serde_json::json!({
@@ -2208,15 +2208,23 @@ impl TendermintCoin {
     pub fn is_ledger_connection(&self) -> bool {
         matches!(
             self.wallet_type,
-            TendermintWalletConnectionType::WcLedger | TendermintWalletConnectionType::KeplrLedger
+            TendermintWalletConnectionType::WcLedger(_) | TendermintWalletConnectionType::KeplrLedger
         )
     }
 
     pub fn is_wallet_connect(&self) -> bool {
         matches!(
             self.wallet_type,
-            TendermintWalletConnectionType::WcLedger | TendermintWalletConnectionType::Wc
+            TendermintWalletConnectionType::WcLedger(_) | TendermintWalletConnectionType::Wc(_)
         )
+    }
+
+    pub fn try_wallet_connect_session(&self) -> Option<&str> {
+        match self.wallet_type {
+            TendermintWalletConnectionType::WcLedger(ref session_topic)
+            | TendermintWalletConnectionType::Wc(ref session_topic) => Some(session_topic),
+            _ => None,
+        }
     }
 }
 
