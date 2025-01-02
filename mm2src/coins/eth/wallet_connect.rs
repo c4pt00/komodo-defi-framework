@@ -190,7 +190,7 @@ pub async fn eth_request_wc_personal_sign(
     let chain_id = WcChainId::new_eip155(chain_id.to_string());
     wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
-    let account_str = wc.get_account_for_chain_id(session_topic, &chain_id)?;
+    let (account_str, _) = wc.get_account_and_properties_for_chain_id(session_topic, &chain_id)?;
     let message = "Authenticate with Komodefi";
     let params = {
         let message_hex = format!("0x{}", hex::encode(message));

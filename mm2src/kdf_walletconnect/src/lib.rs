@@ -36,8 +36,8 @@ use relay_rpc::rpc::params::{session_request::Request as SessionRequest, IrnMeta
 use relay_rpc::rpc::{ErrorResponse, Payload, Request, Response, SuccessfulResponse};
 use serde::de::DeserializeOwned;
 use session::rpc::delete::send_session_delete_request;
-use session::Session;
 use session::{key::SymKeyPair, SessionManager};
+use session::{Session, SessionProperties};
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Deref;
 use std::{sync::{Arc, Mutex},
@@ -554,27 +554,26 @@ impl WalletConnectCtxImpl {
     }
 
     /// Retrieves the available account for a given chain ID.
-    pub fn get_account_for_chain_id(
+    pub fn get_account_and_properties_for_chain_id(
         &self,
         session_topic: &str,
         chain_id: &WcChainId,
-    ) -> MmResult<String, WalletConnectError> {
+    ) -> MmResult<(String, Option<SessionProperties>), WalletConnectError> {
         let session_topic = session_topic.into();
-        let namespaces = &self
-            .session_manager
-            .get_session(&session_topic)
-            .ok_or(MmError::new(WalletConnectError::SessionError(
-                "No active WalletConnect session found".to_string(),
-            )))?
-            .namespaces;
+        let session =
+            self.session_manager
+                .get_session(&session_topic)
+                .ok_or(MmError::new(WalletConnectError::SessionError(
+                    "No active WalletConnect session found".to_string(),
+                )))?;
 
         if let Some(Namespace {
             accounts: Some(accounts),
             ..
-        }) = namespaces.get(chain_id.chain.as_ref())
+        }) = &session.namespaces.get(chain_id.chain.as_ref())
         {
             if let Some(account) = find_account_in_namespace(accounts, &chain_id.id) {
-                return Ok(account);
+                return Ok((account, session.session_properties));
             }
         };
 

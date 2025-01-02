@@ -168,6 +168,7 @@ pub enum EthPrivKeyActivationPolicy {
     Trezor,
     #[cfg(target_arch = "wasm32")]
     Metamask,
+    #[serde(rename = "snake_case")]
     WalletConnect {
         session_topic: String,
     },

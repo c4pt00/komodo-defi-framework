@@ -142,14 +142,10 @@ pub async fn cosmos_get_accounts_impl(
     let chain_id = WcChainId::new_cosmos(chain_id.to_string());
     wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
-    let account = wc.get_account_for_chain_id(session_topic, &chain_id)?;
-    let session = wc
-        .session_manager
-        .get_session_active()
-        .ok_or(WalletConnectError::NotInitialized)?;
+    let (account, properties) = wc.get_account_and_properties_for_chain_id(session_topic, &chain_id)?;
 
-    // Check iexisting session has session_properties and return wallet account;
-    if let Some(props) = &session.session_properties {
+    // Check if session has session_properties and return wallet account;
+    if let Some(props) = properties {
         if let Some(keys) = &props.keys {
             if let Some(key) = keys.iter().next() {
                 let pubkey = decode_data(&key.pub_key).map_to_mm(|err| {
