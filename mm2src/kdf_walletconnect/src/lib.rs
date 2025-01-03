@@ -21,7 +21,7 @@ use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::StreamExt;
 use inbound_message::{process_inbound_request, process_inbound_response, SessionMessageType};
-use metadata::{generate_metadata, AUTH_TOKEN_DURATION, AUTH_TOKEN_SUB, METADATA, PROJECT_ID, RELAY_ADDRESS};
+use metadata::{generate_metadata, AUTH_TOKEN_DURATION, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
@@ -116,7 +116,7 @@ impl WalletConnectCtx {
             client,
             pairing,
             relay,
-            metadata: METADATA,
+            metadata: generate_metadata(),
             key_pair: SymKeyPair::new(),
             session_manager: SessionManager::new(storage),
             pending_requests: Default::default(),
