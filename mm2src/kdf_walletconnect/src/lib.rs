@@ -21,7 +21,7 @@ use error::WalletConnectError;
 use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::StreamExt;
 use inbound_message::{process_inbound_request, process_inbound_response, SessionMessageType};
-use metadata::{generate_metadata, AUTH_TOKEN_DURATION, AUTH_TOKEN_SUB, PROJECT_ID, RELAY_ADDRESS};
+use metadata::{generate_metadata, AUTH_TOKEN_DURATION, AUTH_TOKEN_SUB, METADATA, PROJECT_ID, RELAY_ADDRESS};
 use mm2_core::mm_ctx::{from_ctx, MmArc};
 use mm2_err_handle::prelude::*;
 use pairing_api::PairingClient;
@@ -71,7 +71,7 @@ pub trait WalletConnectOps {
         params: Self::Params<'a>,
     ) -> Result<Self::SendTxData, Self::Error>;
 
-    async fn session_topic(&self) -> Result<&str, Self::Error>;
+    fn session_topic(&self) -> Result<&str, Self::Error>;
 }
 
 pub struct WalletConnectCtxImpl {
@@ -116,7 +116,7 @@ impl WalletConnectCtx {
             client,
             pairing,
             relay,
-            metadata: generate_metadata(),
+            metadata: METADATA,
             key_pair: SymKeyPair::new(),
             session_manager: SessionManager::new(storage),
             pending_requests: Default::default(),
@@ -196,15 +196,14 @@ impl WalletConnectCtxImpl {
                 .map_to_mm(|err| WalletConnectError::InternalError(err.to_string()))?
         };
         let opts = ConnectionOptions::new(PROJECT_ID, auth).with_address(RELAY_ADDRESS);
-
         self.client.connect(&opts).await?;
 
         Ok(())
     }
 
+    /// Re-connect to WalletConnect relayer and re-subscribes to previously active session topics after reconnection.
     pub(crate) async fn reconnect_and_subscribe(&self) -> MmResult<(), WalletConnectError> {
         self.connect_client().await?;
-        // Resubscribes to previously active session topics after reconnection.
         let sessions = self
             .session_manager
             .get_sessions()
@@ -358,11 +357,10 @@ impl WalletConnectCtxImpl {
             .await?;
 
         let (tx, rx) = oneshot::channel();
-        let mut pending_requests = self
-            .pending_requests
+        self.pending_requests
             .lock()
-            .expect("pending request lock shouldn't fail!");
-        pending_requests.insert(message_id, tx);
+            .expect("pending request lock shouldn't fail!")
+            .insert(message_id, tx);
 
         Ok((rx, Duration::from_secs(ttl)))
     }
@@ -605,8 +603,9 @@ impl WalletConnectCtxImpl {
                 params,
             },
         };
-        let request = RequestParams::SessionRequest(request);
-        let (rx, ttl) = self.publish_request(&session_topic, request).await?;
+        let (rx, ttl) = self
+            .publish_request(&session_topic, RequestParams::SessionRequest(request))
+            .await?;
 
         let response = rx
             .timeout(ttl)

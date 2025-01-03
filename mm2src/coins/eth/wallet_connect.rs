@@ -97,7 +97,7 @@ impl WalletConnectOps for EthCoin {
 
     async fn wc_chain_id(&self, wc: &WalletConnectCtx) -> Result<WcChainId, Self::Error> {
         let chain_id = WcChainId::new_eip155(self.chain_id.to_string());
-        let session_topic = self.session_topic().await?;
+        let session_topic = self.session_topic()?;
         wc.validate_update_active_chain_id(session_topic, &chain_id).await?;
 
         Ok(chain_id)
@@ -111,7 +111,7 @@ impl WalletConnectOps for EthCoin {
         let bytes = {
             let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            let session_topic = self.session_topic().await?;
+            let session_topic = self.session_topic()?;
             let tx_hex: String = wc
                 .send_session_request_and_wait(
                     session_topic,
@@ -139,7 +139,7 @@ impl WalletConnectOps for EthCoin {
         let tx_hash: String = {
             let chain_id = self.wc_chain_id(wc).await?;
             let tx_json = params.prepare_wc_tx_format()?;
-            let session_topic = self.session_topic().await?;
+            let session_topic = self.session_topic()?;
             wc.send_session_request_and_wait(
                 session_topic,
                 &chain_id,
@@ -170,7 +170,7 @@ impl WalletConnectOps for EthCoin {
         Ok((signed_tx, tx_hex))
     }
 
-    async fn session_topic(&self) -> Result<&str, Self::Error> {
+    fn session_topic(&self) -> Result<&str, Self::Error> {
         if let EthPrivKeyPolicy::WalletConnect { ref session_topic, .. } = &self.priv_key_policy {
             return Ok(session_topic);
         }
