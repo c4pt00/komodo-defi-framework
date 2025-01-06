@@ -108,7 +108,11 @@ impl WalletConnectCtx {
         let (conn_live_sender, conn_live_receiver) = unbounded();
         let (client, _) = Client::new_with_callback(
             Handler::new("Komodefi", inbound_message_tx, conn_live_sender),
-            |r, h| abortable_system.weak_spawner().spawn(client_event_loop(r, h)),
+            |receiver, handler| {
+                abortable_system
+                    .weak_spawner()
+                    .spawn(client_event_loop(receiver, handler))
+            },
         );
 
         let message_id_generator = MessageIdGenerator::new();
@@ -330,10 +334,7 @@ impl WalletConnectCtxImpl {
             pairing_topics.push(pairing_topic);
         }
 
-        let all_topics = valid_topics
-            .into_iter()
-            .chain(pairing_topics.into_iter())
-            .collect::<Vec<_>>();
+        let all_topics = valid_topics.into_iter().chain(pairing_topics).collect::<Vec<_>>();
 
         if !all_topics.is_empty() {
             self.client.batch_subscribe(all_topics).await?;

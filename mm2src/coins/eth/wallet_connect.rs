@@ -4,6 +4,7 @@ use crate::Eip1559Ops;
 use crate::{BytesJson, MarketCoinOps, TransactionErr};
 
 use common::log::info;
+use common::u256_to_hex;
 use derive_more::Display;
 use enum_derives::EnumFromStringify;
 use ethcore_transaction::{Action, SignedTransaction};
@@ -56,8 +57,6 @@ pub struct WcEthTxParams<'a> {
 
 impl<'a> WcEthTxParams<'a> {
     fn prepare_wc_tx_format(&self) -> MmResult<serde_json::Value, EthWalletConnectError> {
-        fn u256_to_hex(value: U256) -> String { format!("0x{:x}", value) }
-
         let mut tx_json = json!({
             "nonce": u256_to_hex(self.nonce),
             "from": format!("{:x}", self.my_address),

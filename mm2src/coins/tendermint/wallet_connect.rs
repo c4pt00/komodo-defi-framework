@@ -192,21 +192,22 @@ where
     let value = Value::deserialize(deserializer)?;
 
     match value {
-        Value::Object(map) => {
-            let mut vec = Vec::new();
-            for i in 0..map.len() {
-                if let Some(Value::Number(num)) = map.get(&i.to_string()) {
-                    if let Some(byte) = num.as_u64() {
-                        vec.push(byte as u8);
-                    } else {
-                        return Err(serde::de::Error::custom("Invalid byte value"));
-                    }
-                } else {
-                    return Err(serde::de::Error::custom("Invalid format"));
-                }
-            }
-            Ok(vec)
-        },
+        Value::Object(map) => map
+            .iter()
+            .enumerate()
+            .map(|(_, (_, value))| {
+                value
+                    .as_u64()
+                    .ok_or_else(|| serde::de::Error::custom("Invalid byte value"))
+                    .and_then(|n| {
+                        if n <= 255 {
+                            Ok(n as u8)
+                        } else {
+                            Err(serde::de::Error::custom("Invalid byte value"))
+                        }
+                    })
+            })
+            .collect(),
         Value::Array(arr) => arr
             .into_iter()
             .map(|v| {
