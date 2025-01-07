@@ -7,7 +7,7 @@ use crate::lp_swap::{broadcast_swap_v2_msg_every, check_balance_for_taker_swap, 
 use crate::lp_swap::{swap_v2_pb::*, NO_REFUND_FEE};
 use async_trait::async_trait;
 use bitcrypto::{dhash160, sha256};
-use coins::{CanRefundHtlc, ConfirmPaymentInput, DexFee, FeeApproxStage, GenTakerFundingSpendArgs,
+use coins::{AddrToString, CanRefundHtlc, ConfirmPaymentInput, DexFee, FeeApproxStage, GenTakerFundingSpendArgs,
             GenTakerPaymentSpendArgs, MakerCoinSwapOpsV2, MmCoin, ParseCoinAssocTypes, RefundFundingSecretArgs,
             RefundTakerPaymentArgs, SendTakerFundingArgs, SpendMakerPaymentArgs, SwapTxTypeWithSecretHash,
             TakerCoinSwapOpsV2, ToBytes, TradeFee, TradePreimageValue, Transaction, TxPreimageWithSig,
@@ -1184,7 +1184,7 @@ impl<MakerCoin: ParseCoinAssocTypes, TakerCoin: ParseCoinAssocTypes> Negotiation
         StoredNegotiationData {
             maker_payment_locktime: self.maker_payment_locktime,
             maker_secret_hash: self.maker_secret_hash.clone().into(),
-            taker_coin_maker_address: self.taker_coin_maker_address.to_string(),
+            taker_coin_maker_address: self.taker_coin_maker_address.addr_to_string(),
             maker_coin_htlc_pub_from_maker: self.maker_coin_htlc_pub_from_maker.to_bytes().into(),
             taker_coin_htlc_pub_from_maker: self.taker_coin_htlc_pub_from_maker.to_bytes().into(),
             maker_coin_swap_contract: self.maker_coin_swap_contract.clone().map(|b| b.into()),

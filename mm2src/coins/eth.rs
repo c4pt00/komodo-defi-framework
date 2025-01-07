@@ -6980,8 +6980,6 @@ impl ParseCoinAssocTypes for EthCoin {
         }
     }
 
-    fn addr_to_string(&self, address: &Self::Address) -> String { eth_addr_to_hex(address) }
-
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> {
         // crate `Address::from_str` supports both address variants with and without `0x` prefix
         Address::from_str(address).map_to_mm(|e| EthAssocTypesError::InvalidHexString(e.to_string()))
@@ -7014,6 +7012,10 @@ impl ParseCoinAssocTypes for EthCoin {
 
 impl ToBytes for Address {
     fn to_bytes(&self) -> Vec<u8> { self.0.to_vec() }
+}
+
+impl AddrToString for Address {
+    fn addr_to_string(&self) -> String { eth_addr_to_hex(self) }
 }
 
 impl ToBytes for BigUint {

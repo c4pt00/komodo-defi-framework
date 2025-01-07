@@ -102,10 +102,10 @@ use utxo_signer::{TxProvider, TxProviderError, UtxoSignTxError, UtxoSignTxResult
 use self::rpc_clients::{electrum_script_hash, ElectrumClient, ElectrumConnectionSettings, EstimateFeeMethod,
                         EstimateFeeMode, NativeClient, UnspentInfo, UnspentMap, UtxoRpcClientEnum, UtxoRpcError,
                         UtxoRpcFut, UtxoRpcResult};
-use super::{big_decimal_from_sat_unsigned, BalanceError, BalanceFut, BalanceResult, CoinBalance, CoinFutSpawner,
-            CoinsContext, DerivationMethod, FeeApproxStage, FoundSwapTxSpend, HistorySyncState, KmdRewardsDetails,
-            MarketCoinOps, MmCoin, NumConversError, NumConversResult, PrivKeyActivationPolicy, PrivKeyPolicy,
-            PrivKeyPolicyNotAllowed, RawTransactionFut, TradeFee, TradePreimageError, TradePreimageFut,
+use super::{big_decimal_from_sat_unsigned, AddrToString, BalanceError, BalanceFut, BalanceResult, CoinBalance,
+            CoinFutSpawner, CoinsContext, DerivationMethod, FeeApproxStage, FoundSwapTxSpend, HistorySyncState,
+            KmdRewardsDetails, MarketCoinOps, MmCoin, NumConversError, NumConversResult, PrivKeyActivationPolicy,
+            PrivKeyPolicy, PrivKeyPolicyNotAllowed, RawTransactionFut, TradeFee, TradePreimageError, TradePreimageFut,
             TradePreimageResult, Transaction, TransactionDetails, TransactionEnum, TransactionErr,
             UnexpectedDerivationMethod, VerificationError, WithdrawError, WithdrawRequest};
 use crate::coin_balance::{EnableCoinScanPolicy, EnabledCoinBalanceParams, HDAddressBalanceScanner};
@@ -1028,6 +1028,10 @@ impl ToBytes for Signature {
     fn to_bytes(&self) -> Vec<u8> { self.to_vec() }
 }
 
+impl AddrToString for Address {
+    fn addr_to_string(&self) -> String { self.to_string() }
+}
+
 #[async_trait]
 impl<T: UtxoCommonOps> ParseCoinAssocTypes for T {
     type Address = Address;
@@ -1052,8 +1056,6 @@ impl<T: UtxoCommonOps> ParseCoinAssocTypes for T {
                 .address(),
         }
     }
-
-    fn addr_to_string(&self, address: &Self::Address) -> String { address.to_string() }
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> {
         self.address_from_str(address)

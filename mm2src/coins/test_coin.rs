@@ -1,8 +1,8 @@
 #![allow(clippy::all)]
 
-use super::{CoinBalance, CommonSwapOpsV2, FindPaymentSpendError, FundingTxSpend, HistorySyncState, MarketCoinOps,
-            MmCoin, RawTransactionFut, RawTransactionRequest, RefundTakerPaymentArgs, SearchForFundingSpendErr,
-            SwapOps, TradeFee, TransactionEnum, TransactionFut};
+use super::{AddrToString, CoinBalance, CommonSwapOpsV2, FindPaymentSpendError, FundingTxSpend, HistorySyncState,
+            MarketCoinOps, MmCoin, RawTransactionFut, RawTransactionRequest, RefundTakerPaymentArgs,
+            SearchForFundingSpendErr, SwapOps, TradeFee, TransactionEnum, TransactionFut};
 use crate::coin_errors::ValidatePaymentResult;
 use crate::{coin_errors::MyAddressError, BalanceFut, CanRefundHtlc, CheckIfMyPaymentSentArgs, CoinFutSpawner,
             ConfirmPaymentInput, FeeApproxStage, FoundSwapTxSpend, GenPreimageResult, GenTakerFundingSpendArgs,
@@ -29,6 +29,7 @@ use mm2_number::{BigDecimal, MmNumber};
 use mocktopus::macros::*;
 use rpc::v1::types::Bytes as BytesJson;
 use serde_json::Value as Json;
+use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -441,9 +442,19 @@ impl ToBytes for TestSig {
     fn to_bytes(&self) -> Vec<u8> { vec![] }
 }
 
+pub struct TestAddress {}
+
+impl AddrToString for TestAddress {
+    fn addr_to_string(&self) -> String { unimplemented!() }
+}
+
+impl Display for TestAddress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { unimplemented!() }
+}
+
 #[async_trait]
 impl ParseCoinAssocTypes for TestCoin {
-    type Address = String;
+    type Address = TestAddress;
     type AddressParseError = String;
     type Pubkey = TestPubkey;
     type PubkeyParseError = String;
@@ -455,8 +466,6 @@ impl ParseCoinAssocTypes for TestCoin {
     type SigParseError = String;
 
     async fn my_addr(&self) -> Self::Address { todo!() }
-
-    fn addr_to_string(&self, address: &Self::Address) -> String { unimplemented!() }
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> { todo!() }
 

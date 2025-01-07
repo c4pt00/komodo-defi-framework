@@ -1534,10 +1534,20 @@ pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;
 }
 
+/// Should convert coin `Self::Address` type into a properly formatted string representation.
+///
+/// Don't use `to_string` directly on `Self::Address` types in generic TPU code!
+/// It may produce abbreviated or non-standard formats (e.g. `ethereum_types::Address` will be like this `0x7cc9…3874`),
+/// which are not guaranteed to be parsable back into the original `Address` type.
+/// This function should ensure the resulting string is consistently formatted and fully reversible.
+pub trait AddrToString {
+    fn addr_to_string(&self) -> String;
+}
+
 /// Defines associated types specific to each coin (Pubkey, Address, etc.)
 #[async_trait]
 pub trait ParseCoinAssocTypes {
-    type Address: Send + Sync + fmt::Display;
+    type Address: Send + Sync + fmt::Display + AddrToString;
     type AddressParseError: fmt::Debug + Send + fmt::Display;
     type Pubkey: ToBytes + Send + Sync;
     type PubkeyParseError: fmt::Debug + Send + fmt::Display;
@@ -1549,14 +1559,6 @@ pub trait ParseCoinAssocTypes {
     type SigParseError: fmt::Debug + Send + fmt::Display;
 
     async fn my_addr(&self) -> Self::Address;
-
-    /// Converts coin `Self::Address` type into a properly formatted string representation.
-    ///
-    /// Don't use `to_string` directly on `Self::Address` types in generic TPU code!
-    /// It may produce abbreviated or non-standard formats (e.g. `ethereum_types::Address` will be like this `0x7cc9…3874`),
-    /// which are not guaranteed to be parsable back into the original `Address` type.
-    /// This function should ensure the resulting string is consistently formatted and fully reversible.
-    fn addr_to_string(&self, address: &Self::Address) -> String;
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError>;
 
