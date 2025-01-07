@@ -914,6 +914,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
 
     async fn on_changed(self: Box<Self>, state_machine: &mut Self::StateMachine) -> StateResult<Self::StateMachine> {
         let unique_data = state_machine.unique_data();
+        let taker_coin_address = state_machine.taker_coin.my_addr().await;
 
         let maker_negotiation_msg = MakerNegotiation {
             started_at: state_machine.started_at,
@@ -923,7 +924,7 @@ impl<MakerCoin: MmCoin + MakerCoinSwapOpsV2, TakerCoin: MmCoin + TakerCoinSwapOp
             taker_coin_htlc_pub: state_machine.taker_coin.derive_htlc_pubkey_v2_bytes(&unique_data),
             maker_coin_swap_contract: state_machine.maker_coin.swap_contract_address().map(|bytes| bytes.0),
             taker_coin_swap_contract: state_machine.taker_coin.swap_contract_address().map(|bytes| bytes.0),
-            taker_coin_address: state_machine.taker_coin.my_addr_as_string().await,
+            taker_coin_address: state_machine.taker_coin.addr_to_string(&taker_coin_address),
         };
         debug!("Sending maker negotiation message {:?}", maker_negotiation_msg);
         let swap_msg = SwapMessage {

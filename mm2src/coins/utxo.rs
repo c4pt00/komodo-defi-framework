@@ -1053,7 +1053,7 @@ impl<T: UtxoCommonOps> ParseCoinAssocTypes for T {
         }
     }
 
-    async fn my_addr_as_string(&self) -> String { self.my_addr().await.to_string() }
+    fn addr_to_string(&self, address: &Self::Address) -> String { address.to_string() }
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> {
         self.address_from_str(address)

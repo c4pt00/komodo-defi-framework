@@ -6980,7 +6980,7 @@ impl ParseCoinAssocTypes for EthCoin {
         }
     }
 
-    async fn my_addr_as_string(&self) -> String { eth_addr_to_hex(&self.my_addr().await) }
+    fn addr_to_string(&self, address: &Self::Address) -> String { eth_addr_to_hex(address) }
 
     fn parse_address(&self, address: &str) -> Result<Self::Address, Self::AddressParseError> {
         // crate `Address::from_str` supports both address variants with and without `0x` prefix
