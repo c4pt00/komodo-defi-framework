@@ -655,10 +655,9 @@ pub fn get_locked_amount(ctx: &MmArc, coin: &str) -> MmNumber {
 }
 
 /// Get number of currently running swaps
-pub fn running_swaps_num(ctx: &MmArc) -> u64 {
+pub fn clear_running_swaps(ctx: &MmArc) {
     let swap_ctx = SwapsContext::from_ctx(ctx).unwrap();
-    let count = swap_ctx.running_swaps.lock().unwrap().len();
-    count as u64
+    swap_ctx.running_swaps.lock().unwrap().clear();
 }
 
 /// Get total amount of selected coin locked by all currently ongoing swaps except the one with selected uuid
