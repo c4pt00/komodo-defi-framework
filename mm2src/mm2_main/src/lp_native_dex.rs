@@ -536,13 +536,6 @@ pub async fn lp_init(ctx: MmArc, version: String, datetime: String) -> MmInitRes
         Timer::sleep(0.2).await
     }
 
-    // wait for swaps to stop
-    loop {
-        if running_swaps_num(&ctx) == 0 {
-            break;
-        };
-        Timer::sleep(0.2).await
-    }
     Ok(())
 }
 
