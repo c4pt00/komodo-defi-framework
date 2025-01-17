@@ -1,3 +1,5 @@
+* REQUIRES CMAKE 3.30
+
 <p align="center">
     <a href="https://atomicdex.io" alt="Contributors">
         <img width="420" src="https://user-images.githubusercontent.com/24797699/252396802-de8f9264-8056-4430-a17d-5ecec9668dfc.png" />
