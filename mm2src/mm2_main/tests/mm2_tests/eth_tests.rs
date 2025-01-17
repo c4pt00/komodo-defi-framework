@@ -19,7 +19,7 @@ fn test_sign_eth_transaction() {
         "ETH",
         "0x7Bc1bBDD6A0a722fC9bffC49c921B685ECB84b94",
         "1.234",
-        "21000",
+        "100",
         None,
         Some("ABCD1234"),
     ));
@@ -39,7 +39,7 @@ fn test_sign_eth_transaction_eip1559() {
         "ETH",
         "0x7Bc1bBDD6A0a722fC9bffC49c921B685ECB84b94",
         "1.234",
-        "21000",
+        "100",
         Some(json!({
             "tx_type": "Eip1559",
             "max_fee_per_gas": "1234.567", // in gwei

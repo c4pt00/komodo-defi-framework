@@ -58,7 +58,7 @@ async fn wasm_test_sign_eth_tx() {
         "tx": {
             "to": "0x7Bc1bBDD6A0a722fC9bffC49c921B685ECB84b94".to_string(),
             "value": "1.234",
-            "gas_limit": "21000"
+            "gas_limit": "100"
         }
     }))
     .unwrap();
@@ -77,7 +77,7 @@ async fn wasm_test_sign_eth_tx_with_priority_fee() {
         "tx": {
             "to": "0x7Bc1bBDD6A0a722fC9bffC49c921B685ECB84b94".to_string(),
             "value": "1.234",
-            "gas_limit": "21000",
+            "gas_limit": "100",
             "pay_for_gas": {
                 "tx_type": "Eip1559",
                 "max_fee_per_gas": "1234.567",
