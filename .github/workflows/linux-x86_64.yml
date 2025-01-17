@@ -77,8 +77,9 @@ jobs:
         if: ${{ env.FILE_SERVER_KEY != '' }}
         run: python3 ./scripts/ci/upload_artifact.py "${{ env.BRANCH_NAME }}" "/uploads/${{ env.BRANCH_NAME }}"
 
-      - name: build-deb-action
-        uses: jiro4989/build-deb-action@v4.0.0
+     
+      - name: Build Debian packages
+        uses: jtdor/build-deb-action@v1.9.0
 
       - name: build-rpm-action
         uses: jiro4989/build-rpm-action@v2.5.0
